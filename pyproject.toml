@@ -12,7 +12,7 @@ only-include = [
 [project]
 name = "alice"
 version = "0.1.0"
-description = "Alice: 1D tensor network algorithms built on Nicole"
+description = "Alice: collection of 1D tensor network algorithms"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
