@@ -29,7 +29,7 @@ from nicole.decomp import decomp
 
 # Sentinel used to distinguish "caller passed nothing" from "caller passed None".
 # canonical() uses this so that trunc=None retains its natural decomp meaning
-# (no truncation), while an omitted argument triggers the max-phys-dim default.
+# (no truncation), while an omitted argument triggers the max-bond-dim default.
 _DEFAULT_TRUNC = object()
 
 
@@ -37,8 +37,8 @@ class Network:
     """Base class for 1D tensor network chains.
 
     Stores a list of site tensors and provides uniform iteration and axis
-    conventions.  Subclasses must define `_row_axes` and typically add a
-    `center` attribute together with `canonical()` and `norm()`.
+    conventions.  Subclasses typically add a `center` attribute together
+    with `canonical()` and `norm()`.
 
     Axis layout assumed by this base class (shared by MPS and MPO):
 
@@ -54,7 +54,7 @@ class Network:
     - `L{i:02d}`: same bond position produced by a right-to-left LQ sweep
       (sites *i* … L-1 are right-canonical).
 
-    Physical itag convention: site *i* physical axis carries itag ``s{i:02d}``.
+    Physical itag convention: site *i* physical axis carries itag `s{i:02d}`.
     """
 
     def __init__(
@@ -69,7 +69,7 @@ class Network:
         tensors:
             Non-empty list of site tensors.
         bc:
-            Boundary condition: ``'OBC'`` (default) or ``'PBC'``.
+            Boundary condition: `'OBC'` (default) or `'PBC'`.
         center:
             Orthogonality center site index, or `None` if the canonical form
             is unspecified.
@@ -77,7 +77,7 @@ class Network:
         Raises
         ------
         ValueError
-            If `bc` is not ``'OBC'`` or ``'PBC'``, or if `tensors` is empty.
+            If `bc` is not `'OBC'` or `'PBC'`, or if `tensors` is empty.
         """
         bc = bc.upper()
         if bc not in ('OBC', 'PBC'):
@@ -115,10 +115,10 @@ class Network:
 
     @property
     def bond_dims(self) -> List[int]:
-        """Bond dimension at each internal bond (length ``L - 1``).
+        """Bond dimension at each internal bond (length `L - 1`).
 
         Entry *i* is the dimension of the right bond of site *i*, which equals
-        the left bond of site *i + 1*.
+        the left bond of site *i+1*.
         """
         return [self._tensors[i].indices[1].dim for i in range(self.L - 1)]
 
@@ -131,33 +131,6 @@ class Network:
     # Canonicalization internals — shared by MPS and MPO
     # ------------------------------------------------------------------
 
-    @property
-    def _row_axes(self) -> List[int]:
-        """Axes that form the row block in the QR/LQ decomposition.
-
-        Must be overridden by subclasses.  For MPS this is ``[0, 2]``
-        (left bond + physical); for MPO it is ``[0, 2, 3]``
-        (left bond + phys_in + phys_out).
-
-        Raises
-        ------
-        NotImplementedError
-            When called directly on `Network`.
-        """
-        raise NotImplementedError(
-            "_row_axes must be implemented by a concrete subclass (MPS or MPO)"
-        )
-
-    def _restore_perm(self) -> List[int]:
-        """Permutation that moves the new decomp bond to axis 1.
-
-        After merging ``_row_axes`` and decomposing, the unmerged *U* tensor
-        (for QR) or the contracted previous-site tensor (for LQ) has shape
-        ``(row[0], row[1], …, row[n-1], bond_new)``.  This permutation
-        rearranges it to ``(row[0]=left, bond_new, row[1], …, row[n-1])``.
-        """
-        n = len(self._row_axes)
-        return [0, n] + list(range(1, n))
 
     def _left_canon_site(self, i: int, trunc: Optional[dict] = None) -> None:
         """Left-canonicalize site *i*: LV decomp; absorb L into site *i+1*."""
@@ -194,8 +167,9 @@ class Network:
         # Contract into site i-1: axis 1 of A[i-1] matches axis 0 of L_fac.
         A_prev = contract(self._tensors[i - 1], L_fac, axes=(1, 0))
         # Result: (left_i-1, phys_i-1, …, '_bond_R') — bond at the last axis.
-        # Move bond to axis 1.
-        A_prev = A_prev.permute(self._restore_perm())
+        # Move bond from the last position to axis 1.
+        ndim = len(A_prev.indices)
+        A_prev = A_prev.permute([0, ndim - 1] + list(range(1, ndim - 1)))
         A_prev.retag(1, f'L{i:02d}')
         self._tensors[i - 1] = A_prev
 
@@ -206,13 +180,13 @@ class Network:
     def canonical(self, target: int, trunc=_DEFAULT_TRUNC) -> None:
         """Move the orthogonality center to site `target`.
 
-        Uses QR for left-to-right steps and LQ for right-to-left steps.  Bond
-        itags are updated according to the ``R{i:02d}`` / ``L{i:02d}``
-        convention: ``R`` prefix for bonds at or to the left of the center,
-        ``L`` prefix for bonds to the right.
+        Uses QR for left-to-right steps and LQ for right-to-left steps. Bond
+        itags are updated according to the `R{i:02d}` / `L{i:02d}`
+        convention: `R` prefix for bonds at or to the left of the center,
+        `L` prefix for bonds to the right.
 
         If `center` is `None`, a full right-canonicalization sweep
-        (sites ``L-1`` → 1) is performed first to establish ``center = 0``,
+        (sites `L-1` → 1) is performed first to establish `center = 0`,
         and then the center is moved to `target`.
 
         Parameters
@@ -221,15 +195,15 @@ class Network:
             Destination site for the orthogonality center.
         trunc:
             Truncation options forwarded to `decomp` at each QR/LQ step.
-            When omitted, defaults to ``{'nkeep': max(self.bond_dims)}`` so
+            When omitted, defaults to `{'nkeep': max(self.bond_dims)}` so
             that the sweep preserves the current maximum bond dimension.
-            Pass ``None`` to disable truncation entirely (consistent with the
+            Pass `None` to disable truncation entirely (consistent with the
             `decomp` convention).
 
         Raises
         ------
         IndexError
-            If `target` is out of range ``[0, L)``.
+            If `target` is out of range `[0, L)`.
         """
         if trunc is _DEFAULT_TRUNC:
             trunc = {'nkeep': max(self.bond_dims)} if self.bond_dims else None
@@ -296,8 +270,8 @@ class Network:
 class MPS(Network):
     """Matrix product state.
 
-    Each site tensor has axes ``(left_bond, right_bond, physical)`` where
-    the physical axis at site *i* carries itag ``s{i:02d}``.
+    Each site tensor has axes `(left_bond, right_bond, physical)` where
+    the physical axis at site *i* carries itag `s{i:02d}`.
     """
 
     def __init__(
@@ -311,10 +285,10 @@ class MPS(Network):
         ----------
         tensors:
             List of site tensors, each with exactly 3 axes
-            ``(left_bond, right_bond, physical)``.  The physical axis at site
-            *i* must carry itag ``s{i:02d}``.
+            `(left_bond, right_bond, physical)`. The physical axis at site
+            *i* must carry itag `s{i:02d}`.
         bc:
-            Boundary condition: ``'OBC'`` (default) or ``'PBC'``.
+            Boundary condition: `'OBC'` (default) or `'PBC'`.
         center:
             Orthogonality center site index, or `None` if unspecified.
 
@@ -338,22 +312,18 @@ class MPS(Network):
                 )
         super().__init__(tensors, bc, center)
 
-    @property
-    def _row_axes(self) -> List[int]:
-        # Left bond (0) and physical (2) are grouped as rows for QR.
-        return [0, 2]
 
 
 class MPO(Network):
     """Matrix product operator.
 
     Each site tensor has axes
-    ``(left_bond, right_bond, phys_in, phys_out)`` where:
+    `(left_bond, right_bond, phys_in, phys_out)` where:
 
-    - ``phys_in`` (ket, axis 2) and ``phys_out`` (bra, axis 3) both carry
-      itag ``s{i:02d}`` at site *i*, differentiated by opposite directions.
-    - Contracting an MPS ket (``s{i:02d}``, IN) against this MPO is
-      automatic: the MPO bra (``s{i:02d}``, OUT) pairs with the MPS ket.
+    - `phys_in` (ket, axis 2) and `phys_out` (bra, axis 3) both carry
+      itag `s{i:02d}` at site *i*, differentiated by opposite directions.
+    - Contracting an MPS ket (`s{i:02d}`, IN) against this MPO is
+      automatic: the MPO bra (`s{i:02d}`, OUT) pairs with the MPS ket.
     """
 
     def __init__(
@@ -367,11 +337,11 @@ class MPO(Network):
         ----------
         tensors:
             List of site tensors, each with exactly 4 axes
-            ``(left_bond, right_bond, phys_in, phys_out)``.  Both physical
-            axes at site *i* must carry itag ``s{i:02d}`` with opposite
+            `(left_bond, right_bond, phys_in, phys_out)`. Both physical
+            axes at site *i* must carry itag `s{i:02d}` with opposite
             directions.
         bc:
-            Boundary condition: ``'OBC'`` (default) or ``'PBC'``.
+            Boundary condition: `'OBC'` (default) or `'PBC'`.
         center:
             Orthogonality center site index, or `None` if unspecified.
 
@@ -401,7 +371,3 @@ class MPO(Network):
                 )
         super().__init__(tensors, bc, center)
 
-    @property
-    def _row_axes(self) -> List[int]:
-        # Left bond (0), phys_in (2), and phys_out (3) are grouped as rows for QR.
-        return [0, 2, 3]
