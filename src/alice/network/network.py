@@ -22,7 +22,9 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from nicole import Tensor, contract
+import math
+
+from nicole import Tensor, contract, einsum
 from nicole.decomp import decomp
 
 # Sentinel used to distinguish "caller passed nothing" from "caller passed None".
@@ -258,21 +260,38 @@ class Network:
         self.center = target
 
     def norm(self) -> float:
-        """Compute the network norm.
+        """Compute the network norm without modifying the network.
 
         When `center` is set, the network is in mixed canonical form and the
         norm equals the Frobenius norm of the center tensor, which is returned
-        directly.  If `center` is `None`, `canonical(0)` is called first
-        (modifying the network in place).
+        directly.  If `center` is `None`, the norm is computed by contracting
+        ⟨ψ|ψ⟩ site by site from left to right.
 
         Returns
         -------
         float
             The norm of the network.
         """
-        if self.center is None:
-            self.canonical(0, trunc=None)
-        return self._tensors[self.center].norm()
+        if self.center is not None:
+            return self._tensors[self.center].norm()
+
+        # Compute ||ψ|| via a left-to-right transfer-matrix contraction of ⟨ψ|ψ⟩.
+        # One einsum letter per physical axis, starting at 'e'.
+        phys = ''.join(chr(ord('e') + k) for k in range(len(self._tensors[0].indices) - 2))
+
+        # First site: contract over shared left bond (a) and physical axes.
+        # env[c, d] = Σ_{a, s...} t*[a, c, s...] · t[a, d, s...]
+        t0 = self._tensors[0]
+        env = einsum(f'ac{phys},ad{phys}->cd', t0.conj(), t0)
+
+        # Remaining sites: absorb env and contract over left bonds (a, b) and physical axes.
+        # env_new[c, d] = Σ_{a, b, s...} env[a, b] · t*[a, c, s...] · t[b, d, s...]
+        for t in self._tensors[1:]:
+            env = einsum(f'ab,ac{phys},bd{phys}->cd', env, t.conj(), t)
+
+        # For OBC, env is a 1×1 tensor containing ⟨ψ|ψ⟩ = ||ψ||².
+        # env.norm() = ⟨ψ|ψ⟩, so ||ψ|| = sqrt(env.norm()).
+        return math.sqrt(env.norm())
 
 
 class MPS(Network):
