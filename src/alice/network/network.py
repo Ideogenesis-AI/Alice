@@ -181,16 +181,14 @@ class Network:
 
     def _left_canon_site(self, i: int, trunc: Optional[dict] = None) -> None:
         """Left-canonicalize site *i*: LV decomp; absorb L into site *i+1*."""
-        T = self._tensors[i]
-
-        # col = right bond only → LV gives isometry V with axes (_bond_R, left, phys…)
-        L, V = decomp(T, axes=1, flow='<<', mode='LV', trunc=trunc)
+        # col = right bond only → LV gives isometry A_this with axes (_bond_R, left, phys…)
+        L, A_this = decomp(self._tensors[i], axes=1, flow='<<', mode='LV', trunc=trunc)
 
         # Swap new bond to axis 1: (_bond_R, left, phys…) → (left, _bond_R, phys…)
-        ndim = len(T.indices)
-        V = V.permute([1, 0] + list(range(2, ndim)))
-        V.retag(1, f'R{i:02d}')
-        self._tensors[i] = V
+        perm = [1, 0] + list(range(2, len(A_this.indices)))
+        A_this.permute(perm, in_place=True)
+        A_this.retag(1, f'R{i:02d}')
+        self._tensors[i] = A_this
 
         # L has axes (old_right_of_i, '_bond_R').
         # Contract into site i+1 over old_right (axis 0 of L, axis 0 of A[i+1]).
@@ -201,22 +199,20 @@ class Network:
 
     def _right_canon_site(self, i: int, trunc: Optional[dict] = None) -> None:
         """Right-canonicalize site *i*: LQ decomp; absorb L into site *i-1*."""
-        T = self._tensors[i]
+        # row = left, cols = (right, phys…)  →  LQ produces L = U·S and isometry A_this
+        L_fac, A_this = decomp(self._tensors[i], axes=0, flow='<<', mode='LV', trunc=trunc)
 
-        # row = left, cols = (right, phys…)  →  LQ produces L = U·S and isometry V
-        L_fac, V = decomp(T, axes=0, flow='<<', mode='LV', trunc=trunc)
-
-        # V already has axes ('_bond_R', right, phys…) — correct order.
-        V.retag(0, f'L{i:02d}')
-        self._tensors[i] = V
+        # A_this already has axes ('_bond_R', right, phys…) — correct order.
+        A_this.retag(0, f'L{i:02d}')
+        self._tensors[i] = A_this
 
         # L_fac has axes (old_left_of_i, '_bond_R').
         # Contract into site i-1: axis 1 of A[i-1] matches axis 0 of L_fac.
         A_prev = contract(self._tensors[i - 1], L_fac, axes=(1, 0))
         # Result: (left_i-1, phys_i-1, …, '_bond_R') — bond at the last axis.
         # Move bond from the last position to axis 1.
-        ndim = len(A_prev.indices)
-        A_prev = A_prev.permute([0, ndim - 1] + list(range(1, ndim - 1)))
+        perm = [0, len(A_prev.indices) - 1] + list(range(1, len(A_prev.indices) - 1))
+        A_prev.permute(perm, in_place=True)
         A_prev.retag(1, f'L{i:02d}')
         self._tensors[i - 1] = A_prev
 
