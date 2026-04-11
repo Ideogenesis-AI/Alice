@@ -61,6 +61,39 @@ class TestNetwork:
         with pytest.raises(ValueError):
             Network([])
 
+    def test_bond_itag_mismatch_raises(self, mps_tensors):
+        """Mismatched bond itag between adjacent sites must raise."""
+        mps_tensors[1].retag(0, 'WRONG')
+        with pytest.raises(ValueError, match="itag mismatch"):
+            Network(mps_tensors)
+
+    def test_bond_same_direction_raises(self, mps_tensors):
+        """Bond indices with the same direction between adjacent sites must raise."""
+        mps_tensors[1].invert(0)
+        with pytest.raises(ValueError, match="opposite directions"):
+            Network(mps_tensors)
+
+    def test_bond_sector_dim_mismatch_raises(self, mps_tensors, spin_space):
+        """Mismatched sector dimension on a shared charge must raise."""
+        from nicole.index import Index, Sector
+        from nicole import Direction
+        Spc, Op = spin_space
+        # Replace site 1's left bond with an index that has a different dim
+        # for an overlapping charge sector.
+        bad_left = Index(
+            direction=mps_tensors[1].indices[0].direction,
+            group=Spc.group,
+            sectors=(Sector(charge=-1, dim=99),),  # dim 99 ≠ dim 2 in site 0's right bond
+        )
+        from nicole import Tensor
+        mps_tensors[1] = Tensor.random(
+            [bad_left] + list(mps_tensors[1].indices[1:]),
+            itags=list(mps_tensors[1].itags),
+            seed=99,
+        )
+        with pytest.raises(ValueError, match="sector charge"):
+            Network(mps_tensors)
+
     def test_bond_dims_length(self, mps_tensors):
         net = Network(mps_tensors)
         assert len(net.bond_dims) == net.L - 1
@@ -162,6 +195,7 @@ class TestMPS:
         for target in [0, 5, 9]:
             mps.canonical(target)
             assert mps.center == target
+            mps._validate()
 
     def test_canonical_preserves_norm(self, mps_tensors):
         """The Frobenius norm of the state must be invariant under canonical()."""
@@ -314,6 +348,7 @@ class TestMPO:
         for target in [0, 5, 9]:
             mpo.canonical(target)
             assert mpo.center == target
+            mpo._validate()
 
     def test_canonical_preserves_norm(self, mpo_tensors):
         mpo = MPO([t.clone() for t in mpo_tensors])
