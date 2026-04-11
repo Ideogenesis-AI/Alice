@@ -160,23 +160,22 @@ class Network:
         return [0, n] + list(range(1, n))
 
     def _left_canon_site(self, i: int, trunc: Optional[dict] = None) -> None:
-        """Left-canonicalize site *i*: QR decomp; absorb R into site *i+1*."""
+        """Left-canonicalize site *i*: LV decomp; absorb L into site *i+1*."""
         T = self._tensors[i]
 
-        # rows = (left, phys…), col = right  →  QR produces isometry Q and R = S·Vh
-        Q, R = decomp(T, axes=self._row_axes, flow='>>', mode='UR', trunc=trunc)
+        # col = right bond only → LV gives isometry V with axes (_bond_R, left, phys…)
+        L, V = decomp(T, axes=1, flow='<<', mode='LV', trunc=trunc)
 
-        # Q has axes (left, phys…, '_bond_L') after unmerging.
-        # Move the new bond from the last position to axis 1.
-        Q = Q.permute(self._restore_perm())
-        Q.retag(1, f'R{i:02d}')
-        self._tensors[i] = Q
+        # Swap new bond to axis 1: (_bond_R, left, phys…) → (left, _bond_R, phys…)
+        ndim = len(T.indices)
+        V = V.permute([1, 0] + list(range(2, ndim)))
+        V.retag(1, f'R{i:02d}')
+        self._tensors[i] = V
 
-        # R has axes ('_bond_L', old_right_of_i).
-        # Contract into site i+1: axis 1 of R matches axis 0 of A[i+1] (same itag,
-        # opposite directions).
-        A_next = contract(R, self._tensors[i + 1], axes=(1, 0))
-        # Result: ('_bond_L', right_i+1, phys_i+1, …) — correct axis order already.
+        # L has axes (old_right_of_i, '_bond_R').
+        # Contract into site i+1 over old_right (axis 0 of L, axis 0 of A[i+1]).
+        A_next = contract(L, self._tensors[i + 1], axes=(0, 0))
+        # Result: ('_bond_R', right_i+1, phys_i+1, …) — correct axis order already.
         A_next.retag(0, f'R{i:02d}')
         self._tensors[i + 1] = A_next
 
