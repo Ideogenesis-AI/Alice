@@ -87,6 +87,54 @@ class Network:
         self._tensors: List[Tensor] = list(tensors)
         self.bc: str = bc
         self.center: Optional[int] = center
+        self._validate()
+
+    def _validate(self) -> None:
+        """Check that adjacent bond indices are consistent.
+
+        For each pair of neighbouring sites, verifies that the right bond of
+        site *i* and the left bond of site *i+1*:
+
+        - share the same itag,
+        - have opposite directions (so they can be contracted), and
+        - agree on the dimension of every charge sector present in both.
+
+        Subclasses should override this method to add further checks (e.g.
+        axis count, physical itags) and call `super()._validate()`.
+
+        Raises
+        ------
+        ValueError
+            If any bond consistency check fails.
+        """
+        for i in range(self.L - 1):
+            r = self._tensors[i].indices[1]
+            l = self._tensors[i + 1].indices[0]
+            r_itag = self._tensors[i].itags[1]
+            l_itag = self._tensors[i + 1].itags[0]
+
+            if r_itag != l_itag:
+                raise ValueError(
+                    f"Bond between sites {i} and {i + 1}: itag mismatch "
+                    f"('{r_itag}' on site {i}'s right bond vs "
+                    f"'{l_itag}' on site {i + 1}'s left bond)"
+                )
+            if r.direction == l.direction:
+                raise ValueError(
+                    f"Bond between sites {i} and {i + 1}: "
+                    f"right index of site {i} and left index of site {i + 1} "
+                    f"must have opposite directions"
+                )
+            r_dims = {s.charge: s.dim for s in r.sectors}
+            l_dims = {s.charge: s.dim for s in l.sectors}
+            for charge, dim in r_dims.items():
+                if charge in l_dims and l_dims[charge] != dim:
+                    raise ValueError(
+                        f"Bond between sites {i} and {i + 1}: "
+                        f"sector charge {charge} has dimension {dim} on site "
+                        f"{i}'s right bond but {l_dims[charge]} on site "
+                        f"{i + 1}'s left bond"
+                    )
 
     # ------------------------------------------------------------------
     # Core interface
@@ -128,9 +176,8 @@ class Network:
         return [self._tensors[i].indices[2].dim for i in range(self.L)]
 
     # ------------------------------------------------------------------
-    # Canonicalization internals — shared by MPS and MPO
+    #  Canonicalization internals — shared by MPS and MPO
     # ------------------------------------------------------------------
-
 
     def _left_canon_site(self, i: int, trunc: Optional[dict] = None) -> None:
         """Left-canonicalize site *i*: LV decomp; absorb L into site *i+1*."""
@@ -174,7 +221,7 @@ class Network:
         self._tensors[i - 1] = A_prev
 
     # ------------------------------------------------------------------
-    # Public operations
+    #  Public operations
     # ------------------------------------------------------------------
 
     def canonical(self, target: int, trunc=_DEFAULT_TRUNC) -> None:
@@ -295,10 +342,14 @@ class MPS(Network):
         Raises
         ------
         ValueError
-            If any tensor has the wrong number of axes or an incorrect physical
-            itag.
+            If any tensor has the wrong number of axes, an incorrect physical
+            itag, or adjacent bond indices are inconsistent.
         """
-        for i, t in enumerate(tensors):
+        super().__init__(tensors, bc, center)
+
+    def _validate(self) -> None:
+        """Extend base validation with MPS-specific axis and itag checks."""
+        for i, t in enumerate(self._tensors):
             if len(t.indices) != 3:
                 raise ValueError(
                     f"MPS tensor at site {i} must have 3 axes, "
@@ -310,7 +361,7 @@ class MPS(Network):
                     f"MPS tensor at site {i}: physical axis (2) must have "
                     f"itag '{expected}', got '{t.itags[2]}'"
                 )
-        super().__init__(tensors, bc, center)
+        super()._validate()
 
 
 
@@ -349,9 +400,14 @@ class MPO(Network):
         ------
         ValueError
             If any tensor has the wrong axis count, incorrect physical itags,
-            or physical axes with the same direction.
+            physical axes with the same direction, or adjacent bond indices
+            are inconsistent.
         """
-        for i, t in enumerate(tensors):
+        super().__init__(tensors, bc, center)
+
+    def _validate(self) -> None:
+        """Extend base validation with MPO-specific axis and itag checks."""
+        for i, t in enumerate(self._tensors):
             if len(t.indices) != 4:
                 raise ValueError(
                     f"MPO tensor at site {i} must have 4 axes, "
@@ -369,5 +425,5 @@ class MPO(Network):
                     f"MPO tensor at site {i}: phys_in (axis 2) and phys_out "
                     f"(axis 3) must have opposite directions"
                 )
-        super().__init__(tensors, bc, center)
+        super()._validate()
 
