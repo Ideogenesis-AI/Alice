@@ -137,11 +137,21 @@ class TestMPS:
         mps = MPS([t.clone() for t in mps_tensors], center=9)
         assert mps.norm() > 0
 
-    def test_norm_sets_center_when_none(self, mps_tensors):
+    def test_norm_does_not_set_center(self, mps_tensors):
+        """norm() must not modify the network when center is None."""
         mps = MPS([t.clone() for t in mps_tensors])
         assert mps.center is None
         mps.norm()
-        assert mps.center == 0
+        assert mps.center is None
+
+    def test_norm_uncanonical_equals_canonical(self, mps_tensors):
+        """norm() without canonicalization must agree with the canonical fast path."""
+        tensors = [t.clone() for t in mps_tensors]
+        n_direct = MPS(tensors).norm()          # contraction path (center=None)
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(5, trunc=None)
+        n_canonical = mps.norm()                # fast path (center=5)
+        assert math.isclose(n_direct, n_canonical, rel_tol=1e-10)
 
     # ------------------------------------------------------------------
     # canonical()
@@ -290,6 +300,14 @@ class TestMPO:
         mpo.canonical(0)
         n = mpo.norm()
         assert isinstance(n, float) and n > 0
+
+    def test_norm_uncanonical_equals_canonical(self, mpo_tensors):
+        """norm() without canonicalization must agree with the canonical fast path."""
+        n_direct = MPO([t.clone() for t in mpo_tensors]).norm()
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(5, trunc=None)
+        n_canonical = mpo.norm()
+        assert math.isclose(n_direct, n_canonical, rel_tol=1e-10)
 
     def test_canonical_sets_center(self, mpo_tensors):
         mpo = MPO([t.clone() for t in mpo_tensors])
