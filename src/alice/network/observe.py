@@ -16,23 +16,72 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""MPS-MPO-MPS contraction for operator expectation values."""
+"""Expectation-value computation for MPS and thermal MPO states."""
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, Union
 
 from nicole import Direction, Tensor, einsum, identity
 
+from .network import MPS, MPO
 
-def observe(mps: Sequence[Tensor], mpo: Sequence[Tensor]) -> float:
-    """Compute ⟨ψ|H|ψ⟩ by a left-to-right MPS-MPO-MPS contraction.
+
+def observe(
+    state: Union[MPS, MPO, Sequence[Tensor]],
+    observable: Union[MPO, Sequence[Tensor]],
+) -> float:
+    """Compute the expectation value of an observable for a given state.
+
+    Dispatches to the appropriate contraction routine based on the type of
+    `state`:
+
+    - `MPS` (or a plain sequence of tensors): evaluates ⟨ψ|O|ψ⟩ via a
+      left-to-right MPS-MPO-MPS transfer-matrix sweep.
+    - `MPO` (thermal density matrix): not yet implemented.
+
+    Parameters
+    ----------
+    state:
+        The state to evaluate.  Either an `MPS` object, or a plain sequence
+        of MPS site tensors.
+    observable:
+        The observable encoded as an `MPO` object, or a plain sequence of
+        MPO site tensors, of the same length as `state`.
+
+    Returns
+    -------
+    float
+        The expectation value of the observable.
+
+    Raises
+    ------
+    TypeError
+        If `state` is not an `MPS` or a sequence of tensors.
+    NotImplementedError
+        If `state` is an `MPO` (thermal density matrix support is pending).
+    """
+    if isinstance(state, MPO):
+        raise NotImplementedError(
+            "observe for thermal states (MPO density matrix) is not yet implemented."
+        )
+    if isinstance(state, (MPS, Sequence)):
+        return _observe_mps(state, observable)
+    raise TypeError(
+        f"state must be an MPS or a sequence of tensors, got {type(state).__name__!r}"
+    )
+
+
+def _observe_mps(
+    mps: Union[MPS, Sequence[Tensor]],
+    mpo: Union[MPO, Sequence[Tensor]],
+) -> float:
+    """Compute ⟨ψ|O|ψ⟩ by a left-to-right MPS-MPO-MPS contraction.
 
     Performs a transfer-matrix sweep from site 0 to site L−1, accumulating a
     three-legged environment `E[bra_bond, mpo_bond, ket_bond]` at each step.
 
-    The MPO tensors must follow the axis layout produced by the `system.py`
-    builders:
+    The MPO tensors must follow the axis layout:
 
         axis 0 — left bond  (IN direction)
         axis 1 — right bond (OUT direction)
@@ -55,7 +104,7 @@ def observe(mps: Sequence[Tensor], mpo: Sequence[Tensor]) -> float:
     Returns
     -------
     float
-        The expectation value ⟨ψ|H|ψ⟩.
+        The expectation value ⟨ψ|O|ψ⟩.
 
     Notes
     -----
