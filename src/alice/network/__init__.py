@@ -20,5 +20,17 @@
 
 from .intrcmap import Interaction, generate_snake_order, intrcmap_square
 from .network import MPS, MPO, Network
+from .observe import observe
 
-__all__ = ['Interaction', 'generate_snake_order', 'intrcmap_square', 'MPS', 'MPO', 'Network']
+__all__ = [
+    # intrcmap
+    'Interaction',
+    'generate_snake_order',
+    'intrcmap_square',
+    # network
+    'MPS',
+    'MPO',
+    'Network',
+    # observe
+    'observe',
+]
