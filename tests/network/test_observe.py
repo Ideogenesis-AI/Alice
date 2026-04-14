@@ -24,11 +24,42 @@ import math
 
 import pytest
 
-from alice.network import observe
+from alice.network import MPS, MPO, observe
+
+_L = 10   # must match the fixture chain length in conftest.py
 
 
-class TestObserve:
-    """Unit tests for the `observe` function."""
+class TestObserveDispatch:
+    """Tests for the observe dispatcher logic."""
+
+    def test_raises_for_mpo_state(self, mpo_tensors):
+        """observe raises NotImplementedError when state is an MPO (thermal state)."""
+        rho = MPO(mpo_tensors)
+        with pytest.raises(NotImplementedError):
+            observe(rho, mpo_tensors)
+
+    def test_raises_for_invalid_state_type(self, mpo_tensors):
+        """observe raises TypeError for an unrecognised state type."""
+        with pytest.raises(TypeError, match="MPS or a sequence"):
+            observe(42, mpo_tensors)
+
+    def test_accepts_mps_object(self, mps_tensors, mpo_tensors):
+        """observe accepts an MPS object as state and returns the same value as a list."""
+        mps = MPS(mps_tensors, center=_L - 1)
+        val_obj  = observe(mps,          mpo_tensors)
+        val_list = observe(mps_tensors,  mpo_tensors)
+        assert math.isclose(val_obj, val_list, rel_tol=1e-14)
+
+    def test_accepts_mpo_object_as_observable(self, mps_tensors, mpo_tensors):
+        """observe accepts an MPO object as the observable."""
+        mpo = MPO(mpo_tensors)
+        val_obj  = observe(mps_tensors, mpo)
+        val_list = observe(mps_tensors, mpo_tensors)
+        assert math.isclose(val_obj, val_list, rel_tol=1e-14)
+
+
+class TestObserveMPS:
+    """Tests for the MPS-MPO contraction path."""
 
     def test_returns_float(self, mps_tensors, mpo_tensors):
         """observe returns a Python float."""
@@ -57,3 +88,17 @@ class TestObserve:
         """observe returns 0 for a zero MPO."""
         zero_mpo = [W * 0.0 for W in mpo_tensors]
         assert math.isclose(observe(mps_tensors, zero_mpo), 0.0, abs_tol=1e-14)
+
+    def test_additive_in_mpo(self, mps_tensors, mpo_tensors):
+        """observe is additive: observe(mps, H1 + H2) = observe(mps, H1) + observe(mps, H2).
+
+        Additivity is tested by splitting the MPO into c·H and (1-c)·H via the
+        first tensor, so both partial MPOs share the same bond structure.
+        """
+        c = 0.4
+        mpo_a = [mpo_tensors[0] * c]       + mpo_tensors[1:]
+        mpo_b = [mpo_tensors[0] * (1 - c)] + mpo_tensors[1:]
+        val   = observe(mps_tensors, mpo_tensors)
+        val_a = observe(mps_tensors, mpo_a)
+        val_b = observe(mps_tensors, mpo_b)
+        assert math.isclose(val_a + val_b, val, rel_tol=1e-12)
