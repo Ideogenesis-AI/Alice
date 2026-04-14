@@ -24,7 +24,7 @@ import math
 
 import pytest
 
-from alice.network import observe
+from alice.network import MPS, MPO, observe
 
 # Tolerance for comparing the observed energy against the iterative-diag reference.
 # Both quantities are computed from the same exact arithmetic (no truncation in
@@ -50,4 +50,40 @@ class TestFreeFermion:
         mps, _, _ = ferm_chain
         assert math.isclose(mps.norm(), 1.0, abs_tol=_ATOL), (
             f"Free-fermion MPS norm = {mps.norm():.12f}, expected 1"
+        )
+
+    def test_energy_invariant_under_mps_canonical(self, ferm_chain):
+        """Energy is unchanged through a canonical sweep of the MPS: center 0 → L-1."""
+        mps, mpo, E_gs = ferm_chain
+        L = len(mps)
+        mps_c = MPS([mps[i].clone() for i in range(L)], center=mps.center)
+        mps_c.canonical(0)
+        E0 = observe(mps_c, mpo)
+        assert math.isclose(E0, E_gs, abs_tol=_ATOL), (
+            f"Free-fermion energy changed after MPS.canonical(0): "
+            f"observe={E0:.12f}, ref={E_gs:.12f}, diff={abs(E0 - E_gs):.3e}"
+        )
+        mps_c.canonical(L - 1)
+        EN = observe(mps_c, mpo)
+        assert math.isclose(EN, E_gs, abs_tol=_ATOL), (
+            f"Free-fermion energy changed after MPS.canonical(L-1): "
+            f"observe={EN:.12f}, ref={E_gs:.12f}, diff={abs(EN - E_gs):.3e}"
+        )
+
+    def test_energy_invariant_under_mpo_canonical(self, ferm_chain):
+        """Energy is unchanged through a canonical sweep of the MPO: center 0 → L-1."""
+        mps, mpo, E_gs = ferm_chain
+        L = len(mpo)
+        mpo_c = MPO([mpo[i].clone() for i in range(L)], center=mpo.center)
+        mpo_c.canonical(0)
+        E0 = observe(mps, mpo_c)
+        assert math.isclose(E0, E_gs, abs_tol=_ATOL), (
+            f"Free-fermion energy changed after MPO.canonical(0): "
+            f"observe={E0:.12f}, ref={E_gs:.12f}, diff={abs(E0 - E_gs):.3e}"
+        )
+        mpo_c.canonical(L - 1)
+        EN = observe(mps, mpo_c)
+        assert math.isclose(EN, E_gs, abs_tol=_ATOL), (
+            f"Free-fermion energy changed after MPO.canonical(L-1): "
+            f"observe={EN:.12f}, ref={E_gs:.12f}, diff={abs(EN - E_gs):.3e}"
         )
