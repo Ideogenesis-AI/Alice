@@ -466,3 +466,34 @@ class MPO(Network):
                 )
         super()._validate()
 
+    def redistribute_norm(self) -> None:
+        """Redistribute the MPO norm equally across all site tensors.
+
+        Computes the total Frobenius norm N, multiplies every site tensor by
+        `factor = N^(1/L)`, then divides the center tensor by N to remove the
+        excess. The product of all scale factors is `factor^L / N = 1`, so
+        the operator and its total norm are preserved. `center` is reset to
+        `None` because the per-site rescaling breaks any prior canonical form.
+
+        Raises
+        ------
+        ValueError
+            If `center` is `None` (the MPO must be in canonical form so the
+            norm is concentrated in a well-defined center tensor).
+        ValueError
+            If the MPO norm is numerically zero (e.g. due to norm decay).
+        """
+        if self.center is None:
+            raise ValueError("redistribute_norm requires a canonical form")
+        # Compute the total norm
+        N = self.norm()
+        if math.isclose(N, 0.0, abs_tol=1e-15):
+            raise ValueError("cannot redistribute norm: MPO norm is numerically zero")
+
+        factor = N ** (1.0 / self.L)
+        # Scale each tensor by the factor
+        for i in range(self.L):
+            self._tensors[i] = self._tensors[i] * factor
+        # Remove the excess factor^L = N from the center tensor.
+        self._tensors[self.center] = self._tensors[self.center] * (1.0 / N)
+        self.center = None
