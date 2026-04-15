@@ -90,7 +90,7 @@ class Network:
             raise ValueError("tensors must be a non-empty list")
         self._tensors: List[Tensor] = list(tensors)
         self.bc: str = bc
-        self.center: Optional[int] = center
+        self._center: Optional[int] = center
         self._itag_prefix: str = _DEFAULT_ITAG_PREFIX
         self._validate()
 
@@ -192,6 +192,14 @@ class Network:
             f"{type(self).__name__}(L={self.L}, bc={self.bc!r}, "
             f"center={self.center}, bonds=[{dims}])"
         )
+
+    @property
+    def center(self) -> Optional[int]:
+        """Orthogonality center site index, or `None` if unspecified.
+
+        Read-only. Set internally by `canonical()` and `redistribute_norm()`.
+        """
+        return self._center
 
     @property
     def L(self) -> int:
@@ -302,7 +310,7 @@ class Network:
             # Establish canonical form: right-canonicalize sites L-1 down to 1.
             for i in range(self.L - 1, 0, -1):
                 self._right_canon_site(i, trunc=trunc)
-            self.center = 0
+            self._center = 0
             start = 0
 
         if start < target:
@@ -314,7 +322,7 @@ class Network:
             for i in range(start, target, -1):
                 self._right_canon_site(i, trunc=trunc)
 
-        self.center = target
+        self._center = target
 
     def norm(self) -> float:
         """Compute the network norm without modifying the network.
@@ -496,4 +504,4 @@ class MPO(Network):
             self._tensors[i] = self._tensors[i] * factor
         # Remove the excess factor^L = N from the center tensor.
         self._tensors[self.center] = self._tensors[self.center] * (1.0 / N)
-        self.center = None
+        self._center = None
