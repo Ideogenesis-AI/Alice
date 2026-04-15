@@ -53,10 +53,12 @@ _BULK_DIM_PER_SECTOR = 2
 def mps_tensors(spin_space):
     """Fresh L=10 random MPS tensors for each test.
 
-    Site *i* has axes ``(left_bond, right_bond, physical)`` with physical itag
-    ``s{i:02d}``.  Interior bonds carry U(1) sectors {-3, …, 3} each with
-    dimension 2 (total bond dim 14).  Boundary bonds use the vacuum index from
-    `spin_space` (dim 1).  A fixed seed per site makes tests reproducible.
+    Site *i* has axes `(left_bond, right_bond, physical)` with physical itag
+    `s{i:02d}`. Bond itags follow the MPS convention: the left bond of site
+    *i* carries itag `A{i:02d}` and the right bond carries `A{i+1:02d}`.
+    Interior bonds carry U(1) sectors {-3, …, 3} each with dimension 2 (total
+    bond dim 14). Boundary bonds use the vacuum index from `spin_space` (dim
+    1). A fixed seed per site makes tests reproducible.
     """
     Spc, Op = spin_space
     bulk = Index(direction=Direction.IN, group=Spc.group,
@@ -67,9 +69,8 @@ def mps_tensors(spin_space):
     for i in range(_L):
         l = vac  if i == 0      else bulk
         r = (vac if i == _L - 1 else bulk).flip()
-        left_tag = "L00" if i == 0 else f"R{i - 1:02d}"
         T = Tensor.random([l, r, Spc], seed=i,
-                          itags=[left_tag, f"R{i:02d}", f"s{i:02d}"])
+                          itags=[f'A{i:02d}', f'A{i + 1:02d}', f's{i:02d}'])
         tensors.append(T)
     return tensors
 
@@ -78,9 +79,11 @@ def mps_tensors(spin_space):
 def mpo_tensors(spin_space):
     """Fresh L=10 random MPO tensors for each test.
 
-    Site *i* has axes ``(left_bond, right_bond, phys_in, phys_out)`` with both
-    physical axes carrying itag ``s{i:02d}`` and opposite directions (IN/OUT).
-    Same bulk bond structure as `mps_tensors` (bond dim 14).
+    Site *i* has axes `(left_bond, right_bond, phys_in, phys_out)` with both
+    physical axes carrying itag `s{i:02d}` and opposite directions (IN/OUT).
+    Bond itags follow the MPO convention: the left bond of site *i* carries
+    itag `W{i:02d}` and the right bond carries `W{i+1:02d}`. Same bulk bond
+    structure as `mps_tensors` (bond dim 14).
     """
     Spc, Op = spin_space
     bulk = Index(direction=Direction.IN, group=Spc.group,
@@ -92,7 +95,7 @@ def mpo_tensors(spin_space):
         l = vac  if i == 0      else bulk
         r = (vac if i == _L - 1 else bulk).flip()
         W = Tensor.random([l, r, Spc, Spc.flip()], seed=100 + i,
-                          itags=[f"W{i:02d}", f"W{i + 1:02d}", f"s{i:02d}", f"s{i:02d}"])
+                          itags=[f'W{i:02d}', f'W{i + 1:02d}', f's{i:02d}', f's{i:02d}'])
         tensors.append(W)
     return tensors
 
