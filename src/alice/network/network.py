@@ -31,6 +31,8 @@ from nicole.decomp import decomp
 # canonical() uses this so that trunc=None retains its natural decomp meaning
 # (no truncation), while an omitted argument triggers the max-bond-dim default.
 _DEFAULT_TRUNC = object()
+# Default itag prefix for `Network` class.
+_DEFAULT_ITAG_PREFIX = '_init_'
 
 
 class Network:
@@ -49,10 +51,12 @@ class Network:
 
     Bond itag convention (set by `canonical()`):
 
-    - `R{i:02d}`: bond between sites *i* and *i+1* produced by a left-to-right
-      QR sweep (sites 0 … *i* are left-canonical).
-    - `L{i:02d}`: same bond position produced by a right-to-left LQ sweep
-      (sites *i* … L-1 are right-canonical).
+    The left bond of site *i* carries itag `{prefix}{i:0N}` and the right bond
+    carries `{prefix}{i+1:0N}`, where `prefix` is `itag_prefix` (default
+    `'_init_'` for `Network`, `'A'` for `MPS`, `'W'` for `MPO`) and *N* is
+    `max(2, len(str(L)))` — at least 2 digits, growing automatically for large
+    chains. The bond between sites *i* and *i+1* is therefore
+    `{prefix}{i+1:0N}`.
 
     Physical itag convention: site *i* physical axis carries itag `s{i:02d}`.
     """
@@ -87,6 +91,7 @@ class Network:
         self._tensors: List[Tensor] = list(tensors)
         self.bc: str = bc
         self.center: Optional[int] = center
+        self._itag_prefix: str = _DEFAULT_ITAG_PREFIX
         self._validate()
 
     def _validate(self) -> None:
@@ -135,6 +140,38 @@ class Network:
                         f"{i}'s right bond but {l_dims[charge]} on site "
                         f"{i + 1}'s left bond"
                     )
+
+    # ------------------------------------------------------------------
+    # itag_prefix
+    # ------------------------------------------------------------------
+
+    @property
+    def itag_prefix(self) -> str:
+        """Prefix string for bond itags produced by `canonical()`.
+
+        The left bond of site *i* is tagged `{prefix}{i:0N}` and the right
+        bond is tagged `{prefix}{i+1:0N}`, where *N* is
+        `max(2, len(str(L)))`. Changing the prefix only affects future
+        canonicalization calls; existing itags on the stored tensors are not
+        retroactively renamed.
+        """
+        return self._itag_prefix
+
+    @itag_prefix.setter
+    def itag_prefix(self, value: str) -> None:
+        if not isinstance(value, str) or not value:
+            raise ValueError("itag_prefix must be a non-empty string")
+        self._itag_prefix = value
+
+    def _bond_itag(self, k: int) -> str:
+        """Return the itag for bond index *k*.
+
+        The left bond of site *i* has index *i* and the right bond has index
+        *i+1*. The number of digits is `max(2, len(str(L)))` so that itags
+        sort correctly for any chain length.
+        """
+        ndigits = max(2, len(str(self.L)))
+        return f'{self._itag_prefix}{k:0{ndigits}d}'
 
     # ------------------------------------------------------------------
     # Core interface
@@ -187,14 +224,16 @@ class Network:
         # Swap new bond to axis 1: (_bond_R, left, phys…) → (left, _bond_R, phys…)
         perm = [1, 0] + list(range(2, len(A_this.indices)))
         A_this.permute(perm, in_place=True)
-        A_this.retag(1, f'R{i:02d}')
+        # Right bond of site i has index i+1.
+        tag = self._bond_itag(i + 1)
+        A_this.retag(1, tag)
         self._tensors[i] = A_this
 
         # L has axes (old_right_of_i, '_bond_R').
         # Contract into site i+1 over old_right (axis 0 of L, axis 0 of A[i+1]).
         A_next = contract(L, self._tensors[i + 1], axes=(0, 0))
         # Result: ('_bond_R', right_i+1, phys_i+1, …) — correct axis order already.
-        A_next.retag(0, f'R{i:02d}')
+        A_next.retag(0, tag)
         self._tensors[i + 1] = A_next
 
     def _right_canon_site(self, i: int, trunc: Optional[dict] = None) -> None:
@@ -203,7 +242,9 @@ class Network:
         L_fac, A_this = decomp(self._tensors[i], axes=0, flow='<<', mode='LV', trunc=trunc)
 
         # A_this already has axes ('_bond_R', right, phys…) — correct order.
-        A_this.retag(0, f'L{i:02d}')
+        # Left bond of site i has index i.
+        tag = self._bond_itag(i)
+        A_this.retag(0, tag)
         self._tensors[i] = A_this
 
         # L_fac has axes (old_left_of_i, '_bond_R').
@@ -213,7 +254,7 @@ class Network:
         # Move bond from the last position to axis 1.
         perm = [0, len(A_prev.indices) - 1] + list(range(1, len(A_prev.indices) - 1))
         A_prev.permute(perm, in_place=True)
-        A_prev.retag(1, f'L{i:02d}')
+        A_prev.retag(1, tag)
         self._tensors[i - 1] = A_prev
 
     # ------------------------------------------------------------------
@@ -224,9 +265,9 @@ class Network:
         """Move the orthogonality center to site `target`.
 
         Uses QR for left-to-right steps and LQ for right-to-left steps. Bond
-        itags are updated according to the `R{i:02d}` / `L{i:02d}`
-        convention: `R` prefix for bonds at or to the left of the center,
-        `L` prefix for bonds to the right.
+        itags are updated according to `itag_prefix`: the bond between sites
+        *i* and *i+1* is always tagged `{itag_prefix}{i+1:0N}` regardless of
+        sweep direction.
 
         If `center` is `None`, a full right-canonicalization sweep
         (sites `L-1` → 1) is performed first to establish `center = 0`,
@@ -342,6 +383,7 @@ class MPS(Network):
             itag, or adjacent bond indices are inconsistent.
         """
         super().__init__(tensors, bc, center)
+        self._itag_prefix = 'A'
 
     def _validate(self) -> None:
         """Extend base validation with MPS-specific axis and itag checks."""
@@ -400,6 +442,7 @@ class MPO(Network):
             are inconsistent.
         """
         super().__init__(tensors, bc, center)
+        self._itag_prefix = 'W'
 
     def _validate(self) -> None:
         """Extend base validation with MPO-specific axis and itag checks."""
