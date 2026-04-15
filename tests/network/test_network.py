@@ -414,3 +414,62 @@ class TestMPO:
             # Contract over right(1), phys_in(2), phys_out(3) leaving left-bond pair.
             WWc = contract(W, conj(W), axes=([1, 2, 3], [1, 2, 3]))
             _assert_identity_blocks(WWc, f"MPO site {i} WW†")
+
+    # ------------------------------------------------------------------
+    # redistribute_norm()
+    # ------------------------------------------------------------------
+
+    def test_redistribute_norm_preserves_total_norm(self, mpo_tensors):
+        """redistribute_norm() must not change the total MPO norm.
+
+        Each tensor is multiplied by factor = N^(1/L) and then the center
+        tensor is divided by N.  The product of all scale factors is
+        factor^L / N = 1, so the operator — and its Frobenius norm — is
+        unchanged.
+        """
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(5, trunc=None)
+        n_before = mpo.norm()
+        mpo.redistribute_norm()
+        assert math.isclose(mpo.norm(), n_before, rel_tol=1e-10)
+
+    def test_redistribute_norm_no_center_raises(self, mpo_tensors):
+        """redistribute_norm() must raise ValueError when center is not set."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        assert mpo.center is None
+        with pytest.raises(ValueError, match="canonical form"):
+            mpo.redistribute_norm()
+
+    def test_redistribute_norm_scales_by_factor(self, mpo_tensors):
+        """All tensors are scaled by factor = N^(1/L); the pivot is also divided by N.
+
+        When center is set, the pivot is the center tensor; otherwise tensor 0.
+        Non-pivot tensors carry exactly one factor each.
+        """
+        center = 5
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(center, trunc=None)
+        N = mpo.norm()
+        factor = N ** (1.0 / mpo.L)
+        norms_before = [mpo[i].norm() for i in range(mpo.L)]
+        mpo.redistribute_norm()
+        for i in range(mpo.L):
+            if i == center:
+                assert math.isclose(mpo[i].norm(), norms_before[i] * factor / N, rel_tol=1e-10)
+            else:
+                assert math.isclose(mpo[i].norm(), norms_before[i] * factor, rel_tol=1e-10)
+
+    def test_redistribute_norm_resets_center(self, mpo_tensors):
+        """redistribute_norm() must reset center to None."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(5, trunc=None)
+        assert mpo.center == 5
+        mpo.redistribute_norm()
+        assert mpo.center is None
+
+    def test_redistribute_norm_zero_raises(self, mpo_tensors):
+        """redistribute_norm() must raise ValueError for a zero MPO."""
+        mpo = MPO([t * 0.0 for t in mpo_tensors])
+        mpo.center = 0
+        with pytest.raises(ValueError, match="numerically zero"):
+            mpo.redistribute_norm()
