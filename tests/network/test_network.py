@@ -468,8 +468,10 @@ class TestMPO:
         assert mpo.center is None
 
     def test_redistribute_norm_zero_raises(self, mpo_tensors):
-        """redistribute_norm() must raise ValueError for a zero MPO."""
-        mpo = MPO([t * 0.0 for t in mpo_tensors])
-        mpo.center = 0
+        """redistribute_norm() must raise ValueError when the norm is numerically zero."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(0, trunc=None)
+        for i in range(mpo.L):
+            mpo[i] = mpo[i] * 0.0
         with pytest.raises(ValueError, match="numerically zero"):
             mpo.redistribute_norm()
