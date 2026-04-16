@@ -18,13 +18,18 @@
 
 """Network module for MPS/MPO operations."""
 
-from .intrcmap import Interaction, generate_snake_order, intrcmap_square
+from .interaction import Interaction, Interaction1Site, Interaction2Site
+from .intrcmap import generate_snake_order, intrcmap_square
 from .network import MPS, MPO, Network
 from .observe import observe
+from .autompo import build_hamiltonian
 
 __all__ = [
-    # intrcmap
+    # interaction
     'Interaction',
+    'Interaction1Site',
+    'Interaction2Site',
+    # intrcmap
     'generate_snake_order',
     'intrcmap_square',
     # network
@@ -33,4 +38,6 @@ __all__ = [
     'Network',
     # observe
     'observe',
+    # autompo
+    'build_hamiltonian',
 ]
