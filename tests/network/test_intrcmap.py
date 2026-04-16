@@ -83,10 +83,10 @@ class TestNearestNeighbor:
         assert len(interactions) == lx - 1
         
         for i, intr in enumerate(interactions):
-            assert intr['start_site'] == i
-            assert intr['terminal_site'] == i + 1
-            assert 'NN' in intr['label']
-            assert 'N2Y' in intr['label']
+            assert intr.leading_site == i
+            assert intr.terminal_site == i + 1
+            assert 'NN' in intr.label
+            assert 'N2Y' in intr.label
     
     def test_2d_square_lattice(self, basic_2d_config):
         """Test 2D square lattice with OBC."""
@@ -104,8 +104,8 @@ class TestNearestNeighbor:
         
         assert len(interactions) == expected_total
         
-        x_interactions = [i for i in interactions if 'N2X' in i['label']]
-        y_interactions = [i for i in interactions if 'N2Y' in i['label']]
+        x_interactions = [i for i in interactions if 'N2X' in i.label]
+        y_interactions = [i for i in interactions if 'N2Y' in i.label]
         
         assert len(x_interactions) == expected_x
         assert len(y_interactions) == expected_y
@@ -136,14 +136,14 @@ class TestPeriodicBoundary:
         
         lx = pbc_cylinder_config['lx']
         
-        pbc_interactions = [i for i in interactions if 'PBC' in i['label']]
-        
+        pbc_interactions = [i for i in interactions if 'PBC' in i.label]
+
         # Should have lx PBC interactions (one per column)
         assert len(pbc_interactions) == lx
-        
+
         # All PBC interactions should be in Y direction
         for intr in pbc_interactions:
-            assert 'N2Y' in intr['label']
+            assert 'N2Y' in intr.label
     
     def test_pbc_x(self):
         """Test periodic boundary in X direction."""
@@ -155,23 +155,23 @@ class TestPeriodicBoundary:
         }
         interactions = intrcmap_square(config)
         
-        pbc_interactions = [i for i in interactions if 'PBC' in i['label']]
-        
+        pbc_interactions = [i for i in interactions if 'PBC' in i.label]
+
         # Should have ly PBC interactions in X direction
         assert len(pbc_interactions) == 2
-        
+
         for intr in pbc_interactions:
-            assert 'N2X' in intr['label']
+            assert 'N2X' in intr.label
     
     def test_pbc_both_torus(self, torus_config):
         """Test periodic boundary in both directions (torus)."""
         interactions = intrcmap_square(torus_config)
         
-        pbc_interactions = [i for i in interactions if 'PBC' in i['label']]
-        
+        pbc_interactions = [i for i in interactions if 'PBC' in i.label]
+
         # Should have PBC in both X and Y
-        pbc_x = [i for i in pbc_interactions if 'N2X' in i['label']]
-        pbc_y = [i for i in pbc_interactions if 'N2Y' in i['label']]
+        pbc_x = [i for i in pbc_interactions if 'N2X' in i.label]
+        pbc_y = [i for i in pbc_interactions if 'N2Y' in i.label]
         
         assert len(pbc_x) > 0
         assert len(pbc_y) > 0
@@ -188,22 +188,22 @@ class TestNextNearestNeighbor:
         ly = j2_config['ly']
         
         # Count NNN interactions
-        nnn_d = [i for i in interactions if 'N3D' in i['label']]
-        nnn_o = [i for i in interactions if 'N3O' in i['label']]
-        
+        nnn_d = [i for i in interactions if 'N3D' in i.label]
+        nnn_o = [i for i in interactions if 'N3O' in i.label]
+
         # For lattice with OBC:
         # N3D: (Lx-1) * (Ly-1)
         # N3O: (Lx-1) * (Ly-1)
         expected_nnn = (lx - 1) * (ly - 1)
-        
+
         assert len(nnn_d) == expected_nnn
         assert len(nnn_o) == expected_nnn
-        
+
         # Check coupling values
         for intr in nnn_d:
-            assert intr['cpl'] == 0.5
+            assert intr.cpl == 0.5
         for intr in nnn_o:
-            assert intr['cpl'] == 0.3
+            assert intr.cpl == 0.3
     
     def test_j2_only_diagonal(self):
         """Test with only diagonal J2 interactions."""
@@ -215,12 +215,12 @@ class TestNextNearestNeighbor:
         }
         interactions = intrcmap_square(config)
         
-        nnn_d = [i for i in interactions if 'N3D' in i['label']]
-        nnn_o = [i for i in interactions if 'N3O' in i['label']]
-        
+        nnn_d = [i for i in interactions if 'N3D' in i.label]
+        nnn_o = [i for i in interactions if 'N3O' in i.label]
+
         assert len(nnn_d) == 4
         assert len(nnn_o) == 0
-    
+
     def test_j2_only_off_diagonal(self):
         """Test with only off-diagonal J2 interactions."""
         config = {
@@ -230,9 +230,9 @@ class TestNextNearestNeighbor:
             'cpl': 1.0, 'cplp': [0.0, 0.3]  # Only off-diagonal
         }
         interactions = intrcmap_square(config)
-        
-        nnn_d = [i for i in interactions if 'N3D' in i['label']]
-        nnn_o = [i for i in interactions if 'N3O' in i['label']]
+
+        nnn_d = [i for i in interactions if 'N3D' in i.label]
+        nnn_o = [i for i in interactions if 'N3O' in i.label]
         
         assert len(nnn_d) == 0
         assert len(nnn_o) == 4
@@ -248,7 +248,7 @@ class TestNextNearestNeighbor:
         interactions = intrcmap_square(config)
         
         # Count J2 PBC interactions
-        j2_pbc = [i for i in interactions if 'NNN' in i['label'] and 'PBC' in i['label']]
+        j2_pbc = [i for i in interactions if 'NNN' in i.label and 'PBC' in i.label]
         
         # Should have J2 PBC interactions
         assert len(j2_pbc) > 0
@@ -258,12 +258,12 @@ class TestInteractionProperties:
     """Tests for general interaction properties."""
     
     def test_sorting(self, torus_config):
-        """Test that interactions are sorted by start_site."""
+        """Test that interactions are sorted by leading_site."""
         interactions = intrcmap_square(torus_config)
-        
-        # Check that start_site values are non-decreasing
+
+        # Check that leading_site values are non-decreasing
         for i in range(len(interactions) - 1):
-            assert interactions[i]['start_site'] <= interactions[i+1]['start_site']
+            assert interactions[i].leading_site <= interactions[i + 1].leading_site
     
     def test_coupling_values(self):
         """Test that coupling values are correctly assigned."""
@@ -278,25 +278,25 @@ class TestInteractionProperties:
         
         # All NN interactions should have cpl = 2.5
         for intr in interactions:
-            if 'NN' in intr['label']:
-                assert intr['cpl'] == 2.5
+            if 'NN' in intr.label:
+                assert intr.cpl == 2.5
     
     def test_interaction_structure(self, basic_2d_config):
         """Test that each interaction has required fields."""
         interactions = intrcmap_square(basic_2d_config)
         
         for intr in interactions:
-            assert 'start_site' in intr
-            assert 'terminal_site' in intr
-            assert 'cpl' in intr
-            assert 'label' in intr
-            
-            # start_site should be less than terminal_site
-            assert intr['start_site'] < intr['terminal_site']
-            
+            assert hasattr(intr, 'leading_site')
+            assert hasattr(intr, 'terminal_site')
+            assert hasattr(intr, 'cpl')
+            assert hasattr(intr, 'label')
+
+            # leading_site should be less than terminal_site
+            assert intr.leading_site < intr.terminal_site
+
             # label should be a list
-            assert isinstance(intr['label'], list)
-            assert len(intr['label']) > 0
+            assert isinstance(intr.label, list)
+            assert len(intr.label) > 0
 
 
 class TestModelTypes:
@@ -323,4 +323,4 @@ class TestModelTypes:
         
         # All should have correct coupling value
         for intr in interactions:
-            assert intr['cpl'] in [1.0, 0.0]
+            assert intr.cpl in [1.0, 0.0]
