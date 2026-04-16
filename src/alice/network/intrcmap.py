@@ -23,7 +23,8 @@ traversing 2D lattices using various orderings (snake-like, etc.).
 """
 
 import logging
-from typing import TypedDict
+
+from .interaction import Interaction2Site
 
 logger = logging.getLogger(__name__)
 
@@ -82,20 +83,6 @@ def _log_pairs(pairs: list[str], indent: int = 3, max_per_line: int = 6) -> None
         logger.info(indent_str + ", ".join(chunk))
 
 
-class Interaction(TypedDict):
-    """Interaction term between two sites.
-    
-    Attributes:
-        start_site: Starting site index (0-based)
-        terminal_site: Ending site index (0-based)
-        cpl: Coupling strength
-        label: List of labels describing the interaction type
-    """
-    start_site: int
-    terminal_site: int
-    cpl: float
-    label: list[str]
-
 
 def generate_snake_order(lx: int, ly: int) -> tuple[list[list[int]], list[tuple[int, int]]]:
     """Generate snake-like traversal order for a 2D square lattice.
@@ -145,30 +132,33 @@ def generate_snake_order(lx: int, ly: int) -> tuple[list[list[int]], list[tuple[
     return ord_map, latt
 
 
-def intrcmap_square(config: dict) -> list[Interaction]:
+def intrcmap_square(config: dict) -> list[Interaction2Site]:
     """Generate interaction map for square lattice with snake-like MPS traversal.
-    
+
     Generates nearest-neighbor (NN) and next-nearest-neighbor (NNN) interactions
     for a 2D square lattice traversed by a 1D MPS in snake-like order.
-    
+
     Expected config structure (from TOML):
-        lx: int - Number of columns
-        ly: int - Number of rows
-        bcx: str - Boundary condition in x ('OBC' or 'PBC')
-        bcy: str - Boundary condition in y ('OBC' or 'PBC')
-        label: str - Model label (e.g., 'SpinSqLatt', 'HubbardSqLatt')
-        cpl: float or list[float] - NN coupling(s)
-        cplp: list[float, float] - NNN couplings [diagonal, off-diagonal]
-    
-    Args:
-        config: Configuration dictionary from TOML file
-    
-    Returns:
-        List of interaction dictionaries with keys:
-            - start_site: Starting site (0-based)
-            - terminal_site: Terminal site (0-based)
-            - cpl: Coupling strength
-            - label: List of interaction type labels
+
+    - `lx`: number of columns
+    - `ly`: number of rows
+    - `bcx`: boundary condition in x (`'OBC'` or `'PBC'`)
+    - `bcy`: boundary condition in y (`'OBC'` or `'PBC'`)
+    - `label`: model label (e.g. `'SpinSqLatt'`, `'HubbardSqLatt'`)
+    - `cpl`: NN coupling strength
+    - `cplp`: NNN couplings `[diagonal, off-diagonal]`
+
+    Parameters
+    ----------
+    config:
+        Configuration dictionary, typically loaded from a TOML file.
+
+    Returns
+    -------
+    list[Interaction2Site]:
+        Interaction objects sorted by `leading_site`. The `leading_tnsr`,
+        `terminal_tnsr`, and `intermid_tnsr` fields are `None` until
+        populated by the actual model builder.
     """
     # Extract configuration
     lx = config['lx']
@@ -195,7 +185,7 @@ def intrcmap_square(config: dict) -> list[Interaction]:
     # Generate snake-like order
     ord_map, latt = generate_snake_order(lx, ly)
     
-    interactions: list[Interaction] = []
+    interactions: list[Interaction2Site] = []
     
     # Log lattice visualization
     _log_lattice_diagram(lx, ly, ord_map)
@@ -210,13 +200,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
         logger.info(" NN interaction:")
         pairs = []
         for si in range(L - 1):
-            interaction: Interaction = {
-                'start_site': si,
-                'terminal_site': si + 1,
-                'cpl': cpl,
-                'label': ['NN', 'N2Y']
-            }
-            interactions.append(interaction)
+            interactions.append(Interaction2Site(
+                cpl=cpl,
+                label=['NN', 'N2Y'],
+                leading_site=si,
+                terminal_site=si + 1,
+            ))
             pairs.append(f"({si:02d},{si+1:02d})")
         _log_pairs(pairs)
     
@@ -231,13 +220,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
                 break
             
             terminal = 2 * (col + 1) * ly - 1 - si
-            interaction: Interaction = {
-                'start_site': si,
-                'terminal_site': terminal,
-                'cpl': cpl,
-                'label': ['NN', 'N2X']
-            }
-            interactions.append(interaction)
+            interactions.append(Interaction2Site(
+                cpl=cpl,
+                label=['NN', 'N2X'],
+                leading_site=si,
+                terminal_site=terminal,
+            ))
             pairs.append(f"({si:02d},{terminal:02d})")
         _log_pairs(pairs)
         
@@ -247,13 +235,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
         pairs = []
         for si in range(L - 1):
             if si % ly != ly - 1:  # Not at bottom of column
-                interaction: Interaction = {
-                    'start_site': si,
-                    'terminal_site': si + 1,
-                    'cpl': cpl,
-                    'label': ['NN', 'N2Y']
-                }
-                interactions.append(interaction)
+                interactions.append(Interaction2Site(
+                    cpl=cpl,
+                    label=['NN', 'N2Y'],
+                    leading_site=si,
+                    terminal_site=si + 1,
+                ))
                 pairs.append(f"({si:02d},{si+1:02d})")
         _log_pairs(pairs)
     
@@ -268,13 +255,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
             else:  # Odd number of columns
                 terminal = L - ly + si
             
-            interaction: Interaction = {
-                'start_site': si,
-                'terminal_site': terminal,
-                'cpl': cpl,
-                'label': ['NN', 'PBC', 'N2X']
-            }
-            interactions.append(interaction)
+            interactions.append(Interaction2Site(
+                cpl=cpl,
+                label=['NN', 'PBC', 'N2X'],
+                leading_site=si,
+                terminal_site=terminal,
+            ))
             pairs.append(f"({si:02d},{terminal:02d})")
         _log_pairs(pairs)
     
@@ -287,13 +273,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
             start = si * ly
             terminal = si * ly + ly - 1
             
-            interaction: Interaction = {
-                'start_site': start,
-                'terminal_site': terminal,
-                'cpl': cpl,
-                'label': ['NN', 'PBC', 'N2Y']
-            }
-            interactions.append(interaction)
+            interactions.append(Interaction2Site(
+                cpl=cpl,
+                label=['NN', 'PBC', 'N2Y'],
+                leading_site=start,
+                terminal_site=terminal,
+            ))
             pairs.append(f"({start:02d},{terminal:02d})")
         _log_pairs(pairs)
     
@@ -308,13 +293,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
                 start = ord_map[row][col]
                 terminal = ord_map[row - 1][col + 1]
                 
-                interaction: Interaction = {
-                    'start_site': start,
-                    'terminal_site': terminal,
-                    'cpl': cplp[1],
-                    'label': ['NNN', 'N3O']
-                }
-                interactions.append(interaction)
+                interactions.append(Interaction2Site(
+                    cpl=cplp[1],
+                    label=['NNN', 'N3O'],
+                    leading_site=start,
+                    terminal_site=terminal,
+                ))
                 pairs.append(f"({start:02d},{terminal:02d})")
         _log_pairs(pairs)
     
@@ -328,13 +312,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
                 start = ord_map[row][col]
                 terminal = ord_map[row + 1][col + 1]
                 
-                interaction: Interaction = {
-                    'start_site': start,
-                    'terminal_site': terminal,
-                    'cpl': cplp[0],
-                    'label': ['NNN', 'N3D']
-                }
-                interactions.append(interaction)
+                interactions.append(Interaction2Site(
+                    cpl=cplp[0],
+                    label=['NNN', 'N3D'],
+                    leading_site=start,
+                    terminal_site=terminal,
+                ))
                 pairs.append(f"({start:02d},{terminal:02d})")
         _log_pairs(pairs)
     
@@ -347,14 +330,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
             for row in range(ly - 1):
                 start = ord_map[row][0]
                 terminal = ord_map[row + 1][lx - 1]
-                
-                interaction: Interaction = {
-                    'start_site': start,
-                    'terminal_site': terminal,
-                    'cpl': cplp[1],
-                    'label': ['NNN', 'PBC', 'N3O']
-                }
-                interactions.append(interaction)
+                interactions.append(Interaction2Site(
+                    cpl=cplp[1],
+                    label=['NNN', 'PBC', 'N3O'],
+                    leading_site=start,
+                    terminal_site=terminal,
+                ))
                 pairs.append(f"({start:02d},{terminal:02d})")
             _log_pairs(pairs)
         
@@ -365,14 +346,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
             for row in range(1, ly):
                 start = ord_map[row][0]
                 terminal = ord_map[row - 1][lx - 1]
-                
-                interaction: Interaction = {
-                    'start_site': start,
-                    'terminal_site': terminal,
-                    'cpl': cplp[0],
-                    'label': ['NNN', 'PBC', 'N3D']
-                }
-                interactions.append(interaction)
+                interactions.append(Interaction2Site(
+                    cpl=cplp[0],
+                    label=['NNN', 'PBC', 'N3D'],
+                    leading_site=start,
+                    terminal_site=terminal,
+                ))
                 pairs.append(f"({start:02d},{terminal:02d})")
             _log_pairs(pairs)
     
@@ -385,14 +364,12 @@ def intrcmap_square(config: dict) -> list[Interaction]:
             for col in range(lx - 1):
                 start = ord_map[0][col]
                 terminal = ord_map[ly - 1][col + 1]
-                
-                interaction: Interaction = {
-                    'start_site': start,
-                    'terminal_site': terminal,
-                    'cpl': cplp[1],
-                    'label': ['NNN', 'PBC', 'N3O']
-                }
-                interactions.append(interaction)
+                interactions.append(Interaction2Site(
+                    cpl=cplp[1],
+                    label=['NNN', 'PBC', 'N3O'],
+                    leading_site=start,
+                    terminal_site=terminal,
+                ))
                 pairs.append(f"({start:02d},{terminal:02d})")
             _log_pairs(pairs)
         
@@ -403,19 +380,16 @@ def intrcmap_square(config: dict) -> list[Interaction]:
             for col in range(1, lx):
                 start = ord_map[ly - 1][col - 1]
                 terminal = ord_map[0][col]
-                
-                interaction: Interaction = {
-                    'start_site': start,
-                    'terminal_site': terminal,
-                    'cpl': cplp[0],
-                    'label': ['NNN', 'PBC', 'N3D']
-                }
-                interactions.append(interaction)
+                interactions.append(Interaction2Site(
+                    cpl=cplp[0],
+                    label=['NNN', 'PBC', 'N3D'],
+                    leading_site=start,
+                    terminal_site=terminal,
+                ))
                 pairs.append(f"({start:02d},{terminal:02d})")
             _log_pairs(pairs)
     
-    # Sort interactions by start_site
-    interactions.sort(key=lambda x: x['start_site'])
+    interactions.sort(key=lambda x: x.leading_site)
     
     logger.info("")
     logger.info(f"Total interactions: {len(interactions)}")
