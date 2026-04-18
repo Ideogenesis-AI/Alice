@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Physical space builders for MPO construction.
+"""Physical operator builders for MPO construction.
 
 Each builder calls `load_space` to obtain a physical `Index` `Spc` and an
 initial operator dictionary `Op`, then enriches `Op` with derived 4th-order
