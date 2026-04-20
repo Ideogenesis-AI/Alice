@@ -152,14 +152,82 @@ _TRAVERSALS: Dict[str, object] = {
 # Lattice geometry builders
 # ---------------------------------------------------------------------------
 
-def intrcmap_square(geo: dict) -> List[Interaction2Site]:
+def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
+    """Generate an interaction map for a 1D chain.
+
+    Produces nearest-neighbor (NN) bonds along the chain and, when
+    `bcx='PBC'`, a single periodic bond connecting the two ends.
+    Coupling constants are not set; `cpl` is `0.0` on all returned objects.
+
+    Parameters
+    ----------
+    geo:
+        Geometry sub-dict from the TOML `[geometry]` section.  Expected
+        keys:
+
+        - `lx` — number of sites.
+        - `bcx` — boundary condition (`'OBC'` or `'PBC'`).
+        - `n2x` — include NN bonds (default `True`).
+    order_fn:
+        Accepted but ignored.  Present so the function can be stored in
+        `_LATTICES` alongside 2D builders that receive a traversal function
+        from `build_geometry`.
+
+    Returns
+    -------
+    list[Interaction2Site]
+        Interaction objects sorted by `leading_site`.  Tensor fields are
+        `None`; `cpl` is `0.0`.
+    """
+    L   = geo['lx']
+    bcx = geo.get('bcx', 'OBC').upper()
+    n2x = bool(geo.get('n2x', True))
+
+    interactions: List[Interaction2Site] = []
+
+    logger.info("=" * 60)
+    logger.info("1D Chain Interactions".center(60))
+    logger.info("=" * 60)
+    logger.info("")
+
+    if n2x:
+        logger.info(" NN interaction (N2X):")
+        pairs = []
+        for si in range(L - 1):
+            interactions.append(Interaction2Site(
+                label=['NN', 'N2X'],
+                leading_site=si,
+                terminal_site=si + 1,
+            ))
+            pairs.append(f"({si:02d},{si+1:02d})")
+        _log_pairs(pairs)
+
+        if bcx == 'PBC':
+            logger.info("")
+            logger.info(" PBC interaction at X edge:")
+            interactions.append(Interaction2Site(
+                label=['NN', 'PBC', 'N2X'],
+                leading_site=0,
+                terminal_site=L - 1,
+            ))
+            _log_pairs([f"({0:02d},{L-1:02d})"])
+
+    interactions.sort(key=lambda x: x.leading_site)
+
+    logger.info("")
+    logger.info(f"Total interactions: {len(interactions)}")
+
+    return interactions
+
+
+def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interaction2Site]:
     """Generate an interaction map for a 2D square lattice.
 
     Produces nearest-neighbor (NN) and optionally next-nearest-neighbor
-    (NNN) interactions for a 2D square lattice traversed in a 1D snake-like
-    MPS order.  Coupling constants are not set here; the returned interactions
-    have `cpl == 0.0` (the default).  Labels encode bond topology so that the
-    model builder can assign the correct coupling per bond type.
+    (NNN) interactions for a 2D square lattice.  Coupling constants are not
+    set here; the returned interactions have `cpl == 0.0` (the default).
+    Labels encode bond topology so that the model builder can assign the
+    correct coupling per bond type.
 
     Parameters
     ----------
@@ -174,34 +242,16 @@ def intrcmap_square(geo: dict) -> List[Interaction2Site]:
         - `n2y` — include NN bonds along y (default `True`).
         - `n3d` — include NNN diagonal bonds (default `False`).
         - `n3o` — include NNN off-diagonal bonds (default `False`).
-
-        The `traverse` key is resolved by the caller (`build_geometry`)
-        before `intrcmap_square` is invoked; the order generator is
-        passed in via the `_order_fn` private parameter.
+    order_fn:
+        Traversal-order generator `(lx, ly) → (ord_map, latt)`.  Defaults
+        to `generate_snake_order`; `build_geometry` supplies a different
+        function when a non-default traversal is requested.
 
     Returns
     -------
     list[Interaction2Site]
         Interaction objects sorted by `leading_site`.  Tensor fields are
         `None`; `cpl` is `0.0`.
-    """
-    # This overload is called by build_geometry which injects _order_fn.
-    # Direct callers (backward compat) default to snake order.
-    return _intrcmap_square_impl(geo, generate_snake_order)
-
-
-def _intrcmap_square_impl(
-    geo: dict,
-    order_fn,
-) -> List[Interaction2Site]:
-    """Implementation of the square-lattice interaction map builder.
-
-    Parameters
-    ----------
-    geo:
-        Geometry sub-dict (see `intrcmap_square`).
-    order_fn:
-        Callable `(lx, ly) → (ord_map, latt)` providing the traversal order.
     """
     lx  = geo['lx']
     ly  = geo['ly']
@@ -215,6 +265,10 @@ def _intrcmap_square_impl(
     n3d = bool(geo.get('n3d', False))
     n3o = bool(geo.get('n3o', False))
 
+    # === 1D CHAIN (ly == 1): delegate to the dedicated builder ===
+    if ly == 1:
+        return intrcmap_1dchain(geo)
+
     ord_map, latt = order_fn(lx, ly)
 
     interactions: List[Interaction2Site] = []
@@ -224,22 +278,6 @@ def _intrcmap_square_impl(
     logger.info("Interactions Info".center(60))
     logger.info("=" * 60)
     logger.info("")
-
-    # === 1D CHAIN (ly == 1) ===
-    # The chain runs along x, so bonds are N2X even though the MPS index
-    # increments by 1 (same as the y-direction in a 2D column).
-    if ly == 1:
-        if n2x:
-            logger.info(" NN interaction (1D chain, N2X):")
-            pairs = []
-            for si in range(L - 1):
-                interactions.append(Interaction2Site(
-                    label=['NN', 'N2X'],
-                    leading_site=si,
-                    terminal_site=si + 1,
-                ))
-                pairs.append(f"({si:02d},{si+1:02d})")
-            _log_pairs(pairs)
 
     # === 2D LATTICE (ly > 1) ===
     if ly > 1:
@@ -415,7 +453,8 @@ def _intrcmap_square_impl(
 
 # Registry of available lattice builders.
 _LATTICES: Dict[str, object] = {
-    'square': _intrcmap_square_impl,
+    'chain': intrcmap_1dchain,
+    'square': intrcmap_square,
 }
 
 
