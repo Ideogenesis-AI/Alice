@@ -269,7 +269,7 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
     if ly == 1:
         return intrcmap_1dchain(geo)
 
-    ord_map, latt = order_fn(lx, ly)
+    ord_map, _ = order_fn(lx, ly)
 
     interactions: List[Interaction2Site] = []
 
@@ -279,54 +279,51 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
     logger.info("=" * 60)
     logger.info("")
 
-    # === 2D LATTICE (ly > 1) ===
-    if ly > 1:
-        if n2x:
-            logger.info(" NN interaction along X axis:")
-            pairs = []
-            for si in range(L):
-                col = si // ly
-                if col == lx - 1:
-                    break
-                terminal = 2 * (col + 1) * ly - 1 - si
+    if n2x:
+        logger.info(" NN interaction along X axis:")
+        pairs = []
+        for row in range(ly):
+            for col in range(lx - 1):
+                a, b = ord_map[row][col], ord_map[row][col + 1]
+                start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NN', 'N2X'],
-                    leading_site=si,
+                    leading_site=start,
                     terminal_site=terminal,
                 ))
-                pairs.append(f"({si:02d},{terminal:02d})")
-            _log_pairs(pairs)
+                pairs.append(f"({start:02d},{terminal:02d})")
+        _log_pairs(pairs)
 
-        if n2y:
-            logger.info("")
-            logger.info(" NN interaction along Y axis:")
-            pairs = []
-            for si in range(L - 1):
-                if si % ly != ly - 1:
-                    interactions.append(Interaction2Site(
-                        label=['NN', 'N2Y'],
-                        leading_site=si,
-                        terminal_site=si + 1,
-                    ))
-                    pairs.append(f"({si:02d},{si+1:02d})")
-            _log_pairs(pairs)
+    if n2y:
+        logger.info("")
+        logger.info(" NN interaction along Y axis:")
+        pairs = []
+        for col in range(lx):
+            for row in range(ly - 1):
+                a, b = ord_map[row][col], ord_map[row + 1][col]
+                start, terminal = min(a, b), max(a, b)
+                interactions.append(Interaction2Site(
+                    label=['NN', 'N2Y'],
+                    leading_site=start,
+                    terminal_site=terminal,
+                ))
+                pairs.append(f"({start:02d},{terminal:02d})")
+        _log_pairs(pairs)
 
     # === PBC along X ===
     if bcx == 'PBC':
         logger.info("")
         logger.info(" PBC interaction at X edge:")
         pairs = []
-        for si in range(ly):
-            if lx % 2 == 0:
-                terminal = L - 1 - si
-            else:
-                terminal = L - ly + si
+        for row in range(ly):
+            a, b = ord_map[row][0], ord_map[row][lx - 1]
+            start, terminal = min(a, b), max(a, b)
             interactions.append(Interaction2Site(
                 label=['NN', 'PBC', 'N2X'],
-                leading_site=si,
+                leading_site=start,
                 terminal_site=terminal,
             ))
-            pairs.append(f"({si:02d},{terminal:02d})")
+            pairs.append(f"({start:02d},{terminal:02d})")
         _log_pairs(pairs)
 
     # === PBC along Y ===
@@ -334,9 +331,9 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
         logger.info("")
         logger.info(" PBC interaction at Y edge:")
         pairs = []
-        for si in range(lx):
-            start    = si * ly
-            terminal = si * ly + ly - 1
+        for col in range(lx):
+            a, b = ord_map[0][col], ord_map[ly - 1][col]
+            start, terminal = min(a, b), max(a, b)
             interactions.append(Interaction2Site(
                 label=['NN', 'PBC', 'N2Y'],
                 leading_site=start,
@@ -346,14 +343,14 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
         _log_pairs(pairs)
 
     # === NNN off-diagonal (N3O): (row, col) ↔ (row-1, col+1) ===
-    if n3o and ly > 1:
+    if n3o:
         logger.info("")
         logger.info(" NNN off-diagonal interaction (N3O):")
         pairs = []
         for col in range(lx - 1):
             for row in range(1, ly):
-                start    = ord_map[row][col]
-                terminal = ord_map[row - 1][col + 1]
+                a, b = ord_map[row][col], ord_map[row - 1][col + 1]
+                start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'N3O'],
                     leading_site=start,
@@ -363,14 +360,14 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
         _log_pairs(pairs)
 
     # === NNN diagonal (N3D): (row, col) ↔ (row+1, col+1) ===
-    if n3d and ly > 1:
+    if n3d:
         logger.info("")
         logger.info(" NNN diagonal interaction (N3D):")
         pairs = []
         for col in range(lx - 1):
             for row in range(ly - 1):
-                start    = ord_map[row][col]
-                terminal = ord_map[row + 1][col + 1]
+                a, b = ord_map[row][col], ord_map[row + 1][col + 1]
+                start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'N3D'],
                     leading_site=start,
@@ -381,13 +378,13 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
 
     # === NNN PBC along X ===
     if bcx == 'PBC':
-        if n3o and ly > 1:
+        if n3o:
             logger.info("")
             logger.info(" NNN off-diagonal PBC interaction at X edge (N3O):")
             pairs = []
             for row in range(ly - 1):
-                start    = ord_map[row][0]
-                terminal = ord_map[row + 1][lx - 1]
+                a, b = ord_map[row][0], ord_map[row + 1][lx - 1]
+                start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'PBC', 'N3O'],
                     leading_site=start,
@@ -396,13 +393,13 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
                 pairs.append(f"({start:02d},{terminal:02d})")
             _log_pairs(pairs)
 
-        if n3d and ly > 1:
+        if n3d:
             logger.info("")
             logger.info(" NNN diagonal PBC interaction at X edge (N3D):")
             pairs = []
             for row in range(1, ly):
-                start    = ord_map[row][0]
-                terminal = ord_map[row - 1][lx - 1]
+                a, b = ord_map[row][0], ord_map[row - 1][lx - 1]
+                start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'PBC', 'N3D'],
                     leading_site=start,
@@ -413,13 +410,13 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
 
     # === NNN PBC along Y ===
     if bcy == 'PBC':
-        if n3o and lx > 1:
+        if n3o:
             logger.info("")
             logger.info(" NNN off-diagonal PBC interaction at Y edge (N3O):")
             pairs = []
             for col in range(lx - 1):
-                start    = ord_map[0][col]
-                terminal = ord_map[ly - 1][col + 1]
+                a, b = ord_map[0][col], ord_map[ly - 1][col + 1]
+                start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'PBC', 'N3O'],
                     leading_site=start,
@@ -428,13 +425,13 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
                 pairs.append(f"({start:02d},{terminal:02d})")
             _log_pairs(pairs)
 
-        if n3d and lx > 1:
+        if n3d:
             logger.info("")
             logger.info(" NNN diagonal PBC interaction at Y edge (N3D):")
             pairs = []
             for col in range(1, lx):
-                start    = ord_map[ly - 1][col - 1]
-                terminal = ord_map[0][col]
+                a, b = ord_map[ly - 1][col - 1], ord_map[0][col]
+                start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'PBC', 'N3D'],
                     leading_site=start,
