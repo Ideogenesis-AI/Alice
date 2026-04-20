@@ -97,6 +97,12 @@ class TestBuildGeometry:
         assert len(interactions) > 0
         assert all(intr.cpl == 0.0 for intr in interactions)
 
+    def test_chain_dispatches(self):
+        """build_geometry with lattice='chain' produces lx-1 OBC bonds with cpl==0.0."""
+        interactions = build_geometry({'lx': 8, 'bcx': 'OBC', 'n2x': True, 'lattice': 'chain'})
+        assert len(interactions) == 7
+        assert all(intr.cpl == 0.0 for intr in interactions)
+
     def test_default_traverse(self):
         """Missing traverse key defaults to 'snake'."""
         geo = {
