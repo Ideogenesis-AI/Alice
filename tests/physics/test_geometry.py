@@ -46,9 +46,9 @@ class TestSnakeOrder:
         ord_map, latt = generate_snake_order(lx=2, ly=3)
 
         # Expected (0-based):
-        # 00-----05
+        # 00. . .05
         # |      |
-        # 01     04
+        # 01. . .04
         # |      |
         # 02-----03
         expected_ord = [[0, 5], [1, 4], [2, 3]]
