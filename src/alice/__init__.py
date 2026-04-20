@@ -18,6 +18,26 @@
 
 """Alice: 1D tensor network algorithms built on Nicole."""
 
-from .network import Interaction, generate_snake_order, intrcmap_square, MPS, MPO, Network
+from .network import (
+    Interaction, Interaction1Site, Interaction2Site,
+    build_interaction,
+    build_hamiltonian,
+    MPS, MPO, Network,
+    observe,
+)
 
-__all__ = ['Interaction', 'generate_snake_order', 'intrcmap_square', 'MPS', 'MPO', 'Network']
+__all__ = [
+    # data types
+    'Interaction',
+    'Interaction1Site',
+    'Interaction2Site',
+    # high-level entry points
+    'build_interaction',
+    'build_hamiltonian',
+    # tensor network objects
+    'MPS',
+    'MPO',
+    'Network',
+    # measurement
+    'observe',
+]
