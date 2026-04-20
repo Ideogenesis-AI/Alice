@@ -76,8 +76,13 @@ def build_hamiltonian(
     if trunc is None:
         trunc = {'thresh': 1e-15}
 
-    # Validate all tensor slots up front.
-    for k, intr in enumerate(interactions):
+    # Filter out zero-coupling interactions before validation.  A zero coupling
+    # contributes nothing to the Hamiltonian and may legitimately have tensor
+    # fields left unset (e.g. NNN bonds with Jp=0 from the model builder).
+    active = [intr for intr in interactions if intr.cpl != 0.0]
+
+    # Validate tensor slots for all active (non-zero coupling) interactions.
+    for k, intr in enumerate(active):
         if isinstance(intr, Interaction1Site):
             if intr.tnsr is None:
                 raise ValueError(
@@ -134,13 +139,15 @@ def build_hamiltonian(
             mpo[k] = oplus(mpo[k], term[k], axes=[0, 1])
         mpo[L - 1] = oplus(mpo[L - 1], term[L - 1], axes=[0])
 
-    # Step 2 — Accumulate: one `oplus` pass per interaction term.
-    for intr in interactions:
+    # Step 2 — Accumulate: one `oplus` pass per active interaction term.
+    # Coupling is applied here (not baked into tensors by the model builder).
+    for intr in active:
         term = _identity_term()
 
         if isinstance(intr, Interaction1Site):
             s = intr.site
-            t = intr.tnsr.clone()
+            # Scale the on-site tensor by the coupling constant.
+            t = intr.tnsr.clone() * intr.cpl
             t.retag([0, 1, 2, 3], [f'W{s:02d}', f'W{s+1:02d}', f's{s:02d}', f's{s:02d}'])
             term[s] = t
 
@@ -148,6 +155,7 @@ def build_hamiltonian(
             i_site = intr.leading_site
             j_site = intr.terminal_site
 
+            # Leading tensor carries the operator channel; no coupling here.
             t = intr.leading_tnsr.clone()
             t.retag([0, 1, 2, 3], [
                 f'W{i_site:02d}', f'W{i_site+1:02d}',
@@ -155,6 +163,7 @@ def build_hamiltonian(
             ])
             term[i_site] = t
 
+            # Intermediate tensors propagate the operator string; no coupling.
             for k in range(i_site + 1, j_site):
                 t = intr.intermid_tnsr.clone()
                 t.retag([0, 1, 2, 3], [
@@ -162,7 +171,8 @@ def build_hamiltonian(
                 ])
                 term[k] = t
 
-            t = intr.terminal_tnsr.clone()
+            # Terminal tensor is scaled by the coupling constant.
+            t = intr.terminal_tnsr.clone() * intr.cpl
             t.retag([0, 1, 2, 3], [
                 f'W{j_site:02d}', f'W{j_site+1:02d}',
                 f's{j_site:02d}', f's{j_site:02d}',
