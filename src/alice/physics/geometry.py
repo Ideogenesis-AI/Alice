@@ -183,10 +183,13 @@ def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
     bcx = geo.get('bcx', 'OBC').upper()
     n2x = bool(geo.get('n2x', True))
 
+    ord_map, _ = generate_snake_order(L, 1)
+
     interactions: List[Interaction2Site] = []
 
+    _log_lattice_diagram(L, 1, ord_map)
     logger.info("=" * 60)
-    logger.info("1D Chain Interactions".center(60))
+    logger.info("Interactions Info".center(60))
     logger.info("=" * 60)
     logger.info("")
 
