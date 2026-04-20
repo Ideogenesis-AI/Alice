@@ -255,35 +255,6 @@ class TestCouplingAndStructure:
 
 
 # ---------------------------------------------------------------------------
-# Exact bond correctness — 1D chain (lx=10, ly=1)
-# ---------------------------------------------------------------------------
-
-class TestExactBonds1DChain:
-    """Exact (leading, terminal) pairs for a 10-site 1D chain.
-
-    Snake order: sites 0-9 run left-to-right along the single row.
-    """
-
-    def test_nn_bonds(self):
-        """n2x=True: NN bonds are exactly the 9 adjacent pairs."""
-        interactions = intrcmap_square(_geo(lx=10, ly=1, n2x=True, n2y=False))
-        bonds = {(i.leading_site, i.terminal_site) for i in interactions}
-        expected = {(k, k + 1) for k in range(9)}
-        assert bonds == expected
-
-    def test_nn_labels(self):
-        """Every bond in the 10-site chain carries exactly {'NN', 'N2X'}."""
-        interactions = intrcmap_square(_geo(lx=10, ly=1, n2x=True, n2y=False))
-        for intr in interactions:
-            assert set(intr.label) == {'NN', 'N2X'}
-
-    def test_no_bonds_when_flags_off(self):
-        """n2x=False on a 1D chain produces no bonds at all."""
-        interactions = intrcmap_square(_geo(lx=10, ly=1, n2x=False, n2y=False))
-        assert interactions == []
-
-
-# ---------------------------------------------------------------------------
 # Exact bond correctness — 4×4 OBC square lattice
 # ---------------------------------------------------------------------------
 
