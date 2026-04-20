@@ -252,3 +252,236 @@ class TestCouplingAndStructure:
         for intr in interactions:
             assert isinstance(intr.label, list)
             assert len(intr.label) > 0
+
+
+# ---------------------------------------------------------------------------
+# Exact bond correctness — 1D chain (lx=10, ly=1)
+# ---------------------------------------------------------------------------
+
+class TestExactBonds1DChain:
+    """Exact (leading, terminal) pairs for a 10-site 1D chain.
+
+    Snake order: sites 0-9 run left-to-right along the single row.
+    """
+
+    def test_nn_bonds(self):
+        """n2x=True: NN bonds are exactly the 9 adjacent pairs."""
+        interactions = intrcmap_square(_geo(lx=10, ly=1, n2x=True, n2y=False))
+        bonds = {(i.leading_site, i.terminal_site) for i in interactions}
+        expected = {(k, k + 1) for k in range(9)}
+        assert bonds == expected
+
+    def test_nn_labels(self):
+        """Every bond in the 10-site chain carries exactly {'NN', 'N2X'}."""
+        interactions = intrcmap_square(_geo(lx=10, ly=1, n2x=True, n2y=False))
+        for intr in interactions:
+            assert set(intr.label) == {'NN', 'N2X'}
+
+    def test_no_bonds_when_flags_off(self):
+        """n2x=False on a 1D chain produces no bonds at all."""
+        interactions = intrcmap_square(_geo(lx=10, ly=1, n2x=False, n2y=False))
+        assert interactions == []
+
+
+# ---------------------------------------------------------------------------
+# Exact bond correctness — 4×4 OBC square lattice
+# ---------------------------------------------------------------------------
+
+# Snake order (4×4, OBC):
+#   00. . .07-----08. . .15
+#   |      |      |      |
+#   01. . .06. . .09. . .14
+#   |      |      |      |
+#   02. . .05. . .10. . .13
+#   |      |      |      |
+#   03-----04. . .11-----12
+#
+# N2X: connect site si to the mirrored site in the next column.
+#   Formula: terminal = 2*(col+1)*ly - 1 - si,  col = si // ly.
+#
+# N2Y: connect consecutive sites within the same column (si → si+1),
+#   skipping the last site of each column (si % ly == ly-1).
+#
+# N3O (off-diagonal NNN): (row,col) ↔ (row-1, col+1).
+#
+# N3D (diagonal NNN):     (row,col) ↔ (row+1, col+1).
+
+_N2X_4x4 = frozenset({
+    (0, 7), (1, 6), (2, 5), (3, 4),
+    (4, 11), (5, 10), (6, 9), (7, 8),
+    (8, 15), (9, 14), (10, 13), (11, 12),
+})
+
+_N2Y_4x4 = frozenset({
+    (0, 1), (1, 2), (2, 3),
+    (4, 5), (5, 6), (6, 7),
+    (8, 9), (9, 10), (10, 11),
+    (12, 13), (13, 14), (14, 15),
+})
+
+# N3O: (row, col) → (row-1, col+1)
+_N3O_4x4 = frozenset({
+    (1, 7), (2, 6), (3, 5),    # col 0 → col 1
+    (4, 10), (5, 9), (6, 8),   # col 1 → col 2
+    (9, 15), (10, 14), (11, 13),  # col 2 → col 3
+})
+
+# N3D: (row, col) → (row+1, col+1)
+_N3D_4x4 = frozenset({
+    (0, 6), (1, 5), (2, 4),    # col 0 → col 1
+    (5, 11), (6, 10), (7, 9),  # col 1 → col 2
+    (8, 14), (9, 13), (10, 12),  # col 2 → col 3
+})
+
+
+def _bonds(interactions):
+    return {(i.leading_site, i.terminal_site) for i in interactions}
+
+
+class TestSnakeExactBonds4x4:
+    """Exact (leading, terminal) pairs for a 4×4 OBC square lattice (snake order)."""
+
+    def test_n2x_bonds(self):
+        """n2x only: bonds match exactly the precomputed N2X set."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=True, n2y=False))
+        assert _bonds(intrs) == _N2X_4x4
+
+    def test_n2x_labels(self):
+        """Every N2X bond carries exactly {'NN', 'N2X'}."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=True, n2y=False))
+        for i in intrs:
+            assert set(i.label) == {'NN', 'N2X'}
+
+    def test_n2y_bonds(self):
+        """n2y only: bonds match exactly the precomputed N2Y set."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=False, n2y=True))
+        assert _bonds(intrs) == _N2Y_4x4
+
+    def test_n2y_labels(self):
+        """Every N2Y bond carries exactly {'NN', 'N2Y'}."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=False, n2y=True))
+        for i in intrs:
+            assert set(i.label) == {'NN', 'N2Y'}
+
+    def test_n2x_and_n2y_bonds(self):
+        """n2x + n2y: bonds are the union of N2X and N2Y sets (no duplicates)."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=True, n2y=True))
+        assert _bonds(intrs) == _N2X_4x4 | _N2Y_4x4
+
+    def test_n3o_bonds(self):
+        """n3o only: bonds match exactly the precomputed N3O set."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=False, n2y=False, n3o=True))
+        assert _bonds(intrs) == _N3O_4x4
+
+    def test_n3o_labels(self):
+        """Every N3O bond carries exactly {'NNN', 'N3O'}."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=False, n2y=False, n3o=True))
+        for i in intrs:
+            assert set(i.label) == {'NNN', 'N3O'}
+
+    def test_n3d_bonds(self):
+        """n3d only: bonds match exactly the precomputed N3D set."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=False, n2y=False, n3d=True))
+        assert _bonds(intrs) == _N3D_4x4
+
+    def test_n3d_labels(self):
+        """Every N3D bond carries exactly {'NNN', 'N3D'}."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=False, n2y=False, n3d=True))
+        for i in intrs:
+            assert set(i.label) == {'NNN', 'N3D'}
+
+    def test_n3o_and_n3d_bonds(self):
+        """n3o + n3d: bonds are the union of N3O and N3D sets (no duplicates)."""
+        intrs = intrcmap_square(
+            _geo(lx=4, ly=4, n2x=False, n2y=False, n3d=True, n3o=True)
+        )
+        assert _bonds(intrs) == _N3O_4x4 | _N3D_4x4
+
+    def test_all_bonds(self):
+        """All flags on: bonds are the union of all four bond sets."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, n2x=True, n2y=True, n3d=True, n3o=True))
+        assert _bonds(intrs) == _N2X_4x4 | _N2Y_4x4 | _N3O_4x4 | _N3D_4x4
+
+    def test_all_bond_sets_disjoint(self):
+        """N2X, N2Y, N3O and N3D are pairwise disjoint on a 4×4 OBC lattice."""
+        all_sets = [_N2X_4x4, _N2Y_4x4, _N3O_4x4, _N3D_4x4]
+        names    = ['N2X', 'N2Y', 'N3O', 'N3D']
+        for i, (a, na) in enumerate(zip(all_sets, names)):
+            for b, nb in zip(all_sets[i + 1:], names[i + 1:]):
+                overlap = a & b
+                assert not overlap, f"{na} ∩ {nb} = {overlap}"
+
+
+# ---------------------------------------------------------------------------
+# Exact bond correctness — 4×4 PBC square lattice
+# ---------------------------------------------------------------------------
+
+# PBC-X wraps column 0 to column 3 (lx=4 is even, so terminal = L-1-si).
+_PBC_X_NN_4x4 = frozenset({(0, 15), (1, 14), (2, 13), (3, 12)})
+
+# PBC-Y wraps the top and bottom of each column (start = col*ly, terminal = col*ly+ly-1).
+_PBC_Y_NN_4x4 = frozenset({(0, 3), (4, 7), (8, 11), (12, 15)})
+
+# NNN PBC-X: ord_map[row][0] → ord_map[row+1][lx-1]  (N3O)
+#            ord_map[row][0] → ord_map[row-1][lx-1]  (N3D)
+_PBC_X_N3O_4x4 = frozenset({(0, 14), (1, 13), (2, 12)})
+_PBC_X_N3D_4x4 = frozenset({(1, 15), (2, 14), (3, 13)})
+
+# NNN PBC-Y: ord_map[0][col] → ord_map[ly-1][col+1]  (N3O)
+#            ord_map[ly-1][col-1] → ord_map[0][col]   (N3D)
+_PBC_Y_N3O_4x4 = frozenset({(0, 4), (7, 11), (8, 12)})
+_PBC_Y_N3D_4x4 = frozenset({(3, 7), (4, 8), (11, 15)})
+
+
+class TestSnakeExactBondsPBC4x4:
+    """Exact PBC bond pairs for a 4×4 square lattice (snake order)."""
+
+    def test_pbc_x_nn_bonds(self):
+        """bcx=PBC, n2x=True: PBC-X NN bonds match exactly."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, bcx='PBC', n2x=True, n2y=False))
+        pbc = {(i.leading_site, i.terminal_site) for i in intrs if 'PBC' in i.label}
+        assert pbc == _PBC_X_NN_4x4
+
+    def test_pbc_x_nn_labels(self):
+        """bcx=PBC NN bonds carry exactly {'NN', 'PBC', 'N2X'}."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, bcx='PBC', n2x=True, n2y=False))
+        for i in intrs:
+            if 'PBC' in i.label:
+                assert set(i.label) == {'NN', 'PBC', 'N2X'}
+
+    def test_pbc_y_nn_bonds(self):
+        """bcy=PBC, n2y=True: PBC-Y NN bonds match exactly."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, bcy='PBC', n2x=False, n2y=True))
+        pbc = {(i.leading_site, i.terminal_site) for i in intrs if 'PBC' in i.label}
+        assert pbc == _PBC_Y_NN_4x4
+
+    def test_pbc_y_nn_labels(self):
+        """bcy=PBC NN bonds carry exactly {'NN', 'PBC', 'N2Y'}."""
+        intrs = intrcmap_square(_geo(lx=4, ly=4, bcy='PBC', n2x=False, n2y=True))
+        for i in intrs:
+            if 'PBC' in i.label:
+                assert set(i.label) == {'NN', 'PBC', 'N2Y'}
+
+    def test_pbc_x_nnn_bonds(self):
+        """bcx=PBC, n3o=True, n3d=True: PBC-X NNN bonds match exactly."""
+        intrs = intrcmap_square(
+            _geo(lx=4, ly=4, bcx='PBC', n2x=False, n2y=False, n3d=True, n3o=True)
+        )
+        pbc_n3o = {(i.leading_site, i.terminal_site)
+                   for i in intrs if 'PBC' in i.label and 'N3O' in i.label}
+        pbc_n3d = {(i.leading_site, i.terminal_site)
+                   for i in intrs if 'PBC' in i.label and 'N3D' in i.label}
+        assert pbc_n3o == _PBC_X_N3O_4x4
+        assert pbc_n3d == _PBC_X_N3D_4x4
+
+    def test_pbc_y_nnn_bonds(self):
+        """bcy=PBC, n3o=True, n3d=True: PBC-Y NNN bonds match exactly."""
+        intrs = intrcmap_square(
+            _geo(lx=4, ly=4, bcy='PBC', n2x=False, n2y=False, n3d=True, n3o=True)
+        )
+        pbc_n3o = {(i.leading_site, i.terminal_site)
+                   for i in intrs if 'PBC' in i.label and 'N3O' in i.label}
+        pbc_n3d = {(i.leading_site, i.terminal_site)
+                   for i in intrs if 'PBC' in i.label and 'N3D' in i.label}
+        assert pbc_n3o == _PBC_Y_N3O_4x4
+        assert pbc_n3d == _PBC_Y_N3D_4x4
