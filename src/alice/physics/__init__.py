@@ -16,8 +16,23 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Physics module: physical space and MPO operator builders."""
+"""Physics module: physical space, geometry, and model builders."""
 
 from .system import build_bosonic, build_fermionic, build_conductor
+from .geometry import generate_snake_order, intrcmap_square, build_geometry
+from .models import build_heisenberg, build_free_fermion, build_hubbard
 
-__all__ = ['build_bosonic', 'build_fermionic', 'build_conductor']
+__all__ = [
+    # system — operator-set builders
+    'build_bosonic',
+    'build_fermionic',
+    'build_conductor',
+    # geometry — interaction map builders
+    'generate_snake_order',
+    'intrcmap_square',
+    'build_geometry',
+    # models — Hamiltonian model builders
+    'build_heisenberg',
+    'build_free_fermion',
+    'build_hubbard',
+]
