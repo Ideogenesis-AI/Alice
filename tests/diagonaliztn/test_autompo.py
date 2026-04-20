@@ -24,26 +24,35 @@ import math
 
 import pytest
 
-from nicole import load_space
+from alice.network import MPO, observe, build_hamiltonian, build_interaction
 
-from alice.network import Interaction2Site, MPO, observe, build_hamiltonian
-
-from .assign import assign_heisenberg, assign_freefermion, assign_conductor
 
 # Tolerance for energy comparisons.
 _ATOL = 1e-10
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Config helpers
 # ---------------------------------------------------------------------------
 
-def _make_interactions(L: int, cpl: float = 1.0) -> list[Interaction2Site]:
-    """Return a list of nearest-neighbor `Interaction2Site` objects."""
-    return [
-        Interaction2Site(cpl=cpl, label=['NN'], leading_site=i, terminal_site=i + 1)
-        for i in range(L - 1)
-    ]
+def _chain_config(L: int, model: str, category: str, **model_kwargs) -> dict:
+    """Build a full build_interaction config dict for a 1D chain of length L."""
+    model_cfg = {'category': category, 'label': model, **model_kwargs}
+    return {
+        'geometry': {
+            'lattice':  'square',
+            'traverse': 'snake',
+            'lx': L,
+            'ly': 1,
+            'bcx': 'OBC',
+            'bcy': 'OBC',
+            'n2x': True,
+            'n2y': False,
+            'n3d': False,
+            'n3o': False,
+        },
+        'model': model_cfg,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -57,9 +66,10 @@ class TestAutoMPOBasic:
     def heisenberg_mpo(self):
         """Build and return an AutoMPO Heisenberg MPO for L=6."""
         L = 6
-        spc, ops = load_space('Spin', 'U1', {'J': 0.5})
-        interactions = _make_interactions(L)
-        assign_heisenberg(interactions, spc, ops, symmetry='U1', J=1.0)
+        config = _chain_config(L, 'Heisenberg', 'bosonic',
+                               symmetry='U1', spin=0.5, J=1.0)
+        interactions, spc, L_ret = build_interaction(config)
+        assert L_ret == L
         return build_hamiltonian(interactions, L, spc)
 
     def test_length(self, heisenberg_mpo):
@@ -131,9 +141,9 @@ class TestAutoMPOHeisenberg:
         """AutoMPO Heisenberg energy (U1) must match the iterative-diag reference."""
         mps, _, E_gs = spin_chain
         L = len(mps)
-        spc, ops = load_space('Spin', 'U1', {'J': 0.5})
-        interactions = _make_interactions(L)
-        assign_heisenberg(interactions, spc, ops, symmetry='U1', J=1.0)
+        config = _chain_config(L, 'Heisenberg', 'bosonic',
+                               symmetry='U1', spin=0.5, J=1.0)
+        interactions, spc, _ = build_interaction(config)
         mpo_auto = build_hamiltonian(interactions, L, spc)
         E_obs = observe(mps, mpo_auto)
         assert math.isclose(E_obs, E_gs, abs_tol=_ATOL), (
@@ -145,9 +155,9 @@ class TestAutoMPOHeisenberg:
         """AutoMPO Heisenberg energy (SU2) must match the iterative-diag reference."""
         mps, _, E_gs = spin_chain_su2
         L = len(mps)
-        spc, ops = load_space('Spin', 'SU2', {'J': 0.5})
-        interactions = _make_interactions(L)
-        assign_heisenberg(interactions, spc, ops, symmetry='SU2', J=1.0)
+        config = _chain_config(L, 'Heisenberg', 'bosonic',
+                               symmetry='SU2', spin=0.5, J=1.0)
+        interactions, spc, _ = build_interaction(config)
         mpo_auto = build_hamiltonian(interactions, L, spc)
         E_obs = observe(mps, mpo_auto)
         assert math.isclose(E_obs, E_gs, abs_tol=_ATOL), (
@@ -164,9 +174,9 @@ class TestAutoMPOFreeFermion:
         """AutoMPO free-fermion energy must match the iterative-diag reference."""
         mps, _, E_gs = ferm_chain
         L = len(mps)
-        spc, ops = load_space('Ferm', 'U1')
-        interactions = _make_interactions(L)
-        assign_freefermion(interactions, spc, ops, t=1.0)
+        config = _chain_config(L, 'FreeFermion', 'fermionic',
+                               symmetry='U1', t=1.0)
+        interactions, spc, _ = build_interaction(config)
         mpo_auto = build_hamiltonian(interactions, L, spc)
         E_obs = observe(mps, mpo_auto)
         assert math.isclose(E_obs, E_gs, abs_tol=_ATOL), (
@@ -183,9 +193,9 @@ class TestAutoMPOConductor:
         """AutoMPO conductor energy (U1,U1) must match the iterative-diag reference."""
         mps, _, E_gs = band_chain
         L = len(mps)
-        spc, ops = load_space('Band', 'U1,U1')
-        interactions = _make_interactions(L)
-        assign_conductor(interactions, spc, ops, symmetry='U1,U1', t=1.0)
+        config = _chain_config(L, 'Hubbard', 'conductor',
+                               symmetry='U1,U1', t=1.0, U=0.0)
+        interactions, spc, _ = build_interaction(config)
         mpo_auto = build_hamiltonian(interactions, L, spc)
         E_obs = observe(mps, mpo_auto)
         assert math.isclose(E_obs, E_gs, abs_tol=_ATOL), (
@@ -197,9 +207,9 @@ class TestAutoMPOConductor:
         """AutoMPO conductor energy (U1,SU2) must match the iterative-diag reference."""
         mps, _, E_gs = band_chain_su2
         L = len(mps)
-        spc, ops = load_space('Band', 'U1,SU2')
-        interactions = _make_interactions(L)
-        assign_conductor(interactions, spc, ops, symmetry='U1,SU2', t=1.0)
+        config = _chain_config(L, 'Hubbard', 'conductor',
+                               symmetry='U1,SU2', t=1.0, U=0.0)
+        interactions, spc, _ = build_interaction(config)
         mpo_auto = build_hamiltonian(interactions, L, spc)
         E_obs = observe(mps, mpo_auto)
         assert math.isclose(E_obs, E_gs, abs_tol=_ATOL), (
