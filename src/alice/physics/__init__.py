@@ -19,7 +19,7 @@
 """Physics module: physical space, geometry, and model builders."""
 
 from .system import build_bosonic, build_fermionic, build_conductor
-from .geometry import generate_snake_order, intrcmap_square, build_geometry
+from .geometry import generate_snake_order, intrcmap_1dchain, intrcmap_square, build_geometry
 from .models import build_heisenberg, build_free_fermion, build_hubbard
 
 __all__ = [
@@ -29,6 +29,7 @@ __all__ = [
     'build_conductor',
     # geometry — interaction map builders
     'generate_snake_order',
+    'intrcmap_1dchain',
     'intrcmap_square',
     'build_geometry',
     # models — Hamiltonian model builders
