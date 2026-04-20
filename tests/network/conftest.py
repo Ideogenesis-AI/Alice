@@ -30,7 +30,7 @@ from nicole.index import Index, Sector
 @pytest.fixture(autouse=True)
 def configure_logging():
     """Configure logging to suppress info messages during tests."""
-    logging.getLogger('alice.network.intrcmap').setLevel(logging.WARNING)
+    logging.getLogger('alice.physics.geometry').setLevel(logging.WARNING)
 
 
 # ------------------------------------------------------------------
