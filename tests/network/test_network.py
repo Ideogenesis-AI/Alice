@@ -475,3 +475,104 @@ class TestMPO:
             mpo[i] = mpo[i] * 0.0
         with pytest.raises(ValueError, match="numerically zero"):
             mpo.redistribute_norm()
+
+
+class TestNormalize:
+    """Tests for Network.normalize() on both MPS and MPO."""
+
+    # ------------------------------------------------------------------
+    # Error conditions
+    # ------------------------------------------------------------------
+
+    def test_no_center_raises_mps(self, mps_tensors):
+        """normalize() must raise ValueError when center is None (MPS)."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        assert mps.center is None
+        with pytest.raises(ValueError, match="canonical"):
+            mps.normalize()
+
+    def test_no_center_raises_mpo(self, mpo_tensors):
+        """normalize() must raise ValueError when center is None (MPO)."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        assert mpo.center is None
+        with pytest.raises(ValueError, match="canonical"):
+            mpo.normalize()
+
+    def test_zero_norm_raises_mps(self, mps_tensors):
+        """normalize() must raise ValueError when the norm is numerically zero."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(0, trunc=None)
+        mps[mps.center] = mps[mps.center] * 0.0
+        with pytest.raises(ValueError, match="numerically zero"):
+            mps.normalize()
+
+    # ------------------------------------------------------------------
+    # MPS: correctness
+    # ------------------------------------------------------------------
+
+    def test_returns_none_mps(self, mps_tensors):
+        """normalize() must return None."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(5, trunc=None)
+        assert mps.normalize() is None
+
+    def test_center_norm_is_one_mps(self, mps_tensors):
+        """After normalize(), the center tensor must have unit Frobenius norm."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(5, trunc=None)
+        mps.normalize()
+        assert math.isclose(mps[mps.center].norm(), 1.0, rel_tol=1e-10)
+
+    def test_non_center_tensors_unchanged_mps(self, mps_tensors):
+        """normalize() must not modify non-center site tensors (MPS)."""
+        center = 5
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(center, trunc=None)
+        norms_before = [mps[i].norm() for i in range(mps.L)]
+        mps.normalize()
+        for i in range(mps.L):
+            if i != center:
+                assert math.isclose(mps[i].norm(), norms_before[i], rel_tol=1e-10)
+
+    def test_center_preserved_after_normalize_mps(self, mps_tensors):
+        """normalize() must not change the center attribute."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(3, trunc=None)
+        mps.normalize()
+        assert mps.center == 3
+
+    def test_norm_is_one_after_normalize_mps(self, mps_tensors):
+        """The total MPS norm must equal 1.0 after normalize()."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(5, trunc=None)
+        mps.normalize()
+        assert math.isclose(mps.norm(), 1.0, rel_tol=1e-10)
+
+    # ------------------------------------------------------------------
+    # MPO: correctness
+    # ------------------------------------------------------------------
+
+    def test_center_norm_is_one_mpo(self, mpo_tensors):
+        """After normalize(), the center tensor must have unit Frobenius norm (MPO)."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(5, trunc=None)
+        mpo.normalize()
+        assert math.isclose(mpo[mpo.center].norm(), 1.0, rel_tol=1e-10)
+
+    def test_non_center_tensors_unchanged_mpo(self, mpo_tensors):
+        """normalize() must not modify non-center site tensors (MPO)."""
+        center = 5
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(center, trunc=None)
+        norms_before = [mpo[i].norm() for i in range(mpo.L)]
+        mpo.normalize()
+        for i in range(mpo.L):
+            if i != center:
+                assert math.isclose(mpo[i].norm(), norms_before[i], rel_tol=1e-10)
+
+    def test_center_preserved_after_normalize_mpo(self, mpo_tensors):
+        """normalize() must not change the center attribute (MPO)."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(7, trunc=None)
+        mpo.normalize()
+        assert mpo.center == 7
