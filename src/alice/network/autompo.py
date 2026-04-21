@@ -73,9 +73,6 @@ def build_hamiltonian(
         If any required tensor slot is `None`, or if `intermid_tnsr` is `None`
         for a two-site interaction with `terminal_site > leading_site + 1`.
     """
-    if trunc is None:
-        trunc = {'thresh': 1e-15}
-
     # Filter out zero-coupling interactions before validation.  A zero coupling
     # contributes nothing to the Hamiltonian and may legitimately have tensor
     # fields left unset (e.g. NNN bonds with Jp=0 from the model builder).
@@ -183,21 +180,6 @@ def build_hamiltonian(
 
     # Step 3 — Compress: two canonical sweeps with norm extraction.
     mpo_obj = MPO(mpo, center=None)
-
-    # Left-to-right sweep without truncation; orthogonality center moves to L-1.
-    mpo_obj.canonical(L - 1, trunc=None)
-
-    # Extract and remove the overall scale from the rightmost (center) tensor so
-    # that the SVD threshold in the next sweep is applied relative to a unit-norm
-    # environment.
-    norm = mpo_obj[L - 1].norm()
-    mpo_obj[L - 1] = mpo_obj[L - 1] * (1.0 / norm)
-
-    # Right-to-left sweep with SVD truncation; center moves to 0.
-    mpo_obj.canonical(0, trunc=trunc)
-
-    # Restore the overall scale and distribute it evenly across all site tensors.
-    mpo_obj[0] = mpo_obj[0] * norm
-    mpo_obj.redistribute_norm()
+    mpo_obj.compact(trunc)
 
     return mpo_obj
