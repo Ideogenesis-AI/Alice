@@ -358,6 +358,31 @@ class Network:
         # env.norm() = ⟨ψ|ψ⟩, so ||ψ|| = sqrt(env.norm()).
         return math.sqrt(env.norm())
 
+    def normalize(self) -> None:
+        """Normalize the network in-place by dividing the center tensor by its norm.
+
+        The network must be in canonical form (i.e. `center` must not be
+        `None`) so that the full norm is concentrated in a single tensor.
+        After this call the center tensor has unit Frobenius norm.
+
+        Raises
+        ------
+        ValueError
+            If `center` is `None`. Call `canonical()` first to bring the
+            network into mixed-canonical form before normalizing.
+        ValueError
+            If the norm is numerically zero (cannot divide by zero).
+        """
+        if self.center is None:
+            raise ValueError(
+                "normalize() requires a canonical form; call canonical() first"
+            )
+        # Divide the tensor at orthogonality center by its norm
+        n = self._tensors[self.center].norm()
+        if math.isclose(n, 0.0, abs_tol=1e-15):
+            raise ValueError("cannot normalize: network norm is numerically zero")
+        self._tensors[self.center] = self._tensors[self.center] * (1.0 / n)
+
 
 class MPS(Network):
     """Matrix product state.
