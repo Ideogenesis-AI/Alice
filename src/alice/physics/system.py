@@ -24,9 +24,9 @@ MPO operator templates and returns `(Spc, Op)`.
 
 4th-order leading-site templates follow the axis layout
 `(L_trivial_IN, op_OUT, bra_IN, ket_OUT)` and are keyed with the suffix `4`
-(e.g. `'S4'`, `'G4'`).  Terminal-site templates follow
+(e.g. `'S4'`, `'G4'`). Terminal-site templates follow
 `(op_IN, R_trivial_OUT, bra_IN, ket_OUT)` and are keyed with the suffix
-`4dag` (e.g. `'S4dag'`, `'G4dag'`).  On-site 4th-order tensors
+`4dag` (e.g. `'S4dag'`, `'G4dag'`). On-site 4th-order tensors
 (`'I4'`, `'N4'`, `'Z4'`, `'NN4'`) carry trivial auxiliary bonds and
 follow the layout `(aux_IN, aux_OUT, bra_IN, ket_OUT)`.
 """
@@ -36,7 +36,7 @@ from __future__ import annotations
 from typing import Dict, Tuple
 
 from nicole import Direction, Tensor
-from nicole import identity, oplus, capcup, contract
+from nicole import identity, oplus, capcup, contract, einsum
 from nicole import load_space
 from nicole.index import Index
 
@@ -122,6 +122,33 @@ def _make_terminal4(op3: Tensor) -> Tensor:
     return op4
 
 
+def _make_intermid4(string_op: Tensor, leading_tnsr: Tensor) -> Tensor:
+    """Build a 4th-order intermediate-site tensor for long-range bonds.
+
+    Constructs the tensor as the direct product of an identity on the
+    operator channel (derived from the leading tensor's `op_OUT` index) and
+    a 2nd-order string operator. For bosonic strings the string operator
+    is the identity; for fermionic strings it is the Jordan-Wigner operator Z.
+
+    Parameters
+    ----------
+    string_op:
+        2nd-order string operator with axes `(bra_OUT, ket_IN)`. Pass the
+        physical identity for bosons, or Z for fermions.
+    leading_tnsr:
+        4th-order leading-site template whose `op_OUT` index (axis 1) defines
+        the operator channel that the intermediate tensor must propagate.
+
+    Returns
+    -------
+    Tensor
+        4th-order tensor with axes `(op_IN, op_OUT, bra_OUT, ket_IN)`.
+    """
+    op_idx_out = leading_tnsr.indices[1]       # op_OUT (dir = OUT)
+    op_id = identity(op_idx_out.flip())        # (op_IN, op_OUT) — correct bond directions
+    return einsum('ab,cd->abcd', op_id, string_op)
+
+
 def _make_spin_templates(S: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
     """Build `Sdag`, `S4`, and `S4dag` from a 3rd-order spin operator.
 
@@ -186,6 +213,9 @@ def build_bosonic(
       but for `Sz` alone; useful for anisotropic (XXZ) couplings.
     - `'I4'` — 4th-order identity tensor
       `(L_trivial_IN, R_trivial_OUT, bra_OUT, ket_IN)`.
+    - `'I4mid'` — 4th-order intermediate-site template for long-range bosonic
+      bonds `(op_IN, op_OUT, bra_OUT, ket_IN)`; physical identity with the
+      operator channel propagated as-is (no string operator needed).
     """
     Spc, Op = load_space('Spin', symmetry, {'J': spin})
 
@@ -211,6 +241,9 @@ def build_bosonic(
         Op['Sz4dag'] = _make_terminal4(Szdag)
 
     Op['I4'] = _make_i4(Spc)
+
+    # Intermediate-site template for long-range bosonic bonds (no JW string).
+    Op['I4mid'] = _make_intermid4(identity(Spc), S4)
 
     return Spc, Op
 
@@ -259,6 +292,9 @@ def build_fermionic(
     - `'N'` — 2nd-order number operator `c†c` in `(bra, ket)` layout.
     - `'N4'`, `'I4'`, `'Z4'` — 4th-order on-site tensors with trivial
       `L`/`R` bonds.
+    - `'Z4mid'` — 4th-order intermediate-site template for long-range fermionic
+      bonds `(op_IN, op_OUT, bra_OUT, ket_IN)`; applies Z (Jordan-Wigner string)
+      at each intermediate site to maintain the correct fermionic sign.
     """
     Spc, Op = load_space('Ferm', symmetry)
 
@@ -300,6 +336,9 @@ def build_fermionic(
 
     Z = Op['Z']
     Op['Z4'] = _make_onsite4(Z)
+
+    # Intermediate-site template for long-range fermionic bonds (JW string Z).
+    Op['Z4mid'] = _make_intermid4(Z, Op['G4'])
 
     return Spc, Op
 
@@ -357,6 +396,9 @@ def build_conductor(
     - `'N'` — 2nd-order total number operator `n_up + n_dn`.
     - `'NN'` — 2nd-order double-occupancy operator `n_up × n_dn`.
     - `'N4'`, `'NN4'`, `'I4'`, `'Z4'` — 4th-order on-site tensors.
+    - `'Z4mid'` — 4th-order intermediate-site template for long-range Hubbard
+      hopping bonds `(op_IN, op_OUT, bra_OUT, ket_IN)`; applies Z at each
+      intermediate site for the Jordan-Wigner string.
     """
     Spc, Op = load_space('Band', symmetry)
 
@@ -457,5 +499,8 @@ def build_conductor(
 
     Op['I4'] = _make_i4(Spc)
     Op['Z4'] = _make_onsite4(Z)
+
+    # Intermediate-site template for long-range fermionic bonds (JW string Z).
+    Op['Z4mid'] = _make_intermid4(Z, Op['G4'])
 
     return Spc, Op
