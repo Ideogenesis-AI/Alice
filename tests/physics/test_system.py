@@ -66,7 +66,7 @@ class TestBosonic:
     def test_keys_present(self, symmetry):
         """All required keys must be present; `Sz4`/`Sz4dag` only for U1."""
         _, Op = build_bosonic(symmetry=symmetry)
-        required = {'S', 'Sdag', 'S4', 'S4dag', 'I4'}
+        required = {'S', 'Sdag', 'S4', 'S4dag', 'I4', 'I4mid'}
         assert required <= Op.keys()
         if symmetry == 'U1':
             assert 'Sz4'    in Op
@@ -79,7 +79,7 @@ class TestBosonic:
     def test_4th_order_axis_count(self, symmetry):
         """Every 4th-order template must have exactly 4 indices."""
         _, Op = build_bosonic(symmetry=symmetry)
-        keys_4 = ['S4', 'S4dag', 'I4']
+        keys_4 = ['S4', 'S4dag', 'I4', 'I4mid']
         if symmetry == 'U1':
             keys_4 += ['Sz4', 'Sz4dag']
         for key in keys_4:
@@ -87,10 +87,10 @@ class TestBosonic:
 
     @pytest.mark.parametrize('symmetry', ['U1', 'SU2'])
     def test_4th_order_axis_directions(self, symmetry):
-        """Leading, terminal, and on-site 4th-order templates must follow the
-        correct `(IN, OUT, OUT, IN)` direction convention."""
+        """Leading, terminal, on-site, and intermediate 4th-order templates must
+        follow the `(IN, OUT, IN, OUT)` direction convention."""
         _, Op = build_bosonic(symmetry=symmetry)
-        for key in ['S4', 'S4dag', 'I4']:
+        for key in ['S4', 'S4dag', 'I4', 'I4mid']:
             assert _directions(Op[key]) == _4TH_ORDER_DIRECTIONS, (
                 f"'{key}' directions: {_directions(Op[key])}"
             )
@@ -99,6 +99,19 @@ class TestBosonic:
                 assert _directions(Op[key]) == _4TH_ORDER_DIRECTIONS, (
                     f"'{key}' directions: {_directions(Op[key])}"
                 )
+
+    @pytest.mark.parametrize('symmetry', ['U1', 'SU2'])
+    def test_i4mid_op_bond_matches_s4(self, symmetry):
+        """`I4mid` op bond index (axes 0 and 1) must have the same dimension as
+        the op_OUT of `S4` and op_IN of `S4dag`."""
+        _, Op = build_bosonic(symmetry=symmetry)
+        op_dim = Op['S4'].indices[1].dim
+        assert Op['I4mid'].indices[0].dim == op_dim, (
+            "I4mid axis 0 (op_IN) dim does not match S4 op_OUT dim"
+        )
+        assert Op['I4mid'].indices[1].dim == op_dim, (
+            "I4mid axis 1 (op_OUT) dim does not match S4 op_OUT dim"
+        )
 
     @pytest.mark.parametrize('symmetry', ['U1', 'SU2'])
     def test_s4dag_is_adjoint_of_s4(self, symmetry):
@@ -134,24 +147,37 @@ class TestFermionic:
         """All required keys must be present in `Op`."""
         _, Op = build_fermionic(symmetry=symmetry)
         required = {'F', 'C', 'Fd', 'Cd', 'G', 'Gdag', 'G4', 'G4dag',
-                    'N', 'N4', 'I4', 'Z4'}
+                    'N', 'N4', 'I4', 'Z4', 'Z4mid'}
         assert required <= Op.keys()
 
     @pytest.mark.parametrize('symmetry', ['U1', 'Z2'])
     def test_4th_order_axis_count(self, symmetry):
         """Every 4th-order template must have exactly 4 indices."""
         _, Op = build_fermionic(symmetry=symmetry)
-        for key in ['G4', 'G4dag', 'N4', 'I4', 'Z4']:
+        for key in ['G4', 'G4dag', 'N4', 'I4', 'Z4', 'Z4mid']:
             assert len(Op[key].indices) == 4, f"'{key}' has {len(Op[key].indices)} indices"
 
     @pytest.mark.parametrize('symmetry', ['U1', 'Z2'])
     def test_4th_order_axis_directions(self, symmetry):
-        """All 4th-order templates must follow `(IN, OUT, OUT, IN)`."""
+        """All 4th-order templates must follow `(IN, OUT, IN, OUT)`."""
         _, Op = build_fermionic(symmetry=symmetry)
-        for key in ['G4', 'G4dag', 'N4', 'I4', 'Z4']:
+        for key in ['G4', 'G4dag', 'N4', 'I4', 'Z4', 'Z4mid']:
             assert _directions(Op[key]) == _4TH_ORDER_DIRECTIONS, (
                 f"'{key}' directions: {_directions(Op[key])}"
             )
+
+    @pytest.mark.parametrize('symmetry', ['U1', 'Z2'])
+    def test_z4mid_op_bond_matches_g4(self, symmetry):
+        """`Z4mid` op bond (axes 0 and 1) must have the same dimension as the
+        op_OUT of `G4` and op_IN of `G4dag`."""
+        _, Op = build_fermionic(symmetry=symmetry)
+        op_dim = Op['G4'].indices[1].dim
+        assert Op['Z4mid'].indices[0].dim == op_dim, (
+            "Z4mid axis 0 (op_IN) dim does not match G4 op_OUT dim"
+        )
+        assert Op['Z4mid'].indices[1].dim == op_dim, (
+            "Z4mid axis 1 (op_OUT) dim does not match G4 op_OUT dim"
+        )
 
     @pytest.mark.parametrize('symmetry', ['U1', 'Z2'])
     def test_n_is_2nd_order(self, symmetry):
@@ -238,7 +264,7 @@ class TestConductor:
         _, Op = build_conductor(symmetry=symmetry)
         hopping = {'F', 'ZF', 'ZC', 'Fd', 'Cd', 'G', 'Gdag', 'G4', 'G4dag'}
         spin    = {'S', 'Sdag', 'S4', 'S4dag'}
-        onsite  = {'N', 'NN', 'N4', 'NN4', 'I4', 'Z4'}
+        onsite  = {'N', 'NN', 'N4', 'NN4', 'I4', 'Z4', 'Z4mid'}
         assert hopping | spin | onsite <= Op.keys()
         if 'SU2' not in symmetry:
             assert 'Sz4'    in Op
@@ -251,7 +277,7 @@ class TestConductor:
     def test_4th_order_axis_count(self, symmetry):
         """Every 4th-order template must have exactly 4 indices."""
         _, Op = build_conductor(symmetry=symmetry)
-        keys_4 = ['G4', 'G4dag', 'S4', 'S4dag', 'N4', 'NN4', 'I4', 'Z4']
+        keys_4 = ['G4', 'G4dag', 'S4', 'S4dag', 'N4', 'NN4', 'I4', 'Z4', 'Z4mid']
         if 'SU2' not in symmetry:
             keys_4 += ['Sz4', 'Sz4dag']
         for key in keys_4:
@@ -259,15 +285,28 @@ class TestConductor:
 
     @pytest.mark.parametrize('symmetry', ['U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2'])
     def test_4th_order_axis_directions(self, symmetry):
-        """All 4th-order templates must follow `(IN, OUT, OUT, IN)`."""
+        """All 4th-order templates must follow `(IN, OUT, IN, OUT)`."""
         _, Op = build_conductor(symmetry=symmetry)
-        keys_4 = ['G4', 'G4dag', 'S4', 'S4dag', 'N4', 'NN4', 'I4', 'Z4']
+        keys_4 = ['G4', 'G4dag', 'S4', 'S4dag', 'N4', 'NN4', 'I4', 'Z4', 'Z4mid']
         if 'SU2' not in symmetry:
             keys_4 += ['Sz4', 'Sz4dag']
         for key in keys_4:
             assert _directions(Op[key]) == _4TH_ORDER_DIRECTIONS, (
                 f"'{key}' directions: {_directions(Op[key])}"
             )
+
+    @pytest.mark.parametrize('symmetry', ['U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2'])
+    def test_z4mid_op_bond_matches_g4(self, symmetry):
+        """`Z4mid` op bond (axes 0 and 1) must have the same dimension as the
+        op_OUT of `G4` and op_IN of `G4dag`."""
+        _, Op = build_conductor(symmetry=symmetry)
+        op_dim = Op['G4'].indices[1].dim
+        assert Op['Z4mid'].indices[0].dim == op_dim, (
+            "Z4mid axis 0 (op_IN) dim does not match G4 op_OUT dim"
+        )
+        assert Op['Z4mid'].indices[1].dim == op_dim, (
+            "Z4mid axis 1 (op_OUT) dim does not match G4 op_OUT dim"
+        )
 
     @pytest.mark.parametrize('symmetry', ['U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2'])
     def test_n_is_2nd_order(self, symmetry):
