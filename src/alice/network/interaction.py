@@ -37,13 +37,13 @@ class Interaction:
     Attributes
     ----------
     cpl:
-        Coupling constant.  Set to `0.0` by the geometry builder; the model
-        builder assigns the physical value.  `build_hamiltonian` multiplies
+        Coupling constant. Set to `0.0` by the geometry builder; the model
+        builder assigns the physical value. `build_hamiltonian` multiplies
         the terminal (or on-site) tensor by this value when constructing the
         MPO.
     label:
         List of string labels encoding the bond topology (e.g. `['NN', 'N2X']`,
-        `['NNN', 'N3D']`).  Set by the geometry builder; used by the model
+        `['NNN', 'N3D']`). Set by the geometry builder; used by the model
         builder to assign the correct coupling per bond type.
     """
 
@@ -61,8 +61,8 @@ class Interaction1Site(Interaction):
         Site index (0-based).
     tnsr:
         4-index MPO tensor in format `(L_trivial_IN, R_trivial_OUT, bra_OUT,
-        ket_IN)`.  The coupling `cpl` is applied by `build_hamiltonian` and
-        must NOT be baked in.  Set by the model builder.
+        ket_IN)`. The coupling `cpl` is applied by `build_hamiltonian` and
+        must NOT be baked in. Set by the model builder.
     """
 
     site: int = 0
@@ -78,22 +78,22 @@ class Interaction2Site(Interaction):
     leading_site:
         Index of the leading (left) site (0-based).
     terminal_site:
-        Index of the terminal (right) site (0-based).  Must satisfy
+        Index of the terminal (right) site (0-based). Must satisfy
         `terminal_site > leading_site`.
     leading_tnsr:
         4-index MPO tensor for the leading site, in format
-        `(L_trivial_IN, op_OUT, bra_OUT, ket_IN)`.  The op axis carries the
-        operator channel contracted with the terminal site.  Set by the model
+        `(L_trivial_IN, op_OUT, bra_OUT, ket_IN)`. The op axis carries the
+        operator channel contracted with the terminal site. Set by the model
         builder.
     terminal_tnsr:
         4-index MPO tensor for the terminal site, in format
-        `(op_IN, R_trivial_OUT, bra_OUT, ket_IN)`.  `build_hamiltonian`
+        `(op_IN, R_trivial_OUT, bra_OUT, ket_IN)`. `build_hamiltonian`
         scales this tensor by `cpl`; the model builder must NOT bake the
-        coupling in.  Set by the model builder.
+        coupling in. Set by the model builder.
     intermid_tnsr:
         4-index MPO tensor for intermediate sites (between `leading_site` and
         `terminal_site`), in format `(left_op_IN, right_op_OUT, bra_OUT,
-        ket_IN)`.  Required when `terminal_site > leading_site + 1`.  For
+        ket_IN)`. Required when `terminal_site > leading_site + 1`. For
         bosonic systems this is typically the physical identity dressed with
         op-sector bonds; for fermionic systems it is the Jordan-Wigner string.
         Set by the model builder.
@@ -187,14 +187,14 @@ def build_interaction(
         Either a config dict (with `'geometry'` and `'model'` sub-dicts) or a
         path to a TOML file.
     geometry_fn:
-        Optional override for the geometry builder.  Signature:
+        Optional override for the geometry builder. Signature:
         `geometry_fn(geo: dict) -> list[Interaction2Site]`.
     model_fn:
-        Optional override for the model builder.  Signature:
+        Optional override for the model builder. Signature:
         `model_fn(interactions, L, model_cfg: dict) -> tuple[Index, dict]`.
     space_fn:
         Optional override for the operator-set builder (normally called
-        internally by the model builder).  Passed through to the model builder
+        internally by the model builder). Passed through to the model builder
         as a keyword argument `space_fn=space_fn`.
 
     Returns
@@ -240,9 +240,6 @@ def build_interaction(
     # -----------------------------------------------------------------------
     # Resolve callables: kwarg > [plugin] entry > built-in.
     # -----------------------------------------------------------------------
-    _GEO_BUILTIN: Dict[str, Callable] = {
-        'square': build_geometry,
-    }
     _MODEL_BUILTIN: Dict[str, Callable] = {
         'Heisenberg':  build_heisenberg,
         'FreeFermion': build_free_fermion,
@@ -254,17 +251,11 @@ def build_interaction(
         'conductor':  build_conductor,
     }
 
-    # Geometry callable
+    # Geometry callable — build_geometry handles all registered lattice types.
     if geometry_fn is None and 'geometry' in plugin:
         geometry_fn = _load_plugin(plugin['geometry'], base_dir)
     if geometry_fn is None:
-        lattice = geo_cfg.get('lattice', 'square')
-        if lattice not in _GEO_BUILTIN:
-            raise ValueError(
-                f"Unknown geometry lattice '{lattice}'. "
-                f"Available: {list(_GEO_BUILTIN)}"
-            )
-        geometry_fn = _GEO_BUILTIN[lattice]
+        geometry_fn = build_geometry
 
     # Space (operator-set) callable
     if space_fn is None and 'space' in plugin:
@@ -291,7 +282,7 @@ def build_interaction(
     # Stage 1: Geometry
     # -----------------------------------------------------------------------
     interactions = geometry_fn(geo_cfg)
-    L = geo_cfg['lx'] * geo_cfg['ly']
+    L = geo_cfg['lx'] * geo_cfg.get('ly', 1)
 
     # -----------------------------------------------------------------------
     # Stage 2: Model (fills cpl + tensors; coupling not baked in)
