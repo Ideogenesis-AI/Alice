@@ -499,6 +499,46 @@ class MPO(Network):
                 )
         super()._validate()
 
+    def compact(self, trunc: Optional[dict] = None) -> None:
+        """Compress the MPO bond dimensions in-place with norm preservation.
+
+        Performs a two-sweep canonicalization:
+
+        1. **Left-to-right** sweep without truncation, moving the orthogonality
+           center to the rightmost site. This concentrates the full operator
+           norm into the center tensor.
+        2. **Normalize** the center tensor to unit Frobenius norm, temporarily
+           factoring out the overall scale.
+        3. **Right-to-left** sweep with SVD truncation (controlled by `trunc`),
+           moving the center to site 0. Because the environment is unit-normed,
+           the truncation threshold is applied on a consistent scale.
+        4. **Restore** the overall scale into the new center tensor, then call
+           `redistribute_norm()` to spread it evenly across all sites.
+
+        Parameters
+        ----------
+        trunc:
+            Truncation options forwarded to `canonical()` during the
+            right-to-left compression sweep. Defaults to
+            ``{'thresh': 1e-15}`` when `None`.
+        """
+        if trunc is None:
+            trunc = {'thresh': 1e-15}
+
+        # Left sweep — no truncation; center moves to L-1.
+        self.canonical(self.L - 1, trunc=None)
+
+        # Factor out the norm so the SVD threshold is on a unit scale.
+        n = self.norm()
+        self.normalize()
+
+        # Right sweep — SVD truncation; center moves to 0.
+        self.canonical(0, trunc=trunc)
+
+        # Restore the overall scale then distribute it evenly.
+        self._tensors[self.center] = self._tensors[self.center] * n
+        self.redistribute_norm()
+
     def redistribute_norm(self) -> None:
         """Redistribute the MPO norm equally across all site tensors.
 
