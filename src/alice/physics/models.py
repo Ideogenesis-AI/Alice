@@ -20,7 +20,7 @@
 
 Each builder takes a list of `Interaction` objects produced by the geometry
 stage, populates the tensor fields and sets `cpl` in place, then returns
-`(spc, ops)`.  Coupling constants are stored in `intr.cpl` but are **not**
+`(spc, ops)`. Coupling constants are stored in `intr.cpl` but are **not**
 baked into the tensors; `build_hamiltonian` applies them when constructing
 the MPO.
 
@@ -32,7 +32,7 @@ Supported models
 
 Each function accepts a `space_fn` keyword argument that overrides the
 default operator-set builder (`build_bosonic`, `build_fermionic`, or
-`build_conductor` from `system.py`).  This enables custom physical spaces
+`build_conductor` from `system.py`). This enables custom physical spaces
 while reusing the standard model structure.
 """
 
@@ -61,17 +61,17 @@ def build_heisenberg(
     """Populate interactions for a Heisenberg spin model.
 
     Assigns the spin-spin coupling `J S†_i · S_j` to each NN bond and
-    `Jp S†_i · S_j` to each NNN bond.  Tensors are built from `build_bosonic`
+    `Jp S†_i · S_j` to each NNN bond. Tensors are built from `build_bosonic`
     (or `space_fn` if provided) and stored without baking in the coupling;
     `build_hamiltonian` applies `intr.cpl` when constructing the MPO.
 
     Parameters
     ----------
     interactions:
-        List of `Interaction2Site` objects from the geometry stage.  Modified
+        List of `Interaction2Site` objects from the geometry stage. Modified
         in place.
     L:
-        Chain length.  Unused here (present for uniform model-builder API).
+        Chain length. Unused here (present for uniform model-builder API).
     symmetry:
         Symmetry passed to `build_bosonic` — `'U1'` or `'SU2'`.
     spin:
@@ -79,11 +79,11 @@ def build_heisenberg(
     J:
         Coupling for NN bonds (label `'NN'`).
     Jp:
-        Coupling for NNN bonds (label `'NNN'`).  Interactions with `Jp == 0`
+        Coupling for NNN bonds (label `'NNN'`). Interactions with `Jp == 0`
         are left with `cpl = 0.0` and no tensors; `build_hamiltonian` skips
         them.
     space_fn:
-        Optional replacement for `build_bosonic`.  Must have the same
+        Optional replacement for `build_bosonic`. Must have the same
         signature: `space_fn(symmetry, spin) -> (spc, ops)`.
     **_ignored:
         Extra TOML keys forwarded from the dispatcher are silently ignored.
@@ -98,15 +98,18 @@ def build_heisenberg(
 
     S4    = ops['S4']
     S4dag = ops['S4dag']
+    I4mid = ops['I4mid']
 
     for intr in interactions:
         if not isinstance(intr, Interaction2Site):
             continue
 
         if 'NN' in intr.label:
-            intr.cpl          = J
-            intr.leading_tnsr = S4.clone()
+            intr.cpl           = J
+            intr.leading_tnsr  = S4.clone()
             intr.terminal_tnsr = S4dag.clone()
+            if intr.terminal_site > intr.leading_site + 1:
+                intr.intermid_tnsr = I4mid.clone()
 
         elif 'NNN' in intr.label:
             intr.cpl = Jp
@@ -115,15 +118,8 @@ def build_heisenberg(
             if Jp != 0.0:
                 intr.leading_tnsr  = S4.clone()
                 intr.terminal_tnsr = S4dag.clone()
-                # intermid_tnsr is required when terminal_site > leading_site + 1.
-                # Constructing the correct intermediate tensor for long-range
-                # NNN bonds is model-specific and not yet implemented.
                 if intr.terminal_site > intr.leading_site + 1:
-                    raise NotImplementedError(
-                        f"Heisenberg: intermid_tnsr for NNN bond "
-                        f"{intr.leading_site}→{intr.terminal_site} is not yet "
-                        f"supported.  Set intr.intermid_tnsr manually."
-                    )
+                    intr.intermid_tnsr = I4mid.clone()
 
     return spc, ops
 
@@ -142,7 +138,7 @@ def build_free_fermion(
     """Populate interactions for a spinless free-fermion (tight-binding) model.
 
     Assigns the hopping term `-t (c†_i c_j + h.c.)` to NN bonds and
-    `-tp (...)` to NNN bonds.  An optional chemical potential `-mu n_i` is
+    `-tp (...)` to NNN bonds. An optional chemical potential `-mu n_i` is
     added as one `Interaction1Site` per site when `mu != 0`.
 
     The coupling stored in `intr.cpl` for hopping terms is negative (`-t`
@@ -152,20 +148,20 @@ def build_free_fermion(
     Parameters
     ----------
     interactions:
-        List of `Interaction` objects from the geometry stage.  Modified in
+        List of `Interaction` objects from the geometry stage. Modified in
         place; `Interaction1Site` objects for the chemical potential are
         appended when `mu != 0`.
     L:
-        Chain length.  Required when `mu != 0` to generate the on-site terms;
+        Chain length. Required when `mu != 0` to generate the on-site terms;
         the dispatcher always supplies it.
     symmetry:
         Symmetry passed to `build_fermionic` — `'U1'` or `'Z2'`.
     t:
-        NN hopping amplitude.  Stored as `cpl = -t`.
+        NN hopping amplitude. Stored as `cpl = -t`.
     tp:
-        NNN hopping amplitude.  Stored as `cpl = -tp`.
+        NNN hopping amplitude. Stored as `cpl = -tp`.
     mu:
-        Chemical potential.  Stored as `cpl = -mu` on each on-site
+        Chemical potential. Stored as `cpl = -mu` on each on-site
         `Interaction1Site`; zero by default (no on-site term).
     space_fn:
         Optional replacement for `build_fermionic`.
@@ -182,6 +178,7 @@ def build_free_fermion(
 
     G4    = ops['G4']
     G4dag = ops['G4dag']
+    Z4mid = ops['Z4mid']
 
     for intr in interactions:
         if not isinstance(intr, Interaction2Site):
@@ -191,6 +188,8 @@ def build_free_fermion(
             intr.cpl           = -t
             intr.leading_tnsr  = G4.clone()
             intr.terminal_tnsr = G4dag.clone()
+            if intr.terminal_site > intr.leading_site + 1:
+                intr.intermid_tnsr = Z4mid.clone()
 
         elif 'NNN' in intr.label:
             intr.cpl = -tp
@@ -198,11 +197,7 @@ def build_free_fermion(
                 intr.leading_tnsr  = G4.clone()
                 intr.terminal_tnsr = G4dag.clone()
                 if intr.terminal_site > intr.leading_site + 1:
-                    raise NotImplementedError(
-                        f"FreeFermion: intermid_tnsr for NNN bond "
-                        f"{intr.leading_site}→{intr.terminal_site} is not yet "
-                        f"supported.  Set intr.intermid_tnsr manually."
-                    )
+                    intr.intermid_tnsr = Z4mid.clone()
 
     # --- Chemical potential: -mu n_i for each site ---
     if mu != 0.0:
@@ -237,10 +232,10 @@ def build_hubbard(
     `Interaction1Site` per site for the on-site Hubbard-U term `U n_{up} n_{dn}`
     and an optional chemical potential term.
 
-    The chemical potential `mu` is defined **relative to half-filling**.  The
+    The chemical potential `mu` is defined **relative to half-filling**. The
     half-filling chemical potential for the standard Hubbard model is
     `mu_half = U / 2`, derived from the particle-hole symmetry condition
-    `<n> = 1`.  The effective on-site energy is therefore:
+    `<n> = 1`. The effective on-site energy is therefore:
 
         -mu_eff * n_i,   mu_eff = mu + U / 2.
 
@@ -253,24 +248,24 @@ def build_hubbard(
     Parameters
     ----------
     interactions:
-        List of `Interaction` objects from the geometry stage.  Modified in
+        List of `Interaction` objects from the geometry stage. Modified in
         place; `Interaction1Site` objects for Hubbard-U and chemical potential
         are appended.
     L:
-        Chain length.  Used to create one `Interaction1Site` per site for each
+        Chain length. Used to create one `Interaction1Site` per site for each
         on-site term.
     symmetry:
         Symmetry passed to `build_conductor` — e.g. `'U1,U1'` or `'U1,SU2'`.
     t:
-        NN hopping amplitude.  Stored as `cpl = -t`.
+        NN hopping amplitude. Stored as `cpl = -t`.
     U:
-        On-site Coulomb repulsion.  Stored as `cpl = U` on Hubbard-U
+        On-site Coulomb repulsion. Stored as `cpl = U` on Hubbard-U
         `Interaction1Site` objects.
     tp:
-        NNN hopping amplitude.  Stored as `cpl = -tp`.
+        NNN hopping amplitude. Stored as `cpl = -tp`.
     mu:
-        Chemical potential relative to half-filling.  The effective chemical
-        potential applied is `mu_eff = mu + U / 2`.  Stored as
+        Chemical potential relative to half-filling. The effective chemical
+        potential applied is `mu_eff = mu + U / 2`. Stored as
         `cpl = -mu_eff` on chemical-potential `Interaction1Site` objects.
         When `mu_eff == 0` (i.e. `mu == 0` and `U == 0`) no term is added.
     space_fn:
@@ -290,6 +285,7 @@ def build_hubbard(
     G4dag = ops['G4dag']
     NN4   = ops['NN4']
     N4    = ops['N4']
+    Z4mid = ops['Z4mid']
 
     # --- 2-site hopping terms ---
     for intr in interactions:
@@ -300,6 +296,8 @@ def build_hubbard(
             intr.cpl           = -t
             intr.leading_tnsr  = G4.clone()
             intr.terminal_tnsr = G4dag.clone()
+            if intr.terminal_site > intr.leading_site + 1:
+                intr.intermid_tnsr = Z4mid.clone()
 
         elif 'NNN' in intr.label:
             intr.cpl = -tp
@@ -307,11 +305,7 @@ def build_hubbard(
                 intr.leading_tnsr  = G4.clone()
                 intr.terminal_tnsr = G4dag.clone()
                 if intr.terminal_site > intr.leading_site + 1:
-                    raise NotImplementedError(
-                        f"Hubbard: intermid_tnsr for NNN bond "
-                        f"{intr.leading_site}→{intr.terminal_site} is not yet "
-                        f"supported.  Set intr.intermid_tnsr manually."
-                    )
+                    intr.intermid_tnsr = Z4mid.clone()
 
     # --- On-site Hubbard-U terms: U n_up n_dn ---
     for site in range(L):
