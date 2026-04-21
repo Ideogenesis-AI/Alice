@@ -24,8 +24,8 @@ from typing import List, Optional
 
 import math
 
-from nicole import Tensor, contract, einsum
-from nicole.decomp import decomp
+from nicole import Tensor, contract, einsum, decomp
+from nicole import serialize as _serialize_tensor, deserialize as _deserialize_tensor
 
 # Sentinel used to distinguish "caller passed nothing" from "caller passed None".
 # canonical() uses this so that trunc=None retains its natural decomp meaning
@@ -66,6 +66,7 @@ class Network:
         tensors: List[Tensor],
         bc: str = 'OBC',
         center: Optional[int] = None,
+        itag_prefix: Optional[str] = None,
     ) -> None:
         """
         Parameters
@@ -77,6 +78,11 @@ class Network:
         center:
             Orthogonality center site index, or `None` if the canonical form
             is unspecified.
+        itag_prefix:
+            Bond itag prefix string. Defaults to `'_init_'` when `None`.
+            Subclasses override this default (`'A'` for `MPS`, `'W'` for
+            `MPO`), so supply this argument only when a non-default prefix is
+            explicitly required.
 
         Raises
         ------
@@ -91,7 +97,7 @@ class Network:
         self._tensors: List[Tensor] = list(tensors)
         self.bc: str = bc
         self._center: Optional[int] = center
-        self._itag_prefix: str = _DEFAULT_ITAG_PREFIX
+        self._itag_prefix: str = itag_prefix if itag_prefix is not None else _DEFAULT_ITAG_PREFIX
         self._validate()
 
     def _validate(self) -> None:
@@ -383,6 +389,88 @@ class Network:
             raise ValueError("cannot normalize: network norm is numerically zero")
         self._tensors[self.center] = self._tensors[self.center] * (1.0 / n)
 
+    # ------------------------------------------------------------------
+    #  Serialization
+    # ------------------------------------------------------------------
+
+    def serialize(self) -> dict:
+        """Convert the network to a plain dict compatible with `torch.save`.
+
+        The returned dict contains only Python primitives and `torch.Tensor`
+        values, making it directly usable with
+        `torch.save` / `torch.load(..., weights_only=True)`.
+
+        Each site tensor is serialized using `nicole.serialize`, preserving
+        symmetry structure, index metadata, and block data.
+
+        Returns
+        -------
+        dict
+            Serialized representation with keys `"version"`, `"class"`,
+            `"bc"`, `"center"`, `"itag_prefix"`, and `"tensors"`.
+
+        Examples
+        --------
+        >>> payload = mps.serialize()
+        >>> torch.save(payload, "state.mps")
+        """
+        return {
+            "version": 1,
+            "class": type(self).__name__,
+            "bc": self.bc,
+            "center": self._center,
+            "itag_prefix": self._itag_prefix,
+            "tensors": [_serialize_tensor(t) for t in self._tensors],
+        }
+
+    @staticmethod
+    def deserialize(data: dict, device: str = "cpu") -> "Network":
+        """Reconstruct a `Network` (or subclass) from a dict produced by `serialize`.
+
+        Dispatches to the correct subclass (`Network`, `MPS`, or `MPO`) based
+        on the `"class"` key in `data`, then restores all metadata including
+        `itag_prefix`.
+
+        Parameters
+        ----------
+        data:
+            Dict previously produced by `serialize`.
+        device:
+            Device to place all tensor blocks on. Defaults to `"cpu"`.
+
+        Returns
+        -------
+        Network
+            Reconstructed network on *device*. The concrete type matches what
+            was serialized (`Network`, `MPS`, or `MPO`).
+
+        Raises
+        ------
+        ValueError
+            If `data["version"]` is not `1`, or if `data["class"]` names an
+            unknown class.
+
+        Examples
+        --------
+        >>> payload = torch.load("state.mps", weights_only=True)
+        >>> mps = Network.deserialize(payload, device="cpu")
+        """
+        version = data.get("version", 1)
+        if version != 1:
+            raise ValueError(f"Unsupported serialization version: {version!r}")
+
+        cls_name = data["class"]
+        # Registry is built inline to avoid a forward-reference problem — MPS
+        # and MPO are defined after Network in this module.
+        _registry = {"Network": Network, "MPS": MPS, "MPO": MPO}
+        if cls_name not in _registry:
+            raise ValueError(f"Unknown network class in serialized data: {cls_name!r}")
+        cls = _registry[cls_name]
+
+        tensors = [_deserialize_tensor(d, device=device) for d in data["tensors"]]
+        return cls(tensors, bc=data["bc"], center=data["center"], itag_prefix=data["itag_prefix"])
+
+
 
 class MPS(Network):
     """Matrix product state.
@@ -396,6 +484,7 @@ class MPS(Network):
         tensors: List[Tensor],
         bc: str = 'OBC',
         center: Optional[int] = None,
+        itag_prefix: Optional[str] = None,
     ) -> None:
         """
         Parameters
@@ -408,6 +497,8 @@ class MPS(Network):
             Boundary condition: `'OBC'` (default) or `'PBC'`.
         center:
             Orthogonality center site index, or `None` if unspecified.
+        itag_prefix:
+            Bond itag prefix string. Defaults to `'A'` when `None`.
 
         Raises
         ------
@@ -416,7 +507,7 @@ class MPS(Network):
             itag, or adjacent bond indices are inconsistent.
         """
         super().__init__(tensors, bc, center)
-        self._itag_prefix = 'A'
+        self._itag_prefix = itag_prefix if itag_prefix is not None else 'A'
 
     def _validate(self) -> None:
         """Extend base validation with MPS-specific axis and itag checks."""
@@ -453,6 +544,7 @@ class MPO(Network):
         tensors: List[Tensor],
         bc: str = 'OBC',
         center: Optional[int] = None,
+        itag_prefix: Optional[str] = None,
     ) -> None:
         """
         Parameters
@@ -466,6 +558,8 @@ class MPO(Network):
             Boundary condition: `'OBC'` (default) or `'PBC'`.
         center:
             Orthogonality center site index, or `None` if unspecified.
+        itag_prefix:
+            Bond itag prefix string. Defaults to `'W'` when `None`.
 
         Raises
         ------
@@ -475,7 +569,7 @@ class MPO(Network):
             are inconsistent.
         """
         super().__init__(tensors, bc, center)
-        self._itag_prefix = 'W'
+        self._itag_prefix = itag_prefix if itag_prefix is not None else 'W'
 
     def _validate(self) -> None:
         """Extend base validation with MPO-specific axis and itag checks."""
