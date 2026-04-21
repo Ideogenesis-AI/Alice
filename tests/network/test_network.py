@@ -576,3 +576,95 @@ class TestNormalize:
         mpo.canonical(7, trunc=None)
         mpo.normalize()
         assert mpo.center == 7
+
+
+class TestCompact:
+    """Tests for MPO.compact()."""
+
+    # ------------------------------------------------------------------
+    # Return value and post-conditions
+    # ------------------------------------------------------------------
+
+    def test_returns_none(self, mpo_tensors):
+        """compact() must return None."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        assert mpo.compact() is None
+
+    def test_center_is_none_after_compact(self, mpo_tensors):
+        """compact() must leave center=None (via redistribute_norm)."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.compact()
+        assert mpo.center is None
+
+    # ------------------------------------------------------------------
+    # Norm preservation
+    # ------------------------------------------------------------------
+
+    def test_preserves_norm(self, mpo_tensors):
+        """compact() must not change the total MPO norm."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        n_before = mpo.norm()
+        mpo.compact(trunc=None)
+        assert math.isclose(mpo.norm(), n_before, rel_tol=1e-10)
+
+    def test_preserves_norm_from_canonical_start(self, mpo_tensors):
+        """compact() must preserve norm when the MPO already has a center set."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(3, trunc=None)
+        n_before = mpo.norm()
+        mpo.compact(trunc=None)
+        assert math.isclose(mpo.norm(), n_before, rel_tol=1e-10)
+
+    # ------------------------------------------------------------------
+    # Idempotency under repeated application
+    # ------------------------------------------------------------------
+
+    def test_norm_stable_after_second_compact(self, mpo_tensors):
+        """Applying compact() twice must leave the norm unchanged."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.compact(trunc=None)
+        n_after_first = mpo.norm()
+        mpo.compact(trunc=None)
+        assert math.isclose(mpo.norm(), n_after_first, rel_tol=1e-10)
+
+    # ------------------------------------------------------------------
+    # Truncation
+    # ------------------------------------------------------------------
+
+    def test_trunc_reduces_bond_dims(self, mpo_tensors):
+        """compact() with a tight threshold must reduce at least one bond dimension."""
+        mpo_full = MPO([t.clone() for t in mpo_tensors])
+        mpo_full.compact(trunc=None)
+        max_dim_full = max(mpo_full.bond_dims)
+
+        mpo_trunc = MPO([t.clone() for t in mpo_tensors])
+        mpo_trunc.compact(trunc={'thresh': 1e-2})
+        max_dim_trunc = max(mpo_trunc.bond_dims)
+
+        assert max_dim_trunc <= max_dim_full
+
+    def test_trunc_preserves_norm(self, mpo_tensors):
+        """compact() with truncation must still preserve the total norm."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        n_before = mpo.norm()
+        mpo.compact(trunc={'thresh': 1e-10})
+        assert math.isclose(mpo.norm(), n_before, rel_tol=1e-6)
+
+    def test_default_trunc_equals_explicit_default(self, mpo_tensors):
+        """compact() with no trunc argument must match compact(trunc={'thresh': 1e-15})."""
+        mpo_a = MPO([t.clone() for t in mpo_tensors])
+        mpo_a.compact()
+        mpo_b = MPO([t.clone() for t in mpo_tensors])
+        mpo_b.compact(trunc={'thresh': 1e-15})
+        assert mpo_a.bond_dims == mpo_b.bond_dims
+        assert math.isclose(mpo_a.norm(), mpo_b.norm(), rel_tol=1e-12)
+
+    # ------------------------------------------------------------------
+    # Structural validity
+    # ------------------------------------------------------------------
+
+    def test_validates_after_compact(self, mpo_tensors):
+        """compact() must leave the MPO in a structurally consistent state."""
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.compact(trunc=None)
+        mpo._validate()
