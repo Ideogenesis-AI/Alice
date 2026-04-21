@@ -668,3 +668,147 @@ class TestCompact:
         mpo = MPO([t.clone() for t in mpo_tensors])
         mpo.compact(trunc=None)
         mpo._validate()
+
+
+class TestNetworkSerialize:
+    """Tests for Network.serialize() and Network.deserialize()."""
+
+    # ------------------------------------------------------------------
+    # Schema shape
+    # ------------------------------------------------------------------
+
+    def test_serialize_schema_keys(self, mps_tensors):
+        """Serialized dict must contain all required top-level keys."""
+        payload = MPS(mps_tensors).serialize()
+        assert set(payload.keys()) == {"version", "class", "bc", "center", "itag_prefix", "tensors"}
+
+    def test_serialize_version(self, mps_tensors):
+        payload = MPS(mps_tensors).serialize()
+        assert payload["version"] == 1
+
+    def test_serialize_class_network(self, mps_tensors):
+        payload = Network(mps_tensors).serialize()
+        assert payload["class"] == "Network"
+
+    def test_serialize_class_mps(self, mps_tensors):
+        payload = MPS(mps_tensors).serialize()
+        assert payload["class"] == "MPS"
+
+    def test_serialize_class_mpo(self, mpo_tensors):
+        payload = MPO(mpo_tensors).serialize()
+        assert payload["class"] == "MPO"
+
+    def test_serialize_tensors_length(self, mps_tensors):
+        mps = MPS(mps_tensors)
+        payload = mps.serialize()
+        assert len(payload["tensors"]) == mps.L
+
+    # ------------------------------------------------------------------
+    # Correct class type after round-trip
+    # ------------------------------------------------------------------
+
+    def test_deserialize_returns_network_type(self, mps_tensors):
+        """Round-tripping a bare Network must return a Network, not a subclass."""
+        net = Network(mps_tensors)
+        net2 = Network.deserialize(net.serialize())
+        assert type(net2) is Network
+
+    def test_deserialize_returns_mps_type(self, mps_tensors):
+        mps = MPS(mps_tensors)
+        mps2 = Network.deserialize(mps.serialize())
+        assert type(mps2) is MPS
+
+    def test_deserialize_returns_mpo_type(self, mpo_tensors):
+        mpo = MPO(mpo_tensors)
+        mpo2 = Network.deserialize(mpo.serialize())
+        assert type(mpo2) is MPO
+
+    # ------------------------------------------------------------------
+    # Metadata preservation
+    # ------------------------------------------------------------------
+
+    def test_roundtrip_bc(self, mps_tensors):
+        mps = MPS(mps_tensors)
+        assert Network.deserialize(mps.serialize()).bc == "OBC"
+
+    def test_roundtrip_center_none(self, mps_tensors):
+        """center=None (no canonical form declared) must round-trip correctly."""
+        mps = MPS(mps_tensors)
+        assert mps.center is None
+        assert Network.deserialize(mps.serialize()).center is None
+
+    def test_roundtrip_center_set(self, mps_tensors):
+        """An integer center set by canonical() must survive the round-trip."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(3)
+        mps2 = Network.deserialize(mps.serialize())
+        assert mps2.center == 3
+
+    def test_roundtrip_itag_prefix(self, mps_tensors):
+        """A custom itag_prefix must be preserved across serialize/deserialize."""
+        mps = MPS(mps_tensors)
+        mps.itag_prefix = "X"
+        mps2 = Network.deserialize(mps.serialize())
+        assert mps2.itag_prefix == "X"
+
+    # ------------------------------------------------------------------
+    # Tensor data fidelity
+    # ------------------------------------------------------------------
+
+    def test_roundtrip_tensor_blocks_mps(self, mps_tensors):
+        """Every block of every site tensor must match the original after round-trip."""
+        mps = MPS(mps_tensors)
+        mps2 = Network.deserialize(mps.serialize())
+        for i in range(mps.L):
+            for key, block in mps[i].data.items():
+                assert key in mps2[i].data, f"site {i}: block {key} missing after round-trip"
+                assert torch.allclose(mps2[i].data[key], block), (
+                    f"site {i}: block {key} mismatch after round-trip"
+                )
+
+    def test_roundtrip_tensor_blocks_mpo(self, mpo_tensors):
+        """Every block of every MPO site tensor must match the original after round-trip."""
+        mpo = MPO(mpo_tensors)
+        mpo2 = Network.deserialize(mpo.serialize())
+        for i in range(mpo.L):
+            for key, block in mpo[i].data.items():
+                assert key in mpo2[i].data, f"site {i}: block {key} missing after round-trip"
+                assert torch.allclose(mpo2[i].data[key], block), (
+                    f"site {i}: block {key} mismatch after round-trip"
+                )
+
+    # ------------------------------------------------------------------
+    # torch.save / torch.load round-trip
+    # ------------------------------------------------------------------
+
+    def test_torch_save_load(self, mps_tensors, tmp_path):
+        """Full torch.save / torch.load(weights_only=True) cycle must reconstruct the MPS."""
+        mps = MPS(mps_tensors)
+        path = tmp_path / "state.mps"
+        torch.save(mps.serialize(), path)
+        payload = torch.load(path, weights_only=True)
+        mps2 = Network.deserialize(payload)
+        assert type(mps2) is MPS
+        assert mps2.bc == mps.bc
+        assert mps2.center == mps.center
+        for i in range(mps.L):
+            for key, block in mps[i].data.items():
+                assert torch.allclose(mps2[i].data[key], block)
+
+    # ------------------------------------------------------------------
+    # Error handling
+    # ------------------------------------------------------------------
+
+    def test_deserialize_bad_version_raises(self, mps_tensors):
+        """A dict with an unsupported version number must raise ValueError."""
+        payload = MPS(mps_tensors).serialize()
+        payload["version"] = 99
+        with pytest.raises(ValueError, match="version"):
+            Network.deserialize(payload)
+
+    def test_deserialize_unknown_class_raises(self, mps_tensors):
+        """A dict with an unrecognized class name must raise ValueError."""
+        payload = MPS(mps_tensors).serialize()
+        payload["class"] = "UnknownNet"
+        with pytest.raises(ValueError, match="class"):
+            Network.deserialize(payload)
