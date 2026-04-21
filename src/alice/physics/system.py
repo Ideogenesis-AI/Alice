@@ -36,7 +36,7 @@ from __future__ import annotations
 from typing import Dict, Tuple
 
 from nicole import Direction, Tensor
-from nicole import identity, oplus, capcup, contract, einsum
+from nicole import identity, oplus, capcup, einsum
 from nicole import load_space
 from nicole.index import Index
 
@@ -146,7 +146,7 @@ def _make_intermid4(string_op: Tensor, leading_tnsr: Tensor) -> Tensor:
     """
     op_idx_out = leading_tnsr.indices[1]       # op_OUT (dir = OUT)
     op_id = identity(op_idx_out.flip())        # (op_IN, op_OUT) — correct bond directions
-    return einsum('ab,cd->abcd', op_id, string_op)
+    return einsum('op,rs->oprs', op_id, string_op)
 
 
 def _make_spin_templates(S: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
@@ -325,10 +325,9 @@ def build_fermionic(
     Op['G4']    = _make_leading4(G)
     Op['G4dag'] = _make_terminal4(Gdag)
 
-    # N = c†c: Fd (op_IN) contracted with F (op_OUT) over both the op axis
-    # and the connecting physical index (ket of Fd, bra of F). The opposite
-    # op directions satisfy charge conservation and sum over charge sectors.
-    N = contract(Fd, F, axes=([1, 2], [0, 2]))
+    # N = c†c: contract ket of Fd with bra of F, and op of Fd with op of F.
+    # The opposite op directions satisfy charge conservation.
+    N = einsum('rso,sto->rt', Fd, F)
     Op['N']  = N
     Op['N4'] = _make_onsite4(N)
 
@@ -419,7 +418,7 @@ def build_conductor(
     # JW-dressed hopping operators
     # -----------------------------------------------------------------------
     Z  = Op['Z']
-    ZF = contract(Z, F, axes=(1, 0))
+    ZF = einsum('rs,sto->rto', Z, F)
     ZC = ZF.conj().permute([1, 0, 2])
 
     Fd = F.conj().permute([1, 0, 2])
@@ -430,9 +429,9 @@ def build_conductor(
     for _op in (ZF, ZC, Fd, Cd):
         _op.indices = (Spc, Spc.flip()) + _op.indices[2:]
 
-    # capcup flips op of ZC (IN→OUT) and op of Cd (OUT→IN) together,
-    # so oplus(ZF, ZC) and oplus(Fd, Cd) receive consistently directed
-    # op axes. Individual inversions would break charge conservation.
+    # capcup flips op of ZC (IN→OUT) and op of Cd (OUT→IN) together so
+    # oplus(ZF, ZC) and oplus(Fd, Cd) receive consistently directed op
+    # axes. Individual inversions would break charge conservation.
     capcup(ZC, 2, Cd, 2)
 
     Op['ZF'] = ZF
@@ -479,17 +478,16 @@ def build_conductor(
         F_dn  = Op['F_dn']
         Fd_up = F_up.conj().permute([1, 0, 2])
         Fd_dn = F_dn.conj().permute([1, 0, 2])
-        # n_σ = c†_σ c_σ: contract creator (op_IN) with annihilator (op_OUT)
-        # over the op axis and the connecting physical index.
-        n_up = contract(Fd_up, F_up, axes=([1, 2], [0, 2]))
-        n_dn = contract(Fd_dn, F_dn, axes=([1, 2], [0, 2]))
+        # n_σ = c†_σ c_σ: contract ket of Fd_σ with bra of F_σ, and ops.
+        n_up = einsum('rso,sto->rt', Fd_up, F_up)
+        n_dn = einsum('rso,sto->rt', Fd_dn, F_dn)
         N  = n_up + n_dn
-        NN = contract(n_up, n_dn, axes=([1], [0]))
+        NN = einsum('rs,st->rt', n_up, n_dn)
     else:
         # For SU2, F covers both spin channels; contracting over op sums them.
-        N = contract(Fd, F, axes=([1, 2], [0, 2]))
+        N = einsum('rso,sto->rt', Fd, F)
         # NN = (n² - n) / 2 follows from n_σ² = n_σ and n = n_up + n_dn.
-        N_sq = contract(N, N, axes=([1], [0]))
+        N_sq = einsum('rs,st->rt', N, N)
         NN   = (N_sq - N) * 0.5
 
     Op['N']   = N
