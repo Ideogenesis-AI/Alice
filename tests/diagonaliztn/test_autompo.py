@@ -55,6 +55,26 @@ def _chain_config(L: int, model: str, category: str, **model_kwargs) -> dict:
     }
 
 
+def _square_config(Lx: int, Ly: int, model: str, category: str, **model_kwargs) -> dict:
+    """Build a full build_interaction config dict for an Lx×Ly square lattice."""
+    model_cfg = {'category': category, 'label': model, **model_kwargs}
+    return {
+        'geometry': {
+            'lattice':  'square',
+            'traverse': 'snake',
+            'lx': Lx,
+            'ly': Ly,
+            'bcx': 'OBC',
+            'bcy': 'OBC',
+            'n2x': True,
+            'n2y': True,
+            'n3d': False,
+            'n3o': False,
+        },
+        'model': model_cfg,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Basic structural tests  (not slow — small L=6 chain)
 # ---------------------------------------------------------------------------
@@ -216,3 +236,198 @@ class TestAutoMPOConductor:
             f"Conductor (U1,SU2) energy mismatch: observe={E_obs:.12f}, "
             f"ref={E_gs:.12f}, diff={abs(E_obs - E_gs):.3e}"
         )
+
+
+# ---------------------------------------------------------------------------
+# compact() bond-dimension and physics tests (not slow)
+# ---------------------------------------------------------------------------
+
+class TestCompactPhysics:
+    """Verify that MPO.compact() produces correct exact bond dimensions and
+    preserves the operator norm for several standard lattice models.
+
+    For finite-state-machine MPOs built from NN (and limited longer-range)
+    interactions, the SVD threshold 1e-15 retains all significant singular
+    values, so the compressed bond dimension equals the minimal exact value.
+
+    Known exact bulk bond dimensions (middle of a long chain):
+    - Heisenberg NN (U1):          5  = {I, S+, S-, Sz, H_done}
+    - Heisenberg NN (SU2):         3  = {I, S, H_done}  (spin multiplet)
+    - Tight-binding / band (U1,U1): 6  = {I, c↑†, c↑, c↓†, c↓, H_done}
+    - Tight-binding / band (U1,SU2):4  = {I, c†, c, H_done}  (SU2 doublet)
+    - Heisenberg 4×2 square (U1):  8  (two open vertical bonds across the cut)
+    - Heisenberg 4×3 square (U1): 11  (three open vertical bonds across the cut)
+    """
+
+    # ------------------------------------------------------------------
+    # Class-scoped MPO fixtures (built once per test class)
+    # ------------------------------------------------------------------
+
+    @pytest.fixture(scope='class')
+    def heisenberg_u1_mpo(self):
+        """L=10 Heisenberg chain, U1 symmetry."""
+        L = 10
+        cfg = _chain_config(L, 'Heisenberg', 'bosonic', symmetry='U1', spin=0.5, J=1.0)
+        interactions, spc, _ = build_interaction(cfg)
+        return build_hamiltonian(interactions, L, spc)
+
+    @pytest.fixture(scope='class')
+    def heisenberg_su2_mpo(self):
+        """L=10 Heisenberg chain, SU2 symmetry."""
+        L = 10
+        cfg = _chain_config(L, 'Heisenberg', 'bosonic', symmetry='SU2', spin=0.5, J=1.0)
+        interactions, spc, _ = build_interaction(cfg)
+        return build_hamiltonian(interactions, L, spc)
+
+    @pytest.fixture(scope='class')
+    def hubbard_u1u1_mpo(self):
+        """L=8 Hubbard chain with U=0 (tight-binding), U1×U1 symmetry."""
+        L = 8
+        cfg = _chain_config(L, 'Hubbard', 'conductor', symmetry='U1,U1', t=1.0, U=0.0, mu=0.0)
+        interactions, spc, _ = build_interaction(cfg)
+        return build_hamiltonian(interactions, L, spc)
+
+    @pytest.fixture(scope='class')
+    def hubbard_u1su2_mpo(self):
+        """L=8 Hubbard chain with U=0 (tight-binding), U1×SU2 symmetry."""
+        L = 8
+        cfg = _chain_config(L, 'Hubbard', 'conductor', symmetry='U1,SU2', t=1.0, U=0.0, mu=0.0)
+        interactions, spc, _ = build_interaction(cfg)
+        return build_hamiltonian(interactions, L, spc)
+
+    @pytest.fixture(scope='class')
+    def heisenberg_4x2_mpo(self):
+        """4×2 Heisenberg square lattice (snake ordering), U1 symmetry."""
+        cfg = _square_config(4, 2, 'Heisenberg', 'bosonic', symmetry='U1', spin=0.5, J=1.0)
+        interactions, spc, L = build_interaction(cfg)
+        return build_hamiltonian(interactions, L, spc)
+
+    @pytest.fixture(scope='class')
+    def heisenberg_4x3_mpo(self):
+        """4×3 Heisenberg square lattice (snake ordering), U1 symmetry."""
+        cfg = _square_config(4, 3, 'Heisenberg', 'bosonic', symmetry='U1', spin=0.5, J=1.0)
+        interactions, spc, L = build_interaction(cfg)
+        return build_hamiltonian(interactions, L, spc)
+
+    # ------------------------------------------------------------------
+    # Heisenberg chain (U1): exact bulk bond dimension = 5
+    # ------------------------------------------------------------------
+
+    def test_heisenberg_u1_bond_dims(self, heisenberg_u1_mpo):
+        """Heisenberg (U1) MPO must have exact bond dims [4,5,…,5,4]."""
+        assert heisenberg_u1_mpo.bond_dims == [4, 5, 5, 5, 5, 5, 5, 5, 4]
+
+    def test_heisenberg_u1_norm_finite(self, heisenberg_u1_mpo):
+        assert math.isfinite(heisenberg_u1_mpo.norm()) and heisenberg_u1_mpo.norm() > 0
+
+    def test_heisenberg_u1_idempotent(self, heisenberg_u1_mpo):
+        """A second compact() must not change bond dims or norm."""
+        dims_before = heisenberg_u1_mpo.bond_dims[:]
+        n_before = heisenberg_u1_mpo.norm()
+        heisenberg_u1_mpo.compact()
+        assert heisenberg_u1_mpo.bond_dims == dims_before
+        assert math.isclose(heisenberg_u1_mpo.norm(), n_before, rel_tol=1e-10)
+
+    def test_heisenberg_u1_validates(self, heisenberg_u1_mpo):
+        heisenberg_u1_mpo._validate()
+
+    # ------------------------------------------------------------------
+    # Heisenberg chain (SU2): exact bulk bond dimension = 3
+    # ------------------------------------------------------------------
+
+    def test_heisenberg_su2_bond_dims(self, heisenberg_su2_mpo):
+        """Heisenberg (SU2) MPO must have exact bond dims [2,3,…,3,2]."""
+        assert heisenberg_su2_mpo.bond_dims == [2, 3, 3, 3, 3, 3, 3, 3, 2]
+
+    def test_heisenberg_su2_norm_finite(self, heisenberg_su2_mpo):
+        assert math.isfinite(heisenberg_su2_mpo.norm()) and heisenberg_su2_mpo.norm() > 0
+
+    def test_heisenberg_su2_idempotent(self, heisenberg_su2_mpo):
+        """A second compact() must not change bond dims or norm."""
+        dims_before = heisenberg_su2_mpo.bond_dims[:]
+        n_before = heisenberg_su2_mpo.norm()
+        heisenberg_su2_mpo.compact()
+        assert heisenberg_su2_mpo.bond_dims == dims_before
+        assert math.isclose(heisenberg_su2_mpo.norm(), n_before, rel_tol=1e-10)
+
+    # ------------------------------------------------------------------
+    # Hubbard chain U=0 (tight-binding), U1×U1: exact bulk bond dim = 6
+    # ------------------------------------------------------------------
+
+    def test_hubbard_u1u1_bond_dims(self, hubbard_u1u1_mpo):
+        """Hubbard (U1×U1, U=0) MPO must have exact bond dims [5,6,…,6,5]."""
+        assert hubbard_u1u1_mpo.bond_dims == [5, 6, 6, 6, 6, 6, 5]
+
+    def test_hubbard_u1u1_norm_finite(self, hubbard_u1u1_mpo):
+        assert math.isfinite(hubbard_u1u1_mpo.norm()) and hubbard_u1u1_mpo.norm() > 0
+
+    def test_hubbard_u1u1_idempotent(self, hubbard_u1u1_mpo):
+        """A second compact() must not change bond dims or norm."""
+        dims_before = hubbard_u1u1_mpo.bond_dims[:]
+        n_before = hubbard_u1u1_mpo.norm()
+        hubbard_u1u1_mpo.compact()
+        assert hubbard_u1u1_mpo.bond_dims == dims_before
+        assert math.isclose(hubbard_u1u1_mpo.norm(), n_before, rel_tol=1e-10)
+
+    # ------------------------------------------------------------------
+    # Hubbard chain U=0 (tight-binding), U1×SU2: exact bulk bond dim = 4
+    # ------------------------------------------------------------------
+
+    def test_hubbard_u1su2_bond_dims(self, hubbard_u1su2_mpo):
+        """Hubbard (U1×SU2, U=0) MPO must have exact bond dims [3,4,…,4,3]."""
+        assert hubbard_u1su2_mpo.bond_dims == [3, 4, 4, 4, 4, 4, 3]
+
+    def test_hubbard_u1su2_norm_finite(self, hubbard_u1su2_mpo):
+        assert math.isfinite(hubbard_u1su2_mpo.norm()) and hubbard_u1su2_mpo.norm() > 0
+
+    def test_hubbard_u1su2_idempotent(self, hubbard_u1su2_mpo):
+        """A second compact() must not change bond dims or norm."""
+        dims_before = hubbard_u1su2_mpo.bond_dims[:]
+        n_before = hubbard_u1su2_mpo.norm()
+        hubbard_u1su2_mpo.compact()
+        assert hubbard_u1su2_mpo.bond_dims == dims_before
+        assert math.isclose(hubbard_u1su2_mpo.norm(), n_before, rel_tol=1e-10)
+
+    # ------------------------------------------------------------------
+    # 2D Heisenberg 4×2 square (U1): max bulk bond dimension = 8
+    # ------------------------------------------------------------------
+
+    def test_heisenberg_4x2_bond_dims(self, heisenberg_4x2_mpo):
+        """4×2 Heisenberg (U1) MPO must have exact bond dims [4,8,…,8,4]."""
+        assert heisenberg_4x2_mpo.bond_dims == [4, 8, 8, 8, 8, 8, 4]
+
+    def test_heisenberg_4x2_norm_finite(self, heisenberg_4x2_mpo):
+        assert math.isfinite(heisenberg_4x2_mpo.norm()) and heisenberg_4x2_mpo.norm() > 0
+
+    def test_heisenberg_4x2_idempotent(self, heisenberg_4x2_mpo):
+        """A second compact() must not change bond dims or norm."""
+        dims_before = heisenberg_4x2_mpo.bond_dims[:]
+        n_before = heisenberg_4x2_mpo.norm()
+        heisenberg_4x2_mpo.compact()
+        assert heisenberg_4x2_mpo.bond_dims == dims_before
+        assert math.isclose(heisenberg_4x2_mpo.norm(), n_before, rel_tol=1e-10)
+
+    def test_heisenberg_4x2_validates(self, heisenberg_4x2_mpo):
+        heisenberg_4x2_mpo._validate()
+
+    # ------------------------------------------------------------------
+    # 2D Heisenberg 4×3 square (U1): max bulk bond dimension = 11
+    # ------------------------------------------------------------------
+
+    def test_heisenberg_4x3_bond_dims(self, heisenberg_4x3_mpo):
+        """4×3 Heisenberg (U1) MPO must have exact bond dims [4,8,11,…,11,8,4]."""
+        assert heisenberg_4x3_mpo.bond_dims == [4, 8, 11, 11, 11, 11, 11, 11, 11, 8, 4]
+
+    def test_heisenberg_4x3_norm_finite(self, heisenberg_4x3_mpo):
+        assert math.isfinite(heisenberg_4x3_mpo.norm()) and heisenberg_4x3_mpo.norm() > 0
+
+    def test_heisenberg_4x3_idempotent(self, heisenberg_4x3_mpo):
+        """A second compact() must not change bond dims or norm."""
+        dims_before = heisenberg_4x3_mpo.bond_dims[:]
+        n_before = heisenberg_4x3_mpo.norm()
+        heisenberg_4x3_mpo.compact()
+        assert heisenberg_4x3_mpo.bond_dims == dims_before
+        assert math.isclose(heisenberg_4x3_mpo.norm(), n_before, rel_tol=1e-10)
+
+    def test_heisenberg_4x3_validates(self, heisenberg_4x3_mpo):
+        heisenberg_4x3_mpo._validate()
