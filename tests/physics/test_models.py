@@ -67,6 +67,11 @@ def _nn_nnn_chain(L: int) -> list:
     return intrcmap_square(geo)
 
 
+def _synthetic(label: str, gap: int) -> Interaction2Site:
+    """Return a single synthetic `Interaction2Site` with the given label and gap."""
+    return Interaction2Site(label=[label], leading_site=0, terminal_site=gap)
+
+
 # ---------------------------------------------------------------------------
 # build_heisenberg
 # ---------------------------------------------------------------------------
@@ -161,6 +166,36 @@ class TestBuildHeisenberg:
         assert called['symmetry'] == 'U1'
         assert called['spin'] == 0.5
 
+    def test_adjacent_nn_no_intermid_tnsr(self):
+        """Adjacent NN bonds (gap=1) must leave `intermid_tnsr` as `None`."""
+        intr = _synthetic('NN', gap=1)
+        build_heisenberg([intr], J=1.0)
+        assert intr.intermid_tnsr is None
+
+    def test_long_range_nn_has_intermid_tnsr(self):
+        """Long-range NN bonds (gap > 1) must have `intermid_tnsr` set."""
+        intr = _synthetic('NN', gap=5)
+        build_heisenberg([intr], J=1.0)
+        assert intr.intermid_tnsr is not None
+
+    def test_long_range_nn_intermid_tnsr_axis_count(self):
+        """`intermid_tnsr` on a long-range NN bond must have exactly 4 indices."""
+        intr = _synthetic('NN', gap=5)
+        build_heisenberg([intr], J=1.0)
+        assert len(intr.intermid_tnsr.indices) == 4
+
+    def test_long_range_nnn_has_intermid_tnsr(self):
+        """Long-range NNN bonds with `Jp != 0` must have `intermid_tnsr` set."""
+        intr = _synthetic('NNN', gap=5)
+        build_heisenberg([intr], Jp=0.3)
+        assert intr.intermid_tnsr is not None
+
+    def test_long_range_nnn_zero_jp_no_intermid_tnsr(self):
+        """Long-range NNN bonds with `Jp=0` must leave `intermid_tnsr` as `None`."""
+        intr = _synthetic('NNN', gap=5)
+        build_heisenberg([intr], Jp=0.0)
+        assert intr.intermid_tnsr is None
+
 
 # ---------------------------------------------------------------------------
 # build_free_fermion
@@ -254,6 +289,24 @@ class TestBuildFreeFermion:
         for intr in nnn:
             assert intr.cpl == 0.0
             assert intr.leading_tnsr  is None
+
+    def test_adjacent_nn_no_intermid_tnsr(self):
+        """Adjacent NN bonds (gap=1) must leave `intermid_tnsr` as `None`."""
+        intr = _synthetic('NN', gap=1)
+        build_free_fermion([intr], t=1.0)
+        assert intr.intermid_tnsr is None
+
+    def test_long_range_nn_has_intermid_tnsr(self):
+        """Long-range NN bonds (gap > 1) must have `intermid_tnsr` set."""
+        intr = _synthetic('NN', gap=5)
+        build_free_fermion([intr], t=1.0)
+        assert intr.intermid_tnsr is not None
+
+    def test_long_range_nn_intermid_tnsr_axis_count(self):
+        """`intermid_tnsr` on a long-range NN bond must have exactly 4 indices."""
+        intr = _synthetic('NN', gap=5)
+        build_free_fermion([intr], t=1.0)
+        assert len(intr.intermid_tnsr.indices) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -415,3 +468,21 @@ class TestBuildHubbard:
         interactions = _nn_chain(L)
         build_hubbard(interactions, L, symmetry='U1,U1', space_fn=custom_space)
         assert called['symmetry'] == 'U1,U1'
+
+    def test_adjacent_nn_no_intermid_tnsr(self):
+        """Adjacent NN bonds (gap=1) must leave `intermid_tnsr` as `None`."""
+        intr = _synthetic('NN', gap=1)
+        build_hubbard([intr], L=1, t=1.0)
+        assert intr.intermid_tnsr is None
+
+    def test_long_range_nn_has_intermid_tnsr(self):
+        """Long-range NN bonds (gap > 1) must have `intermid_tnsr` set."""
+        intr = _synthetic('NN', gap=5)
+        build_hubbard([intr], L=1, t=1.0)
+        assert intr.intermid_tnsr is not None
+
+    def test_long_range_nn_intermid_tnsr_axis_count(self):
+        """`intermid_tnsr` on a long-range NN bond must have exactly 4 indices."""
+        intr = _synthetic('NN', gap=5)
+        build_hubbard([intr], L=1, t=1.0)
+        assert len(intr.intermid_tnsr.indices) == 4
