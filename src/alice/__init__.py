@@ -25,6 +25,7 @@ from .network import (
     MPS, MPO, Network,
     observe,
 )
+from .algorithm import dmrg
 
 __all__ = [
     # data types
@@ -40,4 +41,6 @@ __all__ = [
     'Network',
     # measurement
     'observe',
+    # algorithms (as submodules)
+    'dmrg',
 ]
