@@ -49,7 +49,7 @@ from ..interface import AlgorithmOptions, AlgorithmSummary
 from .environ import Environment, build_right_envs, left_env_boundary
 from .sweep import left_sweep, right_sweep
 
-_log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -317,11 +317,34 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     sweep_count = 0
     prev_energy = math.inf
 
+    # Log startup header and options before the first sweep.
+    max_bond_str = str(opts.max_bond) if opts.max_bond is not None else 'unlimited'
+    logger.info("")
+    logger.info("DMRG started")
+    logger.info("  scheme            : %s", opts.scheme)
+    logger.info("  L                 : %d", L)
+    logger.info("  max sweeps        : %d", opts.n_sweeps)
+    logger.info("  e_tol             : %.2e", opts.e_tol)
+    logger.info("  max bond          : %s", max_bond_str)
+    logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
+    logger.info("  davidson tol      : %.2e", opts.davidson_tol)
+    logger.info("  davidson max iter : %d", opts.davidson_max_iter)
+    logger.info("  davidson max space: %d", opts.davidson_max_subspace)
+    logger.info("")
+
     for sweep_idx in range(opts.n_sweeps):
-        _log.info("sweep %d / %d", sweep_idx + 1, opts.n_sweeps)
+        # Blank debug line between sweeps for visual separation in the log file.
+        if sweep_idx > 0:
+            logger.debug("")
+        logger.debug("sweep %d / %d: forward sweep initiated", sweep_idx + 1, opts.n_sweeps)
 
         # Right half-sweep: center moves from 0 to L-1.
-        right_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
+        right_energy = right_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
+
+        logger.debug("sweep %d / %d: forward sweep finished", sweep_idx + 1, opts.n_sweeps)
+        logger.debug("  local E = %+.12g", right_energy)
+        logger.debug("")
+        logger.debug("sweep %d / %d: backward sweep initiated", sweep_idx + 1, opts.n_sweeps)
 
         # Left half-sweep: center moves from L-1 to 0; energy recorded here.
         energy = left_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
@@ -329,14 +352,20 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         delta_e = abs(energy - prev_energy)
         energies.append(energy)
         sweep_count += 1
-        _log.info("sweep %d done  E = %+.12g  |ΔE| = %.4e", sweep_idx + 1, energy, delta_e)
+
+        logger.debug("sweep %d / %d: backward sweep finished", sweep_idx + 1, opts.n_sweeps)
+        logger.debug("  local E = %+.12g", energy)
+        logger.debug("  ΔE = %+.4e", energy - prev_energy)
+        logger.info("sweep %d / %d: E = %+.12g, |ΔE| = %.4e", sweep_idx + 1, opts.n_sweeps, energy, delta_e)
 
         # Check energy convergence.
         if delta_e < opts.e_tol:
             converged = True
-            _log.info("converged after %d sweep(s)", sweep_count)
+            logger.info("converged after %d sweep(s)", sweep_count)
             break
         prev_energy = energy
+
+    logger.info("")
 
     return Summary(
         energy=energies[-1] if energies else math.nan,
