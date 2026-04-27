@@ -124,7 +124,7 @@ def davidson(
     max_iter: int = 100,
     tol: float = 1e-10,
     max_subspace: int = 20,
-) -> Tuple[float, Tensor]:
+) -> Tuple[float, Tensor, float]:
     """Find the lowest eigenvalue of a symmetric operator via the Davidson method.
 
     Uses the plain residual as the correction vector (no preconditioning).
@@ -152,6 +152,9 @@ def davidson(
         Approximate lowest eigenvalue `θ`.
     Tensor
         Approximate eigenvector (Ritz vector) `q`, normalised to unit norm.
+    float
+        Final residual norm `‖r‖` at exit (convergence, subspace collapse, or
+        max iterations reached).
 
     Raises
     ------
@@ -196,7 +199,7 @@ def davidson(
         # Check for convergence.
         res_norm = r.norm()
         if res_norm < tol:
-            return theta, q
+            return theta, q, float(res_norm)
 
         # Decide whether to restart or expand the subspace.
         # Use strict greater-than so the subspace can grow to max_subspace
@@ -219,7 +222,7 @@ def davidson(
             new_norm = v_new.norm()
             if new_norm < 1e-14:
                 # The new direction is linearly dependent; force convergence.
-                break
+                break  # res_norm holds the value from the most recent check above
             v_new = _scale(1.0 / new_norm, v_new)
 
             # Apply the operator to the new basis vector.
@@ -242,5 +245,5 @@ def davidson(
             H_sub = H_sub_new
 
     # Return the best estimate without raising, to allow graceful degradation.
-    # The caller (optimize_site) can check residuals if needed.
-    return theta, q
+    # The caller (optimize_site) can inspect davidson_error if needed.
+    return theta, q, float(res_norm)

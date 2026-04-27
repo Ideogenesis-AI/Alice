@@ -92,7 +92,7 @@ def optimize_site(
     W: Tensor,
     E_right: Tensor,
     davidson_opts: dict,
-) -> Tuple[float, Tensor]:
+) -> Tuple[float, Tensor, float]:
     """Find the optimal center site tensor via the Davidson eigensolver.
 
     This is a pure function: it takes tensors and returns tensors without
@@ -121,8 +121,11 @@ def optimize_site(
         Variational energy estimate (lowest Ritz value).
     Tensor
         Optimised site tensor `M_opt` with the same axis layout as `M`.
+    float
+        Final Davidson residual norm at convergence (or at exit if not
+        converged).
     """
     # Bind the environment tensors so the caller only passes the site tensor.
     mv = partial(matvec, E_left=E_left, W=W, E_right=E_right)
-    energy, M_opt = davidson(mv, M, **davidson_opts)
-    return energy, M_opt
+    energy, M_opt, davidson_error = davidson(mv, M, **davidson_opts)
+    return energy, M_opt, davidson_error
