@@ -49,7 +49,7 @@ from alice.network import MPS, MPO
 from .environ import Environment, step_left_env, step_right_env
 from .scheme_1s import optimize_site
 
-_log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def right_sweep(
@@ -97,15 +97,16 @@ def right_sweep(
     """
     L = mps.L
     energy = 0.0
-    _log.info("right sweep: sites 0 → %d", L - 1)
+    w = len(str(L - 1))
 
     for i in range(mps.center, L - 1):
         # Optimise the site tensor at position i.
-        energy, M_opt = optimize_site(
+        energy, M_opt, davidson_error = optimize_site(
             mps[i], env_left[i], mpo[i], env_right[i], davidson_opts
         )
         mps[i] = M_opt
-        _log.debug("  site %*d / %d  E = %+.12g", len(str(L - 1)), i, L - 1, energy)
+        logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
+        logger.debug("    davidson err = %.4e", davidson_error)
 
         # Move the orthogonality center one step to the right.
         # Because mps.center == i (set), canonical takes the direct one-step path.
@@ -115,11 +116,11 @@ def right_sweep(
         env_left[i + 1] = step_left_env(env_left[i], mps[i], mpo[i])
 
     # Optimise the rightmost site without moving the center further.
-    energy, mps[L - 1] = optimize_site(
+    energy, mps[L - 1], davidson_error = optimize_site(
         mps[L - 1], env_left[L - 1], mpo[L - 1], env_right[L - 1], davidson_opts
     )
-    _log.debug("  site %*d / %d  E = %+.12g", len(str(L - 1)), L - 1, L - 1, energy)
-    _log.info("right sweep done  E = %+.12g", energy)
+    logger.debug("  site %*d / %d  local E = %+.12g", w, L - 1, L - 1, energy)
+    logger.debug("    davidson err = %.4e", davidson_error)
     return energy
 
 
@@ -167,15 +168,16 @@ def left_sweep(
     """
     L = mps.L
     energy = 0.0
-    _log.info("left  sweep: sites %d → 0", L - 1)
+    w = len(str(L - 1))
 
     for i in range(mps.center, 0, -1):
         # Optimise the site tensor at position i.
-        energy, M_opt = optimize_site(
+        energy, M_opt, davidson_error = optimize_site(
             mps[i], env_left[i], mpo[i], env_right[i], davidson_opts
         )
         mps[i] = M_opt
-        _log.debug("  site %*d / %d  E = %+.12g", len(str(L - 1)), i, L - 1, energy)
+        logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
+        logger.debug("    davidson err = %.4e", davidson_error)
 
         # Move the orthogonality center one step to the left.
         mps.canonical(i - 1, trunc=trunc)
@@ -184,9 +186,9 @@ def left_sweep(
         env_right[i - 1] = step_right_env(env_right[i], mps[i], mpo[i])
 
     # Optimise site 0 without moving the center further.
-    energy, mps[0] = optimize_site(
+    energy, mps[0], davidson_error = optimize_site(
         mps[0], env_left[0], mpo[0], env_right[0], davidson_opts
     )
-    _log.debug("  site %*d / %d  E = %+.12g", len(str(L - 1)), 0, L - 1, energy)
-    _log.info("left  sweep done  E = %+.12g", energy)
+    logger.debug("  site %*d / %d  local E = %+.12g", w, 0, L - 1, energy)
+    logger.debug("    davidson err = %.4e", davidson_error)
     return energy
