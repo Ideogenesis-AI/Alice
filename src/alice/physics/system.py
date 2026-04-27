@@ -35,10 +35,9 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-from nicole import Direction, Tensor
+from nicole import Direction, Index, Tensor
 from nicole import identity, oplus, capcup, einsum
 from nicole import load_space
-from nicole.index import Index
 
 
 # ---------------------------------------------------------------------------

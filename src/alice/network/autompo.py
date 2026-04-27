@@ -22,9 +22,8 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from nicole import Direction, Tensor
+from nicole import Direction, Index, Tensor
 from nicole import identity, oplus
-from nicole.index import Index
 
 from .interaction import Interaction, Interaction1Site, Interaction2Site
 from .network import MPO

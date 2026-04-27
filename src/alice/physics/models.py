@@ -40,8 +40,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Tuple
 
-from nicole.index import Index
-from nicole import Tensor
+from nicole import Index, Tensor
 
 from alice.network.interaction import Interaction, Interaction1Site, Interaction2Site
 from alice.physics.system import build_bosonic, build_fermionic, build_conductor

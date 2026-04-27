@@ -26,8 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-from nicole import Tensor
-from nicole.index import Index
+from nicole import Index, Tensor
 
 
 @dataclass(kw_only=True)
