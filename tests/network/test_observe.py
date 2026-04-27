@@ -102,3 +102,25 @@ class TestObserveMPS:
         val_a = observe(mps_tensors, mpo_a)
         val_b = observe(mps_tensors, mpo_b)
         assert math.isclose(val_a + val_b, val, rel_tol=1e-12)
+
+    # ------------------------------------------------------------------
+    # SU(2) symmetry — exercises the Bridge weight path at the boundary
+    # ------------------------------------------------------------------
+
+    def test_returns_float_su2(self, mps_tensors_su2, mpo_tensors_su2):
+        """observe returns a Python float for SU(2) tensors."""
+        val = observe(mps_tensors_su2, mpo_tensors_su2)
+        assert isinstance(val, float)
+
+    def test_linear_in_mpo_su2(self, mps_tensors_su2, mpo_tensors_su2):
+        """observe scales linearly with the SU(2) MPO: observe(mps, c·H) = c·observe(mps, H)."""
+        c = 3.7
+        scaled = [mpo_tensors_su2[0] * c] + mpo_tensors_su2[1:]
+        val        = observe(mps_tensors_su2, mpo_tensors_su2)
+        val_scaled = observe(mps_tensors_su2, scaled)
+        assert math.isclose(val_scaled, c * val, rel_tol=1e-12)
+
+    def test_zero_mpo_gives_zero_su2(self, mps_tensors_su2, mpo_tensors_su2):
+        """observe returns 0 for a zero SU(2) MPO."""
+        zero_mpo = [W * 0.0 for W in mpo_tensors_su2]
+        assert math.isclose(observe(mps_tensors_su2, zero_mpo), 0.0, abs_tol=1e-14)
