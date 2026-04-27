@@ -24,7 +24,7 @@ import math
 
 import pytest
 import torch
-from nicole import contract, conj
+from nicole import allclose, contract, conj, identity
 
 from alice.network import MPS, MPO, Network
 
@@ -36,6 +36,20 @@ def _assert_identity_blocks(mat, label: str, atol: float = 1e-7) -> None:
         assert torch.allclose(block, torch.eye(d, dtype=block.dtype), atol=atol), (
             f"{label} block {key}: expected identity, got\n{block}"
         )
+
+
+def _assert_is_identity(mat, label: str, atol: float = 1e-7) -> None:
+    """Assert that a 2-index symmetric tensor equals the identity.
+
+    Uses Nicole's `identity` and `allclose` for a gauge-invariant comparison
+    that is correct for both Abelian and non-Abelian (SU(2)) tensors. SU(2)
+    blocks carry Bridge intertwiners and extra coupling dimensions that make
+    raw block comparison unreliable; `allclose` accounts for these via the
+    physical `R @ W` representation.
+    """
+    I = identity(mat.indices[0])
+    I.retag([0, 1], list(mat.itags))
+    assert allclose(mat, I, atol=atol), f"{label}: tensor is not the identity"
 
 
 class TestNetwork:
@@ -128,6 +142,19 @@ class TestNetwork:
 
     def test_repr_contains_L(self, mps_tensors):
         assert 'L=10' in repr(Network(mps_tensors))
+
+    # ------------------------------------------------------------------
+    # SU(2) symmetry
+    # ------------------------------------------------------------------
+
+    def test_phys_dims_su2(self, mps_tensors_su2):
+        """SU(2) spin-1/2 physical index reports 1 multiplet per site.
+
+        `phys_dims` returns `idx.dim`, the number of SU(2) multiplets, not
+        the total Hilbert space dimension. For a spin-1/2 doublet there is
+        one multiplet, so `dim == 1` at every site.
+        """
+        assert all(d == 1 for d in Network(mps_tensors_su2).phys_dims)
 
 
 class TestMPS:
@@ -274,6 +301,80 @@ class TestMPS:
             BBc = contract(B, conj(B), axes=([1, 2], [1, 2]))
             _assert_identity_blocks(BBc, f"MPS site {i} BB†")
 
+    # ------------------------------------------------------------------
+    # SU(2) symmetry
+    # ------------------------------------------------------------------
+
+    def test_norm_positive_su2(self, mps_tensors_su2):
+        mps = MPS([t.clone() for t in mps_tensors_su2], center=9)
+        assert mps.norm() > 0
+
+    def test_norm_uncanonical_equals_canonical_su2(self, mps_tensors_su2):
+        """Full-contraction and center-tensor norms must agree for SU(2) MPS.
+
+        `norm()` without a center uses the einsum transfer path with Bridge
+        weighting; the canonical fast path uses the center tensor norm. Both
+        must yield the same result.
+        """
+        n_direct = MPS(mps_tensors_su2).norm()
+        mps = MPS([t.clone() for t in mps_tensors_su2])
+        mps.canonical(5, trunc=None)
+        n_canonical = mps.norm()
+        assert math.isclose(n_direct, n_canonical, rel_tol=1e-10)
+
+    def test_canonical_sets_center_su2(self, mps_tensors_su2):
+        mps = MPS([t.clone() for t in mps_tensors_su2])
+        for target in [0, 5, 9]:
+            mps.canonical(target)
+            assert mps.center == target
+            mps._validate()
+
+    def test_canonical_preserves_norm_su2(self, mps_tensors_su2):
+        """Norm must be invariant under a full canonical sweep for SU(2) MPS."""
+        mps = MPS([t.clone() for t in mps_tensors_su2])
+        mps.canonical(0)
+        n0 = mps.norm()
+        mps.canonical(9)
+        n9 = mps.norm()
+        assert math.isclose(n0, n9, rel_tol=1e-10)
+
+    def test_left_canonical_isometry_su2(self, mps_tensors_su2):
+        """Sites left of center must satisfy A†A = I (SU(2) MPS).
+
+        The QR decomposition must handle the non-Abelian block structure so
+        that the reduced-matrix blocks are isometric. Uses Nicole's `allclose`
+        for a gauge-invariant comparison that accounts for Bridge intertwiners.
+        """
+        mps = MPS([t.clone() for t in mps_tensors_su2])
+        mps.canonical(9)
+        for i in range(9):
+            A = mps[i]
+            AcA = contract(conj(A), A, axes=([0, 2], [0, 2]))
+            _assert_is_identity(AcA, f"SU(2) MPS site {i} A†A")
+
+    def test_right_canonical_isometry_su2(self, mps_tensors_su2):
+        """Sites right of center must satisfy BB† = I (SU(2) MPS)."""
+        mps = MPS([t.clone() for t in mps_tensors_su2])
+        mps.canonical(0)
+        for i in range(1, 10):
+            B = mps[i]
+            BBc = contract(B, conj(B), axes=([1, 2], [1, 2]))
+            _assert_is_identity(BBc, f"SU(2) MPS site {i} BB†")
+
+    def test_mixed_canonical_isometry_su2(self, mps_tensors_su2):
+        """Mixed canonical with center=5: left and right isometries hold (SU(2) MPS)."""
+        center = 5
+        mps = MPS([t.clone() for t in mps_tensors_su2])
+        mps.canonical(center)
+        for i in range(center):
+            A = mps[i]
+            AcA = contract(conj(A), A, axes=([0, 2], [0, 2]))
+            _assert_is_identity(AcA, f"SU(2) MPS site {i} A†A")
+        for i in range(center + 1, 10):
+            B = mps[i]
+            BBc = contract(B, conj(B), axes=([1, 2], [1, 2]))
+            _assert_is_identity(BBc, f"SU(2) MPS site {i} BB†")
+
 
 class TestMPO:
     """Tests for MPO-specific validation, norm, and canonical."""
@@ -414,6 +515,75 @@ class TestMPO:
             # Contract over right(1), phys_in(2), phys_out(3) leaving left-bond pair.
             WWc = contract(W, conj(W), axes=([1, 2, 3], [1, 2, 3]))
             _assert_identity_blocks(WWc, f"MPO site {i} WW†")
+
+    # ------------------------------------------------------------------
+    # SU(2) symmetry
+    # ------------------------------------------------------------------
+
+    def test_phys_dims_su2(self, mpo_tensors_su2):
+        """SU(2) spin-1/2 ket physical index reports 1 multiplet per site."""
+        assert all(d == 1 for d in MPO(mpo_tensors_su2).phys_dims)
+
+    def test_norm_positive_su2(self, mpo_tensors_su2):
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        mpo.canonical(0)
+        assert mpo.norm() > 0
+
+    def test_norm_uncanonical_equals_canonical_su2(self, mpo_tensors_su2):
+        """Full-contraction and center-tensor norms must agree for SU(2) MPO."""
+        n_direct = MPO([t.clone() for t in mpo_tensors_su2]).norm()
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        mpo.canonical(5, trunc=None)
+        n_canonical = mpo.norm()
+        assert math.isclose(n_direct, n_canonical, rel_tol=1e-10)
+
+    def test_canonical_sets_center_su2(self, mpo_tensors_su2):
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        for target in [0, 5, 9]:
+            mpo.canonical(target)
+            assert mpo.center == target
+            mpo._validate()
+
+    def test_canonical_preserves_norm_su2(self, mpo_tensors_su2):
+        """Norm must be invariant under a full canonical sweep for SU(2) MPO."""
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        mpo.canonical(0)
+        n0 = mpo.norm()
+        mpo.canonical(9)
+        n9 = mpo.norm()
+        assert math.isclose(n0, n9, rel_tol=1e-10)
+
+    def test_left_canonical_isometry_su2(self, mpo_tensors_su2):
+        """Sites left of center must satisfy W†W = I (SU(2) MPO)."""
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        mpo.canonical(9)
+        for i in range(9):
+            W = mpo[i]
+            WcW = contract(conj(W), W, axes=([0, 2, 3], [0, 2, 3]))
+            _assert_is_identity(WcW, f"SU(2) MPO site {i} W†W")
+
+    def test_right_canonical_isometry_su2(self, mpo_tensors_su2):
+        """Sites right of center must satisfy WW† = I (SU(2) MPO)."""
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        mpo.canonical(0)
+        for i in range(1, 10):
+            W = mpo[i]
+            WWc = contract(W, conj(W), axes=([1, 2, 3], [1, 2, 3]))
+            _assert_is_identity(WWc, f"SU(2) MPO site {i} WW†")
+
+    def test_mixed_canonical_isometry_su2(self, mpo_tensors_su2):
+        """Mixed canonical with center=5: left and right isometries hold (SU(2) MPO)."""
+        center = 5
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        mpo.canonical(center)
+        for i in range(center):
+            W = mpo[i]
+            WcW = contract(conj(W), W, axes=([0, 2, 3], [0, 2, 3]))
+            _assert_is_identity(WcW, f"SU(2) MPO site {i} W†W")
+        for i in range(center + 1, 10):
+            W = mpo[i]
+            WWc = contract(W, conj(W), axes=([1, 2, 3], [1, 2, 3]))
+            _assert_is_identity(WWc, f"SU(2) MPO site {i} WW†")
 
     # ------------------------------------------------------------------
     # redistribute_norm()
@@ -669,6 +839,23 @@ class TestCompact:
         mpo.compact(trunc=None)
         mpo._validate()
 
+    # ------------------------------------------------------------------
+    # SU(2) symmetry
+    # ------------------------------------------------------------------
+
+    def test_compact_preserves_norm_su2(self, mpo_tensors_su2):
+        """compact() must not change the total MPO norm (SU(2))."""
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        n_before = mpo.norm()
+        mpo.compact(trunc=None)
+        assert math.isclose(mpo.norm(), n_before, rel_tol=1e-10)
+
+    def test_compact_validates_su2(self, mpo_tensors_su2):
+        """compact() must leave the SU(2) MPO in a structurally valid state."""
+        mpo = MPO([t.clone() for t in mpo_tensors_su2])
+        mpo.compact(trunc=None)
+        mpo._validate()
+
 
 class TestNetworkSerialize:
     """Tests for Network.serialize() and Network.deserialize()."""
@@ -812,3 +999,41 @@ class TestNetworkSerialize:
         payload["class"] = "UnknownNet"
         with pytest.raises(ValueError, match="class"):
             Network.deserialize(payload)
+
+    # ------------------------------------------------------------------
+    # SU(2) symmetry — verifies CG intertwiners survive the round-trip
+    # ------------------------------------------------------------------
+
+    def test_deserialize_returns_mps_type_su2(self, mps_tensors_su2):
+        mps = MPS(mps_tensors_su2)
+        mps2 = Network.deserialize(mps.serialize())
+        assert type(mps2) is MPS
+
+    def test_roundtrip_tensor_blocks_mps_su2(self, mps_tensors_su2):
+        """Every block of every SU(2) MPS site tensor must match the original."""
+        mps = MPS(mps_tensors_su2)
+        mps2 = Network.deserialize(mps.serialize())
+        for i in range(mps.L):
+            for key, block in mps[i].data.items():
+                assert key in mps2[i].data, f"site {i}: block {key} missing after round-trip"
+                assert torch.allclose(mps2[i].data[key], block), (
+                    f"site {i}: block {key} mismatch after round-trip"
+                )
+
+    def test_roundtrip_tensor_blocks_mpo_su2(self, mpo_tensors_su2):
+        """Every block of every SU(2) MPO site tensor must match the original."""
+        mpo = MPO(mpo_tensors_su2)
+        mpo2 = Network.deserialize(mpo.serialize())
+        for i in range(mpo.L):
+            for key, block in mpo[i].data.items():
+                assert key in mpo2[i].data, f"site {i}: block {key} missing after round-trip"
+                assert torch.allclose(mpo2[i].data[key], block), (
+                    f"site {i}: block {key} mismatch after round-trip"
+                )
+
+    def test_roundtrip_center_set_su2(self, mps_tensors_su2):
+        """An integer center set by canonical() must survive the round-trip (SU(2) MPS)."""
+        mps = MPS([t.clone() for t in mps_tensors_su2])
+        mps.canonical(3)
+        mps2 = Network.deserialize(mps.serialize())
+        assert mps2.center == 3
