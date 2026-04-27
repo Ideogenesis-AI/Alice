@@ -21,7 +21,8 @@
 Typical usage at the start of a script or notebook:
 
     import alice
-    alice.configure_logging()          # uses ALICE_LOGGING env var or .logging/alice.log
+    alice.configure_logging()   # uses ALICE_LOGGING env var
+                                # or .logging/alice_YYYY-MM-DD_HH-MM-SS.log
     alice.configure_logging("run.log") # explicit file path
 """
 
