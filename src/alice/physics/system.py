@@ -327,7 +327,7 @@ def build_fermionic(
 
     # N = c†c: contract ket of Fd with bra of F, and op of Fd with op of F.
     # The opposite op directions satisfy charge conservation.
-    N = einsum('rso,sto->rt', Fd, F)
+    N = einsum('rso,svo->rv', Fd, F)
     Op['N']  = N
     Op['N4'] = _make_onsite4(N)
 
@@ -418,7 +418,7 @@ def build_conductor(
     # JW-dressed hopping operators
     # -----------------------------------------------------------------------
     Z  = Op['Z']
-    ZF = einsum('rs,sto->rto', Z, F)
+    ZF = einsum('rs,svo->rvo', Z, F)
     ZC = ZF.conj().permute([1, 0, 2])
 
     Fd = F.conj().permute([1, 0, 2])
@@ -479,15 +479,15 @@ def build_conductor(
         Fd_up = F_up.conj().permute([1, 0, 2])
         Fd_dn = F_dn.conj().permute([1, 0, 2])
         # n_σ = c†_σ c_σ: contract ket of Fd_σ with bra of F_σ, and ops.
-        n_up = einsum('rso,sto->rt', Fd_up, F_up)
-        n_dn = einsum('rso,sto->rt', Fd_dn, F_dn)
+        n_up = einsum('rso,svo->rv', Fd_up, F_up)
+        n_dn = einsum('rso,svo->rv', Fd_dn, F_dn)
         N  = n_up + n_dn
-        NN = einsum('rs,st->rt', n_up, n_dn)
+        NN = einsum('rs,sv->rv', n_up, n_dn)
     else:
         # For SU2, F covers both spin channels; contracting over op sums them.
-        N = einsum('rso,sto->rt', Fd, F)
+        N = einsum('rso,svo->rv', Fd, F)
         # NN = (n² - n) / 2 follows from n_σ² = n_σ and n = n_up + n_dn.
-        N_sq = einsum('rs,st->rt', N, N)
+        N_sq = einsum('rs,sv->rv', N, N)
         NN   = (N_sq - N) * 0.5
 
     Op['N']   = N
