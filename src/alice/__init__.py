@@ -26,6 +26,7 @@ from .network import (
     observe,
 )
 from .algorithm import dmrg
+from .logging import configure_logging
 
 __all__ = [
     # data types
@@ -43,4 +44,6 @@ __all__ = [
     'observe',
     # algorithms (as submodules)
     'dmrg',
+    # logging
+    'configure_logging',
 ]
