@@ -100,6 +100,76 @@ def mpo_tensors(spin_space):
     return tensors
 
 
+# ------------------------------------------------------------------
+# SU(2) Network / MPS / MPO fixtures
+# ------------------------------------------------------------------
+
+@pytest.fixture(scope='session')
+def spin_space_su2():
+    """Spin-1/2 SU(2) physical space and operators (shared across session)."""
+    return load_space("Spin", "SU2", {"J": 0.5})
+
+
+_SU2_BULK_SECTORS       = (0, 1, 2)  # j = 0, 1/2, 1 in 2j notation
+_SU2_BULK_DIM_PER_SECTOR = 2         # 2 multiplets per irrep → total dim = 6
+
+
+@pytest.fixture
+def mps_tensors_su2(spin_space_su2):
+    """Fresh L=10 random SU(2) MPS tensors for each test.
+
+    Site *i* has axes `(left_bond, right_bond, physical)` with physical itag
+    `s{i:02d}`. Bond itags follow the MPS convention: the left bond of site
+    *i* carries itag `A{i:02d}` and the right bond carries `A{i+1:02d}`.
+    Interior bonds carry SU(2) sectors j=0, 1/2, 1 (charges 0, 1, 2 in the
+    2j convention) each with 2 multiplets. Boundary bonds use the vacuum
+    index from `spin_space_su2` (j=0 singlet). A fixed seed per site makes
+    tests reproducible.
+    """
+    Spc, Op = spin_space_su2
+    bulk = Index(direction=Direction.IN, group=Spc.group,
+                 sectors=tuple(Sector(charge=q, dim=_SU2_BULK_DIM_PER_SECTOR)
+                               for q in _SU2_BULK_SECTORS))
+    vac = Op["vac"]
+    tensors = []
+    for i in range(_L):
+        l = vac if i == 0 else bulk
+        r = (vac if i == _L - 1 else bulk).flip()
+        T = Tensor.random([l, r, Spc], seed=200 + i,
+                          itags=[f'A{i:02d}', f'A{i + 1:02d}', f's{i:02d}'])
+        tensors.append(T)
+    return tensors
+
+
+@pytest.fixture
+def mpo_tensors_su2(spin_space_su2):
+    """Fresh L=10 random SU(2) MPO tensors for each test.
+
+    Site *i* has axes `(left_bond, right_bond, phys_in, phys_out)` with both
+    physical axes carrying itag `s{i:02d}` and opposite directions (IN/OUT).
+    Bond itags follow the MPO convention: the left bond of site *i* carries
+    itag `W{i:02d}` and the right bond carries `W{i+1:02d}`. Same bulk bond
+    structure as `mps_tensors_su2`.
+    """
+    Spc, Op = spin_space_su2
+    bulk = Index(direction=Direction.IN, group=Spc.group,
+                 sectors=tuple(Sector(charge=q, dim=_SU2_BULK_DIM_PER_SECTOR)
+                               for q in _SU2_BULK_SECTORS))
+    vac = Op["vac"]
+    tensors = []
+    for i in range(_L):
+        l = vac if i == 0 else bulk
+        r = (vac if i == _L - 1 else bulk).flip()
+        W = Tensor.random([l, r, Spc, Spc.flip()], seed=300 + i,
+                          itags=[f'W{i:02d}', f'W{i + 1:02d}', f's{i:02d}', f's{i:02d}'])
+        tensors.append(W)
+    return tensors
+
+
+# ------------------------------------------------------------------
+# Lattice geometry fixtures (symmetry-agnostic)
+# ------------------------------------------------------------------
+
 @pytest.fixture
 def basic_1d_config():
     """Basic 1D chain configuration (50 sites)."""
