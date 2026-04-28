@@ -52,7 +52,7 @@ from .scheme_1s import optimize_site
 logger = logging.getLogger(__name__)
 
 
-def right_sweep(
+def forward_sweep(
     mps: MPS,
     mpo: MPO,
     env_left: Environment,
@@ -60,7 +60,7 @@ def right_sweep(
     trunc: Optional[dict],
     davidson_opts: dict,
 ) -> float:
-    """Perform a left-to-right (right) half-sweep of 1-site DMRG.
+    """Perform a left-to-right (forward) half-sweep of 1-site DMRG.
 
     Visits sites from the current orthogonality center to `L-1`, optimising
     each site tensor with Davidson, moving the center one step to the right,
@@ -124,7 +124,7 @@ def right_sweep(
     return energy
 
 
-def left_sweep(
+def backward_sweep(
     mps: MPS,
     mpo: MPO,
     env_left: Environment,
@@ -132,7 +132,7 @@ def left_sweep(
     trunc: Optional[dict],
     davidson_opts: dict,
 ) -> float:
-    """Perform a right-to-left (left) half-sweep of 1-site DMRG.
+    """Perform a right-to-left (backward) half-sweep of 1-site DMRG.
 
     Visits sites from the current orthogonality center down to `0`, optimising
     each site tensor with Davidson, moving the center one step to the left, and
@@ -152,7 +152,7 @@ def left_sweep(
         Hamiltonian MPO.
     env_left:
         Left environment blocks. All slots must be populated from a prior
-        `right_sweep`.
+        `forward_sweep`.
     env_right:
         Right environment blocks.  `env_right[mps.center]` must be initialised.
     trunc:

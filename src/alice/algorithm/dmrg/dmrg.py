@@ -47,7 +47,7 @@ from alice.network.network import Network
 
 from ..interface import AlgorithmOptions, AlgorithmSummary
 from .environ import Environment, build_right_envs, left_env_boundary
-from .sweep import left_sweep, right_sweep
+from .sweep import backward_sweep, forward_sweep
 
 logger = logging.getLogger(__name__)
 
@@ -341,7 +341,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         logger.debug("sweep %d / %d: forward sweep initiated", sweep_idx + 1, opts.n_sweeps)
 
         # Right half-sweep: center moves from 0 to L-1.
-        right_energy = right_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
+        right_energy = forward_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
 
         logger.debug("sweep %d / %d: forward sweep finished", sweep_idx + 1, opts.n_sweeps)
         logger.debug("  local E = %+.12g", right_energy)
@@ -349,7 +349,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         logger.debug("sweep %d / %d: backward sweep initiated", sweep_idx + 1, opts.n_sweeps)
 
         # Left half-sweep: center moves from L-1 to 0; energy recorded here.
-        energy = left_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
+        energy = backward_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
 
         delta_e = abs(energy - prev_energy)
         energies.append(energy)
