@@ -123,7 +123,7 @@ class TestOptimizeSite:
         energy_init = _inner_product(M, HM_init).real / _inner_product(M, M).real
 
         davidson_opts = {'max_iter': 50, 'tol': 1e-10, 'max_subspace': 10}
-        energy_opt, M_opt = optimize_site(M, env_left[0], mpo[0], env_right[0], davidson_opts)
+        energy_opt, M_opt, _ = optimize_site(M, env_left[0], mpo[0], env_right[0], davidson_opts)
 
         # Variational principle: optimised energy ≤ initial Rayleigh quotient.
         assert energy_opt <= energy_init + 1e-10, (

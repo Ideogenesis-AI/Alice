@@ -114,7 +114,7 @@ class TestFullSweep:
         build_right_envs(mps, mpo, env_right)
 
         # Pre-sweep: normalized Rayleigh quotient at site 0 (Davidson eigenvalue).
-        energy_before, _ = optimize_site(
+        energy_before, _, _ = optimize_site(
             mps[0], env_left[0], mpo[0], env_right[0], _DAVIDSON_OPTS
         )
 

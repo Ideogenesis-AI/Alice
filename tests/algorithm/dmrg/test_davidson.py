@@ -159,7 +159,7 @@ class TestDavidson:
         mv = _mat_matvec(A, group)
         v0 = _make_vec(np.array([1.0, 0.0]), group)
 
-        theta, q = davidson(mv, v0, max_iter=50, tol=1e-10, max_subspace=10)
+        theta, q, _ = davidson(mv, v0, max_iter=50, tol=1e-10, max_subspace=10)
         assert abs(theta - expected_min) < 1e-8, (
             f"Davidson returned {theta}, expected {expected_min}"
         )
@@ -175,7 +175,7 @@ class TestDavidson:
         mv = _mat_matvec(A, group)
         v0 = _make_vec(np.ones(4) / 2.0, group)
 
-        theta, q = davidson(mv, v0, max_iter=100, tol=1e-10, max_subspace=20)
+        theta, q, _ = davidson(mv, v0, max_iter=100, tol=1e-10, max_subspace=20)
         assert abs(theta - expected_min) < 1e-7
 
     def test_subspace_collapse_does_not_crash(self):
@@ -185,7 +185,7 @@ class TestDavidson:
         mv = _mat_matvec(A, group)
         v0 = _make_vec(np.array([1.0, 0.0]), group)
 
-        theta, q = davidson(mv, v0, max_iter=50, tol=1e-9, max_subspace=1)
+        theta, q, _ = davidson(mv, v0, max_iter=50, tol=1e-9, max_subspace=1)
         expected_min = float(np.linalg.eigvalsh(A)[0])
         assert abs(theta - expected_min) < 1e-6
 
@@ -206,5 +206,5 @@ class TestDavidson:
         mv = _mat_matvec(A, group)
         v0 = _make_vec(np.array([1.0, 0.0]), group)  # eigenvector of eigenvalue 1
 
-        theta, _ = davidson(mv, v0, max_iter=10, tol=1e-10, max_subspace=5)
+        theta, _, _ = davidson(mv, v0, max_iter=10, tol=1e-10, max_subspace=5)
         assert abs(theta - 1.0) < 1e-10
