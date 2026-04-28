@@ -50,9 +50,10 @@ def _version_status(version: str) -> str:
 
 def _log_banner(log: logging.Logger) -> None:
     """Emit the Alice startup banner."""
-    width = 60
-    title = 'Alice  \u2014  1D Tensor Network Algorithms'
-    sep   = '\u2014' * (len(title) + 2)   # 1 em-dash wider on each side
+    width  = 60
+    title  = 'Alice  \u2014  1D Tensor Network Algorithms'
+    sep    = '\u2014' * (len(title) + 2)   # 1 em-dash wider on each side
+    border = '\u2550' * width              # BOX DRAWINGS DOUBLE HORIZONTAL
 
     # Gather metadata.
     alice_ver    = importlib.metadata.version('alice')
@@ -89,7 +90,7 @@ def _log_banner(log: logging.Logger) -> None:
     # Block-centre: all info lines share the same left padding.
     block_pad = ' ' * max(0, (width - max(len(l) for l in info_lines)) // 2)
 
-    log.info('=' * width)
+    log.info(border)
     log.info('')
     log.info(sep.center(width))
     log.info(title.center(width))
@@ -98,7 +99,7 @@ def _log_banner(log: logging.Logger) -> None:
     for line in info_lines:
         log.info(block_pad + line)
     log.info('')
-    log.info('=' * width)
+    log.info(border)
     log.info('')
 
     # Legal notice — follows the banner as a separate block.
