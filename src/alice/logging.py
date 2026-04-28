@@ -34,6 +34,7 @@ import os
 import platform
 import re
 import sys
+
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -98,6 +99,16 @@ def _log_banner(log: logging.Logger) -> None:
         log.info(block_pad + line)
     log.info('')
     log.info('=' * width)
+    log.info('')
+
+    # Legal notice — follows the banner as a separate block.
+    log.info('  Alice is created and maintained by Changkai Zhang as')
+    log.info('  a collection of 1D tensor network algorithms. Each')
+    log.info('  implementation is credited to its respective author(s).')
+    log.info('')
+    log.info('  This software is distributed without any warranty;')
+    log.info('  without even the implied warranty of merchantability')
+    log.info('  or fitness for a particular purpose.')
     log.info('')
 
 
