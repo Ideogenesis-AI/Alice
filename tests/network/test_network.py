@@ -821,11 +821,11 @@ class TestCompact:
         assert math.isclose(mpo.norm(), n_before, rel_tol=1e-6)
 
     def test_default_trunc_equals_explicit_default(self, mpo_tensors):
-        """compact() with no trunc argument must match compact(trunc={'thresh': 1e-15})."""
+        """compact() with no trunc argument must match compact(trunc={'thresh': 1e-14})."""
         mpo_a = MPO([t.clone() for t in mpo_tensors])
         mpo_a.compact()
         mpo_b = MPO([t.clone() for t in mpo_tensors])
-        mpo_b.compact(trunc={'thresh': 1e-15})
+        mpo_b.compact(trunc={'thresh': 1e-14})
         assert mpo_a.bond_dims == mpo_b.bond_dims
         assert math.isclose(mpo_a.norm(), mpo_b.norm(), rel_tol=1e-12)
 

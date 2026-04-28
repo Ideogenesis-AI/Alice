@@ -58,7 +58,7 @@ def build_hamiltonian(
         site-wise identity tensor.
     trunc:
         Truncation parameters forwarded to `MPO.canonical()` during the
-        right-to-left compression sweep. Defaults to `{'thresh': 1e-15}`.
+        right-to-left compression sweep. Defaults to `{'thresh': 1e-14}`.
 
     Returns
     -------

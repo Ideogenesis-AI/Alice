@@ -247,7 +247,7 @@ class TestCompactPhysics:
     preserves the operator norm for several standard lattice models.
 
     For finite-state-machine MPOs built from NN (and limited longer-range)
-    interactions, the SVD threshold 1e-15 retains all significant singular
+    interactions, the SVD threshold 1e-14 retains all significant singular
     values, so the compressed bond dimension equals the minimal exact value.
 
     Known exact bulk bond dimensions (middle of a long chain):
