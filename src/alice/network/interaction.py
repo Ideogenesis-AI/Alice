@@ -21,12 +21,15 @@
 from __future__ import annotations
 
 import importlib.util
+import logging
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from nicole import Index, Tensor
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(kw_only=True)
@@ -225,6 +228,7 @@ def build_interaction(
     # -----------------------------------------------------------------------
     # Load config from file if a path is given.
     # -----------------------------------------------------------------------
+    
     base_dir: Optional[Path] = None
     if isinstance(config, (str, Path)):
         config_path = Path(config)
@@ -239,6 +243,7 @@ def build_interaction(
     # -----------------------------------------------------------------------
     # Resolve callables: kwarg > [plugin] entry > built-in.
     # -----------------------------------------------------------------------
+
     _MODEL_BUILTIN: Dict[str, Callable] = {
         'Heisenberg':  build_heisenberg,
         'FreeFermion': build_free_fermion,
@@ -280,12 +285,14 @@ def build_interaction(
     # -----------------------------------------------------------------------
     # Stage 1: Geometry
     # -----------------------------------------------------------------------
+
     interactions = geometry_fn(geo_cfg)
     L = geo_cfg['lx'] * geo_cfg.get('ly', 1)
 
     # -----------------------------------------------------------------------
     # Stage 2: Model (fills cpl + tensors; coupling not baked in)
     # -----------------------------------------------------------------------
+
     kwargs: Dict[str, object] = dict(model_cfg)
     # Remove dispatcher-internal keys before forwarding.
     for _key in ('category', 'label'):
@@ -294,5 +301,51 @@ def build_interaction(
         kwargs['space_fn'] = space_fn
 
     spc, _ = model_fn(interactions, L, **kwargs)
+
+    # -----------------------------------------------------------------------
+    # Log model specifications.
+    # -----------------------------------------------------------------------
+
+    logger.info("=" * 60)
+    logger.info("Model Specifications".center(60))
+    logger.info("=" * 60)
+    logger.info("")
+
+    # Model identity
+    model_label = model_cfg.get('label', '<custom>')
+    model_cat   = model_cfg.get('category', '')
+    cat_str     = f"  ({model_cat})" if model_cat else ""
+    logger.info(f"  Context:   {model_label}{cat_str}")
+
+    # Lattice dimensions and boundary conditions
+    lx  = geo_cfg['lx']
+    ly  = geo_cfg.get('ly', 1)
+    bcx = geo_cfg.get('bcx', 'OBC').upper()
+    bcy = geo_cfg.get('bcy', 'OBC').upper()
+    if ly == 1:
+        logger.info(f"  Lattice:   L = {L}")
+        logger.info(f"  Boundary:  {bcx}")
+    else:
+        logger.info(f"  Lattice:   {lx} \u00d7 {ly}  (L = {L})")
+        logger.info(f"  Boundary:  {bcx} \u00d7 {bcy}")
+
+    logger.info("")
+
+    # Coupling parameters: all model_cfg keys except 'label' and 'category'.
+    # 'symmetry' is displayed as 'symm' for brevity.
+    _skip    = {'label', 'category'}
+    _aliases = {'symmetry': 'symm'}
+    params   = [(_aliases.get(k, k), v) for k, v in model_cfg.items() if k not in _skip]
+    if params:
+        col = max(len(k) for k, _ in params) + 1
+        for k, v in params:
+            logger.info(f"  {(k + ':').ljust(col)}  {v}")
+        logger.info("")
+
+    # Interaction summary
+    n_total  = len(interactions)
+    n_active = sum(1 for intr in interactions if intr.cpl != 0.0)
+    logger.info(f"  Active interactions:  {n_active} / {n_total}")
+    logger.info("")
 
     return interactions, spc, L
