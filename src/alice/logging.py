@@ -28,11 +28,77 @@ Typical usage at the start of a script or notebook:
 
 from __future__ import annotations
 
+import importlib.metadata
 import logging
 import os
+import platform
+import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+
+def _version_status(version: str) -> str:
+    """Map a PEP 440 version string to a short release-level label."""
+    m = re.search(r'(a|b|rc)\d*$', version)
+    if m is None:
+        return 'stable'
+    return {'a': 'alpha', 'b': 'beta', 'rc': 'rc'}[m.group(1)]
+
+
+def _log_banner(log: logging.Logger) -> None:
+    """Emit the Alice startup banner."""
+    width = 60
+    title = 'Alice  \u2014  1D Tensor Network Algorithms'
+    sep   = '\u2014' * (len(title) + 2)   # 1 em-dash wider on each side
+
+    # Gather metadata.
+    alice_ver    = importlib.metadata.version('alice')
+    alice_status = _version_status(alice_ver)
+    py_ver       = (f"{sys.version_info.major}.{sys.version_info.minor}"
+                    f".{sys.version_info.micro}")
+    py_status    = ('stable' if sys.version_info.releaselevel == 'final'
+                    else sys.version_info.releaselevel)
+
+    _sys  = platform.system()
+    _mach = platform.machine()
+    if _sys == 'Darwin':
+        system_str = f"macOS {platform.mac_ver()[0]} ({_mach})"
+    elif _sys == 'Linux':
+        system_str = f"Linux {platform.release()} ({_mach})"
+    elif _sys == 'Windows':
+        system_str = f"Windows {platform.release()} ({_mach})"
+    else:
+        system_str = f"{_sys} ({_mach})"
+
+    session = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Fixed key column width aligns all values.
+    key_col    = 10
+    info_lines = [
+        f"{'Version:'.ljust(key_col)}v{alice_ver} ({alice_status})",
+        f"{'Python:'.ljust(key_col)}v{py_ver} ({py_status})",
+        f"{'System:'.ljust(key_col)}{system_str}",
+        f"{'Author:'.ljust(key_col)}Changkai Zhang",
+        f"{'License:'.ljust(key_col)}GNU GPL-v3",
+        f"{'Session:'.ljust(key_col)}{session}",
+    ]
+
+    # Block-centre: all info lines share the same left padding.
+    block_pad = ' ' * max(0, (width - max(len(l) for l in info_lines)) // 2)
+
+    log.info('=' * width)
+    log.info('')
+    log.info(sep.center(width))
+    log.info(title.center(width))
+    log.info(sep.center(width))
+    log.info('')
+    for line in info_lines:
+        log.info(block_pad + line)
+    log.info('')
+    log.info('=' * width)
+    log.info('')
 
 
 def configure_logging(log_file: Optional[str] = None) -> None:
@@ -92,3 +158,5 @@ def configure_logging(log_file: Optional[str] = None) -> None:
         )
     )
     alice_logger.addHandler(file_handler)
+
+    _log_banner(alice_logger)
