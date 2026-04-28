@@ -277,7 +277,8 @@ def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
     interactions.sort(key=lambda x: x.leading_site)
 
     logger.info("")
-    logger.info(f"Total interactions: {len(interactions)}")
+    logger.info(f"Two-site interactions: {len(interactions)}")
+    logger.info("")
 
     return interactions
 
@@ -505,7 +506,8 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
     interactions.sort(key=lambda x: x.leading_site)
 
     logger.info("")
-    logger.info(f"Total interactions: {len(interactions)}")
+    logger.info(f"Two-site interactions: {len(interactions)}")
+    logger.info("")
 
     return interactions
 
