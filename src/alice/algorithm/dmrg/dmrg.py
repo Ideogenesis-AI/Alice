@@ -319,13 +319,15 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
 
     # Log startup header and options before the first sweep.
     max_bond_str = str(opts.max_bond) if opts.max_bond is not None else 'unlimited'
+    logger.info("=" * 60)
+    logger.info("Commencing: DMRG Algorithm".center(60))
+    logger.info("=" * 60)
     logger.info("")
-    logger.info("DMRG started")
     logger.info("  scheme            : %s", opts.scheme)
-    logger.info("  L                 : %d", L)
+    logger.info("  chain length      : %d", L)
     logger.info("  max sweeps        : %d", opts.n_sweeps)
-    logger.info("  e_tol             : %.2e", opts.e_tol)
-    logger.info("  max bond          : %s", max_bond_str)
+    logger.info("  max bond dim      : %s", max_bond_str)
+    logger.info("  conv thresh       : %.2e", opts.e_tol)
     logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
     logger.info("  davidson tol      : %.2e", opts.davidson_tol)
     logger.info("  davidson max iter : %d", opts.davidson_max_iter)
