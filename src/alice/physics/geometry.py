@@ -42,36 +42,95 @@ logger = logging.getLogger(__name__)
 # Logging helpers
 # ---------------------------------------------------------------------------
 
-def _log_lattice_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
+_DIAG_THRESHOLD = 8   # lx > this → truncate the diagram
+_DIAG_HEAD      = 4   # columns shown at the left in truncated mode
+_DIAG_TAIL      = 2   # columns shown at the right in truncated mode
+
+
+def _log_1dchain_diagram(lx: int, ord_map: List[List[int]]) -> None:
+    """Log a visual diagram of the 1D chain lattice."""
+    logger.info("=" * 60)
+    logger.info(f"1D Chain Lattice ({lx} Sites)".center(60))
+    logger.info("=" * 60)
+    logger.info("")
+
+    if lx <= _DIAG_THRESHOLD:
+        # Full render: all sites connected by "-----".
+        line = "-----".join(f"{ord_map[0][col]:02d}" for col in range(lx))
+    else:
+        # Truncated render: first _DIAG_HEAD + last _DIAG_TAIL, with ⋯ ⋯ gap.
+        head = "-----".join(f"{ord_map[0][col]:02d}" for col in range(_DIAG_HEAD))
+        tail = "-----".join(f"{ord_map[0][col]:02d}" for col in range(lx - _DIAG_TAIL, lx))
+        line = f"{head}  ⋯ ⋯  {tail}"
+
+    logger.info(line.center(60))
+    logger.info("")
+
+
+def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
     """Log a visual diagram of the snake-like lattice traversal."""
     logger.info("=" * 60)
     logger.info("Traverse over 2D Lattice via Snake-like Chain".center(60))
     logger.info("=" * 60)
     logger.info("")
 
-    # Each site: 2 chars; each connector: 5 chars.
-    # Total width = lx * 2 + (lx - 1) * 5 = 7 * lx - 5.
-    diagram_width = 7 * lx - 5
-    left_padding  = max(0, (60 - diagram_width) // 2)
-    padding       = " " * left_padding
+    def _connector(row: int, col: int) -> str:
+        """Return the horizontal connector between col and col+1 at the given row."""
+        if (row == 0 and col % 2 == 1) or (row == ly - 1 and col % 2 == 0):
+            return "-----"
+        return ". . ."
 
-    for row in range(ly):
-        line = ""
-        for col in range(lx):
-            site = ord_map[row][col]
-            if col < lx - 1:
-                if (row == 0 and col % 2 == 1) or (row == ly - 1 and col % 2 == 0):
-                    connector = "-----"
-                else:
-                    connector = ". . ."
-            else:
-                connector = ""
-            line += f"{site:02d}{connector}"
-        logger.info(padding + line)
+    if lx <= _DIAG_THRESHOLD:
+        # Full render: all columns shown.
+        # Each site: 2 chars; each connector: 5 chars.  Width = 7 * lx - 5.
+        diagram_width = 7 * lx - 5
+        padding       = " " * max(0, (60 - diagram_width) // 2)
 
-        if row < ly - 1:
-            line = "".join("|      " for _ in range(lx))
+        for row in range(ly):
+            line = "".join(
+                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < lx - 1 else "")
+                for col in range(lx)
+            )
             logger.info(padding + line)
+
+            if row < ly - 1:
+                logger.info(padding + "".join("|      " for _ in range(lx)))
+
+    else:
+        # Truncated render: first _DIAG_HEAD columns + last _DIAG_TAIL columns.
+        # Gap token "  ⋯ ⋯  " (8 chars) replaces the hidden interior.
+        head_cols  = list(range(_DIAG_HEAD))
+        tail_cols  = list(range(lx - _DIAG_TAIL, lx))
+        gap = "  ⋯ ⋯  "
+
+        # Width of the visible portion:
+        #   head: _DIAG_HEAD * 2 + (_DIAG_HEAD - 1) * 5 = 7 * _DIAG_HEAD - 5
+        #   gap:  len(gap)
+        #   tail: _DIAG_TAIL * 2 + (_DIAG_TAIL - 1) * 5 = 7 * _DIAG_TAIL - 5
+        diagram_width = (7 * _DIAG_HEAD - 5) + len(gap) + (7 * _DIAG_TAIL - 5)
+        padding       = " " * max(0, (60 - diagram_width) // 2)
+
+        for row in range(ly):
+            head_str = "".join(
+                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < head_cols[-1] else "")
+                for col in head_cols
+            )
+            tail_str = "".join(
+                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < tail_cols[-1] else "")
+                for col in tail_cols
+            )
+            logger.info(padding + head_str + gap + tail_str)
+
+            if row < ly - 1:
+                # Build the inter-row vline with the same total width as a data
+                # row so that each "|" sits directly under its column's site.
+                vline = [" "] * diagram_width
+                for i in range(_DIAG_HEAD):
+                    vline[i * 7] = "|"
+                tail_offset = 7 * _DIAG_HEAD - 5 + len(gap)
+                for i in range(_DIAG_TAIL):
+                    vline[tail_offset + i * 7] = "|"
+                logger.info(padding + "".join(vline))
 
     logger.info("")
 
@@ -95,7 +154,7 @@ def generate_snake_order(
     """Generate snake-like traversal order for a 2D square lattice.
 
     Creates a mapping between site indices and lattice coordinates for
-    a snake-like path through the lattice::
+    a snake-like path through the lattice:
 
         00. . .07-----08. . .15
         |      |      |      |
@@ -187,7 +246,7 @@ def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
 
     interactions: List[Interaction2Site] = []
 
-    _log_lattice_diagram(L, 1, ord_map)
+    _log_1dchain_diagram(L, ord_map)
     logger.info("=" * 60)
     logger.info("Interactions Info".center(60))
     logger.info("=" * 60)
@@ -276,7 +335,7 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
 
     interactions: List[Interaction2Site] = []
 
-    _log_lattice_diagram(lx, ly, ord_map)
+    _log_snake_diagram(lx, ly, ord_map)
     logger.info("=" * 60)
     logger.info("Interactions Info".center(60))
     logger.info("=" * 60)
