@@ -322,19 +322,20 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     logger.info("  davidson max space: %d", opts.davidson_max_subspace)
     logger.info("")
 
+    w = len(str(opts.n_sweeps))
     for sweep_idx in range(opts.n_sweeps):
         # Blank debug line between sweeps for visual separation in the log file.
         if sweep_idx > 0:
             logger.debug("")
-        logger.debug("sweep %d / %d: forward sweep initiated", sweep_idx + 1, opts.n_sweeps)
+        logger.debug("sweep %*d / %d: forward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
 
         # Right half-sweep: center moves from 0 to L-1.
         right_energy = forward_sweep(mps, mpo, env_left, env_right, opts)
 
-        logger.debug("sweep %d / %d: forward sweep finished", sweep_idx + 1, opts.n_sweeps)
+        logger.debug("sweep %*d / %d: forward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
         logger.debug("  local E = %+.12g", right_energy)
         logger.debug("")
-        logger.debug("sweep %d / %d: backward sweep initiated", sweep_idx + 1, opts.n_sweeps)
+        logger.debug("sweep %*d / %d: backward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
 
         # Left half-sweep: center moves from L-1 to 0; energy recorded here.
         energy = backward_sweep(mps, mpo, env_left, env_right, opts)
@@ -343,10 +344,10 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         energies.append(energy)
         sweep_count += 1
 
-        logger.debug("sweep %d / %d: backward sweep finished", sweep_idx + 1, opts.n_sweeps)
+        logger.debug("sweep %*d / %d: backward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
         logger.debug("  local E = %+.12g", energy)
         logger.debug("  ΔE = %+.4e", energy - prev_energy)
-        logger.info("sweep %d / %d: E = %+.12g, |ΔE| = %.4e", sweep_idx + 1, opts.n_sweeps, energy, delta_e)
+        logger.info("sweep %*d / %d: E = %+.12g, |ΔE| = %.4e", w, sweep_idx + 1, opts.n_sweeps, energy, delta_e)
 
         # Check energy convergence.
         if delta_e < opts.e_tol:
