@@ -54,7 +54,7 @@ from nicole import Tensor, einsum
 from .davidson import davidson
 
 
-def matvec(M: Tensor, E_left: Tensor, W: Tensor, E_right: Tensor) -> Tensor:
+def matvec(M: Tensor, W: Tensor, E_left: Tensor, E_right: Tensor) -> Tensor:
     """Apply the 1-site effective Hamiltonian H_eff to the site tensor M.
 
     Computes `H_eff|M⟩` as a single four-tensor einsum contraction.
@@ -63,10 +63,10 @@ def matvec(M: Tensor, E_left: Tensor, W: Tensor, E_right: Tensor) -> Tensor:
     ----------
     M:
         Center site tensor with axes `(ket_left, ket_right, phys_ket)`.
-    E_left:
-        Left environment with axes `(bra_left, mpo_left, ket_left)`.
     W:
         MPO site tensor with axes `(mpo_left, mpo_right, phys_bra, phys_ket)`.
+    E_left:
+        Left environment with axes `(bra_left, mpo_left, ket_left)`.
     E_right:
         Right environment with axes `(bra_right, mpo_right, ket_right)`.
 
@@ -89,8 +89,8 @@ def matvec(M: Tensor, E_left: Tensor, W: Tensor, E_right: Tensor) -> Tensor:
 
 def optimize_1site(
     M: Tensor,
-    E_left: Tensor,
     W: Tensor,
+    E_left: Tensor,
     E_right: Tensor,
     davidson_opts: dict,
 ) -> Tuple[float, Tensor, float]:
@@ -106,10 +106,10 @@ def optimize_1site(
     M:
         Current center site tensor with axes `(ket_left, ket_right, phys_ket)`,
         used as the initial guess for Davidson.
-    E_left:
-        Left environment with axes `(bra_left, mpo_left, ket_left)`.
     W:
         MPO site tensor with axes `(mpo_left, mpo_right, phys_bra, phys_ket)`.
+    E_left:
+        Left environment with axes `(bra_left, mpo_left, ket_left)`.
     E_right:
         Right environment with axes `(bra_right, mpo_right, ket_right)`.
     davidson_opts:

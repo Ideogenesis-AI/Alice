@@ -86,9 +86,9 @@ def build_bulk(M_i: Tensor, M_i1: Tensor) -> Tensor:
 
 def matvec_2s(
     Theta: Tensor,
-    E_left: Tensor,
     W_i: Tensor,
     W_i1: Tensor,
+    E_left: Tensor,
     E_right: Tensor,
 ) -> Tensor:
     """Apply the 2-site effective Hamiltonian H_eff to the bond tensor Θ.
@@ -108,13 +108,13 @@ def matvec_2s(
     ----------
     Theta:
         Bond tensor with axes `(ket_left, ket_right, phys_ket_i, phys_ket_{i+1})`.
-    E_left:
-        Left environment with axes `(bra_left, mpo_left, ket_left)`.
     W_i:
         MPO tensor at site i with axes `(mpo_left, mpo_right, phys_bra_i, phys_ket_i)`.
     W_i1:
         MPO tensor at site i+1 with axes
         `(mpo_left, mpo_right, phys_bra_{i+1}, phys_ket_{i+1})`.
+    E_left:
+        Left environment with axes `(bra_left, mpo_left, ket_left)`.
     E_right:
         Right environment with axes `(bra_right, mpo_right, ket_right)`.
 
@@ -226,9 +226,9 @@ def split_backward(
 def optimize_2site(
     M_i: Tensor,
     M_i1: Tensor,
-    E_left: Tensor,
     W_i: Tensor,
     W_i1: Tensor,
+    E_left: Tensor,
     E_right: Tensor,
     davidson_opts: dict,
 ) -> Tuple[float, Tensor, float]:
@@ -247,12 +247,12 @@ def optimize_2site(
         MPS tensor at site i with axes `(ket_left, ket_right, phys_ket)`.
     M_i1:
         MPS tensor at site i+1 with axes `(ket_left, ket_right, phys_ket)`.
-    E_left:
-        Left environment with axes `(bra_left, mpo_left, ket_left)`.
     W_i:
         MPO tensor at site i with axes `(mpo_left, mpo_right, phys_bra, phys_ket)`.
     W_i1:
         MPO tensor at site i+1 with axes `(mpo_left, mpo_right, phys_bra, phys_ket)`.
+    E_left:
+        Left environment with axes `(bra_left, mpo_left, ket_left)`.
     E_right:
         Right environment with axes `(bra_right, mpo_right, ket_right)`.
     davidson_opts:
