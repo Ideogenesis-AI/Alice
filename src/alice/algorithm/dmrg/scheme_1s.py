@@ -22,11 +22,12 @@ This module contains all operations that are specific to the 1-site update:
 
 - `matvec`: apply the effective Hamiltonian `H_eff = E_left ⊗ W ⊗ E_right`
   to the center site tensor.
-- `optimize_site`: pure function that runs the Davidson solver to find the
+- `optimize_1site`: pure function that runs the Davidson solver to find the
   optimal site tensor given the surrounding environment.
 
-Future update schemes (2-site, 1-site-plus) follow the same interface and
-live in their own `scheme_*.py` files.
+The 2-site update scheme lives in `scheme_2s.py` and follows the same
+interface. Future schemes (1-site-plus, etc.) each get their own
+`scheme_*.py` file.
 
 Index convention (shared with `environ.py`)
 --------------------------------------------
@@ -86,7 +87,7 @@ def matvec(M: Tensor, E_left: Tensor, W: Tensor, E_right: Tensor) -> Tensor:
     return einsum('aob,bds,oprs,cpd->acr', E_left, M, W, E_right)
 
 
-def optimize_site(
+def optimize_1site(
     M: Tensor,
     E_left: Tensor,
     W: Tensor,
