@@ -18,7 +18,8 @@
 
 """DMRG algorithm package.
 
-Implements 1-site DMRG with a Davidson eigensolver. The public API is:
+Implements 1-site and 2-site DMRG with a Davidson eigensolver.
+The public API includes:
 
 - `Options` — run options (loadable from TOML).
 - `Summary` — output dataclass.
