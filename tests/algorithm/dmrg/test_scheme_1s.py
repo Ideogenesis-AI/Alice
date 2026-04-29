@@ -50,7 +50,7 @@ class TestMatvec:
         build_right_envs(mps, mpo, env_right)
 
         M = mps[0]
-        HM = matvec(M, env_left[0], mpo[0], env_right[0])
+        HM = matvec(M, mpo[0], env_left[0], env_right[0])
         energy = _inner_product(M, HM).real
 
         obs = observe(mps, mpo)
@@ -73,10 +73,10 @@ class TestMatvec:
 
         M1 = mps[0]
         # Use H_eff|M1⟩ as a second independent vector (same index structure).
-        M2 = matvec(M1, env_left[0], mpo[0], env_right[0])
+        M2 = matvec(M1, mpo[0], env_left[0], env_right[0])
 
-        HM2 = matvec(M2, env_left[0], mpo[0], env_right[0])
-        HM1 = matvec(M1, env_left[0], mpo[0], env_right[0])
+        HM2 = matvec(M2, mpo[0], env_left[0], env_right[0])
+        HM1 = matvec(M1, mpo[0], env_left[0], env_right[0])
 
         lhs = _inner_product(M1, HM2)
         rhs = _inner_product(M2, HM1)
@@ -94,7 +94,7 @@ class TestMatvec:
         build_right_envs(mps, mpo, env_right)
 
         M = mps[0]
-        HM = matvec(M, env_left[0], mpo[0], env_right[0])
+        HM = matvec(M, mpo[0], env_left[0], env_right[0])
         # Same number of axes and same index dimensions.
         assert len(HM.indices) == len(M.indices)
         for idx_in, idx_out in zip(M.indices, HM.indices):
@@ -119,11 +119,11 @@ class TestOptimize1site:
         build_right_envs(mps, mpo, env_right)
 
         M = mps[0]
-        HM_init = matvec(M, env_left[0], mpo[0], env_right[0])
+        HM_init = matvec(M, mpo[0], env_left[0], env_right[0])
         energy_init = _inner_product(M, HM_init).real / _inner_product(M, M).real
 
         davidson_opts = {'max_iter': 50, 'tol': 1e-10, 'max_subspace': 10}
-        energy_opt, M_opt, _ = optimize_1site(M, env_left[0], mpo[0], env_right[0], davidson_opts)
+        energy_opt, M_opt, _ = optimize_1site(M, mpo[0], env_left[0], env_right[0], davidson_opts)
 
         # Variational principle: optimised energy ≤ initial Rayleigh quotient.
         assert energy_opt <= energy_init + 1e-10, (
@@ -146,7 +146,7 @@ class TestOptimize1site:
         before = {k: v.clone() for k, v in M.data.items()}
 
         davidson_opts = {'max_iter': 10, 'tol': 1e-8, 'max_subspace': 5}
-        optimize_1site(M, env_left[0], mpo[0], env_right[0], davidson_opts)
+        optimize_1site(M, mpo[0], env_left[0], env_right[0], davidson_opts)
 
         # M must be unchanged.
         for k, v_before in before.items():

@@ -84,7 +84,7 @@ class TestMatvec2s:
         env_left, env_right = self._envs(mps, mpo)
 
         Theta = build_bulk(mps[0], mps[1])
-        H_Theta = matvec_2s(Theta, env_left[0], mpo[0], mpo[1], env_right[1])
+        H_Theta = matvec_2s(Theta, mpo[0], mpo[1], env_left[0], env_right[1])
         energy = _inner_product(Theta, H_Theta).real / _inner_product(Theta, Theta).real
 
         obs = observe(mps, mpo)
@@ -101,10 +101,10 @@ class TestMatvec2s:
 
         Theta1 = build_bulk(mps[0], mps[1])
         # Use H_eff|Θ₁⟩ as an independent second vector.
-        Theta2 = matvec_2s(Theta1, env_left[0], mpo[0], mpo[1], env_right[1])
+        Theta2 = matvec_2s(Theta1, mpo[0], mpo[1], env_left[0], env_right[1])
 
-        H_Theta2 = matvec_2s(Theta2, env_left[0], mpo[0], mpo[1], env_right[1])
-        H_Theta1 = matvec_2s(Theta1, env_left[0], mpo[0], mpo[1], env_right[1])
+        H_Theta2 = matvec_2s(Theta2, mpo[0], mpo[1], env_left[0], env_right[1])
+        H_Theta1 = matvec_2s(Theta1, mpo[0], mpo[1], env_left[0], env_right[1])
 
         lhs = _inner_product(Theta1, H_Theta2)
         rhs = _inner_product(Theta2, H_Theta1)
@@ -118,7 +118,7 @@ class TestMatvec2s:
         env_left, env_right = self._envs(mps, mpo)
 
         Theta = build_bulk(mps[0], mps[1])
-        H_Theta = matvec_2s(Theta, env_left[0], mpo[0], mpo[1], env_right[1])
+        H_Theta = matvec_2s(Theta, mpo[0], mpo[1], env_left[0], env_right[1])
 
         assert len(H_Theta.indices) == len(Theta.indices)
         for idx_in, idx_out in zip(Theta.indices, H_Theta.indices):
@@ -146,7 +146,7 @@ class TestOptimize2site:
         env_left, env_right = self._envs(mps, mpo)
 
         Theta = build_bulk(mps[0], mps[1])
-        H_Theta = matvec_2s(Theta, env_left[0], mpo[0], mpo[1], env_right[1])
+        H_Theta = matvec_2s(Theta, mpo[0], mpo[1], env_left[0], env_right[1])
         energy_init = (
             _inner_product(Theta, H_Theta).real / _inner_product(Theta, Theta).real
         )
@@ -154,7 +154,7 @@ class TestOptimize2site:
         davidson_opts = {'max_iter': 50, 'tol': 1e-10, 'max_subspace': 10}
         energy_opt, _, _ = optimize_2site(
             mps[0], mps[1],
-            env_left[0], mpo[0], mpo[1], env_right[1],
+            mpo[0], mpo[1], env_left[0], env_right[1],
             davidson_opts,
         )
 
@@ -173,7 +173,7 @@ class TestOptimize2site:
         davidson_opts = {'max_iter': 10, 'tol': 1e-8, 'max_subspace': 5}
         optimize_2site(
             mps[0], mps[1],
-            env_left[0], mpo[0], mpo[1], env_right[1],
+            mpo[0], mpo[1], env_left[0], env_right[1],
             davidson_opts,
         )
 

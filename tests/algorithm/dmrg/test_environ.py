@@ -202,7 +202,7 @@ class TestStepRightEnv:
         from alice.algorithm.dmrg.scheme_1s import matvec
         from alice.algorithm.dmrg.davidson import _inner_product
 
-        Mv = matvec(mps[0], E_left, mpo[0], env_right[0])
+        Mv = matvec(mps[0], mpo[0], E_left, env_right[0])
         energy_site0 = _inner_product(mps[0], Mv).real
         # For the full 1-site chain the energy from E_left+site0+E_right must equal observe().
         assert abs(energy_site0 - obs_val) < 1e-9, (

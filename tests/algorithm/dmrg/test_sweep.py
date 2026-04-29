@@ -124,7 +124,7 @@ class TestFullSweep:
 
         davidson_opts = {'max_iter': 100, 'tol': 1e-10, 'max_subspace': 20}
         energy_before, _, _ = optimize_1site(
-            mps[0], env_left[0], mpo[0], env_right[0], davidson_opts
+            mps[0], mpo[0], env_left[0], env_right[0], davidson_opts
         )
 
         forward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
@@ -154,7 +154,7 @@ class TestFullSweep:
 
         # Pre-sweep: 2-site Rayleigh quotient at bond (0,1) as reference.
         Theta = build_bulk(mps[0], mps[1])
-        H_Theta = matvec_2s(Theta, env_left[0], mpo[0], mpo[1], env_right[1])
+        H_Theta = matvec_2s(Theta, mpo[0], mpo[1], env_left[0], env_right[1])
         energy_before = (
             _inner_product(Theta, H_Theta).real / _inner_product(Theta, Theta).real
         )
