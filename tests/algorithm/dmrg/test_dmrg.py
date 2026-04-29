@@ -171,12 +171,12 @@ class TestSummary:
 # ---------------------------------------------------------------------------
 
 class TestDmrg:
-    """Integration tests for the run() function."""
+    """Integration tests for the run() function (both 1-site and 2-site schemes)."""
 
     def test_unimplemented_scheme_raises(self, heisenberg_L2):
         mps, mpo = heisenberg_L2
-        opts = Options(scheme='2s')
-        with pytest.raises(NotImplementedError, match="2s"):
+        opts = Options(scheme='1sp')
+        with pytest.raises(NotImplementedError, match="1sp"):
             run(mps, mpo, opts)
 
     def test_length_mismatch_raises(self, heisenberg_L2, heisenberg_L4):
@@ -185,8 +185,15 @@ class TestDmrg:
         with pytest.raises(ValueError, match="same length"):
             run(mps2, mpo4)
 
-    def test_heisenberg_L2_energy(self, heisenberg_L2):
-        """DMRG on L=2 Heisenberg chain recovers the exact energy -0.75."""
+    def test_default_opts(self, heisenberg_L2):
+        """run() with opts=None uses the default Options()."""
+        mps, mpo = heisenberg_L2
+        summary = run(mps, mpo)
+        assert isinstance(summary, Summary)
+        assert summary.energy < 0  # Heisenberg ground state is negative
+
+    def test_heisenberg_L2_energy_1s(self, heisenberg_L2):
+        """1-site DMRG on L=2 Heisenberg chain recovers the exact energy -0.75."""
         mps, mpo = heisenberg_L2
         opts = Options(n_sweeps=10, davidson_tol=1e-12, e_tol=1e-10)
         summary = run(mps, mpo, opts)
@@ -195,15 +202,15 @@ class TestDmrg:
             f"L=2 Heisenberg energy {summary.energy} != -0.75"
         )
 
-    def test_heisenberg_L2_converges(self, heisenberg_L2):
-        """DMRG converges within the sweep budget for L=2."""
+    def test_heisenberg_L2_converges_1s(self, heisenberg_L2):
+        """1-site DMRG converges within the sweep budget for L=2."""
         mps, mpo = heisenberg_L2
         opts = Options(n_sweeps=20, e_tol=1e-10)
         summary = run(mps, mpo, opts)
         assert summary.converged
 
-    def test_heisenberg_L2_summary_fields(self, heisenberg_L2):
-        """Summary contains a non-empty energy history and correct bond_dims."""
+    def test_heisenberg_L2_summary_fields_1s(self, heisenberg_L2):
+        """1-site Summary contains a non-empty energy history and correct bond_dims."""
         mps, mpo = heisenberg_L2
         summary = run(mps, mpo, Options(n_sweeps=4))
         assert len(summary.energies) >= 1
@@ -211,8 +218,8 @@ class TestDmrg:
         assert summary.n_sweeps >= 1
 
     @pytest.mark.slow
-    def test_heisenberg_L4_energy(self, heisenberg_L4):
-        """DMRG on L=4 Heisenberg chain recovers the exact energy ≈ -1.6160254."""
+    def test_heisenberg_L4_energy_1s(self, heisenberg_L4):
+        """1-site DMRG on L=4 Heisenberg chain recovers the exact energy ≈ -1.6160254."""
         mps, mpo = heisenberg_L4
         opts = Options(n_sweeps=30, davidson_tol=1e-12, e_tol=1e-10)
         summary = run(mps, mpo, opts)
@@ -222,9 +229,38 @@ class TestDmrg:
             f"L=4 Heisenberg energy {summary.energy} != {E_exact}"
         )
 
-    def test_default_opts(self, heisenberg_L2):
-        """run() with opts=None uses the default Options()."""
+    def test_heisenberg_L2_energy_2s(self, heisenberg_L2):
+        """2-site DMRG on L=2 Heisenberg chain recovers the exact energy -0.75."""
         mps, mpo = heisenberg_L2
-        summary = run(mps, mpo)
+        opts = Options(scheme='2s', n_sweeps=10, davidson_tol=1e-12, e_tol=1e-10)
+        summary = run(mps, mpo, opts)
         assert isinstance(summary, Summary)
-        assert summary.energy < 0  # Heisenberg ground state is negative
+        assert abs(summary.energy - (-0.75)) < 1e-6, (
+            f"L=2 Heisenberg 2-site energy {summary.energy} != -0.75"
+        )
+
+    def test_heisenberg_L2_converges_2s(self, heisenberg_L2):
+        """2-site DMRG converges within the sweep budget for L=2."""
+        mps, mpo = heisenberg_L2
+        opts = Options(scheme='2s', n_sweeps=20, e_tol=1e-10)
+        summary = run(mps, mpo, opts)
+        assert summary.converged
+
+    def test_heisenberg_L2_summary_fields_2s(self, heisenberg_L2):
+        """2-site Summary contains a non-empty energy history and correct bond_dims."""
+        mps, mpo = heisenberg_L2
+        summary = run(mps, mpo, Options(scheme='2s', n_sweeps=4))
+        assert len(summary.energies) >= 1
+        assert len(summary.bond_dims) == mps.L - 1
+        assert summary.n_sweeps >= 1
+
+    @pytest.mark.slow
+    def test_heisenberg_L4_energy_2s(self, heisenberg_L4):
+        """2-site DMRG on L=4 Heisenberg chain recovers the exact energy ≈ -1.6160254."""
+        mps, mpo = heisenberg_L4
+        opts = Options(scheme='2s', n_sweeps=30, davidson_tol=1e-12, e_tol=1e-10)
+        summary = run(mps, mpo, opts)
+        E_exact = -1.6160254037844385
+        assert abs(summary.energy - E_exact) < 1e-5, (
+            f"L=4 Heisenberg 2-site energy {summary.energy} != {E_exact}"
+        )
