@@ -74,7 +74,7 @@ def forward_sweep(
     mpo: MPO,
     env_left: Environment,
     env_right: Environment,
-    opts: 'Options',
+    opts: Options,
 ) -> float:
     """Perform a left-to-right (forward) half-sweep.
 
@@ -116,7 +116,7 @@ def backward_sweep(
     mpo: MPO,
     env_left: Environment,
     env_right: Environment,
-    opts: 'Options',
+    opts: Options,
 ) -> float:
     """Perform a right-to-left (backward) half-sweep.
 
@@ -157,7 +157,7 @@ def backward_sweep(
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _unpack_opts(opts: 'Options'):
+def _unpack_opts(opts: Options):
     """Extract the truncation dict and Davidson keyword-args from `opts`."""
     trunc: Optional[dict] = {'thresh': opts.trunc_thresh}
     if opts.max_bond is not None:
