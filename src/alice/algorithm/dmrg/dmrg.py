@@ -69,7 +69,7 @@ _SCHEME_ALIASES: Dict[str, str] = {
     'one-site-plus': '1sp',
 }
 
-_IMPLEMENTED_SCHEMES = {'1s'}
+_IMPLEMENTED_SCHEMES = {'1s', '2s'}
 
 
 def _resolve_scheme(alias: str) -> str:
@@ -117,7 +117,7 @@ class Options(AlgorithmOptions):
         Per-site update scheme. Canonical values and their aliases:
 
         - `'1s'` / `'1-site'` / `'one-site'`: 1-site DMRG (implemented).
-        - `'2s'` / `'2-site'` / `'two-site'`: 2-site DMRG (not yet implemented).
+        - `'2s'` / `'2-site'` / `'two-site'`: 2-site DMRG (implemented).
         - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: 1-site-plus (not yet implemented).
     n_sweeps:
         Maximum number of full sweeps (one right + one left half-sweep each).
@@ -277,28 +277,16 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     if opts is None:
         opts = Options()
 
-    if opts.scheme != '1s':
+    if opts.scheme not in _IMPLEMENTED_SCHEMES:
         raise NotImplementedError(
             f"DMRG scheme {opts.scheme!r} is not yet implemented; "
-            "only '1s' (1-site DMRG) is currently available"
+            f"implemented schemes are: {', '.join(sorted(_IMPLEMENTED_SCHEMES))}"
         )
 
     if mps.L != mpo.L:
         raise ValueError(
             f"mps and mpo must have the same length, got {mps.L} and {mpo.L}"
         )
-
-    # Assemble the truncation dict forwarded to mps.canonical at each sweep step.
-    trunc: dict = {'thresh': opts.trunc_thresh}
-    if opts.max_bond is not None:
-        trunc['nkeep'] = opts.max_bond
-
-    # Davidson options passed through to optimize_site / davidson.
-    davidson_opts = {
-        'max_iter': opts.davidson_max_iter,
-        'tol': opts.davidson_tol,
-        'max_subspace': opts.davidson_max_subspace,
-    }
 
     # Bring the MPS into right-canonical form with center at site 0.
     # This is required by build_right_envs and establishes center for the sweep.
@@ -341,7 +329,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         logger.debug("sweep %d / %d: forward sweep initiated", sweep_idx + 1, opts.n_sweeps)
 
         # Right half-sweep: center moves from 0 to L-1.
-        right_energy = forward_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
+        right_energy = forward_sweep(mps, mpo, env_left, env_right, opts)
 
         logger.debug("sweep %d / %d: forward sweep finished", sweep_idx + 1, opts.n_sweeps)
         logger.debug("  local E = %+.12g", right_energy)
@@ -349,7 +337,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         logger.debug("sweep %d / %d: backward sweep initiated", sweep_idx + 1, opts.n_sweeps)
 
         # Left half-sweep: center moves from L-1 to 0; energy recorded here.
-        energy = backward_sweep(mps, mpo, env_left, env_right, trunc, davidson_opts)
+        energy = backward_sweep(mps, mpo, env_left, env_right, opts)
 
         delta_e = abs(energy - prev_energy)
         energies.append(energy)
