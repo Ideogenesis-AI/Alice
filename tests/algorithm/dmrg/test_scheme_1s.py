@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for alice.algorithm.dmrg.scheme_1s (matvec and optimize_site)."""
+"""Tests for alice.algorithm.dmrg.scheme_1s (matvec and optimize_1site)."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from alice.algorithm.dmrg.environ import (
     build_right_envs,
     left_env_boundary,
 )
-from alice.algorithm.dmrg.scheme_1s import matvec, optimize_site
+from alice.algorithm.dmrg.scheme_1s import matvec, optimize_1site
 
 
 # ---------------------------------------------------------------------------
@@ -105,11 +105,11 @@ class TestMatvec:
 # optimize_site
 # ---------------------------------------------------------------------------
 
-class TestOptimizeSite:
-    """Tests for the optimize_site function."""
+class TestOptimize1site:
+    """Tests for the optimize_1site function."""
 
     def test_energy_does_not_increase(self, heisenberg_L2):
-        """After optimize_site the returned energy ≤ initial ⟨M|H_eff|M⟩."""
+        """After optimize_1site the returned energy ≤ initial ⟨M|H_eff|M⟩."""
         mps, mpo = heisenberg_L2
         L = mps.L
 
@@ -123,15 +123,15 @@ class TestOptimizeSite:
         energy_init = _inner_product(M, HM_init).real / _inner_product(M, M).real
 
         davidson_opts = {'max_iter': 50, 'tol': 1e-10, 'max_subspace': 10}
-        energy_opt, M_opt, _ = optimize_site(M, env_left[0], mpo[0], env_right[0], davidson_opts)
+        energy_opt, M_opt, _ = optimize_1site(M, env_left[0], mpo[0], env_right[0], davidson_opts)
 
         # Variational principle: optimised energy ≤ initial Rayleigh quotient.
         assert energy_opt <= energy_init + 1e-10, (
-            f"optimize_site increased energy: {energy_init} -> {energy_opt}"
+            f"optimize_1site increased energy: {energy_init} -> {energy_opt}"
         )
 
     def test_output_is_pure_no_mutation(self, heisenberg_L2):
-        """optimize_site does not mutate the input tensor M."""
+        """optimize_1site does not mutate the input tensor M."""
         import torch
         mps, mpo = heisenberg_L2
         L = mps.L
@@ -146,10 +146,10 @@ class TestOptimizeSite:
         before = {k: v.clone() for k, v in M.data.items()}
 
         davidson_opts = {'max_iter': 10, 'tol': 1e-8, 'max_subspace': 5}
-        optimize_site(M, env_left[0], mpo[0], env_right[0], davidson_opts)
+        optimize_1site(M, env_left[0], mpo[0], env_right[0], davidson_opts)
 
         # M must be unchanged.
         for k, v_before in before.items():
             assert torch.allclose(M.data[k], v_before), (
-                f"optimize_site mutated input tensor at block {k}"
+                f"optimize_1site mutated input tensor at block {k}"
             )
