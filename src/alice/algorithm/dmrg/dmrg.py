@@ -171,6 +171,9 @@ class Summary(AlgorithmSummary):
         Actual number of full sweeps performed.
     bond_dims:
         Bond dimensions of `state` after convergence (length `L - 1`).
+    discarded_weights:
+        Discarded weight at the center bond measured during each backward
+        half-sweep (2-site scheme only; always `0.0` for 1-site).
     """
 
     energy: float
@@ -179,6 +182,7 @@ class Summary(AlgorithmSummary):
     converged: bool = False
     n_sweeps: int = 0
     bond_dims: List[int] = field(default_factory=list)
+    discarded_weights: List[float] = field(default_factory=list)
 
     def serialize(self) -> Dict:
         """Serialize the summary to a plain dict compatible with `torch.save`.
@@ -200,6 +204,7 @@ class Summary(AlgorithmSummary):
             'converged': self.converged,
             'n_sweeps': self.n_sweeps,
             'bond_dims': self.bond_dims,
+            'discarded_weights': self.discarded_weights,
             # Network.serialize() returns a weights_only-safe dict of tensors
             # and primitives, preserving symmetry structure and index metadata.
             'state': self.state.serialize(),
@@ -235,6 +240,7 @@ class Summary(AlgorithmSummary):
             converged=data['converged'],
             n_sweeps=data['n_sweeps'],
             bond_dims=data['bond_dims'],
+            discarded_weights=data.get('discarded_weights', []),
             state=Network.deserialize(data['state'], device=device),
         )
 
@@ -301,6 +307,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     build_right_envs(mps, mpo, env_right)
 
     energies: List[float] = []
+    discarded_weights: List[float] = []
     converged = False
     sweep_count = 0
     prev_energy = math.inf
@@ -338,16 +345,20 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         logger.debug("sweep %*d / %d: backward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
 
         # Left half-sweep: center moves from L-1 to 0; energy recorded here.
-        energy = backward_sweep(mps, mpo, env_left, env_right, opts)
+        energy, dw = backward_sweep(mps, mpo, env_left, env_right, opts)
 
         delta_e = abs(energy - prev_energy)
         energies.append(energy)
+        discarded_weights.append(dw)
         sweep_count += 1
 
         logger.debug("sweep %*d / %d: backward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
         logger.debug("  local E = %+.12g", energy)
         logger.debug("  ΔE = %+.4e", energy - prev_energy)
-        logger.info("sweep %*d / %d: E = %+.12g, |ΔE| = %.4e", w, sweep_idx + 1, opts.n_sweeps, energy, delta_e)
+        logger.info(
+            "sweep %*d / %d: E = %+.12g, |ΔE| = %.4e, dw = %.4e",
+            w, sweep_idx + 1, opts.n_sweeps, energy, delta_e, dw,
+        )
 
         # Check energy convergence.
         if delta_e < opts.e_tol:
@@ -365,4 +376,5 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         converged=converged,
         n_sweeps=sweep_count,
         bond_dims=list(mps.bond_dims),
+        discarded_weights=discarded_weights,
     )
