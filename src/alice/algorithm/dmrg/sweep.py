@@ -51,13 +51,13 @@ does internally.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from alice.network import MPS, MPO
 
 from .environ import Environment, step_left_env, step_right_env
 from .scheme_1s import optimize_1site
-from .scheme_2s import optimize_2site, split_forward, split_backward
+from .scheme_2s import optimize_2site, split_forward, split_backward, discarded_weight
 
 if TYPE_CHECKING:
     from .dmrg import Options
@@ -117,7 +117,7 @@ def backward_sweep(
     env_left: Environment,
     env_right: Environment,
     opts: Options,
-) -> float:
+) -> Tuple[float, float]:
     """Perform a right-to-left (backward) half-sweep.
 
     Dispatches to the 1-site or 2-site implementation based on `opts.scheme`.
@@ -144,10 +144,12 @@ def backward_sweep(
     -------
     float
         Variational energy at the last optimised site or bond.
+    float
+        Discarded weight at the center bond (2-site only; `0.0` for 1-site).
     """
     trunc, davidson_opts = _unpack_opts(opts)
     if opts.scheme == '1s':
-        return _backward_1s(mps, mpo, env_left, env_right, trunc, davidson_opts)
+        return _backward_1s(mps, mpo, env_left, env_right, trunc, davidson_opts), 0.0
     if opts.scheme == '2s':
         return _backward_2s(mps, mpo, env_left, env_right, trunc, davidson_opts)
     raise NotImplementedError(f"backward_sweep: unknown scheme {opts.scheme!r}")
@@ -322,11 +324,13 @@ def _backward_2s(
     env_right: Environment,
     trunc: Optional[dict],
     davidson_opts: dict,
-) -> float:
+) -> Tuple[float, float]:
     """Right-to-left half-sweep for 2-site DMRG.
 
     Visits all L-1 bonds from (L-2, L-1) down to (0, 1), optimising the
     2-site bond tensor Θ at each step via Davidson, then splitting it with SVD.
+    At the center bond (`i == L // 2 - 1`) the discarded weight is measured
+    via a second SVD call.
 
     After this call:
     - `mps.center == 0`.
@@ -334,6 +338,8 @@ def _backward_2s(
     """
     L = mps.L
     energy = 0.0
+    dw = 0.0
+    center_bond = L // 2 - 1
     pair_w = 2 * len(str(L - 1)) + 4
 
     for i in range(L - 2, -1, -1):
@@ -346,6 +352,11 @@ def _backward_2s(
         logger.debug("  site %s / %d  local E = %+.12g", pair, L - 1, energy)
         logger.debug("    davidson err = %.4e", davidson_error)
 
+        # Measure the discarded weight once at the center bond.
+        if i == center_bond:
+            dw = discarded_weight(theta_opt, trunc)
+            logger.debug("    discarded weight = %.4e", dw)
+
         # Split Θ: M[i+1] becomes right-isometric; M[i] carries the singular values.
         itag = mps._bond_itag(i + 1)
         mps[i], mps[i + 1] = split_backward(theta_opt, itag, trunc)
@@ -355,4 +366,4 @@ def _backward_2s(
         if i > 0:
             env_right[i] = step_right_env(env_right[i + 1], mps[i + 1], mpo[i + 1])
 
-    return energy
+    return energy, dw
