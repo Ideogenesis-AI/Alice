@@ -16,34 +16,21 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Alice: 1D tensor network algorithms built on Nicole."""
+"""DMRG algorithm package.
 
-from .network import (
-    Interaction, Interaction1Site, Interaction2Site,
-    build_interaction,
-    build_hamiltonian,
-    MPS, MPO, Network,
-    observe,
-)
-from .algorithm import dmrg
-from .logging import configure_logging
+Implements 1-site and 2-site DMRG with a Davidson eigensolver.
+The public API includes:
+
+- `Options` — run options (loadable from TOML).
+- `Summary` — output dataclass.
+- `run`     — top-level entry point.
+"""
+
+from .dmrg import Options, Summary
+from .dmrg import run
 
 __all__ = [
-    # data types
-    'Interaction',
-    'Interaction1Site',
-    'Interaction2Site',
-    # high-level entry points
-    'build_interaction',
-    'build_hamiltonian',
-    # tensor network objects
-    'MPS',
-    'MPO',
-    'Network',
-    # measurement
-    'observe',
-    # algorithms (as submodules)
-    'dmrg',
-    # logging
-    'configure_logging',
+    'Options',
+    'Summary',
+    'run',
 ]

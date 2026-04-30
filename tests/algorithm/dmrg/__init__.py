@@ -16,34 +16,4 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Alice: 1D tensor network algorithms built on Nicole."""
-
-from .network import (
-    Interaction, Interaction1Site, Interaction2Site,
-    build_interaction,
-    build_hamiltonian,
-    MPS, MPO, Network,
-    observe,
-)
-from .algorithm import dmrg
-from .logging import configure_logging
-
-__all__ = [
-    # data types
-    'Interaction',
-    'Interaction1Site',
-    'Interaction2Site',
-    # high-level entry points
-    'build_interaction',
-    'build_hamiltonian',
-    # tensor network objects
-    'MPS',
-    'MPO',
-    'Network',
-    # measurement
-    'observe',
-    # algorithms (as submodules)
-    'dmrg',
-    # logging
-    'configure_logging',
-]
+"""Tests for alice.algorithm.dmrg: Options, Summary, and run()."""
