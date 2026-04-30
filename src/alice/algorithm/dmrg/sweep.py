@@ -199,10 +199,9 @@ def _forward_1s(
 
     for i in range(mps.center, L - 1):
         # Optimise the site tensor at position i.
-        energy, M_opt, davidson_error = optimize_1site(
+        energy, mps[i], davidson_error = optimize_1site(
             mps[i], mpo[i], env_left[i], env_right[i], davidson_opts
         )
-        mps[i] = M_opt
         logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
         logger.debug("    davidson err = %.4e", davidson_error)
 
@@ -247,10 +246,9 @@ def _backward_1s(
 
     for i in range(mps.center, 0, -1):
         # Optimise the site tensor at position i.
-        energy, M_opt, davidson_error = optimize_1site(
+        energy, mps[i], davidson_error = optimize_1site(
             mps[i], mpo[i], env_left[i], env_right[i], davidson_opts
         )
-        mps[i] = M_opt
         logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
         logger.debug("    davidson err = %.4e", davidson_error)
 
