@@ -129,4 +129,5 @@ def optimize_1site(
     # Bind the environment tensors so the caller only passes the site tensor.
     mv = partial(matvec, E_left=E_left, W=W, E_right=E_right)
     energy, M_opt, davidson_error = davidson(mv, M, **davidson_opts)
+
     return energy, M_opt, davidson_error

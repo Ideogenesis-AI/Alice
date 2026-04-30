@@ -93,13 +93,12 @@ def matvec_2s(
 ) -> Tensor:
     """Apply the 2-site effective Hamiltonian H_eff to the bond tensor Θ.
 
-    Computes `H_eff|Θ⟩` as a sequence of pairwise einsum contractions in
-    left-to-right order, keeping intermediate sizes as small as possible for
-    a generic 4-index Θ.
+    Computes `H_eff|Θ⟩` as a sequence of pairwise contractions in left-to-right
+    order, keeping intermediate sizes as small as possible for a generic 4-index
+    theta. Nicole's `einsum` contracts multi-tensor equations strictly left to
+    right, so the order below is exact:
 
-    Contraction sequence:
-
-    1. `E_left(a,o,b) × Θ(b,d,s,v)` over b → `(a,o,d,s,v)`
+    1. `E_left(a,o,b) × theta(b,d,s,v)` over b → `(a,o,d,s,v)`
     2. `× W_i(o,p,r,s)` over `(o,s)` → `(a,p,d,r,v)`
     3. `× W_{i+1}(p,q,u,v)` over `(p,v)` → `(a,q,d,r,u)`
     4. `× E_right(c,q,d)` over `(q,d)` → `(a,c,r,u)`
@@ -124,18 +123,10 @@ def matvec_2s(
         `H_eff|Θ⟩` with axes `(bra_left, bra_right, phys_bra_i, phys_bra_{i+1})`,
         identical in shape to Θ.
     """
-    # Step 1: absorb E_left into Θ over the ket_left bond (b).
-    # E_left(a,o,b), theta(b,d,s,v) -> temp1(a,o,d,s,v)
-    temp = einsum('aob,bdsv->aodsv', E_left, theta)
-    # Step 2: apply W_i, contracting over mpo_left (o) and phys_ket_i (s).
-    # temp(a,o,d,s,v), W_i(o,p,r,s) -> temp2(a,p,d,r,v)
-    temp = einsum('aodsv,oprs->apdrv', temp, W_i)
-    # Step 3: apply W_{i+1}, contracting over mpo_right (p) and phys_ket_{i+1} (v).
-    # temp(a,p,d,r,v), W_{i+1}(p,q,u,v) -> temp3(a,q,d,r,u)
-    temp = einsum('apdrv,pquv->aqdru', temp, W_i1)
-    # Step 4: absorb E_right, contracting over mpo_right2 (q) and ket_right (d).
-    # temp(a,q,d,r,u), E_right(c,q,d) -> output(a,c,r,u)
-    return einsum('aqdru,cqd->acru', temp, E_right)
+    # Contract left to right: E_left × theta × W_i × W_{i+1} × E_right.
+    # Nicole's einsum performs multi-tensor equations strictly left to right,
+    # so this single call is identical to the four sequential pairwise calls.
+    return einsum('aob,bdsv,oprs,pquv,cqd->acru', E_left, theta, W_i, W_i1, E_right)
 
 
 def split_forward(
@@ -180,6 +171,7 @@ def split_forward(
     # Permute U from (ket_left, phys_i, new_bond) → (ket_left, new_bond, phys_i)
     # to match the MPS axis convention (left, right, phys).
     U.permute([0, 2, 1], in_place=True)
+
     return U, R
 
 
@@ -220,6 +212,7 @@ def split_backward(
     V.retag(0, itag)
     # Permute L from (ket_left, phys_i, new_bond) → (ket_left, new_bond, phys_i).
     L.permute([0, 2, 1], in_place=True)
+
     return L, V
 
 
@@ -272,4 +265,5 @@ def optimize_2site(
     theta0 = build_bulk(M_i, M_i1)
     mv = partial(matvec_2s, E_left=E_left, W_i=W_i, W_i1=W_i1, E_right=E_right)
     energy, theta_opt, davidson_error = davidson(mv, theta0, **davidson_opts)
+
     return energy, theta_opt, davidson_error
