@@ -42,21 +42,21 @@ class TestBuildBulk:
     def test_output_rank(self, heisenberg_L2):
         """build_bulk returns a rank-4 tensor."""
         mps, _ = heisenberg_L2
-        Theta = build_bulk(mps[0], mps[1])
-        assert len(Theta.indices) == 4
+        theta = build_bulk(mps[0], mps[1])
+        assert len(theta.indices) == 4
 
     def test_output_dims(self, heisenberg_L2):
         """Θ left/right bond dims match the MPS boundary dims; phys dims match each site."""
         mps, _ = heisenberg_L2
-        Theta = build_bulk(mps[0], mps[1])
+        theta = build_bulk(mps[0], mps[1])
         # Axis 0: ket_left of site 0.
-        assert Theta.indices[0].dim == mps[0].indices[0].dim
+        assert theta.indices[0].dim == mps[0].indices[0].dim
         # Axis 1: ket_right of site 1.
-        assert Theta.indices[1].dim == mps[1].indices[1].dim
+        assert theta.indices[1].dim == mps[1].indices[1].dim
         # Axis 2: physical of site 0.
-        assert Theta.indices[2].dim == mps[0].indices[2].dim
+        assert theta.indices[2].dim == mps[0].indices[2].dim
         # Axis 3: physical of site 1.
-        assert Theta.indices[3].dim == mps[1].indices[2].dim
+        assert theta.indices[3].dim == mps[1].indices[2].dim
 
 
 # ---------------------------------------------------------------------------
@@ -83,9 +83,9 @@ class TestMatvec2s:
         mps, mpo = heisenberg_L2
         env_left, env_right = self._envs(mps, mpo)
 
-        Theta = build_bulk(mps[0], mps[1])
-        H_Theta = matvec_2s(Theta, mpo[0], mpo[1], env_left[0], env_right[1])
-        energy = _inner_product(Theta, H_Theta).real / _inner_product(Theta, Theta).real
+        theta = build_bulk(mps[0], mps[1])
+        H_theta = matvec_2s(theta, mpo[0], mpo[1], env_left[0], env_right[1])
+        energy = _inner_product(theta, H_theta).real / _inner_product(theta, theta).real
 
         obs = observe(mps, mpo)
         norm_sq = mps.norm() ** 2
@@ -95,33 +95,33 @@ class TestMatvec2s:
         )
 
     def test_hermiticity(self, heisenberg_L2):
-        """⟨Θ₁|H_eff|Θ₂⟩ == ⟨Θ₂|H_eff|Θ₁⟩ (H_eff is Hermitian)."""
+        """⟨θ₁|H_eff|θ₂⟩ == ⟨θ₂|H_eff|θ₁⟩ (H_eff is Hermitian)."""
         mps, mpo = heisenberg_L2
         env_left, env_right = self._envs(mps, mpo)
 
-        Theta1 = build_bulk(mps[0], mps[1])
-        # Use H_eff|Θ₁⟩ as an independent second vector.
-        Theta2 = matvec_2s(Theta1, mpo[0], mpo[1], env_left[0], env_right[1])
+        theta1 = build_bulk(mps[0], mps[1])
+        # Use H_eff|θ₁⟩ as an independent second vector.
+        theta2 = matvec_2s(theta1, mpo[0], mpo[1], env_left[0], env_right[1])
 
-        H_Theta2 = matvec_2s(Theta2, mpo[0], mpo[1], env_left[0], env_right[1])
-        H_Theta1 = matvec_2s(Theta1, mpo[0], mpo[1], env_left[0], env_right[1])
+        H_theta2 = matvec_2s(theta2, mpo[0], mpo[1], env_left[0], env_right[1])
+        H_theta1 = matvec_2s(theta1, mpo[0], mpo[1], env_left[0], env_right[1])
 
-        lhs = _inner_product(Theta1, H_Theta2)
-        rhs = _inner_product(Theta2, H_Theta1)
+        lhs = _inner_product(theta1, H_theta2)
+        rhs = _inner_product(theta2, H_theta1)
         assert abs(lhs - rhs) < 1e-9, (
-            f"Hermiticity violated: ⟨Θ₁|H|Θ₂⟩={lhs}, ⟨Θ₂|H|Θ₁⟩={rhs}"
+            f"Hermiticity violated: ⟨θ₁|H|θ₂⟩={lhs}, ⟨θ₂|H|θ₁⟩={rhs}"
         )
 
     def test_output_shape_matches_input(self, heisenberg_L2):
-        """matvec_2s output has the same axis dimensions as the input Θ."""
+        """matvec_2s output has the same axis dimensions as the input θ."""
         mps, mpo = heisenberg_L2
         env_left, env_right = self._envs(mps, mpo)
 
-        Theta = build_bulk(mps[0], mps[1])
-        H_Theta = matvec_2s(Theta, mpo[0], mpo[1], env_left[0], env_right[1])
+        theta = build_bulk(mps[0], mps[1])
+        H_theta = matvec_2s(theta, mpo[0], mpo[1], env_left[0], env_right[1])
 
-        assert len(H_Theta.indices) == len(Theta.indices)
-        for idx_in, idx_out in zip(Theta.indices, H_Theta.indices):
+        assert len(H_theta.indices) == len(theta.indices)
+        for idx_in, idx_out in zip(theta.indices, H_theta.indices):
             assert idx_in.dim == idx_out.dim
 
 
@@ -145,10 +145,10 @@ class TestOptimize2site:
         mps, mpo = heisenberg_L2
         env_left, env_right = self._envs(mps, mpo)
 
-        Theta = build_bulk(mps[0], mps[1])
-        H_Theta = matvec_2s(Theta, mpo[0], mpo[1], env_left[0], env_right[1])
+        theta = build_bulk(mps[0], mps[1])
+        H_theta = matvec_2s(theta, mpo[0], mpo[1], env_left[0], env_right[1])
         energy_init = (
-            _inner_product(Theta, H_Theta).real / _inner_product(Theta, Theta).real
+            _inner_product(theta, H_theta).real / _inner_product(theta, theta).real
         )
 
         davidson_opts = {'max_iter': 50, 'tol': 1e-10, 'max_subspace': 10}

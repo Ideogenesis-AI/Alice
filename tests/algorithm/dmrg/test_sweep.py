@@ -153,10 +153,10 @@ class TestFullSweep:
         env_left, env_right = _setup_envs(mps, mpo)
 
         # Pre-sweep: 2-site Rayleigh quotient at bond (0,1) as reference.
-        Theta = build_bulk(mps[0], mps[1])
-        H_Theta = matvec_2s(Theta, mpo[0], mpo[1], env_left[0], env_right[1])
+        theta = build_bulk(mps[0], mps[1])
+        H_theta = matvec_2s(theta, mpo[0], mpo[1], env_left[0], env_right[1])
         energy_before = (
-            _inner_product(Theta, H_Theta).real / _inner_product(Theta, Theta).real
+            _inner_product(theta, H_theta).real / _inner_product(theta, theta).real
         )
 
         forward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
