@@ -293,24 +293,21 @@ def _forward_2s(
     """
     L = mps.L
     energy = 0.0
-    w = len(str(L - 1))
+    pair_w = 2 * len(str(L - 1)) + 4
 
     for i in range(mps.center, L - 1):
+        # Optimise the 2-site bond tensor at position (i, i+1).
         energy, Theta_opt, davidson_error = optimize_2site(
             mps[i], mps[i + 1], mpo[i], mpo[i + 1],
             env_left[i], env_right[i + 1], davidson_opts
         )
-        logger.debug(
-            "  bond (%*d, %*d) / %d  local E = %+.12g",
-            w, i, w, i + 1, L - 1, energy,
-        )
+        pair = ("(%d, %d)" % (i, i + 1)).center(pair_w)
+        logger.debug("  site %s / %d  local E = %+.12g", pair, L - 1, energy)
         logger.debug("    davidson err = %.4e", davidson_error)
 
         # Split Θ: M[i] becomes left-isometric; M[i+1] carries the singular values.
         itag = mps._bond_itag(i + 1)
-        M_i, M_i1 = split_forward(Theta_opt, itag, trunc)
-        mps[i] = M_i
-        mps[i + 1] = M_i1
+        mps[i], mps[i + 1] = split_forward(Theta_opt, itag, trunc)
         mps._center = i + 1
 
         # Update the left environment for the next bond — not needed after the last.
@@ -339,24 +336,21 @@ def _backward_2s(
     """
     L = mps.L
     energy = 0.0
-    w = len(str(L - 1))
+    pair_w = 2 * len(str(L - 1)) + 4
 
     for i in range(L - 2, -1, -1):
+        # Optimise the 2-site bond tensor at position (i, i+1).
         energy, Theta_opt, davidson_error = optimize_2site(
             mps[i], mps[i + 1], mpo[i], mpo[i + 1],
             env_left[i], env_right[i + 1], davidson_opts
         )
-        logger.debug(
-            "  bond (%*d, %*d) / %d  local E = %+.12g",
-            w, i, w, i + 1, L - 1, energy,
-        )
+        pair = ("(%d, %d)" % (i, i + 1)).center(pair_w)
+        logger.debug("  site %s / %d  local E = %+.12g", pair, L - 1, energy)
         logger.debug("    davidson err = %.4e", davidson_error)
 
         # Split Θ: M[i+1] becomes right-isometric; M[i] carries the singular values.
         itag = mps._bond_itag(i + 1)
-        M_i, M_i1 = split_backward(Theta_opt, itag, trunc)
-        mps[i] = M_i
-        mps[i + 1] = M_i1
+        mps[i], mps[i + 1] = split_backward(Theta_opt, itag, trunc)
         mps._center = i
 
         # Update the right environment for the next bond — not needed after the last.
