@@ -29,7 +29,13 @@ from alice.algorithm.dmrg.environ import (
     build_right_envs,
     left_env_boundary,
 )
-from alice.algorithm.dmrg.scheme_2s import build_bulk, matvec_2s, optimize_2site
+from alice.algorithm.dmrg.scheme_2s import (
+    build_bulk,
+    discarded_weight,
+    matvec_2s,
+    optimize_2site,
+    split_forward,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -185,3 +191,45 @@ class TestOptimize2site:
             assert torch.allclose(mps[1].data[k], v_before), (
                 f"optimize_2site mutated mps[1] at block {k}"
             )
+
+
+# ---------------------------------------------------------------------------
+# discarded_weight
+# ---------------------------------------------------------------------------
+
+class TestDiscardedWeight:
+    """Tests for the discarded_weight function."""
+
+    def test_zero_when_no_truncation(self, heisenberg_L4):
+        """discarded_weight returns 0.0 when trunc=None (nothing is discarded)."""
+        mps, _ = heisenberg_L4
+        theta = build_bulk(mps[1], mps[2])
+        dw = discarded_weight(theta, trunc=None)
+        assert dw == 0.0
+
+    def test_non_negative(self, heisenberg_L4):
+        """discarded_weight is always >= 0."""
+        mps, _ = heisenberg_L4
+        theta = build_bulk(mps[1], mps[2])
+        dw = discarded_weight(theta, trunc={'thresh': 1e-15})
+        assert dw >= 0.0
+
+    def test_positive_under_aggressive_truncation(self, heisenberg_L4):
+        """discarded_weight > 0 when nkeep=1 forces singular values to be dropped."""
+        mps, _ = heisenberg_L4
+        theta = build_bulk(mps[1], mps[2])
+        dw = discarded_weight(theta, trunc={'nkeep': 1})
+        assert dw > 0.0
+
+    def test_consistent_with_split_bond_dim(self, heisenberg_L4):
+        """When nkeep=1 discards weight, the split bond dimension is also 1."""
+        mps, _ = heisenberg_L4
+        theta = build_bulk(mps[1], mps[2])
+        trunc = {'nkeep': 1}
+        dw = discarded_weight(theta, trunc=trunc)
+        itag = mps._bond_itag(2)
+        U, R = split_forward(theta, itag, trunc)
+        # The new bond (axis 1 of U) must have dimension 1.
+        assert U.indices[1].dim == 1
+        # And something was discarded.
+        assert dw > 0.0
