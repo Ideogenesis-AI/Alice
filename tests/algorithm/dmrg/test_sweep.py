@@ -91,7 +91,7 @@ class TestBackwardSweep:
         mps, mpo = heisenberg_L2
         env_left, env_right = _setup_envs(mps, mpo)
         forward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
-        energy = backward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
+        energy, _ = backward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
         assert energy == energy  # not NaN
 
     def test_backward_sweep_2s_moves_center_to_site_zero(self, heisenberg_L2):
@@ -106,8 +106,25 @@ class TestBackwardSweep:
         mps, mpo = heisenberg_L2
         env_left, env_right = _setup_envs(mps, mpo)
         forward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
-        energy = backward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
+        energy, _ = backward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
         assert energy == energy  # not NaN
+
+    def test_backward_sweep_1s_dw_is_zero(self, heisenberg_L2):
+        """1-site backward_sweep always returns discarded weight of 0.0."""
+        mps, mpo = heisenberg_L2
+        env_left, env_right = _setup_envs(mps, mpo)
+        forward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
+        _, dw = backward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
+        assert dw == 0.0
+
+    def test_backward_sweep_2s_dw_is_non_negative(self, heisenberg_L2):
+        """2-site backward_sweep returns a non-negative, finite discarded weight."""
+        mps, mpo = heisenberg_L2
+        env_left, env_right = _setup_envs(mps, mpo)
+        forward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
+        _, dw = backward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
+        assert dw >= 0.0
+        assert dw == dw  # not NaN
 
 
 class TestFullSweep:
@@ -128,7 +145,7 @@ class TestFullSweep:
         )
 
         forward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
-        energy_after = backward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
+        energy_after, _ = backward_sweep(mps, mpo, env_left, env_right, _OPTS_1S)
 
         assert energy_after <= energy_before + 1e-9, (
             f"1-site energy increased after sweep: {energy_before} -> {energy_after}"
@@ -160,7 +177,7 @@ class TestFullSweep:
         )
 
         forward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
-        energy_after = backward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
+        energy_after, _ = backward_sweep(mps, mpo, env_left, env_right, _OPTS_2S)
 
         assert energy_after <= energy_before + 1e-9, (
             f"2-site energy increased after sweep: {energy_before} -> {energy_after}"
