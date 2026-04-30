@@ -85,7 +85,7 @@ def build_bulk(M_i: Tensor, M_i1: Tensor) -> Tensor:
 
 
 def matvec_2s(
-    Theta: Tensor,
+    theta: Tensor,
     W_i: Tensor,
     W_i1: Tensor,
     E_left: Tensor,
@@ -106,7 +106,7 @@ def matvec_2s(
 
     Parameters
     ----------
-    Theta:
+    theta:
         Bond tensor with axes `(ket_left, ket_right, phys_ket_i, phys_ket_{i+1})`.
     W_i:
         MPO tensor at site i with axes `(mpo_left, mpo_right, phys_bra_i, phys_ket_i)`.
@@ -125,8 +125,8 @@ def matvec_2s(
         identical in shape to Θ.
     """
     # Step 1: absorb E_left into Θ over the ket_left bond (b).
-    # E_left(a,o,b), Theta(b,d,s,v) -> temp1(a,o,d,s,v)
-    temp = einsum('aob,bdsv->aodsv', E_left, Theta)
+    # E_left(a,o,b), theta(b,d,s,v) -> temp1(a,o,d,s,v)
+    temp = einsum('aob,bdsv->aodsv', E_left, theta)
     # Step 2: apply W_i, contracting over mpo_left (o) and phys_ket_i (s).
     # temp(a,o,d,s,v), W_i(o,p,r,s) -> temp2(a,p,d,r,v)
     temp = einsum('aodsv,oprs->apdrv', temp, W_i)
@@ -139,7 +139,7 @@ def matvec_2s(
 
 
 def split_forward(
-    Theta: Tensor,
+    theta: Tensor,
     itag: str,
     trunc: Optional[dict],
 ) -> Tuple[Tensor, Tensor]:
@@ -153,7 +153,7 @@ def split_forward(
 
     Parameters
     ----------
-    Theta:
+    theta:
         Bond tensor with axes `(ket_left, ket_right, phys_i, phys_{i+1})`.
     itag:
         itag for the new internal bond between the two output tensors.
@@ -173,7 +173,7 @@ def split_forward(
     # mode='UR' → U is left-isometric, R = S·Vh carries the singular values.
     # U_unmerged axes after unmerging: (ket_left, phys_i, new_bond).
     # R axes: (new_bond, ket_right, phys_{i+1}).
-    U, R = decomp(Theta, axes=[0, 2], mode='UR', trunc=trunc)
+    U, R = decomp(theta, axes=[0, 2], mode='UR', trunc=trunc)
     # Retag the new bond in both tensors to the caller-supplied itag.
     U.retag(2, itag)
     R.retag(0, itag)
@@ -184,7 +184,7 @@ def split_forward(
 
 
 def split_backward(
-    Theta: Tensor,
+    theta: Tensor,
     itag: str,
     trunc: Optional[dict],
 ) -> Tuple[Tensor, Tensor]:
@@ -197,7 +197,7 @@ def split_backward(
 
     Parameters
     ----------
-    Theta:
+    theta:
         Bond tensor with axes `(ket_left, ket_right, phys_i, phys_{i+1})`.
     itag:
         itag for the new internal bond between the two output tensors.
@@ -215,7 +215,7 @@ def split_backward(
     # mode='LV' → L = U·S carries the singular values, V is right-isometric.
     # L_unmerged axes: (ket_left, phys_i, new_bond).
     # V axes: (new_bond, ket_right, phys_{i+1}).
-    L, V = decomp(Theta, axes=[0, 2], mode='LV', trunc=trunc)
+    L, V = decomp(theta, axes=[0, 2], mode='LV', trunc=trunc)
     L.retag(2, itag)
     V.retag(0, itag)
     # Permute L from (ket_left, phys_i, new_bond) → (ket_left, new_bond, phys_i).
@@ -264,12 +264,12 @@ def optimize_2site(
     float
         Variational energy estimate (lowest Ritz value).
     Tensor
-        Optimised bond tensor `Theta_opt` with axes
+        Optimised bond tensor `theta_opt` with axes
         `(ket_left, ket_right, phys_ket_i, phys_ket_{i+1})`.
     float
         Final Davidson residual norm at convergence (or at exit if not converged).
     """
-    Theta0 = build_bulk(M_i, M_i1)
+    theta0 = build_bulk(M_i, M_i1)
     mv = partial(matvec_2s, E_left=E_left, W_i=W_i, W_i1=W_i1, E_right=E_right)
-    energy, Theta_opt, davidson_error = davidson(mv, Theta0, **davidson_opts)
-    return energy, Theta_opt, davidson_error
+    energy, theta_opt, davidson_error = davidson(mv, theta0, **davidson_opts)
+    return energy, theta_opt, davidson_error

@@ -295,7 +295,7 @@ def _forward_2s(
 
     for i in range(mps.center, L - 1):
         # Optimise the 2-site bond tensor at position (i, i+1).
-        energy, Theta_opt, davidson_error = optimize_2site(
+        energy, theta_opt, davidson_error = optimize_2site(
             mps[i], mps[i + 1], mpo[i], mpo[i + 1],
             env_left[i], env_right[i + 1], davidson_opts
         )
@@ -305,7 +305,7 @@ def _forward_2s(
 
         # Split Θ: M[i] becomes left-isometric; M[i+1] carries the singular values.
         itag = mps._bond_itag(i + 1)
-        mps[i], mps[i + 1] = split_forward(Theta_opt, itag, trunc)
+        mps[i], mps[i + 1] = split_forward(theta_opt, itag, trunc)
         mps._center = i + 1
 
         # Update the left environment for the next bond — not needed after the last.
@@ -338,7 +338,7 @@ def _backward_2s(
 
     for i in range(L - 2, -1, -1):
         # Optimise the 2-site bond tensor at position (i, i+1).
-        energy, Theta_opt, davidson_error = optimize_2site(
+        energy, theta_opt, davidson_error = optimize_2site(
             mps[i], mps[i + 1], mpo[i], mpo[i + 1],
             env_left[i], env_right[i + 1], davidson_opts
         )
@@ -348,7 +348,7 @@ def _backward_2s(
 
         # Split Θ: M[i+1] becomes right-isometric; M[i] carries the singular values.
         itag = mps._bond_itag(i + 1)
-        mps[i], mps[i + 1] = split_backward(Theta_opt, itag, trunc)
+        mps[i], mps[i + 1] = split_backward(theta_opt, itag, trunc)
         mps._center = i
 
         # Update the right environment for the next bond — not needed after the last.
