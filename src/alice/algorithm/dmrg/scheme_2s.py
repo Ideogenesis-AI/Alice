@@ -52,7 +52,8 @@ from __future__ import annotations
 from functools import partial
 from typing import Optional, Tuple
 
-from nicole import Tensor, decomp, einsum
+from nicole import Tensor, decomp, einsum, merge_axes
+from nicole.decomp import svd
 
 from .davidson import davidson
 
@@ -214,6 +215,35 @@ def split_backward(
     L.permute([0, 2, 1], in_place=True)
 
     return L, V
+
+
+def discarded_weight(theta: Tensor, trunc: Optional[dict]) -> float:
+    """Compute the discarded weight for an SVD split of Θ under `trunc`.
+
+    Merges axes 0 and 2 of `theta` (the same bipartition used by `split_forward`
+    and `split_backward`) and performs a second SVD with `requires_info=True` to
+    read back `info["discarded_weight"]`.  This is an intentional second SVD;
+    it is called only once per full sweep at the center bond, so the overhead is
+    negligible relative to the Davidson optimisation cost.
+
+    Parameters
+    ----------
+    theta:
+        Bond tensor with axes `(ket_left, ket_right, phys_i, phys_{i+1})`.
+    trunc:
+        Truncation options (`nkeep`, `thresh`) — must match what is passed to
+        `split_forward` / `split_backward` so the discarded weight is consistent.
+
+    Returns
+    -------
+    float
+        Sum of all singular values discarded by `trunc` across all charge
+        sectors.  Zero when `trunc` is `None` or nothing is cut.
+    """
+    merged, _ = merge_axes(theta, [0, 2], merged_tag='_dw_merged_')
+    *_, info = svd(merged, axis=0, trunc=trunc, requires_info=True)
+
+    return float(info['discarded_weight'])
 
 
 def optimize_2site(
