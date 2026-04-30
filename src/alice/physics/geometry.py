@@ -49,9 +49,9 @@ _DIAG_TAIL      = 2   # columns shown at the right in truncated mode
 
 def _log_1dchain_diagram(lx: int, ord_map: List[List[int]]) -> None:
     """Log a visual diagram of the 1D chain lattice."""
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info(f"1D Chain Lattice ({lx} Sites)".center(60))
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("")
 
     if lx <= _DIAG_THRESHOLD:
@@ -69,9 +69,9 @@ def _log_1dchain_diagram(lx: int, ord_map: List[List[int]]) -> None:
 
 def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
     """Log a visual diagram of the snake-like lattice traversal."""
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("Traverse over 2D Lattice via Snake-like Chain".center(60))
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("")
 
     def _connector(row: int, col: int) -> str:
@@ -247,9 +247,9 @@ def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
     interactions: List[Interaction2Site] = []
 
     _log_1dchain_diagram(L, ord_map)
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("Interactions Info".center(60))
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("")
 
     if n2x:
@@ -337,9 +337,9 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
     interactions: List[Interaction2Site] = []
 
     _log_snake_diagram(lx, ly, ord_map)
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("Interactions Info".center(60))
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("")
 
     if n2x:

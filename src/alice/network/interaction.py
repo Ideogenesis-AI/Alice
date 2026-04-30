@@ -306,9 +306,9 @@ def build_interaction(
     # Log model specifications.
     # -----------------------------------------------------------------------
 
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("Model Specifications".center(60))
-    logger.info("=" * 60)
+    logger.info("─" * 60)
     logger.info("")
 
     # Model identity
