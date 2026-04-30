@@ -137,7 +137,10 @@ class TestSummary:
     def test_summary_fields_exist(self):
         import dataclasses
         field_names = {f.name for f in dataclasses.fields(Summary)}
-        assert {'energy', 'state', 'energies', 'converged', 'n_sweeps', 'bond_dims'} <= field_names
+        assert {
+            'energy', 'state', 'energies', 'converged',
+            'n_sweeps', 'bond_dims', 'discarded_weights',
+        } <= field_names
 
     def test_serialize_deserialize(self, heisenberg_L2):
         """serialize/deserialize round-trips scalar fields and restores an MPS."""
@@ -150,7 +153,25 @@ class TestSummary:
         assert restored.converged == summary.converged
         assert restored.n_sweeps == summary.n_sweeps
         assert restored.bond_dims == summary.bond_dims
+        assert restored.discarded_weights == summary.discarded_weights
         assert isinstance(restored.state, MPS)
+
+    def test_serialize_deserialize_2s_discarded_weights(self, heisenberg_L2):
+        """serialize/deserialize round-trips discarded_weights for a 2-site run."""
+        mps, mpo = heisenberg_L2
+        summary = run(mps, mpo, Options(scheme='2s', n_sweeps=2))
+        data = summary.serialize()
+        restored = Summary.deserialize(data)
+        assert restored.discarded_weights == summary.discarded_weights
+
+    def test_deserialize_backward_compat_missing_discarded_weights(self, heisenberg_L2):
+        """deserialize tolerates an old dict that lacks 'discarded_weights'."""
+        mps, mpo = heisenberg_L2
+        summary = run(mps, mpo, Options(n_sweeps=1))
+        data = summary.serialize()
+        del data['discarded_weights']
+        restored = Summary.deserialize(data)
+        assert restored.discarded_weights == []
 
     def test_save_load_round_trip(self, heisenberg_L2, tmp_path):
         """save then load restores all scalar fields and produces an MPS."""
@@ -217,6 +238,14 @@ class TestDmrg:
         assert len(summary.bond_dims) == mps.L - 1
         assert summary.n_sweeps >= 1
 
+    def test_heisenberg_L2_discarded_weights_1s(self, heisenberg_L2):
+        """1-site Summary discarded_weights has one entry per sweep, all zero."""
+        mps, mpo = heisenberg_L2
+        n = 3
+        summary = run(mps, mpo, Options(n_sweeps=n))
+        assert len(summary.discarded_weights) == summary.n_sweeps
+        assert all(dw == 0.0 for dw in summary.discarded_weights)
+
     @pytest.mark.slow
     def test_heisenberg_L4_energy_1s(self, heisenberg_L4):
         """1-site DMRG on L=4 Heisenberg chain recovers the exact energy ≈ -1.6160254."""
@@ -253,6 +282,13 @@ class TestDmrg:
         assert len(summary.energies) >= 1
         assert len(summary.bond_dims) == mps.L - 1
         assert summary.n_sweeps >= 1
+
+    def test_heisenberg_L2_discarded_weights_2s(self, heisenberg_L2):
+        """2-site Summary discarded_weights has one non-negative entry per sweep."""
+        mps, mpo = heisenberg_L2
+        summary = run(mps, mpo, Options(scheme='2s', n_sweeps=4))
+        assert len(summary.discarded_weights) == summary.n_sweeps
+        assert all(dw >= 0.0 for dw in summary.discarded_weights)
 
     @pytest.mark.slow
     def test_heisenberg_L4_energy_2s(self, heisenberg_L4):
