@@ -513,6 +513,59 @@ def step_right_env(E: Tensor, M: Tensor, W: Tensor) -> Tensor:
 # Bulk initialisation
 # ---------------------------------------------------------------------------
 
+def build_left_envs(mps: MPS, mpo: MPO, env_left: Environment) -> None:
+    """Populate all left environment blocks by sweeping left-to-right.
+
+    Starting from the trivial left boundary at site `0`, absorbs each site in
+    turn (going rightward) and stores the value in `env_left`. After this call
+    every slot `env_left[0]` … `env_left[fetch_hi]` is filled, where
+    `fetch_hi` is the highest index `env_left` will ever be asked for. Blocks
+    above `fetch_hi` are never computed (e.g. `env_left[L-1]` is skipped
+    entirely in 2-site mode where `fetch_hi == L-2`).
+
+    This function requires `mps` to be in left-canonical form with
+    `center == L-1`, so that each site tensor is already left-isometric.
+
+    Parameters
+    ----------
+    mps:
+        Left-canonical MPS (`center == L-1`).
+    mpo:
+        Hamiltonian MPO of the same length.
+    env_left:
+        `Environment` instance to populate in-place.
+
+    Raises
+    ------
+    ValueError
+        If `mps.center != L-1`.
+    """
+    L = mps.L
+    if mps.center != L - 1:
+        raise ValueError(
+            f"build_left_envs requires mps.center == L-1 (= {L - 1}), "
+            f"got center={mps.center}"
+        )
+    # Initialise the left boundary (site 0 has a trivial left bond for OBC).
+    env_left[0] = left_env_boundary(mps, mpo)
+    # Sweep left-to-right: env_left[i+1] accumulates sites 0 … i.
+    # When disk caching is active, evict block i immediately after it has
+    # been consumed to compute block i+1 — its on-disk copy is already present
+    # from the __setitem__ write, so keeping it in memory serves no purpose.
+    # The window [fetch_hi - window + 1, fetch_hi] is preserved because those
+    # are the blocks the first backward sweep will need immediately.
+    _cache = env_left._path is not None
+    if _cache:
+        _keep_hi = env_left._fetch_hi
+        _keep_lo = _keep_hi - env_left._window + 1
+    # Stop at fetch_hi: blocks above it are never fetched (e.g. env_left[L-1]
+    # in 2-site mode where fetch_hi == L-2), so there is no reason to compute them.
+    for i in range(env_left._fetch_hi):
+        env_left[i + 1] = step_left_env(env_left[i], mps[i], mpo[i])
+        if _cache and not (_keep_lo <= i <= _keep_hi):
+            env_left._evict(i)
+
+
 def build_right_envs(mps: MPS, mpo: MPO, env_right: Environment) -> None:
     """Populate all right environment blocks by sweeping right-to-left.
 
