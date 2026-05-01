@@ -518,7 +518,10 @@ def build_right_envs(mps: MPS, mpo: MPO, env_right: Environment) -> None:
 
     Starting from the trivial right boundary at site `L-1`, absorbs each
     site in turn (going leftward) and stores the value in `env_right`.
-    After this call every slot `env_right[0]` … `env_right[L-1]` is filled.
+    After this call every slot `env_right[fetch_lo]` … `env_right[L-1]` is
+    filled, where `fetch_lo` is the lowest index `env_right` will ever be
+    asked for. Blocks below `fetch_lo` are never computed (e.g. `env_right[0]`
+    is skipped entirely in 2-site mode where `fetch_lo == 1`).
 
     This function requires `mps` to be in right-canonical form with
     `center == 0`, so that each site tensor is already right-isometric.
@@ -554,12 +557,9 @@ def build_right_envs(mps: MPS, mpo: MPO, env_right: Environment) -> None:
     if _cache:
         _keep_lo = env_right._fetch_lo
         _keep_hi = _keep_lo + env_right._window - 1
-    for i in range(L - 2, -1, -1):
+    # Stop at fetch_lo: blocks below it are never fetched (e.g. env_right[0]
+    # in 2-site mode where fetch_lo == 1), so there is no reason to compute them.
+    for i in range(L - 2, env_right._fetch_lo - 1, -1):
         env_right[i] = step_right_env(env_right[i + 1], mps[i + 1], mpo[i + 1])
         if _cache and not (_keep_lo <= i + 1 <= _keep_hi):
             env_right._evict(i + 1)
-    # Evict any blocks that fall below fetch_lo (e.g. env_right[0] in 2-site
-    # mode where fetch_lo == 1 — that block is computed above but never fetched).
-    if _cache:
-        for j in range(env_right._fetch_lo):
-            env_right._evict(j)
