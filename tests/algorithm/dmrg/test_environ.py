@@ -28,6 +28,7 @@ from nicole import allclose as tensors_allclose
 from alice.network import observe
 from alice.algorithm.dmrg.environ import (
     Environment,
+    build_left_envs,
     build_right_envs,
     left_env_boundary,
     right_env_boundary,
@@ -164,11 +165,79 @@ class TestStepLeftEnv:
 
 
 # ---------------------------------------------------------------------------
-# step_right_env: consistency with build_right_envs
+# step_right_env: consistency with observe()
 # ---------------------------------------------------------------------------
 
 class TestStepRightEnv:
-    """Tests for step_right_env and build_right_envs."""
+    """Tests for step_right_env."""
+
+    def test_composed_equals_observe(self, heisenberg_L2):
+        """Composing step_right_env L times reproduces the scalar from observe()."""
+        mps, mpo = heisenberg_L2
+        L = mps.L
+
+        # mps is already in right-canonical form from the fixture.
+        obs_val = observe(mps, mpo)
+
+        # Manually compose the right environment from site L-1 down to 0.
+        E = right_env_boundary(mps, mpo)
+        for i in range(L - 1, -1, -1):
+            E = step_right_env(E, mps[i], mpo[i])
+
+        # After sweeping all L sites, E is a 1×1×1 tensor. Extract the scalar.
+        k, v = next(iter(E.data.items()))
+        weight = 1.0 if E.intw is None else float(E.intw[k].weights[0, 0])
+        env_val = float(v.item()) * weight
+
+        assert abs(env_val - obs_val) < 1e-10, (
+            f"step_right_env composed value {env_val} != observe() {obs_val}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# build_left_envs
+# ---------------------------------------------------------------------------
+
+class TestBuildLeftEnvs:
+    """Tests for build_left_envs."""
+
+    def test_build_left_envs_populates_all_slots(self, heisenberg_L4):
+        """After build_left_envs every slot env_left[i] is set."""
+        mps, mpo = heisenberg_L4
+        L = mps.L
+        mps.canonical(L - 1, trunc=None)
+        env_left = Environment(L)
+        build_left_envs(mps, mpo, env_left)
+        for i in range(L):
+            _ = env_left[i]  # should not raise
+
+    def test_build_left_envs_requires_center_L_minus_1(self, heisenberg_L4):
+        """build_left_envs raises ValueError when mps.center != L-1."""
+        mps, mpo = heisenberg_L4
+        # center is 0 from the fixture — wrong for build_left_envs.
+        env_left = Environment(mps.L)
+        with pytest.raises(ValueError, match="center"):
+            build_left_envs(mps, mpo, env_left)
+
+    def test_build_left_envs_skips_block_above_fetch_hi(self, heisenberg_L4):
+        """With fetch_hi=L-2 (2-site mode), env_left[L-1] is never computed."""
+        mps, mpo = heisenberg_L4
+        L = mps.L
+        mps.canonical(L - 1, trunc=None)
+        env_left = Environment(L, fetch_hi=L - 2)
+        build_left_envs(mps, mpo, env_left)
+        for i in range(L - 1):
+            _ = env_left[i]  # slots 0 … L-2 must be filled
+        with pytest.raises(RuntimeError):
+            _ = env_left[L - 1]  # slot L-1 was never computed
+
+
+# ---------------------------------------------------------------------------
+# build_right_envs
+# ---------------------------------------------------------------------------
+
+class TestBuildRightEnvs:
+    """Tests for build_right_envs."""
 
     def test_build_right_envs_populates_all_slots(self, heisenberg_L4):
         """After build_right_envs every slot env_right[i] is set."""
@@ -416,6 +485,61 @@ class TestEnvironmentSlidingWindow:
 
 
 # ---------------------------------------------------------------------------
+# Disk caching with build_left_envs
+# ---------------------------------------------------------------------------
+
+class TestBuildLeftEnvsWithCache:
+    """Tests that build_left_envs auto-caches blocks and respects the window."""
+
+    def test_creates_all_cache_files(self, heisenberg_L4, tmp_path):
+        """All L cache files exist after build_left_envs with a disk path."""
+        mps, mpo = heisenberg_L4
+        L = mps.L
+        mps.canonical(L - 1, trunc=None)
+        env_left = Environment(L, tmp_path, async_io=False)
+        build_left_envs(mps, mpo, env_left)
+        env_left.shutdown()
+        for i in range(L):
+            assert (tmp_path / f"{i:05d}.pt").exists(), (
+                f"cache file for block {i} not found"
+            )
+
+    def test_fetch_after_memory_clear(self, heisenberg_L4, tmp_path):
+        """fetch(i) reloads a block from disk after its memory slot is cleared."""
+        mps, mpo = heisenberg_L4
+        L = mps.L
+        mps.canonical(L - 1, trunc=None)
+        env_left = Environment(L, tmp_path, async_io=False)
+        build_left_envs(mps, mpo, env_left)
+        env_left._blocks[2] = None
+        reloaded = env_left.fetch(2)
+        assert len(reloaded.indices) == 3
+        env_left.shutdown()
+
+    def test_only_window_retained_in_memory(self, heisenberg_L4, tmp_path):
+        """After build_left_envs only the initial window blocks stay in memory.
+
+        With L=4, fetch_hi=2 (2-site mode), window=2 the keep range is [1, 2].
+        Block 0 (left boundary seed) is evicted once block 1 is computed;
+        block 3 is never computed because it lies above fetch_hi.
+        """
+        mps, mpo = heisenberg_L4
+        L = mps.L  # 4
+        mps.canonical(L - 1, trunc=None)
+        env_left = Environment(L, tmp_path, async_io=False, window=2,
+                               fetch_hi=L - 2)
+        build_left_envs(mps, mpo, env_left)
+        # Window [1, 2] must be in memory.
+        assert env_left._blocks[1] is not None
+        assert env_left._blocks[2] is not None
+        # Block 0 (left boundary seed) was evicted after block 1 was built.
+        assert env_left._blocks[0] is None
+        # Block 3 was never computed (above fetch_hi).
+        assert env_left._blocks[3] is None
+        env_left.shutdown()
+
+
+# ---------------------------------------------------------------------------
 # Disk caching with build_right_envs
 # ---------------------------------------------------------------------------
 
@@ -445,4 +569,25 @@ class TestBuildRightEnvsWithCache:
         reloaded = env_right.fetch(1)
         # The reloaded block must be rank-3.
         assert len(reloaded.indices) == 3
+        env_right.shutdown()
+
+    def test_only_window_retained_in_memory(self, heisenberg_L4, tmp_path):
+        """After build_right_envs only the initial window blocks stay in memory.
+
+        With L=4, fetch_lo=1, window=2 the keep range is [1, 2].
+        Block 3 (right boundary) is evicted once block 2 is computed;
+        block 0 is never computed because it lies below fetch_lo.
+        """
+        mps, mpo = heisenberg_L4
+        L = mps.L  # 4
+        env_right = Environment(L, tmp_path, async_io=False, window=2,
+                                fetch_lo=1)
+        build_right_envs(mps, mpo, env_right)
+        # Window [1, 2] must be in memory.
+        assert env_right._blocks[1] is not None
+        assert env_right._blocks[2] is not None
+        # Block 0 was never computed (below fetch_lo).
+        assert env_right._blocks[0] is None
+        # Block 3 (right boundary seed) was evicted after block 2 was built.
+        assert env_right._blocks[3] is None
         env_right.shutdown()
