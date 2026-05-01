@@ -201,8 +201,10 @@ def _forward_1s(
 
     for i in range(mps.center, L - 1):
         # Optimise the site tensor at position i.
+        E_left = env_left.fetch(i)
+        E_right = env_right.fetch(i)
         energy, mps[i], davidson_error = optimize_1site(
-            mps[i], mpo[i], env_left[i], env_right[i], davidson_opts
+            mps[i], mpo[i], E_left, E_right, davidson_opts
         )
         logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
         logger.debug("    davidson err = %.4e", davidson_error)
@@ -212,11 +214,11 @@ def _forward_1s(
         mps.canonical(i + 1, trunc=trunc)
 
         # Build the left environment for site i+1 from the now-canonicalised tensor.
-        env_left[i + 1] = step_left_env(env_left[i], mps[i], mpo[i])
+        env_left[i + 1] = step_left_env(E_left, mps[i], mpo[i])
 
     # Optimise the rightmost site without moving the center further.
     energy, mps[L - 1], davidson_error = optimize_1site(
-        mps[L - 1], mpo[L - 1], env_left[L - 1], env_right[L - 1], davidson_opts
+        mps[L - 1], mpo[L - 1], env_left.fetch(L - 1), env_right.fetch(L - 1), davidson_opts
     )
     logger.debug("  site %*d / %d  local E = %+.12g", w, L - 1, L - 1, energy)
     logger.debug("    davidson err = %.4e", davidson_error)
@@ -248,8 +250,10 @@ def _backward_1s(
 
     for i in range(mps.center, 0, -1):
         # Optimise the site tensor at position i.
+        E_left = env_left.fetch(i)
+        E_right = env_right.fetch(i)
         energy, mps[i], davidson_error = optimize_1site(
-            mps[i], mpo[i], env_left[i], env_right[i], davidson_opts
+            mps[i], mpo[i], E_left, E_right, davidson_opts
         )
         logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
         logger.debug("    davidson err = %.4e", davidson_error)
@@ -258,11 +262,11 @@ def _backward_1s(
         mps.canonical(i - 1, trunc=trunc)
 
         # Build the right environment for site i-1 from the now-canonicalised tensor.
-        env_right[i - 1] = step_right_env(env_right[i], mps[i], mpo[i])
+        env_right[i - 1] = step_right_env(E_right, mps[i], mpo[i])
 
     # Optimise site 0 without moving the center further.
     energy, mps[0], davidson_error = optimize_1site(
-        mps[0], mpo[0], env_left[0], env_right[0], davidson_opts
+        mps[0], mpo[0], env_left.fetch(0), env_right.fetch(0), davidson_opts
     )
     logger.debug("  site %*d / %d  local E = %+.12g", w, 0, L - 1, energy)
     logger.debug("    davidson err = %.4e", davidson_error)
@@ -297,9 +301,10 @@ def _forward_2s(
 
     for i in range(mps.center, L - 1):
         # Optimise the 2-site bond tensor at position (i, i+1).
+        E_left = env_left.fetch(i)
         energy, theta_opt, davidson_error = optimize_2site(
             mps[i], mps[i + 1], mpo[i], mpo[i + 1],
-            env_left[i], env_right[i + 1], davidson_opts
+            E_left, env_right.fetch(i + 1), davidson_opts
         )
         pair = ("(%d, %d)" % (i, i + 1)).center(pair_w)
         logger.debug("  site %s / %d  local E = %+.12g", pair, L - 1, energy)
@@ -312,7 +317,7 @@ def _forward_2s(
 
         # Update the left environment for the next bond — not needed after the last.
         if i < L - 2:
-            env_left[i + 1] = step_left_env(env_left[i], mps[i], mpo[i])
+            env_left[i + 1] = step_left_env(E_left, mps[i], mpo[i])
 
     return energy
 
@@ -344,9 +349,10 @@ def _backward_2s(
 
     for i in range(L - 2, -1, -1):
         # Optimise the 2-site bond tensor at position (i, i+1).
+        E_right = env_right.fetch(i + 1)
         energy, theta_opt, davidson_error = optimize_2site(
             mps[i], mps[i + 1], mpo[i], mpo[i + 1],
-            env_left[i], env_right[i + 1], davidson_opts
+            env_left.fetch(i), E_right, davidson_opts
         )
         pair = ("(%d, %d)" % (i, i + 1)).center(pair_w)
         logger.debug("  site %s / %d  local E = %+.12g", pair, L - 1, energy)
@@ -364,6 +370,6 @@ def _backward_2s(
 
         # Update the right environment for the next bond — not needed after the last.
         if i > 0:
-            env_right[i] = step_right_env(env_right[i + 1], mps[i + 1], mpo[i + 1])
+            env_right[i] = step_right_env(E_right, mps[i + 1], mpo[i + 1])
 
     return energy, dw
