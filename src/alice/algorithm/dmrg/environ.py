@@ -254,22 +254,6 @@ class Environment:
         return block
 
     # ------------------------------------------------------------------
-    # Cache interface — kept for backward compatibility
-    # ------------------------------------------------------------------
-
-    def cache(self, i: int, **kwargs) -> None:
-        """No-op; retained for backward compatibility.
-
-        Disk writes are now triggered automatically by `__setitem__` when a
-        `path` is configured. Calling this method has no effect.
-
-        Parameters
-        ----------
-        i:
-            Site index (ignored).
-        """
-
-    # ------------------------------------------------------------------
     # Shutdown
     # ------------------------------------------------------------------
 
