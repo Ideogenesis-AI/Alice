@@ -40,6 +40,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from alice.network import MPS, MPO
@@ -133,6 +134,21 @@ class Options(AlgorithmOptions):
         Maximum Krylov subspace size before a thick restart.
     e_tol:
         Energy convergence criterion: DMRG stops when `|E_new - E_old| < e_tol`.
+    env_cache_dir:
+        Directory for environment block cache files. When set, each block is
+        serialised to `{env_cache_dir}/left/{i:05d}.pt` or
+        `{env_cache_dir}/right/{i:05d}.pt` and evicted from memory once it
+        exits the sliding window, keeping peak memory proportional to
+        `env_window` rather than to chain length. `None` (default) keeps all
+        blocks in memory. Stored as `str` for TOML compatibility.
+    env_async_io:
+        If `True` (default), environment block I/O is submitted to a
+        background thread so it overlaps with the Davidson step. Only
+        relevant when `env_cache_dir` is set.
+    env_window:
+        Number of environment blocks kept in memory at once per direction
+        (current + prefetched ahead). Defaults to `2`. Only relevant when
+        `env_cache_dir` is set.
     """
 
     scheme: str = '1s'
@@ -143,6 +159,9 @@ class Options(AlgorithmOptions):
     davidson_max_iter: int = 100
     davidson_max_subspace: int = 20
     e_tol: float = 1e-8
+    env_cache_dir: Optional[str] = None
+    env_async_io: bool = True
+    env_window: int = 2
 
     def __post_init__(self) -> None:
         # Normalise the scheme alias to the canonical name immediately.
@@ -299,10 +318,37 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     mps.canonical(0)
 
     L = mps.L
-    env_left = Environment(L)
-    env_right = Environment(L)
+    _2s = (opts.scheme == '2s')
+
+    # Resolve the optional disk-cache directory and create sub-dirs if needed.
+    _cache: Optional[Path] = Path(opts.env_cache_dir) if opts.env_cache_dir else None
+    if _cache is not None:
+        (_cache / 'left').mkdir(parents=True, exist_ok=True)
+        (_cache / 'right').mkdir(parents=True, exist_ok=True)
+
+    # For 2-site DMRG the effective fetch ranges are narrower than [0, L-1]:
+    #   env_left  is never fetched at index L-1 (that tensor is never written).
+    #   env_right is never fetched at index 0  (the boundary block is written
+    #   by build_right_envs but consumed only via env_left in 1-site).
+    env_left = Environment(
+        L,
+        _cache / 'left' if _cache is not None else None,
+        async_io=opts.env_async_io,
+        window=opts.env_window,
+        fetch_lo=0,
+        fetch_hi=L - 2 if _2s else L - 1,
+    )
+    env_right = Environment(
+        L,
+        _cache / 'right' if _cache is not None else None,
+        async_io=opts.env_async_io,
+        window=opts.env_window,
+        fetch_lo=1 if _2s else 0,
+        fetch_hi=L - 1,
+    )
 
     # Initialise the left boundary and all right environment blocks.
+    # __setitem__ auto-caches each block to disk when _cache is set.
     env_left[0] = left_env_boundary(mps, mpo)
     build_right_envs(mps, mpo, env_right)
 
@@ -327,45 +373,54 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     logger.info("  davidson tol      : %.2e", opts.davidson_tol)
     logger.info("  davidson max iter : %d", opts.davidson_max_iter)
     logger.info("  davidson max space: %d", opts.davidson_max_subspace)
+    if _cache is not None:
+        logger.info("  env cache dir     : %s", _cache)
+        logger.info("  env window        : %d", opts.env_window)
+        logger.info("  env async I/O     : %s", opts.env_async_io)
     logger.info("")
 
     w = len(str(opts.n_sweeps))
-    for sweep_idx in range(opts.n_sweeps):
-        # Blank debug line between sweeps for visual separation in the log file.
-        if sweep_idx > 0:
+    try:
+        for sweep_idx in range(opts.n_sweeps):
+            # Blank debug line between sweeps for visual separation in the log file.
+            if sweep_idx > 0:
+                logger.debug("")
+            logger.debug("sweep %*d / %d: forward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
+
+            # Right half-sweep: center moves from 0 to L-1.
+            right_energy = forward_sweep(mps, mpo, env_left, env_right, opts)
+
+            logger.debug("sweep %*d / %d: forward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
+            logger.debug("  local E = %+.12g", right_energy)
             logger.debug("")
-        logger.debug("sweep %*d / %d: forward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
+            logger.debug("sweep %*d / %d: backward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
 
-        # Right half-sweep: center moves from 0 to L-1.
-        right_energy = forward_sweep(mps, mpo, env_left, env_right, opts)
+            # Left half-sweep: center moves from L-1 to 0; energy recorded here.
+            energy, dw = backward_sweep(mps, mpo, env_left, env_right, opts)
 
-        logger.debug("sweep %*d / %d: forward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
-        logger.debug("  local E = %+.12g", right_energy)
-        logger.debug("")
-        logger.debug("sweep %*d / %d: backward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
+            delta_e = abs(energy - prev_energy)
+            energies.append(energy)
+            discarded_weights.append(dw)
+            sweep_count += 1
 
-        # Left half-sweep: center moves from L-1 to 0; energy recorded here.
-        energy, dw = backward_sweep(mps, mpo, env_left, env_right, opts)
+            logger.debug("sweep %*d / %d: backward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
+            logger.debug("  local E = %+.12g", energy)
+            logger.debug("  ΔE = %+.4e", energy - prev_energy)
+            logger.info(
+                "sweep %*d / %d: E = %+.12g, |ΔE| = %.4e, dw = %.4e",
+                w, sweep_idx + 1, opts.n_sweeps, energy, delta_e, dw,
+            )
 
-        delta_e = abs(energy - prev_energy)
-        energies.append(energy)
-        discarded_weights.append(dw)
-        sweep_count += 1
-
-        logger.debug("sweep %*d / %d: backward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
-        logger.debug("  local E = %+.12g", energy)
-        logger.debug("  ΔE = %+.4e", energy - prev_energy)
-        logger.info(
-            "sweep %*d / %d: E = %+.12g, |ΔE| = %.4e, dw = %.4e",
-            w, sweep_idx + 1, opts.n_sweeps, energy, delta_e, dw,
-        )
-
-        # Check energy convergence.
-        if delta_e < opts.e_tol:
-            converged = True
-            logger.info("converged after %d sweep(s)", sweep_count)
-            break
-        prev_energy = energy
+            # Check energy convergence.
+            if delta_e < opts.e_tol:
+                converged = True
+                logger.info("converged after %d sweep(s)", sweep_count)
+                break
+            prev_energy = energy
+    finally:
+        # Flush pending async writes and release the I/O thread.
+        env_left.shutdown()
+        env_right.shutdown()
 
     logger.info("")
 
