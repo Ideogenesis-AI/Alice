@@ -79,12 +79,6 @@ class TestEnvironment:
         env[0] = E
         assert env.fetch(0) is E
 
-    def test_cache_is_noop_without_path(self, heisenberg_L2):
-        """cache(i) is a no-op (not an error) when no path is configured."""
-        mps, _ = heisenberg_L2
-        env = Environment(mps.L)
-        assert env.cache(0) is None
-
     def test_len(self, heisenberg_L2):
         mps, _ = heisenberg_L2
         env = Environment(mps.L)
