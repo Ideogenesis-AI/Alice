@@ -545,5 +545,21 @@ def build_right_envs(mps: MPS, mpo: MPO, env_right: Environment) -> None:
     # Initialise the right boundary (site L-1 has a trivial right bond for OBC).
     env_right[L - 1] = right_env_boundary(mps, mpo)
     # Sweep right-to-left: env_right[i] accumulates sites i+1 … L-1.
+    # When disk caching is active, evict block i+1 immediately after it has
+    # been consumed to compute block i — its on-disk copy is already present
+    # from the __setitem__ write, so keeping it in memory serves no purpose.
+    # The window [fetch_lo, fetch_lo + window - 1] is preserved because those
+    # are the blocks the first forward sweep will need immediately.
+    _cache = env_right._path is not None
+    if _cache:
+        _keep_lo = env_right._fetch_lo
+        _keep_hi = _keep_lo + env_right._window - 1
     for i in range(L - 2, -1, -1):
         env_right[i] = step_right_env(env_right[i + 1], mps[i + 1], mpo[i + 1])
+        if _cache and not (_keep_lo <= i + 1 <= _keep_hi):
+            env_right._evict(i + 1)
+    # Evict any blocks that fall below fetch_lo (e.g. env_right[0] in 2-site
+    # mode where fetch_lo == 1 — that block is computed above but never fetched).
+    if _cache:
+        for j in range(env_right._fetch_lo):
+            env_right._evict(j)
