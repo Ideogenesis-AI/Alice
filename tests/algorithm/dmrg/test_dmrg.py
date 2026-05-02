@@ -194,11 +194,9 @@ class TestSummary:
 class TestDmrg:
     """Integration tests for the run() function (both 1-site and 2-site schemes)."""
 
-    def test_unimplemented_scheme_raises(self, heisenberg_L2):
-        mps, mpo = heisenberg_L2
-        opts = Options(scheme='1sp')
-        with pytest.raises(NotImplementedError, match="1sp"):
-            run(mps, mpo, opts)
+    def test_unrecognised_scheme_raises(self, heisenberg_L2):
+        with pytest.raises(ValueError, match="unknown DMRG scheme"):
+            Options(scheme='unknown-scheme')
 
     def test_length_mismatch_raises(self, heisenberg_L2, heisenberg_L4):
         mps2, _ = heisenberg_L2
