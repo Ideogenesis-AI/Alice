@@ -121,7 +121,7 @@ class Options(AlgorithmOptions):
         - `'2s'` / `'2-site'` / `'two-site'`: 2-site DMRG.
         - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: 1-site-plus / CBE.
     n_sweeps:
-        Maximum number of full sweeps (one right + one left half-sweep each).
+        Maximum number of full sweeps (one forward + one backward half-sweep each).
     max_bond:
         Maximum bond dimension kept at each QR step. `None` means no limit.
     trunc_thresh:
@@ -194,7 +194,7 @@ class Summary(AlgorithmSummary):
     state:
         Optimised MPS after all sweeps.
     energies:
-        Energy recorded at the end of each full sweep (right + left half-sweep).
+        Energy recorded at the end of each full sweep (forward + backward half-sweep).
     converged:
         `True` if `|E_new - E_old| < opts.e_tol` before `n_sweeps` was reached.
     n_sweeps:
@@ -282,7 +282,7 @@ class Summary(AlgorithmSummary):
 def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     """Run DMRG to find the ground state of a Hamiltonian MPO.
 
-    Performs alternating right and left half-sweeps, optimising each site
+    Performs alternating forward and backward half-sweeps, optimising each site
     tensor with the Davidson eigensolver, until the energy converges or the
     maximum number of sweeps is reached.
 
@@ -406,7 +406,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
                 logger.debug("")
             logger.debug("sweep %*d / %d: forward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
 
-            # Right half-sweep: center moves from 0 to L-1.
+            # Forward half-sweep: center moves from 0 to L-1.
             right_energy = forward_sweep(mps, mpo, env_left, env_right, opts)
 
             logger.debug("sweep %*d / %d: forward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
@@ -414,7 +414,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
             logger.debug("")
             logger.debug("sweep %*d / %d: backward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
 
-            # Left half-sweep: center moves from L-1 to 0; energy recorded here.
+            # Backward half-sweep: center moves from L-1 to 0; energy recorded here.
             energy, dw = backward_sweep(mps, mpo, env_left, env_right, opts)
 
             delta_e = abs(energy - prev_energy)

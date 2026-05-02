@@ -206,7 +206,7 @@ def _forward_1s(
     trunc: Optional[dict],
     davidson_opts: dict,
 ) -> float:
-    """Left-to-right half-sweep for 1-site DMRG.
+    """Forward (left-to-right) half-sweep for 1-site DMRG.
 
     Visits sites from the current orthogonality center to `L-1`, optimising
     each site tensor with Davidson, moving the center one step to the right,
@@ -257,7 +257,7 @@ def _backward_1s(
     trunc: Optional[dict],
     davidson_opts: dict,
 ) -> float:
-    """Right-to-left half-sweep for 1-site DMRG.
+    """Backward (right-to-left) half-sweep for 1-site DMRG.
 
     Visits sites from the current orthogonality center down to `0`, optimising
     each site tensor with Davidson, moving the center one step to the left, and
@@ -311,7 +311,7 @@ def _forward_2s(
     trunc: Optional[dict],
     davidson_opts: dict,
 ) -> float:
-    """Left-to-right half-sweep for 2-site DMRG.
+    """Forward (left-to-right) half-sweep for 2-site DMRG.
 
     Visits all L-1 bonds from (mps.center, mps.center+1) to (L-2, L-1),
     optimising the 2-site bond tensor Θ at each step via Davidson, then
@@ -356,7 +356,7 @@ def _backward_2s(
     trunc: Optional[dict],
     davidson_opts: dict,
 ) -> Tuple[float, float]:
-    """Right-to-left half-sweep for 2-site DMRG.
+    """Backward (right-to-left) half-sweep for 2-site DMRG.
 
     Visits all L-1 bonds from (L-2, L-1) down to (0, 1), optimising the
     2-site bond tensor Θ at each step via Davidson, then splitting it with SVD.
@@ -415,7 +415,7 @@ def _forward_1sp(
     k_expand: int,
     alpha: Optional[int],
 ) -> float:
-    """Left-to-right half-sweep for 1-site-plus (CBE) DMRG.
+    """Forward (left-to-right) half-sweep for 1-site-plus (CBE) DMRG.
 
     At each bond (i, i+1) before the Davidson step at site i:
 
@@ -490,7 +490,7 @@ def _backward_1sp(
     k_expand: int,
     alpha: Optional[int],
 ) -> Tuple[float, float]:
-    """Right-to-left half-sweep for 1-site-plus (CBE) DMRG.
+    """Backward (right-to-left) half-sweep for 1-site-plus (CBE) DMRG.
 
     Mirror of `_forward_1sp` for backward sweeps. At each bond (i-1, i)
     before the Davidson step at site i:

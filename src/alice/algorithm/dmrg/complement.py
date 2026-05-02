@@ -438,7 +438,7 @@ def expand_backward(
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Compute the CBE complement and expand bond (i-1, i) for a backward sweep.
 
-    Mirror of `expand_forward` for right-to-left sweeps. The orthogonality center
+    Mirror of `expand_forward` for backward sweeps. The orthogonality center
     is at site i; M_im1 is left-isometric (from the previous forward sweep) and
     M_i is the active site being updated. The complement expansion targets the
     bond (i-1, i):
