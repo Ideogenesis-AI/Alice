@@ -164,8 +164,6 @@ def _project_complement_left(left_half: Tensor, M_i: Tensor) -> Tensor:
     is P_L = M_i M_i†, acting on the joint (bra_left, phys_bra) indices of
     left_half. The discarded part is (I − P_L) left_half.
 
-    The two-step einsum avoids forming the (a·r) × (a·r) projector explicitly.
-
     Parameters
     ----------
     left_half:
@@ -178,12 +176,9 @@ def _project_complement_left(left_half: Tensor, M_i: Tensor) -> Tensor:
     Tensor
         Discarded component of left_half, same axes as left_half.
     """
-    # Step 1: overlap M_i† with left_half over the (a, r) axes.
-    # temp[b, α, p] = Σ_{a,r} M_i^*[a,b,r] · left_half[a,α,p,r]
-    temp = einsum('abr,aαpr->bαp', M_i.conj(), left_half)
-    # Step 2: reconstruct the projected component.
-    # proj[a, α, p, r] = Σ_b M_i[a,b,r] · temp[b,α,p]
-    proj = einsum('abr,bαp->aαpr', M_i, temp)
+    # proj[a,α,p,r] = Σ_{b,x,z} left_half[x,α,p,z] · M_i*[x,b,z] · M_i[a,b,r]
+    # left_half and M_i* share x and z → contract them first (intermediate b·α·p).
+    proj = einsum('xαpz,xbz,abr->aαpr', left_half, M_i.conj(), M_i)
     return left_half - proj
 
 
@@ -206,15 +201,9 @@ def _project_complement_right(right_half: Tensor, M_i1: Tensor) -> Tensor:
     Tensor
         Discarded component of right_half, same axes as right_half.
     """
-    # Step 1: overlap M_i1^* with right_half over the (c, u) bra axes.
-    # M_i1.conj() 'c' (bra_right, direction flipped from ket_right) is compatible
-    # with right_half's 'c' (bra_right from E_right, opposite direction). ✓
-    # temp[α, p, b] = Σ_{c,u} M_i1^*[b,c,u] · right_half[α,p,c,u]
-    temp = einsum('bcu,αpcu->αpb', M_i1.conj(), right_half)
-    # Step 2: reconstruct the projected component.
-    # M_i1 'b' (ket_left, IN) contracts with temp 'b' (bra_left from M_i1.conj(), OUT). ✓
-    # proj[α, p, c, u] = Σ_b M_i1[b,c,u] · temp[α,p,b]
-    proj = einsum('bcu,αpb->αpcu', M_i1, temp)
+    # proj[α,p,c,u] = Σ_{b,x,z} right_half[α,p,x,z] · M_i1*[b,x,z] · M_i1[b,c,u]
+    # right_half and M_i1* share x and z → contract them first (intermediate b·α·p).
+    proj = einsum('αpxz,bxz,bcu->αpcu', right_half, M_i1.conj(), M_i1)
     return right_half - proj
 
 
