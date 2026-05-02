@@ -66,7 +66,7 @@ from alice.network import MPS, MPO
 from .complement import expand_backward, expand_forward
 from .environ import Environment, step_left_env, step_right_env
 from .scheme_1s import optimize_1site
-from .scheme_2s import optimize_2site, split_forward, split_backward, discarded_weight
+from .scheme_2s import build_bulk, optimize_2site, split_forward, split_backward, discarded_weight
 
 if TYPE_CHECKING:
     from .dmrg import Options
@@ -169,7 +169,7 @@ def backward_sweep(
     if opts.scheme == '2s':
         return _backward_2s(mps, mpo, env_left, env_right, trunc, davidson_opts)
     if opts.scheme == '1sp':
-        return _backward_1sp(mps, mpo, env_left, env_right, trunc, davidson_opts, **cbe_opts), 0.0
+        return _backward_1sp(mps, mpo, env_left, env_right, trunc, davidson_opts, **cbe_opts)
     raise NotImplementedError(f"backward_sweep: unknown scheme {opts.scheme!r}")
 
 
@@ -483,7 +483,7 @@ def _backward_1sp(
     davidson_opts: dict,
     k_expand: int,
     alpha: Optional[int],
-) -> float:
+) -> Tuple[float, float]:
     """Right-to-left half-sweep for 1-site-plus (CBE) DMRG.
 
     Mirror of `_forward_1sp` for backward sweeps. At each bond (i-1, i)
@@ -495,6 +495,10 @@ def _backward_1sp(
     3. `mps.canonical(i-1, trunc=trunc)` truncates and moves the center left.
     4. `env_right[i-1]` is updated from the truncated right-isometric M[i].
 
+    The discarded weight is measured at the center bond by contracting
+    `M_im1_exp` and `M_i_opt` into a 2-site tensor and performing a trial SVD
+    with the same truncation options.
+
     The leftmost site (i = 0) receives a plain 1-site Davidson update.
 
     After this call:
@@ -503,6 +507,8 @@ def _backward_1sp(
     """
     L = mps.L
     energy = 0.0
+    dw = 0.0
+    center_bond = L // 2 - 1
     w = len(str(L - 1))
 
     for i in range(mps.center, 0, -1):
@@ -524,6 +530,12 @@ def _backward_1sp(
         logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
         logger.debug("    davidson err = %.4e", davidson_error)
 
+        # Measure the discarded weight at the center bond.
+        if i - 1 == center_bond:
+            theta = build_bulk(M_im1_exp, M_i_opt)
+            dw = discarded_weight(theta, trunc)
+            logger.debug("    discarded weight = %.4e", dw)
+
         # Store the expanded tensors then move the center (truncates expanded bond).
         mps[i]     = M_i_opt
         mps[i - 1] = M_im1_exp
@@ -540,4 +552,4 @@ def _backward_1sp(
     )
     logger.debug("  site %*d / %d  local E = %+.12g", w, 0, L - 1, energy)
     logger.debug("    davidson err = %.4e", davidson_error)
-    return energy
+    return energy, dw
