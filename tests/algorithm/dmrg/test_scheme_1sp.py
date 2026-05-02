@@ -412,13 +412,13 @@ class TestDMRGScheme1sp:
             summary = dmrg.run(mps, mpo, opts)
             assert summary.n_sweeps == 1
 
-    def test_discarded_weight_zero(self, heisenberg_L4):
-        """1sp scheme reports discarded_weight=0.0 (not computed, like 1-site)."""
+    def test_discarded_weight_reported(self, heisenberg_L4):
+        """1sp scheme reports a non-negative discarded weight measured at the center bond."""
         mps, mpo = heisenberg_L4
         opts = dmrg.Options(scheme='1sp', n_sweeps=2, max_bond=4, expand_k=2)
         summary = dmrg.run(mps, mpo, opts)
-        assert all(dw == 0.0 for dw in summary.discarded_weights), (
-            "1sp scheme should not report discarded weight"
+        assert all(dw >= 0.0 for dw in summary.discarded_weights), (
+            "1sp discarded weights must be non-negative"
         )
 
     def test_expand_alpha_reduces_cost(self, heisenberg_L4):
