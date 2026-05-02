@@ -41,6 +41,7 @@ from alice.algorithm.dmrg.environ import (
     step_left_env,
 )
 from alice.algorithm.dmrg import dmrg
+from alice.algorithm.dmrg.scheme_2s import build_bulk, split_backward
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +214,43 @@ class TestProjectComplement:
         norm = _tensor_norm(overlap)
         assert norm < 1e-9, (
             f"Left discarded part not orthogonal to M_tilde_i: overlap norm = {norm}"
+        )
+
+    def test_right_discarded_orthogonal_to_projector(self, heisenberg_L4):
+        """M_tilde_i1 · rh_disc† ≈ 0 when M_tilde_i1 (right-isometric) is the projector.
+
+        `split_backward` yields a right-isometric V factor.  When used as the
+        projector, (I − M_tilde_i1† M_tilde_i1) is an orthogonal projector and
+        M_tilde_i1 acting on rh_disc returns zero by the identity
+        (I − P) P† = 0, where P = M_tilde_i1† M_tilde_i1.
+        """
+        mps, mpo = heisenberg_L4
+        env_left, env_right = _build_envs(mps, mpo)
+        theta = build_bulk(mps[1], mps[2])
+        _, M_tilde_i1 = split_backward(theta, itag='_test_', trunc=None)
+        rh = _right_half(env_right[2], M_tilde_i1, mpo[2])
+        rh_disc = _project_complement_right(rh, M_tilde_i1)
+        # M_tilde_i1 rh_disc† must be zero (M_tilde_i1 is right-isometric → M M† = I).
+        overlap = einsum('bcu,αpcu->αpb', M_tilde_i1.conj(), rh_disc)
+        norm = _tensor_norm(overlap)
+        assert norm < 1e-9, (
+            f"Right discarded part not orthogonal to M_tilde_i1: overlap norm = {norm}"
+        )
+
+    def test_left_discarded_norm_bounded(self, heisenberg_L4):
+        """The discarded left half has Frobenius norm ≤ that of the original left half.
+
+        After projection (I − P_L) lh_disc ≤ lh in norm, since the projector
+        P_L is positive semi-definite with operator norm ≤ 1. This holds
+        regardless of the isometry status of the projector tensor.
+        """
+        mps, mpo = heisenberg_L4
+        lh, _ = self._setup(mps, mpo)
+        lh_disc = _project_complement_left(lh, mps[1])
+        norm_full = _tensor_norm(lh)
+        norm_disc = _tensor_norm(lh_disc)
+        assert norm_disc <= norm_full + 1e-9, (
+            f"Discarded norm {norm_disc:.6f} exceeds original norm {norm_full:.6f}"
         )
 
     def test_right_discarded_norm_bounded(self, heisenberg_L4):
