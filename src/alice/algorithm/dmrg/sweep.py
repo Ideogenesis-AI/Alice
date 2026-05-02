@@ -242,8 +242,10 @@ def _forward_1s(
     energy, mps[L - 1], davidson_error = optimize_1site(
         mps[L - 1], mpo[L - 1], env_left.fetch(L - 1), env_right.fetch(L - 1), davidson_opts
     )
+
     logger.debug("  site %*d / %d  local E = %+.12g", w, L - 1, L - 1, energy)
     logger.debug("    davidson err = %.4e", davidson_error)
+
     return energy
 
 
@@ -290,8 +292,10 @@ def _backward_1s(
     energy, mps[0], davidson_error = optimize_1site(
         mps[0], mpo[0], env_left.fetch(0), env_right.fetch(0), davidson_opts
     )
+
     logger.debug("  site %*d / %d  local E = %+.12g", w, 0, L - 1, energy)
     logger.debug("    davidson err = %.4e", davidson_error)
+
     return energy
 
 
@@ -469,8 +473,10 @@ def _forward_1sp(
         env_left.fetch(L - 1), env_right.fetch(L - 1),
         davidson_opts,
     )
+
     logger.debug("  site %*d / %d  local E = %+.12g", w, L - 1, L - 1, energy)
     logger.debug("    davidson err = %.4e", davidson_error)
+
     return energy
 
 
@@ -550,6 +556,8 @@ def _backward_1sp(
         env_left.fetch(0), env_right.fetch(0),
         davidson_opts,
     )
+
     logger.debug("  site %*d / %d  local E = %+.12g", w, 0, L - 1, energy)
     logger.debug("    davidson err = %.4e", davidson_error)
+
     return energy, dw
