@@ -70,7 +70,7 @@ _SCHEME_ALIASES: Dict[str, str] = {
     'one-site-plus': '1sp',
 }
 
-_IMPLEMENTED_SCHEMES = {'1s', '2s'}
+_IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 
 def _resolve_scheme(alias: str) -> str:
@@ -117,11 +117,11 @@ class Options(AlgorithmOptions):
     scheme:
         Per-site update scheme. Canonical values and their aliases:
 
-        - `'1s'` / `'1-site'` / `'one-site'`: 1-site DMRG (implemented).
-        - `'2s'` / `'2-site'` / `'two-site'`: 2-site DMRG (implemented).
-        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: 1-site-plus (not yet implemented).
+        - `'1s'` / `'1-site'` / `'one-site'`: 1-site DMRG.
+        - `'2s'` / `'2-site'` / `'two-site'`: 2-site DMRG.
+        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: 1-site-plus / CBE.
     n_sweeps:
-        Maximum number of full sweeps (one right + one left half-sweep each).
+        Maximum number of full sweeps (one forward + one backward half-sweep each).
     max_bond:
         Maximum bond dimension kept at each QR step. `None` means no limit.
     trunc_thresh:
@@ -149,6 +149,15 @@ class Options(AlgorithmOptions):
         Number of environment blocks kept in memory at once per direction
         (current + prefetched ahead). Defaults to `2`. Only relevant when
         `env_cache_dir` is set.
+    expand_k:
+        Maximum number of complement vectors added to each bond end per CBE
+        step. Only used when `scheme = '1sp'`. Larger values give a richer
+        expanded space at higher cost; `4` is a typical starting point.
+    expand_alpha:
+        Internal bond dimension used when forming the cheap 2-site tensor
+        Θ̃ = truncated SVD of M[i] ⊗ M[i+1] inside the CBE expansion.
+        Only used when `scheme = '1sp'`. `None` keeps the full bond (no
+        additional truncation beyond the existing bond dimension).
     """
 
     scheme: str = '1s'
@@ -162,6 +171,8 @@ class Options(AlgorithmOptions):
     env_cache_dir: Optional[str] = None
     env_async_io: bool = True
     env_window: int = 2
+    expand_k: int = 4
+    expand_alpha: Optional[int] = None
 
     def __post_init__(self) -> None:
         # Normalise the scheme alias to the canonical name immediately.
@@ -183,7 +194,7 @@ class Summary(AlgorithmSummary):
     state:
         Optimised MPS after all sweeps.
     energies:
-        Energy recorded at the end of each full sweep (right + left half-sweep).
+        Energy recorded at the end of each full sweep (forward + backward half-sweep).
     converged:
         `True` if `|E_new - E_old| < opts.e_tol` before `n_sweeps` was reached.
     n_sweeps:
@@ -271,7 +282,7 @@ class Summary(AlgorithmSummary):
 def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     """Run DMRG to find the ground state of a Hamiltonian MPO.
 
-    Performs alternating right and left half-sweeps, optimising each site
+    Performs alternating forward and backward half-sweeps, optimising each site
     tensor with the Davidson eigensolver, until the energy converges or the
     maximum number of sweeps is reached.
 
@@ -304,7 +315,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
 
     if opts.scheme not in _IMPLEMENTED_SCHEMES:
         raise NotImplementedError(
-            f"DMRG scheme {opts.scheme!r} is not yet implemented; "
+            f"DMRG scheme {opts.scheme!r} is recognised but not yet implemented; "
             f"implemented schemes are: {', '.join(sorted(_IMPLEMENTED_SCHEMES))}"
         )
 
@@ -319,6 +330,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
 
     L = mps.L
     _2s = (opts.scheme == '2s')
+    _1sp = (opts.scheme == '1sp')
 
     # Resolve the optional disk-cache directory and create sub-dirs if needed.
     _cache: Optional[Path] = Path(opts.env_cache_dir) if opts.env_cache_dir else None
@@ -330,6 +342,9 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     #   env_left  is never fetched at index L-1 (that tensor is never written).
     #   env_right is never fetched at index 0  (the boundary block is written
     #   by build_right_envs but consumed only via env_left in 1-site).
+    # 1-site-plus uses the same fetch ranges as 1-site: both env_left and
+    # env_right are fetched at all sites because CBE reads env_right[i+1]
+    # and env_left[i-1] for the complement computation at each bond.
     env_left = Environment(
         L,
         _cache / 'left' if _cache is not None else None,
@@ -373,6 +388,10 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     logger.info("  davidson tol      : %.2e", opts.davidson_tol)
     logger.info("  davidson max iter : %d", opts.davidson_max_iter)
     logger.info("  davidson max space: %d", opts.davidson_max_subspace)
+    if _1sp:
+        alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'full bond'
+        logger.info("  expand k          : %d", opts.expand_k)
+        logger.info("  expand alpha      : %s", alpha_str)
     if _cache is not None:
         logger.info("  env cache dir     : %s", _cache)
         logger.info("  env window        : %d", opts.env_window)
@@ -387,7 +406,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
                 logger.debug("")
             logger.debug("sweep %*d / %d: forward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
 
-            # Right half-sweep: center moves from 0 to L-1.
+            # Forward half-sweep: center moves from 0 to L-1.
             right_energy = forward_sweep(mps, mpo, env_left, env_right, opts)
 
             logger.debug("sweep %*d / %d: forward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
@@ -395,7 +414,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
             logger.debug("")
             logger.debug("sweep %*d / %d: backward sweep initiated", w, sweep_idx + 1, opts.n_sweeps)
 
-            # Left half-sweep: center moves from L-1 to 0; energy recorded here.
+            # Backward half-sweep: center moves from L-1 to 0; energy recorded here.
             energy, dw = backward_sweep(mps, mpo, env_left, env_right, opts)
 
             delta_e = abs(energy - prev_energy)
