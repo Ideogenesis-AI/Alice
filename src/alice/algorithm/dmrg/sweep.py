@@ -16,21 +16,21 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Half-sweep orchestration for 1-site and 2-site DMRG.
+"""Half-sweep orchestration for 1-site, 2-site, and 1-site-plus DMRG.
 
 This module is a thin coordination layer. `forward_sweep` and `backward_sweep`
 are scheme-aware dispatchers: they inspect `opts.scheme` and delegate to the
 appropriate private implementation (`_forward_1s`, `_backward_1s`,
-`_forward_2s`, `_backward_2s`).
+`_forward_2s`, `_backward_2s`, `_forward_1sp`, `_backward_1sp`).
 
 Each per-scheme implementation is a sequential loop that handles only:
 
-- deciding the order of sites (1-site) or bonds (2-site) to visit,
+- deciding the order of sites (1-site) or bonds (2-site / 1-site-plus) to visit,
 - moving the orthogonality center,
 - routing environment updates through the `Environment` instances.
 
-All local computation is delegated to pure functions in `scheme_1s` and
-`scheme_2s`, which are the natural units of work for future parallel or
+All local computation is delegated to pure functions in `scheme_1s`, `scheme_2s`,
+and `complement`, which are the natural units of work for future parallel or
 distributed execution.
 
 1-site center movement
@@ -46,6 +46,14 @@ performing a full sweep.
 splitting Θ via SVD the resulting tensors are already isometric; the center
 is updated by writing `mps._center` directly, mirroring what `canonical`
 does internally.
+
+1-site-plus center movement
+---------------------------
+`_forward_1sp` and `_backward_1sp` follow the 1-site pattern: after the
+complement expansion, `mps.canonical` is called to move the center and apply
+the truncation. Because the expanded M[i] and M[i+1] are set in `mps` before
+the canonical call, the standard QR/SVD path operates on the expanded bond and
+truncates it back to at most `max_bond`.
 """
 
 from __future__ import annotations
@@ -55,6 +63,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 from alice.network import MPS, MPO
 
+from .complement import expand_backward, expand_forward
 from .environ import Environment, step_left_env, step_right_env
 from .scheme_1s import optimize_1site
 from .scheme_2s import optimize_2site, split_forward, split_backward, discarded_weight
@@ -78,11 +87,13 @@ def forward_sweep(
 ) -> float:
     """Perform a left-to-right (forward) half-sweep.
 
-    Dispatches to the 1-site or 2-site implementation based on `opts.scheme`.
+    Dispatches to the 1-site, 2-site, or 1-site-plus implementation based on
+    `opts.scheme`.
 
     After this call:
     - `mps.center == mps.L - 1`.
-    - `env_left[i]` is populated for `i = 1, …, L-1` (1-site) or `i = 1, …, L-2` (2-site).
+    - `env_left[i]` is populated for `i = 1, …, L-1` (1-site / 1-site-plus)
+      or `i = 1, …, L-2` (2-site).
 
     Parameters
     ----------
@@ -103,11 +114,13 @@ def forward_sweep(
     float
         Variational energy at the last optimised site or bond.
     """
-    trunc, davidson_opts = _unpack_opts(opts)
+    trunc, davidson_opts, cbe_opts = _unpack_opts(opts)
     if opts.scheme == '1s':
         return _forward_1s(mps, mpo, env_left, env_right, trunc, davidson_opts)
     if opts.scheme == '2s':
         return _forward_2s(mps, mpo, env_left, env_right, trunc, davidson_opts)
+    if opts.scheme == '1sp':
+        return _forward_1sp(mps, mpo, env_left, env_right, trunc, davidson_opts, **cbe_opts)
     raise NotImplementedError(f"forward_sweep: unknown scheme {opts.scheme!r}")
 
 
@@ -120,11 +133,13 @@ def backward_sweep(
 ) -> Tuple[float, float]:
     """Perform a right-to-left (backward) half-sweep.
 
-    Dispatches to the 1-site or 2-site implementation based on `opts.scheme`.
+    Dispatches to the 1-site, 2-site, or 1-site-plus implementation based on
+    `opts.scheme`.
 
     After this call:
     - `mps.center == 0`.
-    - `env_right[i]` is populated for `i = 0, …, L-2` (1-site) or `i = 1, …, L-2` (2-site).
+    - `env_right[i]` is populated for `i = 0, …, L-2` (1-site / 1-site-plus)
+      or `i = 1, …, L-2` (2-site).
 
     Parameters
     ----------
@@ -145,13 +160,16 @@ def backward_sweep(
     float
         Variational energy at the last optimised site or bond.
     float
-        Discarded weight at the center bond (2-site only; `0.0` for 1-site).
+        Discarded weight at the center bond (2-site only; `0.0` for 1-site
+        and 1-site-plus).
     """
-    trunc, davidson_opts = _unpack_opts(opts)
+    trunc, davidson_opts, cbe_opts = _unpack_opts(opts)
     if opts.scheme == '1s':
         return _backward_1s(mps, mpo, env_left, env_right, trunc, davidson_opts), 0.0
     if opts.scheme == '2s':
         return _backward_2s(mps, mpo, env_left, env_right, trunc, davidson_opts)
+    if opts.scheme == '1sp':
+        return _backward_1sp(mps, mpo, env_left, env_right, trunc, davidson_opts, **cbe_opts), 0.0
     raise NotImplementedError(f"backward_sweep: unknown scheme {opts.scheme!r}")
 
 
@@ -160,7 +178,7 @@ def backward_sweep(
 # ---------------------------------------------------------------------------
 
 def _unpack_opts(opts: Options):
-    """Extract the truncation dict and Davidson keyword-args from `opts`."""
+    """Extract the truncation dict, Davidson keyword-args, and CBE opts from `opts`."""
     trunc: Optional[dict] = {'thresh': opts.trunc_thresh}
     if opts.max_bond is not None:
         trunc['nkeep'] = opts.max_bond
@@ -169,7 +187,11 @@ def _unpack_opts(opts: Options):
         'tol': opts.davidson_tol,
         'max_subspace': opts.davidson_max_subspace,
     }
-    return trunc, davidson_opts
+    cbe_opts = {
+        'k_expand': opts.expand_k,
+        'alpha': opts.expand_alpha,
+    }
+    return trunc, davidson_opts, cbe_opts
 
 
 # ---------------------------------------------------------------------------
@@ -373,3 +395,149 @@ def _backward_2s(
             env_right[i] = step_right_env(E_right, mps[i + 1], mpo[i + 1])
 
     return energy, dw
+
+
+# ---------------------------------------------------------------------------
+# 1-site-plus (CBE) implementations
+# ---------------------------------------------------------------------------
+
+def _forward_1sp(
+    mps: MPS,
+    mpo: MPO,
+    env_left: Environment,
+    env_right: Environment,
+    trunc: Optional[dict],
+    davidson_opts: dict,
+    k_expand: int,
+    alpha: Optional[int],
+) -> float:
+    """Left-to-right half-sweep for 1-site-plus (CBE) DMRG.
+
+    At each bond (i, i+1) before the Davidson step at site i:
+
+    1. The bond is expanded via `expand_forward`: cheap truncated factors of
+       Θ = M[i] ⊗ M[i+1] are formed, H is applied in factored half-sweeps,
+       the kept subspace is projected out, and the top-`k_expand` complement
+       directions are added via `oplus`.
+    2. Davidson optimises the expanded M[i] using the original left environment
+       and the expanded right environment from step 1.
+    3. `mps.canonical(i+1, trunc=trunc)` moves the center and truncates the
+       expanded bond back to at most `max_bond`.
+    4. `env_left[i+1]` is updated from the truncated left-isometric M[i].
+
+    The rightmost site (i = L-1) has no right neighbor to expand into and
+    receives a plain 1-site Davidson update.
+
+    After this call:
+    - `mps.center == mps.L - 1`.
+    - `env_left[i]` is populated for `i = 1, …, L-1`.
+    """
+    L = mps.L
+    energy = 0.0
+    w = len(str(L - 1))
+
+    for i in range(mps.center, L - 1):
+        E_left = env_left.fetch(i)
+
+        # CBE complement expansion for bond (i, i+1).
+        # env_right.fetch(i+1) is the pre-built env to the right of site i+1.
+        M_i_exp, M_i1_exp, E_right_i_exp = expand_forward(
+            mps[i], mps[i + 1],
+            mpo[i], mpo[i + 1],
+            E_left, env_right.fetch(i + 1),
+            k_expand, alpha,
+        )
+
+        # 1-site Davidson on the expanded M[i] with the expanded right environment.
+        energy, M_i_opt, davidson_error = optimize_1site(
+            M_i_exp, mpo[i], E_left, E_right_i_exp, davidson_opts
+        )
+        logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
+        logger.debug("    davidson err = %.4e", davidson_error)
+
+        # Store the expanded tensors then move the center (truncates expanded bond).
+        mps[i]     = M_i_opt
+        mps[i + 1] = M_i1_exp
+        mps.canonical(i + 1, trunc=trunc)
+
+        # Build the left environment for site i+1 from the now-truncated M[i].
+        env_left[i + 1] = step_left_env(E_left, mps[i], mpo[i])
+
+    # Rightmost site: no right neighbor, plain 1-site update.
+    energy, mps[L - 1], davidson_error = optimize_1site(
+        mps[L - 1], mpo[L - 1],
+        env_left.fetch(L - 1), env_right.fetch(L - 1),
+        davidson_opts,
+    )
+    logger.debug("  site %*d / %d  local E = %+.12g", w, L - 1, L - 1, energy)
+    logger.debug("    davidson err = %.4e", davidson_error)
+    return energy
+
+
+def _backward_1sp(
+    mps: MPS,
+    mpo: MPO,
+    env_left: Environment,
+    env_right: Environment,
+    trunc: Optional[dict],
+    davidson_opts: dict,
+    k_expand: int,
+    alpha: Optional[int],
+) -> float:
+    """Right-to-left half-sweep for 1-site-plus (CBE) DMRG.
+
+    Mirror of `_forward_1sp` for backward sweeps. At each bond (i-1, i)
+    before the Davidson step at site i:
+
+    1. `expand_backward` expands the bond using the complement of M[i-1]
+       (left projector) and M[i] (right projector).
+    2. Davidson optimises the expanded M[i] with the expanded left environment.
+    3. `mps.canonical(i-1, trunc=trunc)` truncates and moves the center left.
+    4. `env_right[i-1]` is updated from the truncated right-isometric M[i].
+
+    The leftmost site (i = 0) receives a plain 1-site Davidson update.
+
+    After this call:
+    - `mps.center == 0`.
+    - `env_right[i]` is populated for `i = 0, …, L-2`.
+    """
+    L = mps.L
+    energy = 0.0
+    w = len(str(L - 1))
+
+    for i in range(mps.center, 0, -1):
+        E_right = env_right.fetch(i)
+
+        # CBE complement expansion for bond (i-1, i).
+        # env_left.fetch(i-1) is the left env to the left of site i-1.
+        M_i_exp, M_im1_exp, E_left_i_exp = expand_backward(
+            mps[i], mps[i - 1],
+            mpo[i], mpo[i - 1],
+            env_left.fetch(i - 1), E_right,
+            k_expand, alpha,
+        )
+
+        # 1-site Davidson on the expanded M[i] with the expanded left environment.
+        energy, M_i_opt, davidson_error = optimize_1site(
+            M_i_exp, mpo[i], E_left_i_exp, E_right, davidson_opts
+        )
+        logger.debug("  site %*d / %d  local E = %+.12g", w, i, L - 1, energy)
+        logger.debug("    davidson err = %.4e", davidson_error)
+
+        # Store the expanded tensors then move the center (truncates expanded bond).
+        mps[i]     = M_i_opt
+        mps[i - 1] = M_im1_exp
+        mps.canonical(i - 1, trunc=trunc)
+
+        # Build the right environment for site i-1 from the now-truncated M[i].
+        env_right[i - 1] = step_right_env(E_right, mps[i], mpo[i])
+
+    # Leftmost site: no left neighbor, plain 1-site update.
+    energy, mps[0], davidson_error = optimize_1site(
+        mps[0], mpo[0],
+        env_left.fetch(0), env_right.fetch(0),
+        davidson_opts,
+    )
+    logger.debug("  site %*d / %d  local E = %+.12g", w, 0, L - 1, energy)
+    logger.debug("    davidson err = %.4e", davidson_error)
+    return energy
