@@ -185,6 +185,20 @@ class TestAutoMPOHeisenberg:
             f"ref={E_gs:.12f}, diff={abs(E_obs - E_gs):.3e}"
         )
 
+    def test_energy_compact_every(self, spin_chain):
+        """Heisenberg (U1) energy with compact_every=3 must match the reference."""
+        mps, _, E_gs = spin_chain
+        L = len(mps)
+        config = _chain_config(L, 'Heisenberg', 'bosonic',
+                               symmetry='U1', spin=0.5, J=1.0)
+        interactions, spc, _ = build_interaction(config)
+        mpo_auto = build_hamiltonian(interactions, L, spc, compact_every=3)
+        E_obs = observe(mps, mpo_auto)
+        assert math.isclose(E_obs, E_gs, abs_tol=_ATOL), (
+            f"Heisenberg (U1, compact_every=3) energy mismatch: "
+            f"observe={E_obs:.12f}, ref={E_gs:.12f}, diff={abs(E_obs - E_gs):.3e}"
+        )
+
 
 @pytest.mark.slow
 class TestAutoMPOFreeFermion:
@@ -236,6 +250,33 @@ class TestAutoMPOConductor:
             f"Conductor (U1,SU2) energy mismatch: observe={E_obs:.12f}, "
             f"ref={E_gs:.12f}, diff={abs(E_obs - E_gs):.3e}"
         )
+
+
+# ---------------------------------------------------------------------------
+# compact_every parameter tests  (not slow — L=10 chain)
+# ---------------------------------------------------------------------------
+
+class TestCompactEvery:
+    """Verify that periodic intermediate compaction produces bond dims, norm,
+    and structural validity identical to compaction only at the end."""
+
+    @pytest.mark.parametrize('every', [1, 2, 3, 5, 9])
+    def test_compact_every(self, every):
+        """compact_every=N must yield the same bond dims, norm, and valid MPO."""
+        L = 10
+        cfg = _chain_config(L, 'Heisenberg', 'bosonic', symmetry='U1', spin=0.5, J=1.0)
+        interactions, spc, _ = build_interaction(cfg)
+        ref = build_hamiltonian(interactions, L, spc, compact_every=0)
+        mpo = build_hamiltonian(interactions, L, spc, compact_every=every)
+        assert mpo.bond_dims == ref.bond_dims, (
+            f"compact_every={every}: bond dims {mpo.bond_dims} != "
+            f"reference {ref.bond_dims}"
+        )
+        assert math.isclose(mpo.norm(), ref.norm(), rel_tol=1e-10), (
+            f"compact_every={every}: norm {mpo.norm():.12f} != "
+            f"reference {ref.norm():.12f}"
+        )
+        mpo._validate()
 
 
 # ---------------------------------------------------------------------------
