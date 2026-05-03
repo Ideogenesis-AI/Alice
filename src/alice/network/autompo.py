@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from nicole import Direction, Index, Tensor
-from nicole import identity, oplus
+from nicole import identity, oplus, capcup
 
 from .interaction import Interaction, Interaction1Site, Interaction2Site
 from .network import MPO
@@ -34,6 +34,7 @@ def build_hamiltonian(
     L: int,
     spc: Index,
     trunc: Optional[dict] = None,
+    compact_every: int = 10,
 ) -> MPO:
     """Build a Hamiltonian MPO from a list of `Interaction` objects.
 
@@ -59,6 +60,9 @@ def build_hamiltonian(
     trunc:
         Truncation parameters forwarded to `MPO.canonical()` during the
         right-to-left compression sweep. Defaults to `{'thresh': 1e-14}`.
+    compact_every:
+        Call `MPO.compact` after every this many accumulated terms. Defaults
+        to `10`. Set to `0` to disable intermediate compaction.
 
     Returns
     -------
@@ -111,13 +115,17 @@ def build_hamiltonian(
     I4.insert_index(1, direction=Direction.OUT, itag='R')
 
     # Step 1 — Initialize: zero tensor with trivial (dim-1) bonds at every site.
-    mpo: List[Tensor] = []
+    mpo_list: List[Tensor] = []
     for i in range(L):
         z = (I * 0.0).clone()
         z.insert_index(0, direction=Direction.IN,  itag='L')
         z.insert_index(1, direction=Direction.OUT, itag='R')
         z.retag([0, 1, 2, 3], [f'W{i:02d}', f'W{i+1:02d}', f's{i:02d}', f's{i:02d}'])
-        mpo.append(z)
+        mpo_list.append(z)
+
+    # Wrap in an MPO object so compact() can be called on it incrementally.
+    # MPO.__init__ copies the list, so mpo_list is not used after this point.
+    mpo = MPO(mpo_list, center=None)
 
     def _identity_term() -> List[Tensor]:
         """Build a term MPO with identity at every site."""
@@ -137,7 +145,9 @@ def build_hamiltonian(
 
     # Step 2 — Accumulate: one `oplus` pass per active interaction term.
     # Coupling is applied here (not baked into tensors by the model builder).
-    for intr in active:
+    # Every `compact_every` terms an intermediate compact() is applied to keep
+    # bond dimensions in check before they grow too large.
+    for n_term, intr in enumerate(active, start=1):
         term = _identity_term()
 
         if isinstance(intr, Interaction1Site):
@@ -177,8 +187,18 @@ def build_hamiltonian(
 
         _merge(term)
 
-    # Step 3 — Compress: two canonical sweeps with norm extraction.
-    mpo_obj = MPO(mpo, center=None)
-    mpo_obj.compact(trunc)
+        # oplus invalidates the canonical form; reset before compacting.
+        if compact_every > 0 and n_term % compact_every == 0:
+            mpo._center = None
+            mpo.compact(trunc)
+            # compact() reorients bond arrows; restore the original IN/OUT
+            # convention so that subsequent oplus calls match the term tensors.
+            for k in range(L - 1):
+                capcup(mpo[k], 1, mpo[k + 1], 0)
 
-    return mpo_obj
+    # Step 3 — Final compress: handles any leftover terms past the last
+    # intermediate compact, and ensures the returned MPO is always compressed.
+    mpo._center = None
+    mpo.compact(trunc)
+
+    return mpo
