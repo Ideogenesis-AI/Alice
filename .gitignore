@@ -5,6 +5,9 @@
 # Logging directory for Alice
 .logging/
 
+# Yuzuha cache for canonical basis data
+.yuzuha/
+
 
 
 # ------------------------------------------------------- #
