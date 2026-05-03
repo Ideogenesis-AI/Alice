@@ -12,7 +12,7 @@
   <a href="https://pypi.org/project/alice/"><img src="https://img.shields.io/pypi/status/alice?color=4b0082" alt="Status"></a>
 </p>
 
-Alice is an open source software for 1D tensor network algorithms, built on the [Nicole](https://github.com/Ideogenesis-AI/Nicole) symmetry-aware tensor library. The ecosystem provides production-quality implementations of state-of-the-art algorithms for simulating 1D (and quasi-1D) quantum many-body systems, with full support for Abelian and non-Abelian (currently SU(2) only) symmetries inherited from Nicole.
+Alice is an open-source project for 1D tensor network algorithms, built on the [Nicole](https://github.com/Ideogenesis-AI/Nicole) symmetry-aware tensor library. The ecosystem provides production-quality implementations of state-of-the-art algorithms for simulating 1D (and quasi-1D) quantum many-body systems, with full support for Abelian and non-Abelian (currently SU(2) only) symmetries inherited from Nicole.
 
 With the assistance of various AI coding agents, Alice pairs a physicist-friendly API — TOML-driven model definitions, concise Python entry points — with a well-tested, performant backend designed with HPC in mind, scaling from workstations to large-scale distributed computations, making cutting-edge tensor network calculations broadly accessible while maintaining the mathematical rigor for quantum physics applications.
 
