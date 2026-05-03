@@ -1,0 +1,132 @@
+# Example TOML configurations for build_interaction.
+#
+# Each top-level table is a self-contained configuration with two required
+# sub-tables: [<name>.geometry] and [<name>.model].  Load a section with
+# tomllib and pass it directly to build_interaction:
+#
+#   import tomllib
+#   with open("example_config.toml", "rb") as f:
+#       cfg = tomllib.load(f)
+#   interactions, spc, L = build_interaction(cfg["heisenberg_u1"])
+
+# ---------------------------------------------------------------------------
+#  1. Heisenberg spin-1/2 chain, 10 sites, OBC, U1 symmetry
+# ---------------------------------------------------------------------------
+
+[heisenberg_u1.geometry]
+lattice  = "chain"
+lx       = 10
+bcx      = "OBC"
+n2x      = true   # include NN bonds along the chain
+
+[heisenberg_u1.model]
+category = "bosonic"
+label    = "Heisenberg"
+symmetry = "U1"
+spin     = 0.5
+J        = 1.0    # NN coupling
+
+# ---------------------------------------------------------------------------
+#  2. Heisenberg spin-1/2 chain, 10 sites, OBC, SU2 symmetry
+# ---------------------------------------------------------------------------
+
+[heisenberg_su2.geometry]
+lattice  = "chain"
+lx       = 10
+bcx      = "OBC"
+n2x      = true
+
+[heisenberg_su2.model]
+category = "bosonic"
+label    = "Heisenberg"
+symmetry = "SU2"
+spin     = 0.5
+J        = 1.0
+
+# ---------------------------------------------------------------------------
+#  3. Free-fermion (spinless tight-binding) chain, 10 sites, U1 symmetry
+# ---------------------------------------------------------------------------
+
+[free_fermion.geometry]
+lattice  = "chain"
+lx       = 10
+bcx      = "OBC"
+n2x      = true
+
+[free_fermion.model]
+category = "fermionic"
+label    = "FreeFermion"
+symmetry = "U1"
+t        = 1.0    # hopping amplitude
+mu       = 0.0    # chemical potential (0 = half-filling for this model)
+
+# ---------------------------------------------------------------------------
+#  4. Hubbard chain, 8 sites, OBC, (U1, U1) symmetry
+# ---------------------------------------------------------------------------
+
+[hubbard_u1u1.geometry]
+lattice  = "chain"
+lx       = 8
+bcx      = "OBC"
+n2x      = true
+
+[hubbard_u1u1.model]
+category = "conductor"
+label    = "Hubbard"
+symmetry = "U1,U1"
+t        = 1.0    # hopping amplitude
+U        = 4.0    # on-site Coulomb repulsion
+mu       = 0.0    # chemical potential relative to half-filling
+
+# ---------------------------------------------------------------------------
+#  5. Heisenberg square lattice, 4x4, OBC, NN + diagonal NNN, U1 symmetry
+# ---------------------------------------------------------------------------
+
+[heisenberg_2d.geometry]
+lattice  = "square"
+traverse = "snake"
+lx       = 4
+ly       = 4
+bcx      = "OBC"
+bcy      = "OBC"
+n2x      = true   # NN along x
+n2y      = true   # NN along y
+n3d      = true   # diagonal NNN (J2)
+n3o      = false  # off-diagonal NNN
+
+[heisenberg_2d.model]
+category = "bosonic"
+label    = "Heisenberg"
+symmetry = "U1"
+spin     = 0.5
+J        = 1.0    # NN coupling
+Jp       = 0.3    # NNN coupling (J2)
+
+# ---------------------------------------------------------------------------
+#  6. Hubbard cylinder, 8×8, OBC in x / PBC in y, (U1, SU2) symmetry
+# ---------------------------------------------------------------------------
+
+[hubbard_cylinder.geometry]
+lattice  = "square"
+traverse = "snake"
+lx       = 8
+ly       = 8
+bcx      = "OBC"
+bcy      = "PBC"
+n2x      = true    # NN along x (hopping t)
+n2y      = true    # NN along y (hopping t)
+n3d      = true    # NNN diagonal bonds (hopping t')
+n3o      = true    # NNN off-diagonal bonds (hopping t')
+
+[hubbard_cylinder.model]
+category = "conductor"
+label    = "Hubbard"
+symmetry = "U1,SU2"
+t        = 1.0     # NN hopping amplitude
+tp       = 0.25    # NNN hopping amplitude
+U        = 8.0     # on-site Coulomb repulsion
+mu       = 0.0     # chemical potential at half-filling (-U/2 shift applied automatically)
+
+[hubbard_cylinder.autompo]
+trunc    = {thresh = 1e-14}    # SVD truncation threshold for MPO compression
+compact_every = 10             # call MPO.compact() after every this many terms
