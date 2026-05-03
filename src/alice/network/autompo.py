@@ -76,6 +76,9 @@ def build_hamiltonian(
         If any required tensor slot is `None`, or if `intermid_tnsr` is `None`
         for a two-site interaction with `terminal_site > leading_site + 1`.
     """
+    if trunc is None:
+        trunc = {'thresh': 1e-14}
+
     # Filter out zero-coupling interactions before validation.  A zero coupling
     # contributes nothing to the Hamiltonian and may legitimately have tensor
     # fields left unset (e.g. NNN bonds with Jp=0 from the model builder).
