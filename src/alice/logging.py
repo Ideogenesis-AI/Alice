@@ -56,7 +56,7 @@ def _log_banner(log: logging.Logger) -> None:
     border = '\u2550' * width              # BOX DRAWINGS DOUBLE HORIZONTAL
 
     # Gather metadata.
-    alice_ver    = importlib.metadata.version('alice')
+    alice_ver    = importlib.metadata.version('alice-net')
     alice_status = _version_status(alice_ver)
     py_ver       = (f"{sys.version_info.major}.{sys.version_info.minor}"
                     f".{sys.version_info.micro}")
