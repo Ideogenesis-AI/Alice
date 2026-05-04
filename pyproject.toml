@@ -22,7 +22,7 @@ keywords = [
   "quantum", "physics", "symmetry", "mps", "mpo"
 ]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 3 - Alpha",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
   "Programming Language :: Python :: 3",
@@ -31,7 +31,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-  "nicole>=0.3.2",
+  "nicole>=0.3.6",
   "numpy>=2.0",
   "torch>=2.5",
 ]
