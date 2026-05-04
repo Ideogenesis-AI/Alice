@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="docs/images/Alice.png" alt="Alice Tensor Network Algorithms" width="280">
+  <img src="docs/images/alice.png" alt="Alice Tensor Network Algorithms" width="280">
 </h1>
 
 <p align="center">
