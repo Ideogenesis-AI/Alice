@@ -18,6 +18,8 @@
 
 """Alice: 1D tensor network algorithms built on Nicole."""
 
+from importlib.metadata import version
+
 from .network import (
     Interaction, Interaction1Site, Interaction2Site,
     build_interaction,
@@ -27,6 +29,8 @@ from .network import (
 )
 from .algorithm import dmrg
 from .logging import configure_logging
+
+__version__ = version('alice')
 
 __all__ = [
     # data types
