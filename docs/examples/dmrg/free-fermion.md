@@ -76,20 +76,6 @@ print(f"Error:         {abs(summary.energy - exact):.2e}")
 
 The error should be below `1e-10` for `max_bond = 32` on a free-fermion chain of length 20.
 
-## 5. With NNN hopping
-
-```python
-config_nnn = {
-    "geometry": {"lattice": "chain", "lx": 20, "bcx": "OBC",
-                 "n2x": True, "n3d": True},   # n3d enables NNN on a 2D lattice
-    "model": {"category": "fermionic", "label": "FreeFermion",
-              "symmetry": "U1", "t": 1.0, "tp": 0.3, "mu": 0.0},
-}
-```
-
-!!! note
-    For a 1D chain, NNN bonds require the `n3d` flag. The geometry builder detects `ly=1` and delegates to `intrcmap_1dchain`, but NNN along a 1D chain is not supported by that builder. Use the square lattice builder with `ly=1` to enable NNN: set `lattice = "square"` and `ly = 1` in the TOML.
-
 ## See Also
 
 - [Heisenberg chain](heisenberg.md), [Hubbard model](hubbard.md)
