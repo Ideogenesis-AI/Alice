@@ -60,7 +60,13 @@ Before:  develop ──A──B
 After:   develop ──A──B──C──D   (no merge commit)
 ```
 
-Fast-forward keeps the history linear but gives no explicit record that a branch existed. Alice discourages fast-forwards for branch integration — all merges into `develop` and `stable` use `--no-ff` so the history preserves the context of each contribution.
+Fast-forward keeps the history linear but leaves no explicit record that a branch existed.
+
+**When to use fast-forward:**
+Fast-forward is the right choice when syncing your local `stable` or `develop` with the upstream primary repository. In that case, you are not integrating diverged work — you are simply advancing your local pointer to reflect what the maintainer has already published. A merge commit would be meaningless noise here.
+
+**When not to use fast-forward:**
+All merges of contributor branches *into* `develop` or `stable` must use `--no-ff`, so the history preserves the context of each contribution as a distinct unit. This is enforced by the maintainer at integration time.
 
 ### Three-way merge (no-ff)
 
@@ -88,11 +94,30 @@ After rebase onto develop:
          develop ──A──B──E──C'──D'   (new commits, old ones gone)
 ```
 
-Rebasing produces a clean, linear history, but it **rewrites commit hashes**. Because of this:
+Rebasing produces a clean, linear history. It has two distinct use cases in the Alice workflow:
 
-- **Never rebase a branch that has been pushed and shared with others** — it forces everyone else to reconcile diverged histories.
-- Rebase is appropriate for tidying up a *local*, *unpushed* branch before opening a pull request (e.g. squashing fixup commits into a coherent unit).
-- Do not rebase your branch onto `develop` as a substitute for a merge — open a pull request instead.
+1. **Bringing a contributor branch up to date with `develop`**
+
+    When `develop` has moved forward while you have been working on your branch, you should rebase your branch onto the current tip of `develop` before opening a pull request. This re-anchors your commits to the latest shared state, resolves conflicts in your own workspace rather than the reviewer's, and keeps the resulting merge commit clean.
+
+    ```bash
+    # Make sure your local develop is current first (see "Keeping Your Fork Up to Date")
+    git checkout feature/my-feature
+    git rebase develop
+    # Resolve any conflicts, then:
+    git rebase --continue
+    ```
+
+2. **Tidying up a local branch before submitting**
+
+    Before opening a pull request you can rebase interactively to squash small fixup commits into logical units, reword messages, or reorder changes for clarity.
+
+    ```bash
+    git rebase -i develop
+    ```
+
+**When not to rebase:**
+Rebase **rewrites commit hashes**. If your contributor branch is actively shared with other collaborators who have already pulled it, rebasing forces them to reconcile diverged histories. In that situation, merging `develop` into your branch is the safer option — see [Updating your feature branch](#updating-your-feature-branch) for details.
 
 ---
 
@@ -155,14 +180,31 @@ git push origin stable
 
 ### Updating your feature branch
 
-Once `develop` is up to date locally, you can merge it into your working branch to incorporate the latest changes:
+As work is merged into `develop` by the maintainer, your contributor branch will gradually fall behind. The recommended approach for keeping your branch current is **rebase**, because it replays your commits on top of the latest `develop` without embedding a merge commit in the middle of your own work — making the history graph cleaner and the eventual pull request easier to review.
 
 ```bash
+# 1. Make sure your local develop is up to date (see above)
+git checkout develop
+git merge --ff-only upstream/develop
+
+# 2. Rebase your branch onto the updated develop
 git checkout feature/my-feature
-git merge develop
+git rebase develop
+# If there are conflicts, resolve them file by file, then:
+git rebase --continue
 ```
 
-This keeps your branch compatible with the current state of `develop` and reduces the risk of large conflicts when your pull request is eventually reviewed.
+!!! note "When to use merge instead"
+    Contributor branches are sometimes shared among multiple collaborators. In that case, rebasing rewrites commit hashes and forces every collaborator to reconcile diverged histories — which can be disruptive. If your branch is actively shared, it is acceptable to merge `develop` into it instead:
+
+    ```bash
+    git checkout feature/my-feature
+    git merge develop
+    ```
+
+    This introduces one merge commit from `develop` into your branch, which is a minor history cost but avoids the coordination overhead of a rebase. Use your judgement: rebase when you are the sole author or when the branch has not yet been pushed; merge when multiple people are working on the same branch.
+
+    Even when merging is necessary, try to **delay it as long as possible**. Only merge `develop` into your branch when divergence is actively causing problems — conflicts that block your work, or when a dependency you need has been introduced in `develop`. Merging eagerly on every upstream update accumulates unnecessary merge commits and clutters the history graph. The goal is still to keep the graph as clean as possible; merging from `develop` should be a deliberate, infrequent act rather than a routine sync step.
 
 ### Syncing from the GitHub web interface
 
@@ -176,6 +218,6 @@ Before opening a pull request, confirm the following:
 
 - [ ] Work is on a correctly named branch (`feature/…`, `fix/…`, etc.) — not on `develop` or `stable`.
 - [ ] Your local `develop` is up to date with `upstream/develop` (via `fetch` + `merge --ff-only`).
-- [ ] Your feature branch has been merged with the latest `develop` to resolve conflicts locally.
+- [ ] Your feature branch is up to date with the latest `develop` (via rebase, or merge if the branch is shared).
 - [ ] All tests pass (`pytest`).
 - [ ] The pull request targets `develop`, not `stable`.
