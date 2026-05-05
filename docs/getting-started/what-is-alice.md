@@ -52,4 +52,4 @@ Alice is developed with the assistance of AI coding agents. This makes it possib
 
 ## License
 
-Alice is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. You are free to use, modify, and distribute this software under the terms of the GPL-3.0 license. See the [LICENSE](https://github.com/Ideogenesis-AI/Alice/blob/stable/LICENSE) file for details.
+Alice is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. This means you are free to use, modify, and distribute this software under the terms of the GPL-3.0 license. We encourage you to share any improvements you make back to the community, helping Alice grow and benefit all users. See the [LICENSE](https://github.com/Ideogenesis-AI/Alice/blob/stable/LICENSE) file for the full license text. For more information about GPL-3.0, visit https://www.gnu.org/licenses/gpl-3.0.html
