@@ -63,6 +63,7 @@ nav:
       - Changelog: getting-started/changelog.md
   - API Reference:
     - Overview: api/index.md
+    - Logging: api/logging.md
     - Network:
       - Overview: api/network/index.md
       - Network: api/network/network.md
@@ -97,7 +98,6 @@ nav:
       - Options: api/dmrg/options.md
       - Summary: api/dmrg/summary.md
       - Launch: api/dmrg/run.md
-    - Logging: api/logging.md
   - Examples:
     - Overview: examples/index.md
     - DMRG:
