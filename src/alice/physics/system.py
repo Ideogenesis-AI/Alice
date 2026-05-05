@@ -208,6 +208,9 @@ def build_bosonic(
       `(L_trivial_IN, op_OUT, bra_OUT, ket_IN)`.
     - `'S4dag'` — 4th-order terminal-site template
       `(op_IN, R_trivial_OUT, bra_OUT, ket_IN)`.
+    - `'Sp4'`, `'Sp4dag'`, `'Sm4'`, `'Sm4dag'` *(U1 only)* — same layouts
+      as `S4`/`S4dag` but for `Sp` and `Sm` individually; useful when the
+      raising and lowering channels must be handled separately.
     - `'Sz4'`, `'Sz4dag'` *(U1 only)* — same layouts as `S4`/`S4dag`
       but for `Sz` alone; useful for anisotropic (XXZ) couplings.
     - `'I4'` — 4th-order identity tensor
@@ -233,8 +236,18 @@ def build_bosonic(
     Op['S4dag'] = S4dag
 
     if 'SU2' not in symmetry:
-        # Sz alone is useful for the diagonal Ising channel in XXZ models.
-        Sz = Op['Sz']
+        # Sp, Sm, and Sz alone are useful for anisotropic and single-channel couplings.
+        Sp    = Op['Sp']
+        Spdag = Sp.conj().permute([1, 0, 2])
+        Op['Sp4']    = _make_leading4(Sp)
+        Op['Sp4dag'] = _make_terminal4(Spdag)
+
+        Sm    = Op['Sm']
+        Smdag = Sm.conj().permute([1, 0, 2])
+        Op['Sm4']    = _make_leading4(Sm)
+        Op['Sm4dag'] = _make_terminal4(Smdag)
+
+        Sz    = Op['Sz']
         Szdag = Sz.conj().permute([1, 0, 2])
         Op['Sz4']    = _make_leading4(Sz)
         Op['Sz4dag'] = _make_terminal4(Szdag)
@@ -387,6 +400,8 @@ def build_conductor(
       `Op['S']`; for Abelian built as `Sp + Sm + Sz` (with op axis
       inserted on `Sz`, which `load_space` returns without one).
     - `'Sdag'`, `'S4'`, `'S4dag'` — adjoint and 4th-order templates.
+    - `'Sp4'`, `'Sp4dag'`, `'Sm4'`, `'Sm4dag'` *(Abelian only)* — same
+      layouts as `S4`/`S4dag` but for `Sp` and `Sm` individually.
     - `'Sz4'`, `'Sz4dag'` *(Abelian only)* — templates for `Sz` alone.
 
     On-site operators:
@@ -464,6 +479,16 @@ def build_conductor(
     Op['S4dag'] = S4dag
 
     if is_abelian:
+        Sp    = Op['Sp']
+        Spdag = Sp.conj().permute([1, 0, 2])
+        Op['Sp4']    = _make_leading4(Sp)
+        Op['Sp4dag'] = _make_terminal4(Spdag)
+
+        Sm    = Op['Sm']
+        Smdag = Sm.conj().permute([1, 0, 2])
+        Op['Sm4']    = _make_leading4(Sm)
+        Op['Sm4dag'] = _make_terminal4(Smdag)
+
         Sz    = Op['Sz']
         Szdag = Sz.conj().permute([1, 0, 2])
         Op['Sz4']    = _make_leading4(Sz)
