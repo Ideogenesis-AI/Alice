@@ -1,5 +1,5 @@
 site_name: Alice Documentation
-site_description: 1D tensor network algorithms built on Nicole
+site_description: 1D tensor network algorithms built upon Nicole
 site_author: Changkai Zhang
 site_url: https://ideogenesis-ai.github.io/Alice/
 repo_name: Ideogenesis-AI/Alice
