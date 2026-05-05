@@ -1,5 +1,71 @@
 # Changelog
 
+## 0.1.1 — May 6, 2026
+
+**Documentation Website**
+
+Introduces the complete Alice documentation site: Material-themed MkDocs with a full API
+reference, worked DMRG examples, and getting-started guides. Also
+renames the PyPI distribution to `alice-net`. No changes to the Alice project; fully
+backward compatible with v0.1.0.
+
+### Documentation Infrastructure
+
+- Custom `alice` color scheme, three-tab navigation, dark/light/system theme switching, search with suggestions and shareable links
+- Content features: code copy, inline annotations, tabbed content, in-page edit and view actions
+- Custom home page template (`docs/overrides/home.html`) with hero image and feature cards; custom stylesheet (`docs/stylesheets/extra.css`)
+- Build hook (`docs/hooks.py`) for table-cell bullet-list post-processing
+- Plugins: **mkdocstrings** (NumPy-style API docs), **markdown-exec** (configured for future live execution), **git-revision-date-localized**, **git-committers**
+- Extensions: MathJax via `arithmatex`, Mermaid via `superfences`, tabbed content, FontAwesome/Material emoji
+
+### Getting Started (7 pages)
+
+- **What is Alice**: philosophy, relationship with Nicole, supported symmetry groups and algorithms
+- **Installation**: `pip install alice-net` / `uv add alice-net`, development setup, optional dependency groups
+- **Core Concepts**: MPS/MPO block-sparse structure, symmetry sectors, DMRG sweep logic
+- **Quick Start**: end-to-end Heisenberg DMRG example from site definition through energy output
+- **Contributing**: branch model, coding conventions, test requirements
+- **Git Control**: tagging, branching, and release workflow for the Alice project
+- **Changelog**: version history beginning with v0.1.0
+
+### API Reference (30 pages)
+
+- **Network** — `Network`, `MPS`, `MPO`: construction, canonicalization, norm, serialization, SVD compression, norm redistribution; `observe`: expectation-value sweep with SU(2) Bridge weight support
+- **Interaction** — `Interaction`, `Interaction1Site`, `Interaction2Site` dataclass references; `build_interaction`: TOML-configured builder with plugin section documentation
+- **Geometry** — `generate_snake_order`, `intrcmap_1dchain`, `intrcmap_square`, `build_geometry`: function references with parameter tables and usage notes
+- **Local Space** — `build_bosonic`, `build_fermionic`, `build_conductor`: site Hilbert space constructors with symmetry-mode tables
+- **Hamiltonian** — `build_hamiltonian`: MPO assembler; `build_heisenberg`, `build_free_fermion`, `build_hubbard`: model-specific builders
+- **DMRG** — `dmrg.Options`: parameter reference with TOML key mapping; `dmrg.Summary`: output fields and serialization; `dmrg.run`: sweep logic, update schemes (`1s`, `2s`, `1sp`), convergence criteria
+- **Logging** — `configure_logging`: handler configuration, log levels, output file naming
+
+### Examples (8 pages)
+
+- **Heisenberg chain**: ground-state energy of a spin-1/2 chain, U(1) and SU(2) symmetry comparison
+- **Free fermion**: tight-binding chain benchmark against exact diagonalization
+- **Hubbard model**: charge and spin sector targeting in a single-band system
+- **AutoMPO from TOML**: `[[interaction]]` tables, `[plugin]` sections for user-defined models, built-in presets
+- **Custom geometry**: implementing a user-defined lattice traversal and registering it with `build_geometry`
+- **Custom local space**: defining a new site Hilbert space outside the built-in presets
+- **Custom model**: wrapping a user-defined Hamiltonian function as an Alice-compatible builder
+
+### Packaging
+
+- PyPI distribution renamed from `alice` to `alice-net`; `pyproject.toml` updated with wheel target and project URLs; README and logging banner updated
+- **Install:** `pip install alice-net` or `uv add alice-net`; the import namespace `alice` is unchanged
+
+### Statistics
+
+- **45 documentation pages**; all public symbols documented
+- **39 commits** since v0.1.0
+- **112 files changed**, 3,161 insertions, 63 deletions
+
+### Compatibility
+
+- **Breaking Changes:** None — fully backward compatible with v0.1.0; import paths, function signatures, and TOML configuration formats are unchanged
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.6
+
+---
+
 ## 0.1.0 — May 4, 2026
 
 Initial stable release of Alice.
