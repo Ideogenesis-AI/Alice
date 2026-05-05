@@ -55,7 +55,7 @@ When your branch has no divergence from its base (i.e. the base has not moved si
 
 ```
 Before:  develop ──A──B
-                         └── feature (C──D)
+                      └── feature (C──D)
 
 After:   develop ──A──B──C──D   (no merge commit)
 ```
@@ -74,10 +74,10 @@ When either branch has advanced independently, or when `--no-ff` is used explici
 
 ```
 Before:  develop ──A──B──E
-                    └── feature (C──D)
+                      └── feature (C──D)
 
-After:   develop ──A──B──E──M   (M has parents E and D)
-                    └── feature (C──D) ──┘
+After:   develop ──A──B──E─────────────────M  (M has parents E and D)
+                      └── feature (C──D) ──┘
 ```
 
 This is the standard integration style in Alice. The merge commit serves as a clear integration record.
@@ -88,7 +88,7 @@ Rebase re-applies your commits on top of the current tip of the target branch, r
 
 ```
 Before:  develop ──A──B──E
-                    └── feature (C──D)
+                      └── feature (C──D)
 
 After rebase onto develop:
          develop ──A──B──E──C'──D'   (new commits, old ones gone)
