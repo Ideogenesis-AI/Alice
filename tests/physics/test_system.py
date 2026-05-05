@@ -64,16 +64,17 @@ class TestBosonic:
 
     @pytest.mark.parametrize('symmetry', ['U1', 'SU2'])
     def test_keys_present(self, symmetry):
-        """All required keys must be present; `Sz4`/`Sz4dag` only for U1."""
+        """All required keys must be present; individual ladder templates only for U1."""
         _, Op = build_bosonic(symmetry=symmetry)
         required = {'S', 'Sdag', 'S4', 'S4dag', 'I4', 'I4mid'}
         assert required <= Op.keys()
+        u1_only = ('Sp4', 'Sp4dag', 'Sm4', 'Sm4dag', 'Sz4', 'Sz4dag')
         if symmetry == 'U1':
-            assert 'Sz4'    in Op
-            assert 'Sz4dag' in Op
+            for key in u1_only:
+                assert key in Op, f"'{key}' missing for U1"
         else:
-            assert 'Sz4'    not in Op
-            assert 'Sz4dag' not in Op
+            for key in u1_only:
+                assert key not in Op, f"'{key}' should be absent for SU2"
 
     @pytest.mark.parametrize('symmetry', ['U1', 'SU2'])
     def test_4th_order_axis_count(self, symmetry):
@@ -81,7 +82,7 @@ class TestBosonic:
         _, Op = build_bosonic(symmetry=symmetry)
         keys_4 = ['S4', 'S4dag', 'I4', 'I4mid']
         if symmetry == 'U1':
-            keys_4 += ['Sz4', 'Sz4dag']
+            keys_4 += ['Sp4', 'Sp4dag', 'Sm4', 'Sm4dag', 'Sz4', 'Sz4dag']
         for key in keys_4:
             assert len(Op[key].indices) == 4, f"'{key}' has {len(Op[key].indices)} indices"
 
@@ -95,7 +96,7 @@ class TestBosonic:
                 f"'{key}' directions: {_directions(Op[key])}"
             )
         if symmetry == 'U1':
-            for key in ['Sz4', 'Sz4dag']:
+            for key in ['Sp4', 'Sp4dag', 'Sm4', 'Sm4dag', 'Sz4', 'Sz4dag']:
                 assert _directions(Op[key]) == _4TH_ORDER_DIRECTIONS, (
                     f"'{key}' directions: {_directions(Op[key])}"
                 )
@@ -120,13 +121,19 @@ class TestBosonic:
         _, Op = build_bosonic(symmetry=symmetry)
         assert abs(Op['S4'].norm() - Op['S4dag'].norm()) < _ATOL
 
+    def test_sp4_sm4_norms(self):
+        """Sp4dag/Sm4dag must have the same norm as Sp4/Sm4 respectively (U1 only)."""
+        _, Op = build_bosonic(symmetry='U1')
+        assert abs(Op['Sp4'].norm() - Op['Sp4dag'].norm()) < _ATOL
+        assert abs(Op['Sm4'].norm() - Op['Sm4dag'].norm()) < _ATOL
+
     @pytest.mark.parametrize('symmetry', ['U1', 'SU2'])
     def test_sz4_absent_for_su2(self, symmetry):
-        """`Sz4` and `Sz4dag` must not appear when SU2 symmetry is used."""
+        """`Sp4`, `Sm4`, `Sz4` and their adjoints must not appear when SU2 symmetry is used."""
         _, Op = build_bosonic(symmetry=symmetry)
         if symmetry == 'SU2':
-            assert 'Sz4'    not in Op
-            assert 'Sz4dag' not in Op
+            for key in ('Sp4', 'Sp4dag', 'Sm4', 'Sm4dag', 'Sz4', 'Sz4dag'):
+                assert key not in Op
 
 
 # ---------------------------------------------------------------------------
@@ -260,18 +267,19 @@ class TestConductor:
 
     @pytest.mark.parametrize('symmetry', ['U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2'])
     def test_keys_present(self, symmetry):
-        """All required keys must be present; `Sz4`/`Sz4dag` only for Abelian."""
+        """All required keys must be present; individual ladder templates only for Abelian."""
         _, Op = build_conductor(symmetry=symmetry)
         hopping = {'F', 'ZF', 'ZC', 'Fd', 'Cd', 'G', 'Gdag', 'G4', 'G4dag'}
         spin    = {'S', 'Sdag', 'S4', 'S4dag'}
         onsite  = {'N', 'NN', 'N4', 'NN4', 'I4', 'Z4', 'Z4mid'}
         assert hopping | spin | onsite <= Op.keys()
+        abelian_only = ('Sp4', 'Sp4dag', 'Sm4', 'Sm4dag', 'Sz4', 'Sz4dag')
         if 'SU2' not in symmetry:
-            assert 'Sz4'    in Op
-            assert 'Sz4dag' in Op
+            for key in abelian_only:
+                assert key in Op, f"'{key}' missing for {symmetry}"
         else:
-            assert 'Sz4'    not in Op
-            assert 'Sz4dag' not in Op
+            for key in abelian_only:
+                assert key not in Op, f"'{key}' should be absent for {symmetry}"
 
     @pytest.mark.parametrize('symmetry', ['U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2'])
     def test_4th_order_axis_count(self, symmetry):
@@ -279,7 +287,7 @@ class TestConductor:
         _, Op = build_conductor(symmetry=symmetry)
         keys_4 = ['G4', 'G4dag', 'S4', 'S4dag', 'N4', 'NN4', 'I4', 'Z4', 'Z4mid']
         if 'SU2' not in symmetry:
-            keys_4 += ['Sz4', 'Sz4dag']
+            keys_4 += ['Sp4', 'Sp4dag', 'Sm4', 'Sm4dag', 'Sz4', 'Sz4dag']
         for key in keys_4:
             assert len(Op[key].indices) == 4, f"'{key}' has {len(Op[key].indices)} indices"
 
@@ -289,7 +297,7 @@ class TestConductor:
         _, Op = build_conductor(symmetry=symmetry)
         keys_4 = ['G4', 'G4dag', 'S4', 'S4dag', 'N4', 'NN4', 'I4', 'Z4', 'Z4mid']
         if 'SU2' not in symmetry:
-            keys_4 += ['Sz4', 'Sz4dag']
+            keys_4 += ['Sp4', 'Sp4dag', 'Sm4', 'Sm4dag', 'Sz4', 'Sz4dag']
         for key in keys_4:
             assert _directions(Op[key]) == _4TH_ORDER_DIRECTIONS, (
                 f"'{key}' directions: {_directions(Op[key])}"
@@ -373,11 +381,18 @@ class TestConductor:
 
     @pytest.mark.parametrize('symmetry', ['U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2'])
     def test_sz4_absent_for_su2(self, symmetry):
-        """`Sz4` and `Sz4dag` must not appear when SU2 is present."""
+        """`Sp4`, `Sm4`, `Sz4` and their adjoints must not appear when SU2 is present."""
         _, Op = build_conductor(symmetry=symmetry)
         if 'SU2' in symmetry:
-            assert 'Sz4'    not in Op
-            assert 'Sz4dag' not in Op
+            for key in ('Sp4', 'Sp4dag', 'Sm4', 'Sm4dag', 'Sz4', 'Sz4dag'):
+                assert key not in Op
+
+    @pytest.mark.parametrize('symmetry', ['U1,U1', 'Z2,U1'])
+    def test_sp4_sm4_norms(self, symmetry):
+        """Sp4dag/Sm4dag must have the same norm as Sp4/Sm4 respectively (Abelian only)."""
+        _, Op = build_conductor(symmetry=symmetry)
+        assert abs(Op['Sp4'].norm() - Op['Sp4dag'].norm()) < _ATOL
+        assert abs(Op['Sm4'].norm() - Op['Sm4dag'].norm()) < _ATOL
 
     @pytest.mark.parametrize('symmetry', ['U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2'])
     def test_hopping_hermitian_consistency(self, symmetry):
