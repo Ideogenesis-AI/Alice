@@ -57,8 +57,10 @@ nav:
     - Installation: getting-started/installation.md
     - Core Concepts: getting-started/core-concepts.md
     - Quick Start: getting-started/quick-start.md
-    - Contributing: getting-started/contributing.md
-    - Changelog: getting-started/changelog.md
+    - Development:
+      - Contributing: getting-started/contributing.md
+      - Git Control: getting-started/git-control.md
+      - Changelog: getting-started/changelog.md
   - API Reference:
     - Overview: api/index.md
     - Network:
