@@ -1,0 +1,32 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+  <style>
+    .md-header { display: none; }
+    .md-main { display: none; }
+    .md-content { display: none; }
+  </style>
+
+  <section class="mdx-hero">
+    <div class="mdx-hero__image">
+      <img src="{{ base_url }}/images/hero.png" alt="Alice hero" draggable="false">
+    </div>
+    <div class="mdx-hero__content">
+      <h1>Alice</h1>
+      <p>Collection of state-of-the-art 1D tensor network algorithms built upon
+        <a href="https://ideogenesis-ai.github.io/Nicole/" style="color: inherit; text-decoration: underline;">Nicole</a>
+        and
+        <a href="https://ideogenesis-ai.github.io/Yuzuha/" style="color: inherit; text-decoration: underline;">Yuzuha</a>.</p>
+      <a href="{{ base_url }}/getting-started/what-is-alice/" class="md-button md-button--primary">
+        Get Started
+      </a>
+      <a href="{{ base_url }}/api/" class="md-button">
+        API Reference
+      </a>
+    </div>
+  </section>
+{% endblock %}
+
+{% block content %}{% endblock %}
+{% block footer %}{% endblock %}

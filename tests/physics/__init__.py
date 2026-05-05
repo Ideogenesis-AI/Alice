@@ -1,6 +1,6 @@
 # Copyright (C) 2025-2026 Changkai Zhang.
 #
-# This file is part of Alice library.
+# This file is part of Alice project.
 #
 # Alice is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published
