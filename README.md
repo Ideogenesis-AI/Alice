@@ -1,15 +1,15 @@
 <h1 align="center">
-  <img src="docs/images/Alice.png" alt="Alice Tensor Network Algorithms" width="280">
+  <img src="docs/images/alice.png" alt="Alice Tensor Network Algorithms" width="280">
 </h1>
 
 <p align="center">
-  <a href="https://pypi.org/project/alice/"><img src="https://img.shields.io/pypi/v/alice?color=red" alt="PyPI Version"></a>
+  <a href="https://pypi.org/project/alice-net/"><img src="https://img.shields.io/pypi/v/alice-net?color=red" alt="PyPI Version"></a>
   <a href="https://github.com/Ideogenesis-AI/Alice/blob/stable/LICENSE"><img src="https://img.shields.io/github/license/Ideogenesis-AI/Alice?color=orange" alt="License"></a>
   <a href="https://ideogenesis-ai.github.io/Alice"><img src="https://img.shields.io/badge/docs-github.io-c9a400" alt="Documentation"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/pypi/pyversions/alice?color=228b22" alt="Python Version"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/pypi/pyversions/alice-net?color=228b22" alt="Python Version"></a>
   <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-2.5+-blue?logo=pytorch&logoColor=white" alt="PyTorch"></a>
   <a href="https://github.com/Ideogenesis-AI/Nicole"><img src="https://img.shields.io/badge/built%20on-Nicole-blueviolet" alt="Built on Nicole"></a>
-  <a href="https://pypi.org/project/alice/"><img src="https://img.shields.io/pypi/status/alice?color=4b0082" alt="Status"></a>
+  <a href="https://pypi.org/project/alice-net/"><img src="https://img.shields.io/pypi/status/alice-net?color=4b0082" alt="Status"></a>
 </p>
 
 Alice is an open-source project for 1D tensor network algorithms, built on the [Nicole](https://github.com/Ideogenesis-AI/Nicole) symmetry-aware tensor library. The ecosystem provides production-quality implementations of state-of-the-art algorithms for simulating 1D (and quasi-1D) quantum many-body systems, with full support for Abelian and non-Abelian (currently SU(2) only) symmetries inherited from Nicole.

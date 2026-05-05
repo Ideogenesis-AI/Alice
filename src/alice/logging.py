@@ -1,6 +1,6 @@
 # Copyright (C) 2025-2026 Changkai Zhang.
 #
-# This file is part of Alice library.
+# This file is part of Alice project.
 #
 # Alice is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published
@@ -56,7 +56,7 @@ def _log_banner(log: logging.Logger) -> None:
     border = '\u2550' * width              # BOX DRAWINGS DOUBLE HORIZONTAL
 
     # Gather metadata.
-    alice_ver    = importlib.metadata.version('alice')
+    alice_ver    = importlib.metadata.version('alice-net')
     alice_status = _version_status(alice_ver)
     py_ver       = (f"{sys.version_info.major}.{sys.version_info.minor}"
                     f".{sys.version_info.micro}")

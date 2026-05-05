@@ -1,0 +1,142 @@
+/* Custom styles for Alice documentation */
+
+/* Increase spacing between page content and footer */
+.md-content {
+    margin-bottom: 3rem;
+}
+
+/* Reduce spacing between logo and site name */
+.md-header__title {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+/* Add breathing room in the header */
+.md-header__inner {
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+
+/* Reduce spacing between header and nav tabs */
+.md-tabs {
+    margin-top: -0.8rem;
+}
+
+/* ── Alice color scheme (light mode) ─────────────────────────────────────── */
+[data-md-color-scheme="alice"] {
+  --md-primary-fg-color:              #D4B870;
+  --md-primary-fg-color--light:       #EDD9A3;
+  --md-primary-fg-color--dark:        #A98E45;
+  --md-accent-fg-color:               #D4B870;
+  --md-accent-fg-color--transparent:  rgba(212, 184, 112, 0.1);
+  --md-typeset-a-color:               #D4B870;
+}
+
+/* Accent color and links for slate (dark) mode */
+[data-md-color-scheme="slate"] {
+  --md-accent-fg-color:               #D4B870;
+  --md-accent-fg-color--transparent:  rgba(212, 184, 112, 0.1);
+  --md-typeset-a-color:               #D4B870;
+}
+
+/* Beat Material's inline palette style in dark mode */
+[data-md-color-scheme="slate"] .md-typeset a {
+  color: #D4B870;
+}
+
+[data-md-color-scheme="slate"] .md-nav__link--active,
+[data-md-color-scheme="slate"] .md-nav__link:is(:focus, :hover) {
+  color: #D4B870;
+}
+
+/* ── Hero section ─────────────────────────────────────────────────────────── */
+.mdx-hero {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    min-height: 30rem;
+    overflow: hidden;
+}
+
+.mdx-hero__image {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.mdx-hero__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: bottom;
+    display: block;
+}
+
+.mdx-hero__content {
+    position: absolute;
+    bottom: 6rem;
+    left: 6rem;
+    z-index: 1;
+    text-align: left;
+    color: #fff;
+    max-width: 30rem;
+}
+
+@media screen and (max-width: 30em) {
+    .mdx-hero__content {
+        left: 1.5rem;
+        right: 1.5rem;
+        bottom: 3rem;
+        max-width: none;
+    }
+}
+
+@media screen and (min-width: 30em) and (max-width: 60em) {
+    .mdx-hero__content {
+        left: 3rem;
+        right: 3rem;
+        max-width: none;
+    }
+}
+
+.mdx-hero__content h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 700;
+    margin: 0 0 0.75rem;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.mdx-hero__content p {
+    font-size: clamp(0.95rem, 2vw, 1.25rem);
+    line-height: 1.4;
+    margin: 0 0 1.5rem;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.mdx-hero__content .md-button {
+    margin: 0.3rem 0.5rem 0.3rem 0;
+    padding: 0.65rem 1.6rem;
+    font-size: 0.95rem;
+    border-radius: 0.2rem;
+}
+
+.mdx-hero__content .md-button--primary {
+    background-color: #e53935;
+    border-color: #e53935;
+    color: #fff;
+}
+
+.mdx-hero__content .md-button--primary:hover {
+    background-color: #c62828;
+    border-color: #c62828;
+}
+
+.mdx-hero__content .md-button:not(.md-button--primary) {
+    border-color: rgba(255, 255, 255, 0.8);
+    color: #fff;
+}
+
+.mdx-hero__content .md-button:not(.md-button--primary):hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
