@@ -18,18 +18,18 @@
 
 """Square-lattice geometry: traversal orders and interaction map.
 
-This module provides the snake-order traversal generator for 2D square
-lattices and the `intrcmap_square` geometry builder.  The builder returns
-a list of `Interaction2Site` objects with `leading_site`, `terminal_site`,
-and `label` filled in.  Coupling constants (`cpl`) are left at their
-default (`0.0`) and are assigned by the model builder in the second stage
-of the pipeline.
+This module provides traversal-order generators for 2D square lattices
+(`generate_snake_order`, `generate_zigzag_order`) and the `intrcmap_square`
+geometry builder.  The builder returns a list of `Interaction2Site` objects
+with `leading_site`, `terminal_site`, and `label` filled in.  Coupling
+constants (`cpl`) are left at their default (`0.0`) and are assigned by the
+model builder in the second stage of the pipeline.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import Callable, List
 
 from alice.network.interaction import Interaction2Site
 
@@ -45,18 +45,23 @@ _DIAG_HEAD      = 4   # columns shown at the left in truncated mode
 _DIAG_TAIL      = 2   # columns shown at the right in truncated mode
 
 
-def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
-    """Log a visual diagram of the snake-like lattice traversal."""
+def _log_2d_diagram(
+    lx: int,
+    ly: int,
+    ord_map: List[List[int]],
+    title: str,
+    connector: Callable[[int, int], str],
+) -> None:
+    """Shared renderer for 2D traversal diagrams.
+
+    `connector(row, col)` returns the horizontal connector string between
+    column `col` and `col+1` at the given row (`"-----"` for on-path,
+    `". . ."` for off-path).
+    """
     logger.info("─" * 60)
-    logger.info("Traverse over 2D Lattice via Snake-like Chain".center(60))
+    logger.info(title.center(60))
     logger.info("─" * 60)
     logger.info("")
-
-    def _connector(row: int, col: int) -> str:
-        """Return the horizontal connector between col and col+1 at the given row."""
-        if (row == 0 and col % 2 == 1) or (row == ly - 1 and col % 2 == 0):
-            return "-----"
-        return ". . ."
 
     if lx <= _DIAG_THRESHOLD:
         # Full render: all columns shown.
@@ -66,7 +71,7 @@ def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
 
         for row in range(ly):
             line = "".join(
-                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < lx - 1 else "")
+                f"{ord_map[row][col]:02d}" + (connector(row, col) if col < lx - 1 else "")
                 for col in range(lx)
             )
             logger.info(padding + line)
@@ -90,11 +95,11 @@ def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
 
         for row in range(ly):
             head_str = "".join(
-                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < head_cols[-1] else "")
+                f"{ord_map[row][col]:02d}" + (connector(row, col) if col < head_cols[-1] else "")
                 for col in head_cols
             )
             tail_str = "".join(
-                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < tail_cols[-1] else "")
+                f"{ord_map[row][col]:02d}" + (connector(row, col) if col < tail_cols[-1] else "")
                 for col in tail_cols
             )
             logger.info(padding + head_str + gap + tail_str)
@@ -111,6 +116,24 @@ def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
                 logger.info(padding + "".join(vline))
 
     logger.info("")
+
+
+def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
+    """Log a visual diagram of the snake-like lattice traversal."""
+    def _connector(row: int, col: int) -> str:
+        """Return the horizontal connector between col and col+1 at the given row."""
+        if (row == 0 and col % 2 == 1) or (row == ly - 1 and col % 2 == 0):
+            return "-----"
+        return ". . ."
+    _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Snake-like Chain", _connector)
+
+
+def _log_zigzag_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
+    """Log a visual diagram of the zigzag-order lattice traversal."""
+    # All horizontal connectors are off-path: the inter-column MPS jump
+    # goes from the bottom of col c to the top of col c+1, spanning rows.
+    _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Zigzag Chain",
+                    lambda row, col: ". . .")
 
 
 def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None:
@@ -179,6 +202,70 @@ def generate_snake_order(
     return ord_map, latt
 
 
+def generate_zigzag_order(
+    lx: int,
+    ly: int,
+) -> tuple[List[List[int]], List[tuple[int, int]]]:
+    """Generate zigzag traversal order for a 2D square lattice.
+
+    Creates a column-major mapping where every column goes top→bottom —
+    no column reversals, unlike `generate_snake_order` which reverses odd
+    columns:
+
+        00. . .04. . .08. . .12
+        |      |      |      |
+        01. . .05. . .09. . .13
+        |      |      |      |
+        02. . .06. . .10. . .14
+        |      |      |      |
+        03. . .07. . .11. . .15
+
+    The MPS jump between columns goes from the bottom of col `c`
+    (site `(c+1)*ly - 1`) to the top of col `c+1` (site `(c+1)*ly`).
+    These sites are adjacent in the MPS but span different lattice rows,
+    so no `"-----"` appears in the diagram.
+
+    For `ly=1` the result is identical to `generate_snake_order`.
+
+    Parameters
+    ----------
+    lx:
+        Number of columns.
+    ly:
+        Number of rows.
+
+    Returns
+    -------
+    tuple
+        `(ord_map, latt)` where `ord_map[row][col]` gives the site index
+        (0-based) and `latt[site_idx]` gives the `(row, col)` tuple.
+    """
+    L = lx * ly
+
+    ord_map = [[0] * lx for _ in range(ly)]
+    # Fill column-by-column, top-to-bottom for every column.
+    for idx in range(L):
+        row = idx % ly
+        col = idx // ly
+        ord_map[row][col] = idx
+    # No column reversal — unlike snake which reverses odd columns.
+
+    latt: List[tuple[int, int]] = [(0, 0)] * L
+    for row in range(ly):
+        for col in range(lx):
+            latt[ord_map[row][col]] = (row, col)
+
+    return ord_map, latt
+
+
+# Maps each traversal generator to its diagram logger so that
+# intrcmap_square can display the correct diagram for any order_fn.
+_DIAGRAM_LOGGERS = {
+    generate_snake_order:  _log_snake_diagram,
+    generate_zigzag_order: _log_zigzag_diagram,
+}
+
+
 # ---------------------------------------------------------------------------
 # Lattice geometry builder
 # ---------------------------------------------------------------------------
@@ -234,7 +321,8 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
 
     interactions: List[Interaction2Site] = []
 
-    _log_snake_diagram(lx, ly, ord_map)
+    diagram_fn = _DIAGRAM_LOGGERS.get(order_fn, _log_snake_diagram)
+    diagram_fn(lx, ly, ord_map)
     logger.info("─" * 60)
     logger.info("Interactions Info".center(60))
     logger.info("─" * 60)
