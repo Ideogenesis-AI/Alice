@@ -38,7 +38,11 @@ import logging
 from typing import Dict, List
 
 from alice.network.interaction import Interaction2Site
-from alice.physics.square import generate_snake_order, intrcmap_square
+from alice.physics.square import (
+    generate_snake_order,
+    generate_zigzag_order,
+    intrcmap_square,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +167,8 @@ def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
 # Map traverse key → (lx, ly) → (ord_map, latt).
 # To add a new traversal mode: import the generator and add it here.
 _TRAVERSALS: Dict[str, object] = {
-    'snake': generate_snake_order,
+    'snake':  generate_snake_order,
+    'zigzag': generate_zigzag_order,
 }
 
 # Map lattice key → (geo, order_fn) → list[Interaction2Site].
