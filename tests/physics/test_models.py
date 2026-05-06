@@ -25,7 +25,7 @@ import logging
 import pytest
 
 from alice.network.interaction import Interaction1Site, Interaction2Site
-from alice.physics.geometry import intrcmap_square
+from alice.physics.square import intrcmap_square
 from alice.physics.models import build_heisenberg, build_free_fermion, build_hubbard
 from alice.physics.system import build_bosonic, build_fermionic, build_conductor
 

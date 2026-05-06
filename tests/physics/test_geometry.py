@@ -24,13 +24,14 @@ import logging
 
 import pytest
 
-from alice.physics.geometry import generate_snake_order, build_geometry
+from alice.physics.geometry import build_geometry
+from alice.physics.square import generate_snake_order
 
 
 # Suppress INFO-level geometry logs during tests.
 @pytest.fixture(autouse=True)
 def _quiet_geometry(caplog):
-    with caplog.at_level(logging.WARNING, logger='alice.physics.geometry'):
+    with caplog.at_level(logging.WARNING, logger='alice.physics'):
         yield
 
 

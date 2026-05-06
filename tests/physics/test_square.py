@@ -24,13 +24,13 @@ import logging
 
 import pytest
 
-from alice.physics.geometry import intrcmap_square
+from alice.physics.square import intrcmap_square
 
 
-# Suppress INFO-level geometry logs during tests.
+# Suppress INFO-level square-lattice logs during tests.
 @pytest.fixture(autouse=True)
 def _quiet_geometry(caplog):
-    with caplog.at_level(logging.WARNING, logger='alice.physics.geometry'):
+    with caplog.at_level(logging.WARNING, logger='alice.physics.square'):
         yield
 
 
