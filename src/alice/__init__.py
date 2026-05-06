@@ -30,7 +30,7 @@ from .network import (
 from .algorithm import dmrg
 from .logging import configure_logging
 
-__version__ = version('alice')
+__version__ = version('alice-net')
 
 __all__ = [
     # data types
