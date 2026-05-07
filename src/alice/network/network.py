@@ -525,6 +525,9 @@ class MPS(Network):
                 )
         super()._validate()
 
+    def __repr__(self) -> str:
+        from alice.network.display import network_summary
+        return network_summary(self)
 
 
 class MPO(Network):
@@ -592,6 +595,10 @@ class MPO(Network):
                     f"(axis 3) must have opposite directions"
                 )
         super()._validate()
+
+    def __repr__(self) -> str:
+        from alice.network.display import network_summary
+        return network_summary(self)
 
     def compact(self, trunc: Optional[dict] = None) -> None:
         """Compress the MPO bond dimensions in-place with norm preservation.
