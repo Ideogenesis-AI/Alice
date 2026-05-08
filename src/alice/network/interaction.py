@@ -25,9 +25,12 @@ import logging
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 from nicole import Index, Tensor
+
+if TYPE_CHECKING:
+    from alice.physics.geometry import Geometry
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +172,7 @@ def build_interaction(
     intrcmap_fn: Optional[Callable] = None,
     model_fn:    Optional[Callable] = None,
     space_fn:    Optional[Callable] = None,
-) -> Tuple[List[Interaction], Index, int]:
+) -> Tuple[List[Interaction], Index, Geometry]:
     """Build a fully populated interaction list from a TOML config.
 
     Orchestrates the three-stage MPO construction pipeline:
@@ -179,7 +182,7 @@ def build_interaction(
        and labels but no tensors and `cpl == 0.0` (`intrcmap_fn`).
     2. **Model** — fills `cpl` and tensor fields on each interaction
        (without baking coupling into the tensors).
-    3. Returns `(interactions, spc, L)` ready for `build_hamiltonian`.
+    3. Returns `(interactions, spc, geo)` ready for `build_hamiltonian`.
 
     Callable overrides (`geometry_fn`, `intrcmap_fn`, `model_fn`, `space_fn`)
     take priority over `[plugin]` section entries in the config, which in turn
@@ -207,8 +210,8 @@ def build_interaction(
     Returns
     -------
     tuple
-        `(interactions, spc, L)` where `interactions` is the populated list,
-        `spc` is the physical `Index`, and `L` is the chain length.
+        `(interactions, spc, geo)` where `interactions` is the populated list,
+        `spc` is the physical `Index`, and `geo` is the `Geometry` instance.
 
     Raises
     ------
@@ -360,4 +363,4 @@ def build_interaction(
     logger.info(f"  Active interactions:  {n_active} / {n_total}")
     logger.info("")
 
-    return interactions, spc, L
+    return interactions, spc, geo
