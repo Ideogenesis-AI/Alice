@@ -166,6 +166,7 @@ def build_interaction(
     config: Union[dict, str, Path],
     *,
     geometry_fn: Optional[Callable] = None,
+    intrcmap_fn: Optional[Callable] = None,
     model_fn:    Optional[Callable] = None,
     space_fn:    Optional[Callable] = None,
 ) -> Tuple[List[Interaction], Index, int]:
@@ -173,15 +174,16 @@ def build_interaction(
 
     Orchestrates the three-stage MPO construction pipeline:
 
-    1. **Geometry** — constructs the bare interaction list (sites + labels,
-       no tensors, `cpl == 0.0`).
+    1. **Geometry** — constructs a `Geometry` struct from `geo_cfg`
+       (`geometry_fn`), then generates the bare interaction list with sites
+       and labels but no tensors and `cpl == 0.0` (`intrcmap_fn`).
     2. **Model** — fills `cpl` and tensor fields on each interaction
        (without baking coupling into the tensors).
     3. Returns `(interactions, spc, L)` ready for `build_hamiltonian`.
 
-    Callable overrides (`geometry_fn`, `model_fn`, `space_fn`) take priority
-    over `[plugin]` section entries in the config, which in turn take priority
-    over the built-in dispatch tables.
+    Callable overrides (`geometry_fn`, `intrcmap_fn`, `model_fn`, `space_fn`)
+    take priority over `[plugin]` section entries in the config, which in turn
+    take priority over the built-in dispatch tables.
 
     Parameters
     ----------
@@ -189,8 +191,11 @@ def build_interaction(
         Either a config dict (with `'geometry'` and `'model'` sub-dicts) or a
         path to a TOML file.
     geometry_fn:
-        Optional override for the geometry builder. Signature:
-        `geometry_fn(geo: dict) -> list[Interaction2Site]`.
+        Optional override for the geometry struct factory.  Signature:
+        `geometry_fn(geo_cfg: dict) -> Geometry`.
+    intrcmap_fn:
+        Optional override for the interaction-map builder.  Signature:
+        `intrcmap_fn(geo: Geometry) -> list[Interaction2Site]`.
     model_fn:
         Optional override for the model builder. Signature:
         `model_fn(interactions, L, model_cfg: dict) -> tuple[Index, dict]`.
@@ -213,7 +218,7 @@ def build_interaction(
     """
     # Lazy imports to avoid circular dependency:
     # network.interaction ← physics.geometry ← network.interaction
-    from alice.physics.geometry import build_geometry          # noqa: PLC0415
+    from alice.physics.geometry import build_geometry, build_intrcmap  # noqa: PLC0415
     from alice.physics.models import (                         # noqa: PLC0415
         build_heisenberg,
         build_free_fermion,
@@ -261,6 +266,12 @@ def build_interaction(
     if geometry_fn is None:
         geometry_fn = build_geometry
 
+    # Intrcmap callable — build_intrcmap dispatches to the lattice builder.
+    if intrcmap_fn is None and 'intrcmap' in plugin:
+        intrcmap_fn = _load_plugin(plugin['intrcmap'], base_dir)
+    if intrcmap_fn is None:
+        intrcmap_fn = build_intrcmap
+
     # Space (operator-set) callable
     if space_fn is None and 'space' in plugin:
         space_fn = _load_plugin(plugin['space'], base_dir)
@@ -286,8 +297,9 @@ def build_interaction(
     # Stage 1: Geometry
     # -----------------------------------------------------------------------
 
-    interactions = geometry_fn(geo_cfg)
-    L = geo_cfg['lx'] * geo_cfg.get('ly', 1)
+    geo          = geometry_fn(geo_cfg)
+    interactions = intrcmap_fn(geo)
+    L = geo.L
 
     # -----------------------------------------------------------------------
     # Stage 2: Model (fills cpl + tensors; coupling not baked in)
