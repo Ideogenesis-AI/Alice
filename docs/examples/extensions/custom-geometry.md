@@ -1,43 +1,56 @@
 # Custom Geometry
 
-Alice dispatches geometry construction via `build_geometry`, which reads the `lattice` key from a `[geometry]` config dict. You can plug in your own geometry function in two ways: by passing `geometry_fn` directly to `build_interaction`, or by specifying a plugin file path in the TOML config.
+Alice separates geometry construction into two stages: `build_geometry` constructs a `Geometry` struct from the `[geometry]` config dict, and `build_intrcmap` generates the list of bare `Interaction2Site` objects from that struct. You can replace either stage — or both — with your own callables.
 
 ## What a geometry function does
 
-A geometry function receives the `[geometry]` sub-dict and returns a list of `Interaction2Site` objects with:
+A `geometry_fn` receives the `[geometry]` sub-dict and returns a `Geometry` instance. The `Geometry` struct carries the resolved lattice layout so that the interaction-map step can use it. Construct a `Geometry` with:
 
-- `leading_site` and `terminal_site` filled in (0-based site indices).
-- `label` set to a list of strings encoding bond topology (e.g. `['NN', 'N2X']`).
-- `cpl = 0.0` (coupling is assigned by the model builder, not the geometry builder).
-- Tensor fields left as `None`.
+- `cfg` — the raw config dict.
+- `ord_map` — a 2D list mapping `(row, col)` → MPS site index.
+- `latt` — a list mapping MPS site index → `(row, col)`.
+
+The `intrcmap_fn` downstream can then query `geo.lx`, `geo.ly`, `geo.L`, `geo.to_1d(row, col)`, and `geo.to_2d(site)` to build the interaction list.
 
 ## Example: honeycomb lattice
 
-Suppose you want to define a honeycomb lattice traversed with a custom MPS ordering. Here is the structure of a geometry function:
+Suppose you want to define a honeycomb lattice traversed with a custom MPS ordering. Split the work into two functions:
 
 ```python
 # my_geometry.py
+from dataclasses import dataclass
+from alice.physics import Geometry
 from alice import Interaction2Site
 
-def build_honeycomb(geo: dict) -> list[Interaction2Site]:
-    """Build NN interaction map for a honeycomb lattice.
 
-    Expected geo keys:
-        lx     — number of unit cells along x
-        ly     — number of unit cells along y
-        bcx    — 'OBC' or 'PBC'
+def build_honeycomb_geometry(geo_cfg: dict) -> Geometry:
+    """Build the MPS site ordering for a honeycomb lattice.
+
+    Expected geo_cfg keys:
+        lx — number of unit cells along x
+        ly — number of unit cells along y
+    """
+    lx = geo_cfg["lx"]
+    ly = geo_cfg["ly"]
+
+    # --- define your snake / brickwork ordering here ---
+    # ord_map[row][col] = MPS site index (0-based)
+    ord_map = [[row * lx + col for col in range(lx)] for row in range(ly)]
+    latt    = [(row, col) for row in range(ly) for col in range(lx)]
+
+    return Geometry(cfg=geo_cfg, ord_map=ord_map, latt=latt)
+
+
+def build_honeycomb_intrcmap(geo: Geometry) -> list[Interaction2Site]:
+    """Build NN interaction map for a honeycomb lattice.
 
     Returns a list of Interaction2Site with labels ['NN', 'A'], ['NN', 'B'],
     ['NN', 'C'] for the three bond orientations.
     """
-    lx  = geo["lx"]
-    ly  = geo["ly"]
-    bcx = geo.get("bcx", "OBC").upper()
-
     interactions = []
 
-    # --- define your MPS site ordering and bonds here ---
-    # For each nearest-neighbor bond (i, j) with i < j:
+    # --- define your nearest-neighbor bonds here ---
+    # For each bond (i, j) with i < j:
     #
     # interactions.append(Interaction2Site(
     #     leading_site  = i,
@@ -54,11 +67,11 @@ Key rules:
 - **Do not set `cpl` or any tensor fields** — those are the model builder's responsibility.
 - **`label` contents are arbitrary strings** — the model builder uses them to assign couplings.
 
-## Method 1: Pass `geometry_fn` directly
+## Method 1: Pass callables directly
 
 ```python
 from alice import build_interaction, build_hamiltonian
-from my_geometry import build_honeycomb
+from my_geometry import build_honeycomb_geometry, build_honeycomb_intrcmap
 
 config = {
     "geometry": {"lx": 4, "ly": 3, "bcx": "OBC"},
@@ -66,15 +79,19 @@ config = {
               "symmetry": "U1", "spin": 0.5, "J": 1.0},
 }
 
-interactions, spc, L = build_interaction(config, geometry_fn=build_honeycomb)
-hamiltonian = build_hamiltonian(interactions, L, spc)
+interactions, spc, geo = build_interaction(
+    config,
+    geometry_fn=build_honeycomb_geometry,
+    intrcmap_fn=build_honeycomb_intrcmap,
+)
+hamiltonian = build_hamiltonian(interactions, geo.L, spc)
 ```
 
-The `geometry_fn` keyword takes priority over any `[plugin]` section in the config.
+Keyword arguments take priority over any `[plugin]` section in the config.
 
 ## Method 2: TOML plugin spec
 
-Specify the function in the TOML file using `"path/to/file.py:function_name"` syntax:
+Specify the functions in the TOML file using `"path/to/file.py:function_name"` syntax:
 
 ```toml
 [honeycomb.geometry]
@@ -90,7 +107,8 @@ spin     = 0.5
 J        = 1.0
 
 [honeycomb.plugin]
-geometry = "my_geometry.py:build_honeycomb"
+geometry = "my_geometry.py:build_honeycomb_geometry"
+intrcmap = "my_geometry.py:build_honeycomb_intrcmap"
 ```
 
 Then load normally:
@@ -102,10 +120,23 @@ from alice import build_interaction
 with open("honeycomb.toml", "rb") as f:
     cfg = tomllib.load(f)
 
-interactions, spc, L = build_interaction(cfg["honeycomb"])
+interactions, spc, geo = build_interaction(cfg["honeycomb"])
 ```
 
 Relative paths in the plugin spec are resolved relative to the TOML file's directory.
+
+## Replacing only one stage
+
+You can replace just the geometry stage and keep the built-in `build_intrcmap`, or vice versa. For example, if your honeycomb ordering is compatible with the standard square-lattice bond rules, you only need `geometry_fn`:
+
+```python
+interactions, spc, geo = build_interaction(
+    config,
+    geometry_fn=build_honeycomb_geometry,
+)
+```
+
+See [Custom intrcmap](custom-intrcmap.md) for examples of replacing only the interaction-map stage.
 
 ## Handling intermediate sites
 
@@ -113,6 +144,8 @@ For long-range bonds where `terminal_site > leading_site + 1`, the model builder
 
 ## See Also
 
-- [build_geometry API](../../api/geometry/build-geometry.md)
+- [Geometry API](../../api/geometry/geometry.md) — the struct returned by `geometry_fn`.
+- [build_geometry API](../../api/geometry/build-geometry.md), [build_intrcmap API](../../api/geometry/build-intrcmap.md) — built-in implementations.
 - [intrcmap_1dchain](../../api/geometry/intrcmap-1dchain.md), [intrcmap_square](../../api/geometry/intrcmap-square.md) — built-in examples to follow.
+- [Custom intrcmap](custom-intrcmap.md) — replace only the interaction-map stage.
 - [Custom model](custom-model.md) — pair a custom geometry with a custom model.
