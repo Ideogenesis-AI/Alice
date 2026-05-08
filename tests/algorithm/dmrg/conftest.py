@@ -97,11 +97,11 @@ def heisenberg_L4(spin_space):
             'symmetry': 'U1', 'spin': 0.5, 'J': 1.0,
         },
     }
-    interactions, spc, L = build_interaction(cfg)
-    mpo = build_hamiltonian(interactions, L, spc)
+    interactions, spc, geo = build_interaction(cfg)
+    mpo = build_hamiltonian(interactions, geo.L, spc)
     # bond_dim=2 per sector gives the middle bond dim=4, enough for the exact
     # ground state (which needs sector-0 dim=2 at the middle bond).
-    mps = _random_mps(spin_space, L, bond_sectors=tuple(range(-4, 5)), bond_dim=2, seed_offset=100)
+    mps = _random_mps(spin_space, geo.L, bond_sectors=tuple(range(-4, 5)), bond_dim=2, seed_offset=100)
     return mps, mpo
 
 
@@ -123,8 +123,8 @@ def heisenberg_L2(spin_space):
             'symmetry': 'U1', 'spin': 0.5, 'J': 1.0,
         },
     }
-    interactions, spc, L = build_interaction(cfg)
-    mpo = build_hamiltonian(interactions, L, spc)
+    interactions, spc, geo = build_interaction(cfg)
+    mpo = build_hamiltonian(interactions, geo.L, spc)
     # For L=2 the mid-bond sectors can be ±1 only (one spin).
-    mps = _random_mps(spin_space, L, bond_sectors=(-1, 1), bond_dim=1, seed_offset=200)
+    mps = _random_mps(spin_space, geo.L, bond_sectors=(-1, 1), bond_dim=1, seed_offset=200)
     return mps, mpo
