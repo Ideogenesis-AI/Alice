@@ -6,7 +6,6 @@ The geometry module provides functions to generate interaction maps for 1D MPS t
 
 | Function | Description |
 |----------|-------------|
-| [generate_snake_order](generate-snake-order.md) | Snake traversal ordering for 2D lattices |
 | [intrcmap_1dchain](intrcmap-1dchain.md) | Interaction map for a 1D chain |
 | [intrcmap_square](intrcmap-square.md) | Interaction map for a 2D square lattice |
 | [build_geometry](build-geometry.md) | TOML dispatcher for geometry builders |

@@ -13,9 +13,10 @@ Dispatch geometry construction from a `[geometry]` config dict.
 | `"chain"` | `intrcmap_1dchain` |
 | `"square"` | `intrcmap_square` |
 
-| `traverse` | Generator |
-|-----------|-----------|
-| `"snake"` | `generate_snake_order` |
+| `traverse` | Ordering |
+|-----------|----------|
+| `"snake"` | column-major, alternating direction |
+| `"zigzag"` | column-major, top→bottom every column |
 
 ## See Also
 

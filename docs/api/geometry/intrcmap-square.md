@@ -21,6 +21,5 @@ Generate an interaction map for a 2D square lattice.
 
 ## See Also
 
-- [generate_snake_order](generate-snake-order.md) — default traversal used by this function.
 - [intrcmap_1dchain](intrcmap-1dchain.md) — 1D chain version.
-- [build_geometry](build-geometry.md) — dispatches to this function when `lattice = "square"`.
+- [build_geometry](build-geometry.md) — dispatches to this function when `lattice = "square"`; see there for supported `traverse` values.
