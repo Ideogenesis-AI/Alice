@@ -24,7 +24,7 @@ import logging
 
 import pytest
 
-from alice.physics.geometry import intrcmap_1dchain
+from alice.physics.chain import intrcmap_1dchain
 
 
 # Suppress INFO-level geometry logs during tests.
