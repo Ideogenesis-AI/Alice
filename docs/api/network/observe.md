@@ -2,7 +2,7 @@
 
 Compute the expectation value of an observable for a given state.
 
-::: alice.observe
+::: alice.observe.observe
     options:
       heading_level: 2
 
