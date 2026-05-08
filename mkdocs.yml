@@ -78,7 +78,6 @@ nav:
       - build_interaction: api/interaction/build-interaction.md
     - Geometry:
       - Overview: api/geometry/index.md
-      - generate_snake_order: api/geometry/generate-snake-order.md
       - intrcmap_1dchain: api/geometry/intrcmap-1dchain.md
       - intrcmap_square: api/geometry/intrcmap-square.md
       - build_geometry: api/geometry/build-geometry.md
