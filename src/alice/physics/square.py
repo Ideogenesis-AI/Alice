@@ -29,9 +29,12 @@ model builder in the second stage of the pipeline.
 from __future__ import annotations
 
 import logging
-from typing import Callable, List
+from typing import TYPE_CHECKING, Callable, List
 
 from alice.network.interaction import Interaction2Site
+
+if TYPE_CHECKING:
+    from alice.physics.geometry import Geometry
 
 logger = logging.getLogger(__name__)
 
@@ -258,11 +261,11 @@ def generate_zigzag_order(
     return ord_map, latt
 
 
-# Maps each traversal generator to its diagram logger so that
-# intrcmap_square can display the correct diagram for any order_fn.
+# Maps each traverse name to its diagram logger so that
+# intrcmap_square can display the correct diagram for any traversal.
 _DIAGRAM_LOGGERS = {
-    generate_snake_order:  _log_snake_diagram,
-    generate_zigzag_order: _log_zigzag_diagram,
+    'snake':  _log_snake_diagram,
+    'zigzag': _log_zigzag_diagram,
 }
 
 
@@ -270,7 +273,7 @@ _DIAGRAM_LOGGERS = {
 # Lattice geometry builder
 # ---------------------------------------------------------------------------
 
-def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interaction2Site]:
+def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
     """Generate an interaction map for a 2D square lattice.
 
     Produces nearest-neighbor (NN) and optionally next-nearest-neighbor
@@ -282,20 +285,15 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
     Parameters
     ----------
     geo:
-        Geometry sub-dict from the TOML `[geometry]` section.  Expected keys:
+        Fully-resolved geometry struct for the square lattice.  Relevant
+        config keys (read from `geo.cfg`):
 
-        - `lx` — number of columns.
-        - `ly` — number of rows.
         - `bcx` — boundary condition along x (`'OBC'` or `'PBC'`).
         - `bcy` — boundary condition along y (`'OBC'` or `'PBC'`).
         - `n2x` — include NN bonds along x (default `True`).
         - `n2y` — include NN bonds along y (default `True`).
         - `n3d` — include NNN diagonal bonds (default `False`).
         - `n3o` — include NNN off-diagonal bonds (default `False`).
-    order_fn:
-        Traversal-order generator `(lx, ly) → (ord_map, latt)`.  Defaults
-        to `generate_snake_order`; `build_geometry` supplies a different
-        function when a non-default traversal is requested.
 
     Returns
     -------
@@ -303,25 +301,24 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
         Interaction objects sorted by `leading_site`.  Tensor fields are
         `None`; `cpl` is `0.0`.
     """
-    lx  = geo['lx']
-    ly  = geo['ly']
-    L   = lx * ly
-    bcx = geo.get('bcx', 'OBC').upper()
-    bcy = geo.get('bcy', 'OBC').upper()
+    lx  = geo.lx
+    ly  = geo.ly
+    bcx = geo.cfg.get('bcx', 'OBC').upper()
+    bcy = geo.cfg.get('bcy', 'OBC').upper()
 
     # Bond-inclusion flags.
-    n2x = bool(geo.get('n2x', True))
-    n2y = bool(geo.get('n2y', True))
-    n3d = bool(geo.get('n3d', False))
-    n3o = bool(geo.get('n3o', False))
+    n2x = bool(geo.cfg.get('n2x', True))
+    n2y = bool(geo.cfg.get('n2y', True))
+    n3d = bool(geo.cfg.get('n3d', False))
+    n3o = bool(geo.cfg.get('n3o', False))
 
     # === 1D CHAIN (ly == 1): run naturally; N2Y loop over range(0) emits nothing ===
 
-    ord_map, _ = order_fn(lx, ly)
+    ord_map = geo.ord_map
 
     interactions: List[Interaction2Site] = []
 
-    diagram_fn = _DIAGRAM_LOGGERS.get(order_fn, _log_snake_diagram)
+    diagram_fn = _DIAGRAM_LOGGERS.get(geo.traverse, _log_snake_diagram)
     diagram_fn(lx, ly, ord_map)
     logger.info("─" * 60)
     logger.info("Interactions Info".center(60))
