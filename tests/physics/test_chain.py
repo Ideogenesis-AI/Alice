@@ -25,6 +25,7 @@ import logging
 import pytest
 
 from alice.physics.chain import intrcmap_1dchain
+from alice.physics.geometry import build_geometry
 
 
 # Suppress INFO-level geometry logs during tests.
@@ -35,8 +36,8 @@ def _quiet_geometry(caplog):
 
 
 def _geo(lx, *, bcx='OBC', n2x=True):
-    """Convenience factory for a 1D chain geometry sub-dict."""
-    return {'lx': lx, 'bcx': bcx, 'n2x': n2x}
+    """Convenience factory for a 1D chain `Geometry`."""
+    return build_geometry({'lattice': 'chain', 'lx': lx, 'bcx': bcx, 'n2x': n2x})
 
 
 # ---------------------------------------------------------------------------

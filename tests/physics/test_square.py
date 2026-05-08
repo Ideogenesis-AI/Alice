@@ -24,6 +24,7 @@ import logging
 
 import pytest
 
+from alice.physics.geometry import build_geometry
 from alice.physics.square import intrcmap_square
 
 
@@ -35,13 +36,14 @@ def _quiet_geometry(caplog):
 
 
 def _geo(lx, ly, *, bcx='OBC', bcy='OBC', n2x=True, n2y=True, n3d=False, n3o=False):
-    """Convenience factory for a geometry sub-dict."""
-    return {
+    """Convenience factory for a square-lattice `Geometry`."""
+    return build_geometry({
+        'lattice': 'square',
         'lx': lx, 'ly': ly,
         'bcx': bcx, 'bcy': bcy,
         'n2x': n2x, 'n2y': n2y,
         'n3d': n3d, 'n3o': n3o,
-    }
+    })
 
 
 # ---------------------------------------------------------------------------
