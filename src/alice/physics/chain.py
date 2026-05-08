@@ -39,36 +39,6 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Traversal dispatcher
-# ---------------------------------------------------------------------------
-
-def build_traversal(
-    geo_cfg: dict,
-) -> tuple[list[list[int]], list[tuple[int, int]]]:
-    """Generate the trivial sequential traversal order for a 1D chain.
-
-    A 1D chain has only one meaningful traversal (sequential), so the
-    `traverse` config key is accepted but ignored.
-
-    Parameters
-    ----------
-    geo_cfg:
-        Geometry config dict.  Must contain `lx`.
-
-    Returns
-    -------
-    tuple
-        `(ord_map, latt)` for the 1D chain.
-    """
-    # Generate the trivial sequential traversal order for a 1D chain
-    lx = geo_cfg['lx']
-    ord_map = [[i for i in range(lx)]]
-    latt    = [(0, col) for col in range(lx)]
-
-    return ord_map, latt
-
-
-# ---------------------------------------------------------------------------
 # Logging helpers
 # ---------------------------------------------------------------------------
 
@@ -106,6 +76,38 @@ def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None
 
 
 # ---------------------------------------------------------------------------
+# Traversal builder
+# ---------------------------------------------------------------------------
+
+def build_traversal(
+    geo_cfg: dict,
+) -> tuple[list[list[int]], list[tuple[int, int]]]:
+    """Build the trivial sequential traversal order for a 1D chain.
+
+    A 1D chain has only one meaningful traversal (sequential), so the
+    `traverse` config key is accepted but ignored.  Logs a visual diagram
+    of the traversal at INFO level.
+
+    Parameters
+    ----------
+    geo_cfg:
+        Geometry config dict.  Must contain `lx`.
+
+    Returns
+    -------
+    tuple
+        `(ord_map, latt)` for the 1D chain.
+    """
+    # Generate the trivial sequential traversal order for a 1D chain.
+    lx = geo_cfg['lx']
+    ord_map = [[i for i in range(lx)]]
+    latt    = [(0, col) for col in range(lx)]
+
+    _log_1dchain_diagram(lx, ord_map)
+    return ord_map, latt
+
+
+# ---------------------------------------------------------------------------
 # 1D chain geometry builder
 # ---------------------------------------------------------------------------
 
@@ -137,7 +139,6 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
 
     interactions: List[Interaction2Site] = []
 
-    _log_1dchain_diagram(L, geo.ord_map)
     logger.info("─" * 60)
     logger.info("Interactions Info".center(60))
     logger.info("─" * 60)
