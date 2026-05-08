@@ -27,8 +27,8 @@ Typical usage:
     with open("config.toml", "rb") as fh:
         cfg = tomllib.load(fh)
 
-    interactions, spc, L = build_interaction(cfg["heisenberg_u1"])
-    mpo = build_hamiltonian(interactions, L, spc)
+    interactions, spc, geo = build_interaction(cfg["heisenberg_u1"])
+    mpo = build_hamiltonian(interactions, geo.L, spc)
     mps = MPS(...)           # provide an initial state
     opts = dmrg.Options.from_toml(cfg["heisenberg_u1"]["algorithm"])
     summary = dmrg.run(mps, mpo, opts)
