@@ -39,6 +39,36 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Traversal dispatcher
+# ---------------------------------------------------------------------------
+
+def build_traversal(
+    geo_cfg: dict,
+) -> tuple[list[list[int]], list[tuple[int, int]]]:
+    """Generate the trivial sequential traversal order for a 1D chain.
+
+    A 1D chain has only one meaningful traversal (sequential), so the
+    `traverse` config key is accepted but ignored.
+
+    Parameters
+    ----------
+    geo_cfg:
+        Geometry config dict.  Must contain `lx`.
+
+    Returns
+    -------
+    tuple
+        `(ord_map, latt)` for the 1D chain.
+    """
+    # Generate the trivial sequential traversal order for a 1D chain
+    lx = geo_cfg['lx']
+    ord_map = [[i for i in range(lx)]]
+    latt    = [(0, col) for col in range(lx)]
+
+    return ord_map, latt
+
+
+# ---------------------------------------------------------------------------
 # Logging helpers
 # ---------------------------------------------------------------------------
 
