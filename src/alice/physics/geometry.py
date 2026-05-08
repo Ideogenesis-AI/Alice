@@ -68,24 +68,29 @@ class Geometry:
 
     Attributes
     ----------
-    lattice:
-        Lattice-type key, e.g. `'chain'` or `'square'`.
-    traverse:
-        Traversal-order key, e.g. `'snake'` or `'zigzag'`.  `None` when
-        the lattice has no configurable traversal (e.g. the 1D chain).
     cfg:
         Original geometry config dict (`[geometry]` section from TOML).
+        Contains all geometry parameters including `lattice`, `traverse`,
+        `lx`, `ly`, boundary conditions, and bond-inclusion flags.
     ord_map:
         2D list where `ord_map[row][col]` gives the 1D site index (0-based).
     latt:
         List where `latt[site]` gives the `(row, col)` lattice coordinate.
     """
 
-    lattice:  str
-    traverse: Optional[str]
-    cfg:      dict
-    ord_map:  List[List[int]]
-    latt:     List[Tuple[int, int]]
+    cfg:     dict
+    ord_map: List[List[int]]
+    latt:    List[Tuple[int, int]]
+
+    @property
+    def lattice(self) -> str:
+        """Lattice-type key, e.g. `'chain'` or `'square'`."""
+        return self.cfg.get('lattice', 'square')
+
+    @property
+    def traverse(self) -> Optional[str]:
+        """Traversal-order key, e.g. `'snake'` or `'zigzag'`.  `None` when not set."""
+        return self.cfg.get('traverse')
 
     @property
     def lx(self) -> int:
@@ -154,16 +159,13 @@ def build_geometry(geo_cfg: dict) -> Geometry:
         If `lattice` names an unrecognised option, or if `traverse` names
         an option not supported by the selected lattice module.
     """
-    lattice  = geo_cfg.get('lattice', 'square')
-    traverse = geo_cfg.get('traverse', None)
-
-    if lattice not in _LATTICES:
+    if geo_cfg.get('lattice', 'chain') not in _LATTICES:
         raise ValueError(
-            f"Unknown lattice type '{lattice}'. "
-            f"Available: {list(_LATTICES)}"
+            f"Unknown lattice type '{geo_cfg.get('lattice', 'chain')}'. "
+            f"Available: {list(_LATTICES.keys())}"
         )
 
-    match lattice:
+    match geo_cfg.get('lattice', 'chain'):
         case 'chain':
             from alice.physics.chain import build_traversal   # noqa: PLC0415
         case 'square':
@@ -171,7 +173,7 @@ def build_geometry(geo_cfg: dict) -> Geometry:
 
     ord_map, latt = build_traversal(geo_cfg)
 
-    return Geometry(lattice, traverse, geo_cfg, ord_map, latt)
+    return Geometry(geo_cfg, ord_map, latt)
 
 
 def build_intrcmap(geo: Geometry) -> List[Interaction2Site]:
