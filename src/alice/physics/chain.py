@@ -28,10 +28,12 @@ stage of the pipeline.
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from alice.network.interaction import Interaction2Site
-from alice.physics.square import generate_snake_order
+
+if TYPE_CHECKING:
+    from alice.physics.geometry import Geometry
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,7 @@ def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None
 # 1D chain geometry builder
 # ---------------------------------------------------------------------------
 
-def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
+def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     """Generate an interaction map for a 1D chain.
 
     Produces nearest-neighbor (NN) bonds along the chain and, when
@@ -87,16 +89,11 @@ def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
     Parameters
     ----------
     geo:
-        Geometry sub-dict from the TOML `[geometry]` section.  Expected
-        keys:
+        Fully-resolved geometry struct for the 1D chain.  Relevant config
+        keys (read from `geo.cfg`):
 
-        - `lx` — number of sites.
         - `bcx` — boundary condition (`'OBC'` or `'PBC'`).
         - `n2x` — include NN bonds (default `True`).
-    order_fn:
-        Accepted but ignored.  Present so the function can be stored in
-        `_LATTICES` alongside 2D builders that receive a traversal function
-        from `build_geometry`.
 
     Returns
     -------
@@ -104,15 +101,13 @@ def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
         Interaction objects sorted by `leading_site`.  Tensor fields are
         `None`; `cpl` is `0.0`.
     """
-    L   = geo['lx']
-    bcx = geo.get('bcx', 'OBC').upper()
-    n2x = bool(geo.get('n2x', True))
-
-    ord_map, _ = generate_snake_order(L, 1)
+    L   = geo.lx
+    bcx = geo.cfg.get('bcx', 'OBC').upper()
+    n2x = bool(geo.cfg.get('n2x', True))
 
     interactions: List[Interaction2Site] = []
 
-    _log_1dchain_diagram(L, ord_map)
+    _log_1dchain_diagram(L, geo.ord_map)
     logger.info("─" * 60)
     logger.info("Interactions Info".center(60))
     logger.info("─" * 60)
