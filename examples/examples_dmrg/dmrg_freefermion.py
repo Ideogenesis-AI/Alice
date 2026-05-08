@@ -289,19 +289,19 @@ def dmrg_freefermion(
             't': t,
         },
     }
-    interactions, spc, L_built = build_interaction(cfg)
-    mpo = build_hamiltonian(interactions, L_built, spc)
+    interactions, spc, geo = build_interaction(cfg)
+    mpo = build_hamiltonian(interactions, geo.L, spc)
 
     # -----------------------------------------------------------------------
     # Build the initial MPS
     # -----------------------------------------------------------------------
     if init == 'iter_diag':
-        mps = _iter_diag_mps(L_built, bond_dim=bond_dim, t=t, symmetry=symmetry)
+        mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, t=t, symmetry=symmetry)
     else:
-        mps = _random_mps(L_built, bond_dim=bond_dim, symmetry=symmetry, seed=seed)
+        mps = _random_mps(geo.L, bond_dim=bond_dim, symmetry=symmetry, seed=seed)
 
     if verbose:
-        print(f"Chain length   : {L_built}")
+        print(f"Chain length   : {geo.L}")
         print(f"Symmetry       : {symmetry}")
         print(f"Hopping t      : {t}")
         print(f"Initialization : {init}")
@@ -342,11 +342,11 @@ def dmrg_freefermion(
         status = "converged" if summary.converged else "not converged"
         print(f"Sweeps performed : {summary.n_sweeps}  ({status})")
         print(f"Ground-state E   : {summary.energy:.10f}")
-        print(f"Energy per site  : {summary.energy / L_built:.10f}")
+        print(f"Energy per site  : {summary.energy / geo.L:.10f}")
         print(f"MPS bond dims    : {summary.bond_dims}")
 
         print()
-        E_exact_N = exact_halffilling_energy(L_built, t)
+        E_exact_N = exact_halffilling_energy(geo.L, t)
         E_exact_inf = -2.0 * t / np.pi
         print(f"Exact E (finite, half-filling) : {E_exact_N:.10f}")
         print(f"DMRG  E                        : {summary.energy:.10f}")
@@ -354,7 +354,7 @@ def dmrg_freefermion(
         print(f"Difference                     : {delta:+.4e}  (truncation error)")
         print()
         print(f"Exact E/N (N→∞, half-filling)  : {E_exact_inf:.10f}")
-        print(f"DMRG  E/N                      : {summary.energy / L_built:.10f}")
+        print(f"DMRG  E/N                      : {summary.energy / geo.L:.10f}")
 
     return summary, mps
 
