@@ -148,14 +148,14 @@ def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None
 
 
 # ---------------------------------------------------------------------------
-# Traversal orders
+# Traversal builders
 # ---------------------------------------------------------------------------
 
-def generate_snake_order(
+def build_traversal_snake(
     lx: int,
     ly: int,
 ) -> tuple[List[List[int]], List[tuple[int, int]]]:
-    """Generate snake-like traversal order for a 2D square lattice.
+    """Build snake-like traversal order for a 2D square lattice.
 
     Creates a mapping between site indices and lattice coordinates for
     a snake-like path through the lattice:
@@ -167,6 +167,8 @@ def generate_snake_order(
         02. . .05. . .10. . .13
         |      |      |      |
         03-----04. . .11-----12
+
+    Logs a visual diagram of the traversal at INFO level.
 
     Parameters
     ----------
@@ -202,17 +204,18 @@ def generate_snake_order(
         for col in range(lx):
             latt[ord_map[row][col]] = (row, col)
 
+    _log_snake_diagram(lx, ly, ord_map)
     return ord_map, latt
 
 
-def generate_zigzag_order(
+def build_traversal_zigzag(
     lx: int,
     ly: int,
 ) -> tuple[List[List[int]], List[tuple[int, int]]]:
-    """Generate zigzag traversal order for a 2D square lattice.
+    """Build zigzag traversal order for a 2D square lattice.
 
     Creates a column-major mapping where every column goes top→bottom —
-    no column reversals, unlike `generate_snake_order` which reverses odd
+    no column reversals, unlike `build_traversal_snake` which reverses odd
     columns:
 
         00. . .04. . .08. . .12
@@ -228,7 +231,9 @@ def generate_zigzag_order(
     These sites are adjacent in the MPS but span different lattice rows,
     so no `"-----"` appears in the diagram.
 
-    For `ly=1` the result is identical to `generate_snake_order`.
+    For `ly=1` the result is identical to `build_traversal_snake`.
+
+    Logs a visual diagram of the traversal at INFO level.
 
     Parameters
     ----------
@@ -258,20 +263,14 @@ def generate_zigzag_order(
         for col in range(lx):
             latt[ord_map[row][col]] = (row, col)
 
+    _log_zigzag_diagram(lx, ly, ord_map)
     return ord_map, latt
 
 
-# Maps each traverse name to its diagram logger so that
-# intrcmap_square can display the correct diagram for any traversal.
-_DIAGRAM_LOGGERS = {
-    'snake':  _log_snake_diagram,
-    'zigzag': _log_zigzag_diagram,
-}
-
 # Map traverse key → (lx, ly) → (ord_map, latt).
 _TRAVERSALS = {
-    'snake':  generate_snake_order,
-    'zigzag': generate_zigzag_order,
+    'snake':  build_traversal_snake,
+    'zigzag': build_traversal_zigzag,
 }
 
 
@@ -362,8 +361,6 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
 
     interactions: List[Interaction2Site] = []
 
-    diagram_fn = _DIAGRAM_LOGGERS.get(geo.traverse, _log_snake_diagram)
-    diagram_fn(lx, ly, ord_map)
     logger.info("─" * 60)
     logger.info("Interactions Info".center(60))
     logger.info("─" * 60)
