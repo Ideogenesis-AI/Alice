@@ -268,6 +268,50 @@ _DIAGRAM_LOGGERS = {
     'zigzag': _log_zigzag_diagram,
 }
 
+# Map traverse key → (lx, ly) → (ord_map, latt).
+_TRAVERSALS = {
+    'snake':  generate_snake_order,
+    'zigzag': generate_zigzag_order,
+}
+
+
+# ---------------------------------------------------------------------------
+# Traversal dispatcher
+# ---------------------------------------------------------------------------
+
+def build_traversal(
+    geo_cfg: dict,
+) -> tuple[List[List[int]], List[tuple[int, int]]]:
+    """Select and run the traversal-order generator for a square lattice.
+
+    Parameters
+    ----------
+    geo_cfg:
+        Geometry config dict.  Must contain `lx` and optionally `ly`
+        (default `1`) and `traverse` (default `'snake'`).
+
+    Returns
+    -------
+    tuple
+        `(ord_map, latt)` as returned by the selected traversal generator.
+
+    Raises
+    ------
+    ValueError
+        If `traverse` names an unrecognised option.
+    """
+    # Determine the traversal order, default: snake order
+    traverse = geo_cfg.get('traverse', 'snake')
+    if traverse not in _TRAVERSALS:
+        raise ValueError(
+            f"Unknown traversal order '{traverse}'. "
+            f"Available: {list(_TRAVERSALS)}"
+        )
+    lx = geo_cfg['lx']
+    ly = geo_cfg.get('ly', 1)
+
+    return _TRAVERSALS[traverse](lx, ly)
+
 
 # ---------------------------------------------------------------------------
 # Lattice geometry builder
