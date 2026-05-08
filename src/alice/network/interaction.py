@@ -175,14 +175,15 @@ def build_interaction(
 ) -> Tuple[List[Interaction], Index, Geometry]:
     """Build a fully populated interaction list from a TOML config.
 
-    Orchestrates the three-stage MPO construction pipeline:
+    Orchestrates the four-stage MPO construction pipeline:
 
     1. **Geometry** — constructs a `Geometry` struct from `geo_cfg`
-       (`geometry_fn`), then generates the bare interaction list with sites
-       and labels but no tensors and `cpl == 0.0` (`intrcmap_fn`).
-    2. **Model** — fills `cpl` and tensor fields on each interaction
+       via `geometry_fn`.
+    2. **Intrcmap** — generates the bare interaction list with sites and
+       labels but no tensors and `cpl == 0.0` via `intrcmap_fn`.
+    3. **Model** — fills `cpl` and tensor fields on each interaction
        (without baking coupling into the tensors).
-    3. Returns `(interactions, spc, geo)` ready for `build_hamiltonian`.
+    4. Returns `(interactions, spc, geo)` ready for `build_hamiltonian`.
 
     Callable overrides (`geometry_fn`, `intrcmap_fn`, `model_fn`, `space_fn`)
     take priority over `[plugin]` section entries in the config, which in turn
