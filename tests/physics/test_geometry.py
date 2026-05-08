@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for `build_geometry` dispatcher and generic traversal utilities."""
+"""Tests for `build_geometry`, `build_intrcmap`, and traversal utilities."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ import logging
 
 import pytest
 
-from alice.physics.geometry import build_geometry
+from alice.physics.geometry import Geometry, build_geometry, build_intrcmap
 from alice.physics.square import generate_snake_order, generate_zigzag_order
 
 
@@ -135,74 +135,113 @@ class TestZigzagOrder:
 
 
 # ---------------------------------------------------------------------------
-# build_geometry dispatcher
+# build_geometry — Geometry struct
 # ---------------------------------------------------------------------------
 
 class TestBuildGeometry:
-    """Tests for the `build_geometry` public dispatcher."""
+    """Tests for `build_geometry`, which returns a `Geometry` dataclass."""
+
+    def test_returns_geometry_instance(self):
+        """build_geometry returns a Geometry instance."""
+        geo_cfg = {'lx': 4, 'ly': 3, 'lattice': 'square', 'traverse': 'snake'}
+        geo = build_geometry(geo_cfg)
+        assert isinstance(geo, Geometry)
+
+    def test_square_attrs(self):
+        """Geometry has correct lx, ly, L, lattice, traverse for a square lattice."""
+        geo_cfg = {'lx': 4, 'ly': 3, 'lattice': 'square', 'traverse': 'snake'}
+        geo = build_geometry(geo_cfg)
+        assert geo.lx      == 4
+        assert geo.ly      == 3
+        assert geo.L       == 12
+        assert geo.lattice  == 'square'
+        assert geo.traverse == 'snake'
+
+    def test_chain_attrs(self):
+        """Geometry for a chain has ly=1, L=lx."""
+        geo_cfg = {'lx': 8, 'lattice': 'chain'}
+        geo = build_geometry(geo_cfg)
+        assert geo.lx == 8
+        assert geo.ly == 1
+        assert geo.L  == 8
+
+    def test_ord_map_shape(self):
+        """ord_map has shape ly × lx."""
+        geo = build_geometry({'lx': 4, 'ly': 3, 'lattice': 'square'})
+        assert len(geo.ord_map) == 3
+        assert all(len(row) == 4 for row in geo.ord_map)
+
+    def test_latt_length(self):
+        """latt has length L."""
+        geo = build_geometry({'lx': 4, 'ly': 3, 'lattice': 'square'})
+        assert len(geo.latt) == 12
+
+    def test_to_1d_to_2d_roundtrip(self):
+        """to_2d(to_1d(row, col)) == (row, col) for all sites."""
+        geo = build_geometry({'lx': 4, 'ly': 3, 'lattice': 'square'})
+        for row in range(geo.ly):
+            for col in range(geo.lx):
+                site = geo.to_1d(row, col)
+                assert geo.to_2d(site) == (row, col)
+
+    def test_unknown_lattice_raises(self):
+        """Unknown lattice name raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown lattice"):
+            build_geometry({'lx': 2, 'ly': 2, 'lattice': 'honeycomb'})
+
+    def test_unknown_traverse_raises(self):
+        """Unknown traverse name raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown traversal"):
+            build_geometry({'lx': 2, 'ly': 2, 'lattice': 'square', 'traverse': 'hilbert'})
+
+
+# ---------------------------------------------------------------------------
+# build_intrcmap dispatcher
+# ---------------------------------------------------------------------------
+
+class TestBuildIntrcmap:
+    """Tests for the `build_intrcmap` public dispatcher."""
 
     def test_square_snake_dispatches(self):
-        """build_geometry with lattice='square', traverse='snake' works."""
-        geo = {
+        """build_intrcmap with lattice='square', traverse='snake' works."""
+        geo_cfg = {
             'lx': 4, 'ly': 3,
             'bcx': 'OBC', 'bcy': 'OBC',
             'n2x': True, 'n2y': True, 'n3d': False, 'n3o': False,
             'lattice': 'square',
             'traverse': 'snake',
         }
-        interactions = build_geometry(geo)
+        interactions = build_intrcmap(build_geometry(geo_cfg))
         assert len(interactions) > 0
         assert all(intr.cpl == 0.0 for intr in interactions)
 
     def test_chain_dispatches(self):
-        """build_geometry with lattice='chain' produces lx-1 OBC bonds with cpl==0.0."""
-        interactions = build_geometry({'lx': 8, 'bcx': 'OBC', 'n2x': True, 'lattice': 'chain'})
+        """build_intrcmap with lattice='chain' produces lx-1 OBC bonds with cpl==0.0."""
+        geo_cfg = {'lx': 8, 'bcx': 'OBC', 'n2x': True, 'lattice': 'chain'}
+        interactions = build_intrcmap(build_geometry(geo_cfg))
         assert len(interactions) == 7
         assert all(intr.cpl == 0.0 for intr in interactions)
 
     def test_square_zigzag_dispatches(self):
-        """build_geometry with lattice='square', traverse='zigzag' works."""
-        geo = {
+        """build_intrcmap with lattice='square', traverse='zigzag' works."""
+        geo_cfg = {
             'lx': 4, 'ly': 3,
             'bcx': 'OBC', 'bcy': 'OBC',
             'n2x': True, 'n2y': True, 'n3d': False, 'n3o': False,
             'lattice': 'square',
             'traverse': 'zigzag',
         }
-        interactions = build_geometry(geo)
+        interactions = build_intrcmap(build_geometry(geo_cfg))
         assert len(interactions) > 0
         assert all(intr.cpl == 0.0 for intr in interactions)
 
     def test_default_traverse(self):
         """Missing traverse key defaults to 'snake'."""
-        geo = {
+        geo_cfg = {
             'lx': 3, 'ly': 2,
             'bcx': 'OBC', 'bcy': 'OBC',
             'n2x': True, 'n2y': True, 'n3d': False, 'n3o': False,
             'lattice': 'square',
         }
-        interactions = build_geometry(geo)
+        interactions = build_intrcmap(build_geometry(geo_cfg))
         assert len(interactions) == 7  # 3×2 OBC: 4 x-bonds + 3 y-bonds
-
-    def test_unknown_lattice_raises(self):
-        """Unknown lattice name raises ValueError."""
-        geo = {
-            'lx': 2, 'ly': 2,
-            'bcx': 'OBC', 'bcy': 'OBC',
-            'n2x': True, 'n2y': True, 'n3d': False, 'n3o': False,
-            'lattice': 'honeycomb',
-        }
-        with pytest.raises(ValueError, match="Unknown lattice"):
-            build_geometry(geo)
-
-    def test_unknown_traverse_raises(self):
-        """Unknown traverse name raises ValueError."""
-        geo = {
-            'lx': 2, 'ly': 2,
-            'bcx': 'OBC', 'bcy': 'OBC',
-            'n2x': True, 'n2y': True, 'n3d': False, 'n3o': False,
-            'lattice': 'square',
-            'traverse': 'hilbert',
-        }
-        with pytest.raises(ValueError, match="Unknown traversal"):
-            build_geometry(geo)
