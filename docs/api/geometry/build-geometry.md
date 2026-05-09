@@ -6,7 +6,7 @@ Construct a `Geometry` from a `[geometry]` config dict.
     options:
       heading_level: 2
 
-## Supported values
+## Supported Values
 
 | `lattice` | Builder |
 |-----------|---------|

@@ -17,7 +17,7 @@ The geometry module provides the `Geometry` dataclass and functions to generate 
 | [intrcmap_1dchain](intrcmap-1dchain.md) | Interaction map for a 1D chain |
 | [intrcmap_square](intrcmap-square.md) | Interaction map for a 2D square lattice |
 
-## How it fits in the pipeline
+## How It Fits in the Pipeline
 
 The geometry stage creates `Interaction2Site` objects with `leading_site`, `terminal_site`, and `label` filled in. Coupling constants (`cpl`) are left at `0.0` and tensor fields at `None`; the model builder fills these in the next stage.
 
@@ -31,7 +31,7 @@ geo_cfg dict
                              └── list[Interaction2Site]  (sites + labels only)
 ```
 
-## Bond labels
+## Bond Labels
 
 | Label | Meaning |
 |-------|---------|

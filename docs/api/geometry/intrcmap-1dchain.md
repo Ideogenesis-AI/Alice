@@ -8,7 +8,7 @@ Call `build_geometry(geo_cfg)` to construct a `Geometry`, then pass it here. The
     options:
       heading_level: 2
 
-## TOML keys
+## TOML Keys
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|

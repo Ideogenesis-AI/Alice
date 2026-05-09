@@ -8,7 +8,7 @@ Call `build_geometry(geo_cfg)` to construct a `Geometry`, then pass it here. The
     options:
       heading_level: 2
 
-## TOML keys
+## TOML Keys
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -21,7 +21,7 @@ Call `build_geometry(geo_cfg)` to construct a `Geometry`, then pass it here. The
 | `n3d` | bool | `false` | Include NNN diagonal bonds |
 | `n3o` | bool | `false` | Include NNN off-diagonal bonds |
 
-### Traversal order (`traverse`)
+### Traversal Order (`traverse`)
 
 | Value | Ordering |
 |-------|----------|
