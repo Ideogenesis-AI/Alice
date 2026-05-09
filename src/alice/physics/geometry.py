@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from alice.network.interaction import Interaction2Site
 from alice.physics.chain import intrcmap_1dchain
@@ -73,14 +73,17 @@ class Geometry:
         Contains all geometry parameters including `lattice`, `traverse`,
         `lx`, `ly`, boundary conditions, and bond-inclusion flags.
     ord_map:
-        2D list where `ord_map[row][col]` gives the 1D site index (0-based).
+        Dict mapping coordinate tuples to 1D site indices (0-based).
+        Key length depends on the lattice: `(row, col)` for chain/square,
+        `(row, col, u)` for multi-sublattice lattices such as Kagome.
     latt:
-        List where `latt[site]` gives the `(row, col)` lattice coordinate.
+        List where `latt[site]` gives the coordinate tuple for that site.
+        Element type matches the key type of `ord_map`.
     """
 
     cfg:     dict
-    ord_map: List[List[int]]
-    latt:    List[Tuple[int, int]]
+    ord_map: dict[tuple[int, ...], int]
+    latt:    list[tuple[int, ...]]
 
     @property
     def lattice(self) -> str:
@@ -107,12 +110,12 @@ class Geometry:
         """Total number of sites (`lx * ly`)."""
         return self.lx * self.ly
 
-    def to_1d(self, row: int, col: int) -> int:
-        """Convert a 2D lattice coordinate to a 1D site index."""
-        return self.ord_map[row][col]
+    def to_1d(self, coord: tuple[int, ...]) -> int:
+        """Convert a lattice coordinate tuple to a 1D site index."""
+        return self.ord_map[coord]
 
-    def to_2d(self, site: int) -> Tuple[int, int]:
-        """Convert a 1D site index to a 2D lattice coordinate."""
+    def to_2d(self, site: int) -> tuple[int, ...]:
+        """Convert a 1D site index to a lattice coordinate tuple."""
         return self.latt[site]
 
 
