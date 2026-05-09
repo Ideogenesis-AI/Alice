@@ -9,7 +9,7 @@ Matrix product operator.
         - compact
         - redistribute_norm
 
-## String representation
+## String Representation
 
 `repr(mpo)` (and therefore the interactive display in notebooks and REPLs) renders
 a text diagram of the chain:

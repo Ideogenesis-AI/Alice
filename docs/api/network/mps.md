@@ -6,7 +6,7 @@ Matrix product state.
     options:
       heading_level: 2
 
-## String representation
+## String Representation
 
 `repr(mps)` (and therefore the interactive display in notebooks and REPLs) renders
 a text diagram of the chain:
