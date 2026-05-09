@@ -6,7 +6,7 @@ DMRG run options.
     options:
       heading_level: 2
 
-## TOML loading
+## TOML Loading
 
 `Options` can be loaded directly from an `[algorithm]` TOML section:
 

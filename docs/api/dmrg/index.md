@@ -10,7 +10,7 @@ Alice's DMRG algorithm finds the ground state of a Hamiltonian MPO via alternati
 | [Summary](summary.md) | Output: energy, MPS state, convergence info |
 | [run](run.md) | Top-level entry point |
 
-## Usage pattern
+## Usage Pattern
 
 ```python
 import alice
@@ -24,7 +24,7 @@ summary = dmrg.run(mps, mpo, opts)
 print(summary.energy)
 ```
 
-## Update schemes
+## Update Schemes
 
 | Name | Alias | Description |
 |------|-------|-------------|
