@@ -23,7 +23,7 @@ os.environ["ALICE_LOGGING"] = "/scratch/my_run.log"
 alice.configure_logging()
 ```
 
-## Log format
+## Log Format
 
 The stream handler (console) uses plain `%(message)s` with no timestamp, keeping INFO output readable. The file handler uses:
 

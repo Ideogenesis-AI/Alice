@@ -16,162 +16,111 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Lattice geometry builders for MPS interaction maps.
+"""Lattice geometry: the `Geometry` dataclass and public dispatchers.
 
-This module provides `intrcmap_1dchain` and the public dispatcher
-`build_geometry`, and owns the two dispatch registries `_TRAVERSALS` and
-`_LATTICES`.
+This module owns the `Geometry` dataclass, `build_geometry` (struct factory),
+`build_intrcmap` (interaction-list dispatcher), and the `_LATTICES` registry.
 
-To add a new lattice type, create a module under `alice.physics`, implement
-its builder (signature `(geo, order_fn) → list[Interaction2Site]`), import
-it here, and add it to `_LATTICES`.  To add a new traversal mode, implement
-the generator (signature `(lx, ly) → (ord_map, latt)`) in the appropriate
-module, import it here, and add it to `_TRAVERSALS`.
+Naming convention used throughout:
 
-Square-lattice geometry (traversal orders and `intrcmap_square`) lives in
-`alice.physics.square`.
+- `geo_cfg` — raw `dict` from the TOML `[geometry]` section.
+- `geo` — a `Geometry` instance.
+
+To add a new lattice type, create a module under `alice.physics` that
+implements:
+
+- `build_traversal(geo_cfg: dict) → (ord_map, latt)` — traversal selection
+  and validation for that lattice.
+- An `intrcmap_*` builder with signature `(geo: Geometry) → list[Interaction2Site]`.
+
+Add the `intrcmap_*` builder to `_LATTICES` and add a branch to the
+conditional import in `build_geometry`.
+
+1D chain geometry (`build_traversal`, `intrcmap_1dchain`) lives in
+`alice.physics.chain`.  Square-lattice geometry (traversal orders,
+`build_traversal`, and `intrcmap_square`) lives in `alice.physics.square`.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 from alice.network.interaction import Interaction2Site
-from alice.physics.square import (
-    generate_snake_order,
-    generate_zigzag_order,
-    intrcmap_square,
-)
+from alice.physics.chain import intrcmap_1dchain
+from alice.physics.square import intrcmap_square
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Logging helpers
+# Geometry dataclass
 # ---------------------------------------------------------------------------
 
-_DIAG_THRESHOLD = 8   # lx > this → truncate the diagram
-_DIAG_HEAD      = 4   # columns shown at the left in truncated mode
-_DIAG_TAIL      = 2   # columns shown at the right in truncated mode
+@dataclass
+class Geometry:
+    """Fully-resolved lattice geometry for one MPS simulation.
 
+    Constructed by `build_geometry` from a raw `[geometry]` config dict.
+    Passed to `intrcmap_*` builders and to traversal-aware utilities such
+    as `to_1d` / `to_2d`.
 
-def _log_1dchain_diagram(lx: int, ord_map: List[List[int]]) -> None:
-    """Log a visual diagram of the 1D chain lattice."""
-    logger.info("─" * 60)
-    logger.info(f"1D Chain Lattice ({lx} Sites)".center(60))
-    logger.info("─" * 60)
-    logger.info("")
-
-    if lx <= _DIAG_THRESHOLD:
-        # Full render: all sites connected by "-----".
-        line = "-----".join(f"{ord_map[0][col]:02d}" for col in range(lx))
-    else:
-        # Truncated render: first _DIAG_HEAD + last _DIAG_TAIL, with ⋯ ⋯ gap.
-        head = "-----".join(f"{ord_map[0][col]:02d}" for col in range(_DIAG_HEAD))
-        tail = "-----".join(f"{ord_map[0][col]:02d}" for col in range(lx - _DIAG_TAIL, lx))
-        line = f"{head}  ⋯ ⋯  {tail}"
-
-    logger.info(line.center(60))
-    logger.info("")
-
-
-def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None:
-    """Log interaction pairs with automatic line wrapping."""
-    indent_str = " " * indent
-    for i in range(0, len(pairs), max_per_line):
-        chunk = pairs[i:i + max_per_line]
-        logger.info(indent_str + ", ".join(chunk))
-
-
-# ---------------------------------------------------------------------------
-# 1D chain geometry builder
-# ---------------------------------------------------------------------------
-
-def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
-    """Generate an interaction map for a 1D chain.
-
-    Produces nearest-neighbor (NN) bonds along the chain and, when
-    `bcx='PBC'`, a single periodic bond connecting the two ends.
-    Coupling constants are not set; `cpl` is `0.0` on all returned objects.
-
-    Parameters
+    Attributes
     ----------
-    geo:
-        Geometry sub-dict from the TOML `[geometry]` section.  Expected
-        keys:
-
-        - `lx` — number of sites.
-        - `bcx` — boundary condition (`'OBC'` or `'PBC'`).
-        - `n2x` — include NN bonds (default `True`).
-    order_fn:
-        Accepted but ignored.  Present so the function can be stored in
-        `_LATTICES` alongside 2D builders that receive a traversal function
-        from `build_geometry`.
-
-    Returns
-    -------
-    list[Interaction2Site]
-        Interaction objects sorted by `leading_site`.  Tensor fields are
-        `None`; `cpl` is `0.0`.
+    cfg:
+        Original geometry config dict (`[geometry]` section from TOML).
+        Contains all geometry parameters including `lattice`, `traverse`,
+        `lx`, `ly`, boundary conditions, and bond-inclusion flags.
+    ord_map:
+        2D list where `ord_map[row][col]` gives the 1D site index (0-based).
+    latt:
+        List where `latt[site]` gives the `(row, col)` lattice coordinate.
     """
-    L   = geo['lx']
-    bcx = geo.get('bcx', 'OBC').upper()
-    n2x = bool(geo.get('n2x', True))
 
-    ord_map, _ = generate_snake_order(L, 1)
+    cfg:     dict
+    ord_map: List[List[int]]
+    latt:    List[Tuple[int, int]]
 
-    interactions: List[Interaction2Site] = []
+    @property
+    def lattice(self) -> str:
+        """Lattice-type key, e.g. `'chain'` or `'square'`."""
+        return self.cfg.get('lattice', 'square')
 
-    _log_1dchain_diagram(L, ord_map)
-    logger.info("─" * 60)
-    logger.info("Interactions Info".center(60))
-    logger.info("─" * 60)
-    logger.info("")
+    @property
+    def traverse(self) -> Optional[str]:
+        """Traversal-order key, e.g. `'snake'` or `'zigzag'`.  `None` when not set."""
+        return self.cfg.get('traverse')
 
-    if n2x:
-        logger.info(" NN interaction (N2X):")
-        pairs = []
-        for si in range(L - 1):
-            interactions.append(Interaction2Site(
-                label=['NN', 'N2X'],
-                leading_site=si,
-                terminal_site=si + 1,
-            ))
-            pairs.append(f"({si:02d},{si+1:02d})")
-        _log_pairs(pairs)
+    @property
+    def lx(self) -> int:
+        """Number of columns (sites along x)."""
+        return self.cfg['lx']
 
-        if bcx == 'PBC':
-            logger.info("")
-            logger.info(" PBC interaction at X edge:")
-            interactions.append(Interaction2Site(
-                label=['NN', 'PBC', 'N2X'],
-                leading_site=0,
-                terminal_site=L - 1,
-            ))
-            _log_pairs([f"({0:02d},{L-1:02d})"])
+    @property
+    def ly(self) -> int:
+        """Number of rows (sites along y); `1` for a 1D chain."""
+        return self.cfg.get('ly', 1)
 
-    interactions.sort(key=lambda x: x.leading_site)
+    @property
+    def L(self) -> int:
+        """Total number of sites (`lx * ly`)."""
+        return self.lx * self.ly
 
-    logger.info("")
-    logger.info(f"Two-site interactions: {len(interactions)}")
-    logger.info("")
+    def to_1d(self, row: int, col: int) -> int:
+        """Convert a 2D lattice coordinate to a 1D site index."""
+        return self.ord_map[row][col]
 
-    return interactions
+    def to_2d(self, site: int) -> Tuple[int, int]:
+        """Convert a 1D site index to a 2D lattice coordinate."""
+        return self.latt[site]
 
 
 # ---------------------------------------------------------------------------
 # Dispatch registries
 # ---------------------------------------------------------------------------
 
-# Map traverse key → (lx, ly) → (ord_map, latt).
-# To add a new traversal mode: import the generator and add it here.
-_TRAVERSALS: Dict[str, object] = {
-    'snake':  generate_snake_order,
-    'zigzag': generate_zigzag_order,
-}
-
-# Map lattice key → (geo, order_fn) → list[Interaction2Site].
+# Map lattice key → (geo: Geometry) → list[Interaction2Site].
 # To add a new lattice type: import the builder and add it here.
 _LATTICES: Dict[str, object] = {
     'chain':  intrcmap_1dchain,
@@ -180,47 +129,71 @@ _LATTICES: Dict[str, object] = {
 
 
 # ---------------------------------------------------------------------------
-# Public dispatcher
+# Public dispatchers
 # ---------------------------------------------------------------------------
 
-def build_geometry(geo: dict) -> List[Interaction2Site]:
-    """Dispatch geometry construction from a `[geometry]` config dict.
+def build_geometry(geo_cfg: dict) -> Geometry:
+    """Construct a `Geometry` from a `[geometry]` config dict.
 
-    Reads the `lattice` and `traverse` keys to select the lattice builder
-    and traversal-order generator, then delegates to the builder.
+    Validates the `lattice` key, then delegates traversal selection and
+    validation to the lattice-specific `build_traversal` dispatcher, then
+    returns a fully-populated `Geometry` dataclass.
+
+    Parameters
+    ----------
+    geo_cfg:
+        Geometry sub-dict from the TOML `[geometry]` section.  Must contain
+        `lx` and optionally `ly` (default `1`), `lattice` (default
+        `'square'`), and `traverse` (default `'snake'`, used by 2D
+        lattices).
+
+    Returns
+    -------
+    Geometry
+        Fully-resolved geometry struct ready for passing to `build_intrcmap`
+        or any `intrcmap_*` builder.
+
+    Raises
+    ------
+    ValueError
+        If `lattice` names an unrecognised option, or if `traverse` names
+        an option not supported by the selected lattice module.
+    """
+    if geo_cfg.get('lattice', 'chain') not in _LATTICES:
+        raise ValueError(
+            f"Unknown lattice type '{geo_cfg.get('lattice', 'chain')}'. "
+            f"Available: {list(_LATTICES.keys())}"
+        )
+
+    match geo_cfg.get('lattice', 'chain'):
+        case 'chain':
+            from alice.physics.chain import build_traversal   # noqa: PLC0415
+        case 'square':
+            from alice.physics.square import build_traversal  # noqa: PLC0415
+
+    ord_map, latt = build_traversal(geo_cfg)
+
+    return Geometry(geo_cfg, ord_map, latt)
+
+
+def build_intrcmap(geo: Geometry) -> List[Interaction2Site]:
+    """Generate an interaction map from a `Geometry` instance.
+
+    Looks up the lattice builder registered for `geo.lattice` and delegates
+    to it.
 
     Parameters
     ----------
     geo:
-        Geometry sub-dict from the TOML `[geometry]` section.  Must contain
-        `lattice` (e.g. `'square'`) and optionally `traverse` (default
-        `'snake'`).
+        Fully-resolved geometry struct, typically produced by `build_geometry`.
 
     Returns
     -------
     list[Interaction2Site]
         Interaction objects sorted by `leading_site`, with `cpl == 0.0`
         and tensor fields set to `None`.
-
-    Raises
-    ------
-    ValueError
-        If `lattice` or `traverse` names an unrecognised option.
     """
-    lattice  = geo.get('lattice', 'square')
-    traverse = geo.get('traverse', 'snake')
-
-    if traverse not in _TRAVERSALS:
-        raise ValueError(
-            f"Unknown traversal order '{traverse}'. "
-            f"Available: {list(_TRAVERSALS)}"
-        )
-    if lattice not in _LATTICES:
-        raise ValueError(
-            f"Unknown lattice type '{lattice}'. "
-            f"Available: {list(_LATTICES)}"
-        )
-
-    order_fn   = _TRAVERSALS[traverse]
-    lattice_fn = _LATTICES[lattice]
-    return lattice_fn(geo, order_fn)
+    # Lookup the lattice builder registered for `geo.lattice`
+    lattice_fn = _LATTICES[geo.lattice]
+    # Delegate to the lattice builder
+    return lattice_fn(geo)

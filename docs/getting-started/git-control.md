@@ -8,7 +8,7 @@ This page covers the branching strategy, workflow conventions, and day-to-day Gi
 
 Alice uses a two-tier protected model with a clear separation of responsibilities.
 
-### Protected branches
+### Protected Branches
 
 | Branch | Purpose | Who can push |
 |--------|---------|--------------|
@@ -18,7 +18,7 @@ Alice uses a two-tier protected model with a clear separation of responsibilitie
 !!! warning "Do not push directly to `stable` or `develop`"
     Direct commits to `stable` or `develop` are not permitted for external contributors. All changes reach `develop` exclusively through pull requests.
 
-### Contributor branches
+### Contributor Branches
 
 Contributors create their own branches off `develop` using a structured naming convention:
 
@@ -33,7 +33,7 @@ For example: `feature/tdvp-algorithm`, `fix/dmrg-trunc-threshold`, `docs/api-ham
 
 Each contributor branch is owned by its author. Algorithm contributors may maintain long-lived branches for their respective algorithms and open pull requests to `develop` when a piece of work is ready for integration.
 
-### Release flow
+### Release Flow
 
 ```
 feature/... ──┐
@@ -125,7 +125,7 @@ Rebase **rewrites commit hashes**. If your contributor branch is actively shared
 
 Because `stable` and `develop` advance as new work is integrated, it is important to keep your local clone and your GitHub fork in sync with the primary repository. Falling behind causes unnecessary conflicts and makes reviews harder.
 
-### Initial setup — add the upstream remote
+### Initial Setup — Add the Upstream Remote
 
 If you cloned your fork, add the primary repository as a second remote called `upstream` (you only need to do this once):
 
@@ -143,7 +143,7 @@ git remote -v
 # upstream  https://github.com/Ideogenesis-AI/Alice.git (push)
 ```
 
-### Fetching vs. pulling
+### Fetching vs. Pulling
 
 !!! tip "Prefer `fetch` over `pull` in collaborative projects"
     `git pull` is shorthand for `git fetch` followed by an automatic `git merge` (or `git rebase`, depending on configuration). In a shared project, this automatic merge step can silently introduce a merge commit into your local branch, cluttering history and making it harder to track what actually changed.
@@ -178,7 +178,7 @@ git merge --ff-only upstream/stable
 git push origin stable
 ```
 
-### Updating your feature branch
+### Updating Your Feature Branch
 
 As work is merged into `develop` by the maintainer, your contributor branch will gradually fall behind. The recommended approach for keeping your branch current is **rebase**, because it replays your commits on top of the latest `develop` without embedding a merge commit in the middle of your own work — making the history graph cleaner and the eventual pull request easier to review.
 
@@ -206,7 +206,7 @@ git rebase --continue
 
     Even when merging is necessary, try to **delay it as long as possible**. Only merge `develop` into your branch when divergence is actively causing problems — conflicts that block your work, or when a dependency you need has been introduced in `develop`. Merging eagerly on every upstream update accumulates unnecessary merge commits and clutters the history graph. The goal is still to keep the graph as clean as possible; merging from `develop` should be a deliberate, infrequent act rather than a routine sync step.
 
-### Syncing from the GitHub web interface
+### Syncing from the GitHub Web Interface
 
 If you prefer not to use the command line for routine syncing, GitHub's web interface offers a **"Sync fork"** button on your fork's main page. This updates `develop` and `stable` in your fork directly. You still need to `git fetch origin` and `git merge` locally afterwards to bring your local clone in line.
 

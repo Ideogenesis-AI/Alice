@@ -59,19 +59,28 @@ A list of `Interaction` objects forms the complete description of a Hamiltonian.
 
 ## Geometry
 
-The **geometry stage** of the AutoMPO pipeline creates the list of `Interaction2Site` objects with `leading_site`, `terminal_site`, and `label` fields filled in, but all tensor fields set to `None` and all coupling constants left at `0.0`.
+The **geometry stage** of the AutoMPO pipeline is split into two steps. First, `build_geometry` resolves the lattice configuration into a `Geometry` struct. Second, `build_intrcmap` uses that struct to create the list of bare `Interaction2Site` objects.
+
+The `Geometry` dataclass stores:
+
+- `cfg` — the raw config dict from `[geometry]`.
+- `ord_map` — a 2D list mapping `(row, col)` → MPS site index.
+- `latt` — a list mapping MPS site index → `(row, col)`.
+
+It also exposes convenience properties (`lx`, `ly`, `L`, `lattice`, `traverse`) and coordinate-conversion methods (`to_1d(row, col)` and `to_2d(site)`).
 
 Alice provides built-in builders for:
 
 - `intrcmap_1dchain` — a simple nearest-neighbor 1D chain.
-- `intrcmap_square` — a 2D square lattice traversed in snake order.
-- `build_geometry` — the TOML dispatcher that calls the right builder based on the `lattice` key.
+- `intrcmap_square` — a 2D square lattice with configurable traversal order.
+- `build_geometry` — constructs a `Geometry` from a config dict.
+- `build_intrcmap` — generates the interaction list from a `Geometry`.
 
-Custom geometries can be registered by passing a `geometry_fn` to `build_interaction`, or by pointing to an external Python file via the `[plugin]` section of a TOML config.
+Custom geometries can be plugged in by passing `geometry_fn` and/or `intrcmap_fn` to `build_interaction`, or by pointing to external Python files via the `[plugin]` section of a TOML config.
 
 ## AutoMPO Pipeline
 
-The full pipeline from a TOML config to a Hamiltonian MPO has three stages:
+The full pipeline from a TOML config to a Hamiltonian MPO has four stages:
 
 ```
 TOML config
@@ -79,19 +88,21 @@ TOML config
     ▼
  build_interaction(config)
     │
-    ├── Stage 1: Geometry  →  list[Interaction2Site]  (sites + labels)
+    ├── Stage 1: Geometry    →  Geometry (cfg, ord_map, latt, lx, ly, L, …)
     │
-    ├── Stage 2: Model     →  fills cpl + tensors on each Interaction
+    ├── Stage 2: Intrcmap    →  list[Interaction2Site]  (sites + labels)
     │
-    └── returns (interactions, spc, L)
+    ├── Stage 3: Model       →  fills cpl + tensors on each Interaction
+    │
+    └── returns (interactions, spc, geo)
                 │
                 ▼
-         build_hamiltonian(interactions, L, spc)
+         build_hamiltonian(interactions, geo.L, spc)
                 │
                 └── returns MPO
 ```
 
-`build_interaction` accepts either a path to a TOML file or a pre-loaded config dict. `build_hamiltonian` assembles the MPO term by term using Nicole's `oplus`, then compresses it with SVD sweeps.
+`build_interaction` accepts either a path to a TOML file or a pre-loaded config dict. You can replace any stage by passing `geometry_fn`, `intrcmap_fn`, `model_fn`, or `space_fn` kwargs, or via `[plugin]` entries in the TOML config. `build_hamiltonian` assembles the MPO term by term using Nicole's `oplus`, then compresses it with SVD sweeps.
 
 ## Measurement
 

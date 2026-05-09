@@ -19,8 +19,9 @@
 """Physics module: physical space, geometry, and model builders."""
 
 from .system import build_bosonic, build_fermionic, build_conductor
+from .chain import intrcmap_1dchain
 from .square import intrcmap_square
-from .geometry import intrcmap_1dchain, build_geometry
+from .geometry import Geometry, build_geometry, build_intrcmap
 from .models import build_heisenberg, build_free_fermion, build_hubbard
 
 __all__ = [
@@ -28,10 +29,12 @@ __all__ = [
     'build_bosonic',
     'build_fermionic',
     'build_conductor',
-    # geometry — interaction map builders
+    # geometry — struct and interaction map builders
+    'Geometry',
+    'build_geometry',
+    'build_intrcmap',
     'intrcmap_1dchain',
     'intrcmap_square',
-    'build_geometry',
     # models — Hamiltonian model builders
     'build_heisenberg',
     'build_free_fermion',

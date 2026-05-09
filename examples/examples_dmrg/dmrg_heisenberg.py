@@ -286,19 +286,19 @@ def dmrg_heisenberg(
             'J': J,
         },
     }
-    interactions, spc, L_built = build_interaction(cfg)
-    mpo = build_hamiltonian(interactions, L_built, spc)
+    interactions, spc, geo = build_interaction(cfg)
+    mpo = build_hamiltonian(interactions, geo.L, spc)
 
     # -----------------------------------------------------------------------
     # Build the initial MPS
     # -----------------------------------------------------------------------
     if init == 'iter_diag':
-        mps = _iter_diag_mps(L_built, bond_dim=bond_dim, J=J, spin=spin, symmetry=symmetry)
+        mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, J=J, spin=spin, symmetry=symmetry)
     else:
-        mps = _random_mps(L_built, bond_dim=bond_dim, spin=spin, symmetry=symmetry, seed=seed)
+        mps = _random_mps(geo.L, bond_dim=bond_dim, spin=spin, symmetry=symmetry, seed=seed)
 
     if verbose:
-        print(f"Chain length   : {L_built}")
+        print(f"Chain length   : {geo.L}")
         print(f"Symmetry       : {symmetry}  spin = {spin}")
         print(f"Initialization : {init}")
         print(f"Scheme         : {scheme}")
@@ -338,15 +338,15 @@ def dmrg_heisenberg(
         status = "converged" if summary.converged else "not converged"
         print(f"Sweeps performed : {summary.n_sweeps}  ({status})")
         print(f"Ground-state E   : {summary.energy:.10f}")
-        print(f"Energy per site  : {summary.energy / L_built:.10f}")
+        print(f"Energy per site  : {summary.energy / geo.L:.10f}")
         print(f"MPS bond dims    : {summary.bond_dims}")
 
         if spin == 0.5:
             print()
             E_exact_per_site = 0.25 - np.log(2)
             print(f"Exact E/N (N→∞)  : {E_exact_per_site:.10f}")
-            print(f"DMRG  E/N        : {summary.energy / L_built:.10f}")
-            delta = summary.energy / L_built - E_exact_per_site
+            print(f"DMRG  E/N        : {summary.energy / geo.L:.10f}")
+            delta = summary.energy / geo.L - E_exact_per_site
             print(f"Difference       : {delta:+.4e}  (finite-size + truncation error)")
 
     return summary, mps

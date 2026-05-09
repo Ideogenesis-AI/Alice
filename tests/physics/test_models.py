@@ -25,6 +25,7 @@ import logging
 import pytest
 
 from alice.network.interaction import Interaction1Site, Interaction2Site
+from alice.physics.geometry import build_geometry
 from alice.physics.square import intrcmap_square
 from alice.physics.models import build_heisenberg, build_free_fermion, build_hubbard
 from alice.physics.system import build_bosonic, build_fermionic, build_conductor
@@ -43,11 +44,12 @@ def _quiet_geometry(caplog):
 
 def _nn_chain(L: int) -> list:
     """Return L-1 nearest-neighbor Interaction2Site objects for a 1D chain."""
-    geo = {
+    geo = build_geometry({
+        'lattice': 'square',
         'lx': L, 'ly': 1,
         'bcx': 'OBC', 'bcy': 'OBC',
         'n2x': True, 'n2y': False,
-    }
+    })
     return intrcmap_square(geo)
 
 
@@ -58,12 +60,13 @@ def _nn_nnn_chain(L: int) -> list:
     Generated as a 1xL... actually NNN doesn't make sense for ly=1.
     Use a 2-row lattice to get both NN and NNN bonds from the geometry.
     """
-    geo = {
+    geo = build_geometry({
+        'lattice': 'square',
         'lx': L // 2, 'ly': 2,
         'bcx': 'OBC', 'bcy': 'OBC',
         'n2x': True, 'n2y': True,
         'n3d': True, 'n3o': True,
-    }
+    })
     return intrcmap_square(geo)
 
 

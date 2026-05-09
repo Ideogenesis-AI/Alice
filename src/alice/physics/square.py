@@ -29,9 +29,12 @@ model builder in the second stage of the pipeline.
 from __future__ import annotations
 
 import logging
-from typing import Callable, List
+from typing import TYPE_CHECKING, Callable, List
 
 from alice.network.interaction import Interaction2Site
+
+if TYPE_CHECKING:
+    from alice.physics.geometry import Geometry
 
 logger = logging.getLogger(__name__)
 
@@ -145,14 +148,14 @@ def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None
 
 
 # ---------------------------------------------------------------------------
-# Traversal orders
+# Traversal builders
 # ---------------------------------------------------------------------------
 
-def generate_snake_order(
+def build_traversal_snake(
     lx: int,
     ly: int,
 ) -> tuple[List[List[int]], List[tuple[int, int]]]:
-    """Generate snake-like traversal order for a 2D square lattice.
+    """Build snake-like traversal order for a 2D square lattice.
 
     Creates a mapping between site indices and lattice coordinates for
     a snake-like path through the lattice:
@@ -164,6 +167,8 @@ def generate_snake_order(
         02. . .05. . .10. . .13
         |      |      |      |
         03-----04. . .11-----12
+
+    Logs a visual diagram of the traversal at INFO level.
 
     Parameters
     ----------
@@ -199,17 +204,18 @@ def generate_snake_order(
         for col in range(lx):
             latt[ord_map[row][col]] = (row, col)
 
+    _log_snake_diagram(lx, ly, ord_map)
     return ord_map, latt
 
 
-def generate_zigzag_order(
+def build_traversal_zigzag(
     lx: int,
     ly: int,
 ) -> tuple[List[List[int]], List[tuple[int, int]]]:
-    """Generate zigzag traversal order for a 2D square lattice.
+    """Build zigzag traversal order for a 2D square lattice.
 
     Creates a column-major mapping where every column goes top→bottom —
-    no column reversals, unlike `generate_snake_order` which reverses odd
+    no column reversals, unlike `build_traversal_snake` which reverses odd
     columns:
 
         00. . .04. . .08. . .12
@@ -225,7 +231,9 @@ def generate_zigzag_order(
     These sites are adjacent in the MPS but span different lattice rows,
     so no `"-----"` appears in the diagram.
 
-    For `ly=1` the result is identical to `generate_snake_order`.
+    For `ly=1` the result is identical to `build_traversal_snake`.
+
+    Logs a visual diagram of the traversal at INFO level.
 
     Parameters
     ----------
@@ -255,22 +263,60 @@ def generate_zigzag_order(
         for col in range(lx):
             latt[ord_map[row][col]] = (row, col)
 
+    _log_zigzag_diagram(lx, ly, ord_map)
     return ord_map, latt
 
 
-# Maps each traversal generator to its diagram logger so that
-# intrcmap_square can display the correct diagram for any order_fn.
-_DIAGRAM_LOGGERS = {
-    generate_snake_order:  _log_snake_diagram,
-    generate_zigzag_order: _log_zigzag_diagram,
+# Map traverse key → (lx, ly) → (ord_map, latt).
+_TRAVERSALS = {
+    'snake':  build_traversal_snake,
+    'zigzag': build_traversal_zigzag,
 }
+
+
+# ---------------------------------------------------------------------------
+# Traversal dispatcher
+# ---------------------------------------------------------------------------
+
+def build_traversal(
+    geo_cfg: dict,
+) -> tuple[List[List[int]], List[tuple[int, int]]]:
+    """Select and run the traversal-order generator for a square lattice.
+
+    Parameters
+    ----------
+    geo_cfg:
+        Geometry config dict.  Must contain `lx` and optionally `ly`
+        (default `1`) and `traverse` (default `'snake'`).
+
+    Returns
+    -------
+    tuple
+        `(ord_map, latt)` as returned by the selected traversal generator.
+
+    Raises
+    ------
+    ValueError
+        If `traverse` names an unrecognised option.
+    """
+    # Determine the traversal order, default: snake order
+    traverse = geo_cfg.get('traverse', 'snake')
+    if traverse not in _TRAVERSALS:
+        raise ValueError(
+            f"Unknown traversal order '{traverse}'. "
+            f"Available: {list(_TRAVERSALS)}"
+        )
+    lx = geo_cfg['lx']
+    ly = geo_cfg.get('ly', 1)
+
+    return _TRAVERSALS[traverse](lx, ly)
 
 
 # ---------------------------------------------------------------------------
 # Lattice geometry builder
 # ---------------------------------------------------------------------------
 
-def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interaction2Site]:
+def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
     """Generate an interaction map for a 2D square lattice.
 
     Produces nearest-neighbor (NN) and optionally next-nearest-neighbor
@@ -282,20 +328,15 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
     Parameters
     ----------
     geo:
-        Geometry sub-dict from the TOML `[geometry]` section.  Expected keys:
+        Fully-resolved geometry struct for the square lattice.  Relevant
+        config keys (read from `geo.cfg`):
 
-        - `lx` — number of columns.
-        - `ly` — number of rows.
         - `bcx` — boundary condition along x (`'OBC'` or `'PBC'`).
         - `bcy` — boundary condition along y (`'OBC'` or `'PBC'`).
         - `n2x` — include NN bonds along x (default `True`).
         - `n2y` — include NN bonds along y (default `True`).
         - `n3d` — include NNN diagonal bonds (default `False`).
         - `n3o` — include NNN off-diagonal bonds (default `False`).
-    order_fn:
-        Traversal-order generator `(lx, ly) → (ord_map, latt)`.  Defaults
-        to `generate_snake_order`; `build_geometry` supplies a different
-        function when a non-default traversal is requested.
 
     Returns
     -------
@@ -303,26 +344,23 @@ def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interactio
         Interaction objects sorted by `leading_site`.  Tensor fields are
         `None`; `cpl` is `0.0`.
     """
-    lx  = geo['lx']
-    ly  = geo['ly']
-    L   = lx * ly
-    bcx = geo.get('bcx', 'OBC').upper()
-    bcy = geo.get('bcy', 'OBC').upper()
+    lx  = geo.lx
+    ly  = geo.ly
+    bcx = geo.cfg.get('bcx', 'OBC').upper()
+    bcy = geo.cfg.get('bcy', 'OBC').upper()
 
     # Bond-inclusion flags.
-    n2x = bool(geo.get('n2x', True))
-    n2y = bool(geo.get('n2y', True))
-    n3d = bool(geo.get('n3d', False))
-    n3o = bool(geo.get('n3o', False))
+    n2x = bool(geo.cfg.get('n2x', True))
+    n2y = bool(geo.cfg.get('n2y', True))
+    n3d = bool(geo.cfg.get('n3d', False))
+    n3o = bool(geo.cfg.get('n3o', False))
 
     # === 1D CHAIN (ly == 1): run naturally; N2Y loop over range(0) emits nothing ===
 
-    ord_map, _ = order_fn(lx, ly)
+    ord_map = geo.ord_map
 
     interactions: List[Interaction2Site] = []
 
-    diagram_fn = _DIAGRAM_LOGGERS.get(order_fn, _log_snake_diagram)
-    diagram_fn(lx, ly, ord_map)
     logger.info("─" * 60)
     logger.info("Interactions Info".center(60))
     logger.info("─" * 60)
