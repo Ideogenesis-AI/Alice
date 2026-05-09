@@ -36,9 +36,11 @@ implements:
 Add the `intrcmap_*` builder to `_LATTICES` and add a branch to the
 conditional import in `build_geometry`.
 
-1D chain geometry (`build_traversal`, `intrcmap_1dchain`) lives in
-`alice.physics.chain`.  Square-lattice geometry (traversal orders,
-`build_traversal`, and `intrcmap_square`) lives in `alice.physics.square`.
+Built-in lattice modules:
+
+- `alice.physics.chain` — 1D chain (`build_traversal`, `intrcmap_1dchain`).
+- `alice.physics.square` — square lattice (`build_traversal`, `intrcmap_square`).
+- `alice.physics.kagome` — Kagome lattice (`build_traversal`, `intrcmap_kagome`).
 """
 
 from __future__ import annotations
@@ -49,6 +51,7 @@ from typing import Dict, List, Optional
 
 from alice.network.interaction import Interaction2Site
 from alice.physics.chain import intrcmap_1dchain
+from alice.physics.kagome import intrcmap_kagome
 from alice.physics.square import intrcmap_square
 
 logger = logging.getLogger(__name__)
@@ -107,8 +110,14 @@ class Geometry:
 
     @property
     def L(self) -> int:
-        """Total number of sites (`lx * ly`)."""
-        return self.lx * self.ly
+        """Total number of MPS/MPO sites (length of the tensor network).
+
+        Equals `len(latt)`, which is the authoritative site count for all
+        lattice types. For single-sublattice lattices (chain, square) this
+        coincides with `lx * ly`. For multi-sublattice lattices (e.g.
+        Kagome with 3 sites per unit cell) it equals `lx * ly * n_sub`.
+        """
+        return len(self.latt)
 
     def to_1d(self, coord: tuple[int, ...]) -> int:
         """Convert a lattice coordinate tuple to a 1D site index."""
@@ -128,6 +137,7 @@ class Geometry:
 _LATTICES: Dict[str, object] = {
     'chain':  intrcmap_1dchain,
     'square': intrcmap_square,
+    'kagome': intrcmap_kagome,
 }
 
 
@@ -173,6 +183,8 @@ def build_geometry(geo_cfg: dict) -> Geometry:
             from alice.physics.chain import build_traversal   # noqa: PLC0415
         case 'square':
             from alice.physics.square import build_traversal  # noqa: PLC0415
+        case 'kagome':
+            from alice.physics.kagome import build_traversal  # noqa: PLC0415
 
     ord_map, latt = build_traversal(geo_cfg)
 
