@@ -20,7 +20,7 @@ def my_model(
 
 The function **modifies `interactions` in place** and returns `(spc, ops)` where `spc` is the physical `Index` and `ops` is the operator dict.
 
-## What to do in a model builder
+## What to Do in a Model Builder
 
 1. Call the space builder (or `space_fn` if provided) to get `(spc, Op)`.
 2. Iterate over `interactions`. For each interaction:
@@ -28,7 +28,7 @@ The function **modifies `interactions` in place** and returns `(spc, ops)` where
    - Set the tensor fields from `Op` (using `.clone()` to avoid aliasing).
    - For `Interaction2Site` with `terminal_site > leading_site + 1`, also set `intr.intermid_tnsr`.
 
-## Example: XXZ model
+## Example: XXZ Model
 
 The Heisenberg model is isotropic \((J_x = J_y = J_z = J)\). An anisotropic XXZ model allows different couplings for the \(S^z S^z\) and transverse \(S^\pm S^\mp\) channels:
 
@@ -120,7 +120,7 @@ interactions, spc, L = build_interaction(config, model_fn=build_xxz)
 hamiltonian = build_hamiltonian(interactions, L, spc)
 ```
 
-## Registering via TOML plugin
+## Registering via TOML Plugin
 
 ```toml
 [xxz.geometry]

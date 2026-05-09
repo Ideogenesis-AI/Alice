@@ -2,7 +2,7 @@
 
 Alice separates geometry construction into two stages: `build_geometry` constructs a `Geometry` struct from the `[geometry]` config dict, and `build_intrcmap` generates the list of bare `Interaction2Site` objects from that struct. You can replace either stage — or both — with your own callables.
 
-## What a geometry function does
+## What a Geometry Function Does
 
 A `geometry_fn` receives the `[geometry]` sub-dict and returns a `Geometry` instance. The `Geometry` struct carries the resolved lattice layout so that the interaction-map step can use it. Construct a `Geometry` with:
 
@@ -12,7 +12,7 @@ A `geometry_fn` receives the `[geometry]` sub-dict and returns a `Geometry` inst
 
 The `intrcmap_fn` downstream can then query `geo.lx`, `geo.ly`, `geo.L`, `geo.to_1d(row, col)`, and `geo.to_2d(site)` to build the interaction list.
 
-## Example: honeycomb lattice
+## Example: Honeycomb Lattice
 
 Suppose you want to define a honeycomb lattice traversed with a custom MPS ordering. Split the work into two functions:
 
@@ -67,7 +67,7 @@ Key rules:
 - **Do not set `cpl` or any tensor fields** — those are the model builder's responsibility.
 - **`label` contents are arbitrary strings** — the model builder uses them to assign couplings.
 
-## Method 1: Pass callables directly
+## Method 1: Pass Callables Directly
 
 ```python
 from alice import build_interaction, build_hamiltonian
@@ -89,7 +89,7 @@ hamiltonian = build_hamiltonian(interactions, geo.L, spc)
 
 Keyword arguments take priority over any `[plugin]` section in the config.
 
-## Method 2: TOML plugin spec
+## Method 2: TOML Plugin Spec
 
 Specify the functions in the TOML file using `"path/to/file.py:function_name"` syntax:
 
@@ -125,7 +125,7 @@ interactions, spc, geo = build_interaction(cfg["honeycomb"])
 
 Relative paths in the plugin spec are resolved relative to the TOML file's directory.
 
-## Replacing only one stage
+## Replacing Only One Stage
 
 You can replace just the geometry stage and keep the built-in `build_intrcmap`, or vice versa. For example, if your honeycomb ordering is compatible with the standard square-lattice bond rules, you only need `geometry_fn`:
 
@@ -138,7 +138,7 @@ interactions, spc, geo = build_interaction(
 
 See [Custom intrcmap](custom-intrcmap.md) for examples of replacing only the interaction-map stage.
 
-## Handling intermediate sites
+## Handling Intermediate Sites
 
 For long-range bonds where `terminal_site > leading_site + 1`, the model builder must also set `intermid_tnsr`. When writing a custom model for your geometry, make sure to populate `intermid_tnsr` for all such bonds. See [Custom model](custom-model.md) for how to do this.
 

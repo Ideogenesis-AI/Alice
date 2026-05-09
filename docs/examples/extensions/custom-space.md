@@ -2,7 +2,7 @@
 
 The three built-in local space builders (`build_bosonic`, `build_fermionic`, `build_conductor`) cover spin, spinless-fermion, and spinful-fermion sites. For other physical systems — bosons with a finite truncation, mixed-valence sites, or entirely custom degrees of freedom — you can provide your own space builder.
 
-## What a space builder does
+## What a Space Builder Does
 
 A space builder calls Nicole's `load_space` (or constructs an `Index` directly) to obtain:
 
@@ -11,7 +11,7 @@ A space builder calls Nicole's `load_space` (or constructs an `Index` directly) 
 
 The operator templates your model builder will use must be pre-built here. The tensor axis conventions are described in the [Local Space API overview](../../api/local-space/index.md).
 
-## Example: spin-1 site with U(1)
+## Example: Spin-1 Site with U(1)
 
 The built-in `build_bosonic` already handles this (`spin=1.0`), but here is how you would replicate it from scratch to understand the pattern:
 
@@ -50,7 +50,7 @@ def build_spin1_u1():
     return spc, Op
 ```
 
-## Using a custom space builder
+## Using a Custom Space Builder
 
 Pass `space_fn` directly to `build_interaction`:
 
@@ -76,7 +76,7 @@ space = "my_space.py:build_spin1_u1"
 
 The `space_fn` is forwarded to the model builder (e.g. `build_heisenberg`) as a keyword argument, overriding its default space builder.
 
-## Fully custom site (no `load_space`)
+## Fully Custom Site (No `load_space`)
 
 For a system that Nicole's `load_space` does not support, construct the `Index` directly:
 

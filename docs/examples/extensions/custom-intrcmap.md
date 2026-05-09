@@ -2,7 +2,7 @@
 
 Alice separates geometry construction into two stages: `build_geometry` creates a `Geometry` struct from a config dict, and `build_intrcmap` generates the list of bare `Interaction2Site` objects from that struct. You can replace the second stage — or both stages — with your own callables.
 
-## What an intrcmap function does
+## What an Intrcmap Function Does
 
 An `intrcmap_fn` receives a fully-constructed `Geometry` and returns a list of `Interaction2Site` objects with:
 
@@ -13,7 +13,7 @@ An `intrcmap_fn` receives a fully-constructed `Geometry` and returns a list of `
 
 Use `geo.lx`, `geo.ly`, `geo.L`, `geo.to_1d(row, col)`, and `geo.to_2d(site)` to query the lattice layout.
 
-## Example: custom bond filter on the square lattice
+## Example: Custom Bond Filter on the Square Lattice
 
 Suppose you want a square lattice interaction map that only includes bonds along x (suppressing y bonds entirely):
 
@@ -47,7 +47,7 @@ Key rules:
 - **Do not set `cpl` or any tensor fields** — those are the model builder's responsibility.
 - **`label` contents are arbitrary strings** — the model builder uses them to assign couplings.
 
-## Method 1: Pass `intrcmap_fn` directly
+## Method 1: Pass `intrcmap_fn` Directly
 
 ```python
 from alice import build_interaction, build_hamiltonian
@@ -65,7 +65,7 @@ hamiltonian = build_hamiltonian(interactions, geo.L, spc)
 
 The `intrcmap_fn` keyword takes priority over any `[plugin]` section in the config.
 
-## Method 2: TOML plugin spec
+## Method 2: TOML Plugin Spec
 
 Specify the function in the TOML file using `"path/to/file.py:function_name"` syntax:
 
@@ -100,7 +100,7 @@ interactions, spc, geo = build_interaction(cfg["model"])
 
 Relative paths in the plugin spec are resolved relative to the TOML file's directory.
 
-## Combining a custom geometry and a custom intrcmap
+## Combining a Custom Geometry and a Custom Intrcmap
 
 You can replace both stages at once:
 
