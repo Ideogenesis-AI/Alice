@@ -16,7 +16,7 @@ The `alice.network.interaction` module defines the dataclasses that represent Ha
 |----------|-------------|
 | [build_interaction](build-interaction.md) | Build interaction list from TOML config |
 
-## Pipeline overview
+## Pipeline Overview
 
 ```
 config (TOML or dict)

@@ -6,7 +6,7 @@ Build a fully populated interaction list from a TOML config or dict.
     options:
       heading_level: 2
 
-## TOML config structure
+## TOML Config Structure
 
 A minimal config dict (or TOML section) must contain two sub-tables:
 
@@ -36,7 +36,7 @@ model    = "my_dir/my_model.py:build_my_model"
 
 Plugin specs use the format `"path/to/file.py:function_name"`.
 
-## Extension hooks
+## Extension Hooks
 
 | Kwarg | Plugin key | Signature | Description |
 |-------|------------|-----------|-------------|
@@ -47,7 +47,7 @@ Plugin specs use the format `"path/to/file.py:function_name"`.
 
 Keyword arguments take priority over `[plugin]` entries.
 
-## Return value
+## Return Value
 
 `build_interaction` returns a three-tuple `(interactions, spc, geo)`:
 
