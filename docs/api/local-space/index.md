@@ -10,7 +10,7 @@ The local space builders construct the physical Hilbert space and a dictionary o
 | [build_fermionic](build-fermionic.md) | Spinless-fermion site |
 | [build_conductor](build-conductor.md) | Spinful-fermion (Band) site |
 
-## Return convention
+## Return Convention
 
 All three functions return `(Spc, Op)`:
 
