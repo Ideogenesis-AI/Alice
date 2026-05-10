@@ -26,8 +26,8 @@ import pytest
 
 from alice.physics.geometry import build_geometry, build_intrcmap
 from alice.physics.kagome import (
-    build_traversal_snake,
-    build_traversal_zigzag,
+    build_traversal_sequential,
+    build_traversal_serpentine,
     intrcmap_kagome,
 )
 
@@ -40,15 +40,15 @@ def _quiet_geometry(caplog):
 
 
 # ---------------------------------------------------------------------------
-# Kagome zigzag traversal
+# Kagome sequential traversal
 # ---------------------------------------------------------------------------
 
-class TestKagomeZigzagTraversal:
-    """Tests for `build_traversal_zigzag` for the Kagome lattice."""
+class TestKagomeSequentialTraversal:
+    """Tests for `build_traversal_sequential` for the Kagome lattice."""
 
-    def test_3x3_zigzag(self):
-        """Zigzag ord_map matches the reference for lx=3, ly=3."""
-        ord_map, latt = build_traversal_zigzag(lx=3, ly=3)
+    def test_3x3_sequential(self):
+        """Sequential ord_map matches the reference for lx=3, ly=3."""
+        ord_map, latt = build_traversal_sequential(lx=3, ly=3)
 
         # Col 0: rows 0→1→2, sites 0–8
         assert ord_map[(0, 0, 0)] == 0
@@ -74,7 +74,7 @@ class TestKagomeZigzagTraversal:
 
     def test_latt_inverses(self):
         """latt[site] is the inverse of ord_map for lx=3, ly=3."""
-        ord_map, latt = build_traversal_zigzag(lx=3, ly=3)
+        ord_map, latt = build_traversal_sequential(lx=3, ly=3)
         for coord, site in ord_map.items():
             assert latt[site] == coord
 
@@ -88,14 +88,14 @@ class TestKagomeZigzagTraversal:
     def test_total_sites(self, lx, ly):
         """ord_map has lx*ly*3 entries, all values unique; latt has the same length."""
         expected = lx * ly * 3
-        ord_map, latt = build_traversal_zigzag(lx=lx, ly=ly)
+        ord_map, latt = build_traversal_sequential(lx=lx, ly=ly)
         assert len(ord_map) == expected
         assert len(set(ord_map.values())) == expected
         assert len(latt) == expected
 
     def test_keys_are_3_tuples(self):
         """All ord_map keys are 3-tuples (row, col, u) with u in {0, 1, 2}."""
-        ord_map, _ = build_traversal_zigzag(lx=3, ly=2)
+        ord_map, _ = build_traversal_sequential(lx=3, ly=2)
         for key in ord_map:
             assert isinstance(key, tuple) and len(key) == 3
             row, col, u = key
@@ -107,13 +107,13 @@ class TestKagomeZigzagTraversal:
         """ord_map values form a complete permutation of 0 .. L-1."""
         lx, ly = 3, 2
         L = lx * ly * 3
-        ord_map, _ = build_traversal_zigzag(lx=lx, ly=ly)
+        ord_map, _ = build_traversal_sequential(lx=lx, ly=ly)
         assert set(ord_map.values()) == set(range(L))
 
     def test_all_cols_top_to_bottom(self):
         """Every column fills rows 0→ly-1 with consecutive A,B,C triples."""
         lx, ly = 4, 3
-        ord_map, _ = build_traversal_zigzag(lx=lx, ly=ly)
+        ord_map, _ = build_traversal_sequential(lx=lx, ly=ly)
         for col in range(lx):
             base = col * ly * 3
             for row in range(ly):
@@ -121,29 +121,29 @@ class TestKagomeZigzagTraversal:
                 assert ord_map[(row, col, 1)] == base + row * 3 + 1
                 assert ord_map[(row, col, 2)] == base + row * 3 + 2
 
-    def test_differs_from_snake_for_2d(self):
-        """Zigzag and snake produce different ord_maps for a 2D lattice."""
-        snake_map, _  = build_traversal_snake(lx=3, ly=3)
-        zigzag_map, _ = build_traversal_zigzag(lx=3, ly=3)
-        assert snake_map != zigzag_map
+    def test_differs_from_serpentine_for_2d(self):
+        """Sequential and serpentine produce different ord_maps for a 2D lattice."""
+        serpentine_map, _ = build_traversal_serpentine(lx=3, ly=3)
+        sequential_map, _ = build_traversal_sequential(lx=3, ly=3)
+        assert serpentine_map != sequential_map
 
-    def test_same_as_snake_for_ly_1(self):
-        """For ly=1 zigzag and snake are identical."""
-        snake_map, _  = build_traversal_snake(lx=4, ly=1)
-        zigzag_map, _ = build_traversal_zigzag(lx=4, ly=1)
-        assert snake_map == zigzag_map
+    def test_same_as_serpentine_for_ly_1(self):
+        """For ly=1 sequential and serpentine are identical."""
+        serpentine_map, _ = build_traversal_serpentine(lx=4, ly=1)
+        sequential_map, _ = build_traversal_sequential(lx=4, ly=1)
+        assert serpentine_map == sequential_map
 
 
 # ---------------------------------------------------------------------------
-# Kagome snake traversal
+# Kagome serpentine traversal
 # ---------------------------------------------------------------------------
 
-class TestKagomeSnakeTraversal:
-    """Tests for `build_traversal_snake` for the Kagome lattice."""
+class TestKagomeSerpentineTraversal:
+    """Tests for `build_traversal_serpentine` for the Kagome lattice."""
 
-    def test_3x3_snake(self):
-        """Snake ord_map matches the plan reference for lx=3, ly=3."""
-        ord_map, latt = build_traversal_snake(lx=3, ly=3)
+    def test_3x3_serpentine(self):
+        """Serpentine ord_map matches the plan reference for lx=3, ly=3."""
+        ord_map, latt = build_traversal_serpentine(lx=3, ly=3)
 
         # Col 0 (even): rows 0→1→2, sites 0–8
         assert ord_map[(0, 0, 0)] == 0
@@ -169,7 +169,7 @@ class TestKagomeSnakeTraversal:
 
     def test_latt_inverses(self):
         """latt[site] is the inverse of ord_map for lx=3, ly=3."""
-        ord_map, latt = build_traversal_snake(lx=3, ly=3)
+        ord_map, latt = build_traversal_serpentine(lx=3, ly=3)
         for coord, site in ord_map.items():
             assert latt[site] == coord
 
@@ -183,14 +183,14 @@ class TestKagomeSnakeTraversal:
     def test_total_sites(self, lx, ly):
         """ord_map has lx*ly*3 entries, all values unique; latt has the same length."""
         expected = lx * ly * 3
-        ord_map, latt = build_traversal_snake(lx=lx, ly=ly)
+        ord_map, latt = build_traversal_serpentine(lx=lx, ly=ly)
         assert len(ord_map) == expected
         assert len(set(ord_map.values())) == expected
         assert len(latt) == expected
 
     def test_keys_are_3_tuples(self):
         """All ord_map keys are 3-tuples (row, col, u) with u in {0, 1, 2}."""
-        ord_map, _ = build_traversal_snake(lx=3, ly=2)
+        ord_map, _ = build_traversal_serpentine(lx=3, ly=2)
         for key in ord_map:
             assert isinstance(key, tuple) and len(key) == 3
             row, col, u = key
@@ -202,13 +202,13 @@ class TestKagomeSnakeTraversal:
         """ord_map values form a complete permutation of 0 .. L-1."""
         lx, ly = 3, 2
         L = lx * ly * 3
-        ord_map, _ = build_traversal_snake(lx=lx, ly=ly)
+        ord_map, _ = build_traversal_serpentine(lx=lx, ly=ly)
         assert set(ord_map.values()) == set(range(L))
 
     def test_even_col_top_to_bottom(self):
         """Even columns fill rows 0→ly-1 with consecutive A,B,C triples."""
         lx, ly = 4, 3
-        ord_map, _ = build_traversal_snake(lx=lx, ly=ly)
+        ord_map, _ = build_traversal_serpentine(lx=lx, ly=ly)
         for col in range(0, lx, 2):
             base = col * ly * 3
             for row in range(ly):
@@ -219,7 +219,7 @@ class TestKagomeSnakeTraversal:
     def test_odd_col_bottom_to_top(self):
         """Odd columns fill rows ly-1→0 with consecutive A,B,C triples."""
         lx, ly = 4, 3
-        ord_map, _ = build_traversal_snake(lx=lx, ly=ly)
+        ord_map, _ = build_traversal_serpentine(lx=lx, ly=ly)
         for col in range(1, lx, 2):
             base = col * ly * 3
             for row in range(ly):

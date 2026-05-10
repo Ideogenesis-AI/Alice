@@ -43,7 +43,7 @@ def observe(
     Parameters
     ----------
     state:
-        The state to evaluate.  Either an `MPS` object, or a plain sequence
+        The state to evaluate. Either an `MPS` object, or a plain sequence
         of MPS site tensors.
     observable:
         The observable encoded as an `MPO` object, or a plain sequence of

@@ -38,7 +38,7 @@ from alice.physics.system import build_bosonic, build_fermionic, build_conductor
 _ATOL = 1e-12
 
 # All 4th-order templates share the same direction pattern regardless of
-# whether they are leading-site, terminal-site, or on-site.  The physical
+# whether they are leading-site, terminal-site, or on-site. The physical
 # (bra, ket) axes follow Nicole's operator convention: bra = IN, ket = OUT.
 # Layout: (L_or_op = IN, R_or_op = OUT, bra = IN, ket = OUT).
 _4TH_ORDER_DIRECTIONS = (Direction.IN, Direction.OUT, Direction.IN, Direction.OUT)

@@ -41,7 +41,7 @@ def _chain_config(L: int, model: str, category: str, **model_kwargs) -> dict:
     return {
         'geometry': {
             'lattice':  'square',
-            'traverse': 'snake',
+            'traverse': 'sequential',
             'lx': L,
             'ly': 1,
             'bcx': 'OBC',
@@ -61,7 +61,7 @@ def _square_config(Lx: int, Ly: int, model: str, category: str, **model_kwargs) 
     return {
         'geometry': {
             'lattice':  'square',
-            'traverse': 'snake',
+            'traverse': 'sequential',
             'lx': Lx,
             'ly': Ly,
             'bcx': 'OBC',
@@ -338,14 +338,14 @@ class TestCompactPhysics:
 
     @pytest.fixture(scope='class')
     def heisenberg_4x2_mpo(self):
-        """4×2 Heisenberg square lattice (snake ordering), U1 symmetry."""
+        """4×2 Heisenberg square lattice (sequential ordering), U1 symmetry."""
         cfg = _square_config(4, 2, 'Heisenberg', 'bosonic', symmetry='U1', spin=0.5, J=1.0)
         interactions, spc, geo = build_interaction(cfg)
         return build_hamiltonian(interactions, geo.L, spc)
 
     @pytest.fixture(scope='class')
     def heisenberg_4x3_mpo(self):
-        """4×3 Heisenberg square lattice (snake ordering), U1 symmetry."""
+        """4×3 Heisenberg square lattice (sequential ordering), U1 symmetry."""
         cfg = _square_config(4, 3, 'Heisenberg', 'bosonic', symmetry='U1', spin=0.5, J=1.0)
         interactions, spc, geo = build_interaction(cfg)
         return build_hamiltonian(interactions, geo.L, spc)

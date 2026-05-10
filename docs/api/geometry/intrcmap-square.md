@@ -25,8 +25,8 @@ Call `build_geometry(geo_cfg)` to construct a `Geometry`, then pass it here. The
 
 | Value | Ordering |
 |-------|----------|
-| `"snake"` | column-major, alternating direction (default) |
-| `"zigzag"` | column-major, top→bottom every column |
+| `"sequential"` | column-major, top→bottom every column (default) |
+| `"serpentine"` | column-major, alternating direction |
 
 ## See Also
 

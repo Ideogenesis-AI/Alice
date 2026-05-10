@@ -39,7 +39,7 @@ Alternatively, pass the TOML file path directly (Alice uses `tomllib` internally
 
 ```python
 # If the TOML file contains exactly one top-level section, you can pass the
-# section's sub-dict directly.  For a multi-section file, index by name first.
+# section's sub-dict directly. For a multi-section file, index by name first.
 interactions, spc, L = build_interaction(cfg["heisenberg_su2"])
 ```
 
@@ -135,7 +135,7 @@ mu       = 0.0
 ```toml
 [heisenberg_2d.geometry]
 lattice  = "square"
-traverse = "snake"
+traverse = "sequential"
 lx       = 4
 ly       = 4
 bcx      = "OBC"
@@ -154,7 +154,7 @@ J        = 1.0
 Jp       = 0.3    # NNN coupling J'
 ```
 
-A 4×4 square lattice (16 sites total, traversed in snake order). `n3d = true` adds diagonal NNN bonds. The model builder assigns `Jp` to NNN interactions labeled `['NNN', 'N3D']`.
+A 4×4 square lattice (16 sites total, traversed in sequential order). `n3d = true` adds diagonal NNN bonds. The model builder assigns `Jp` to NNN interactions labeled `['NNN', 'N3D']`.
 
 ---
 
@@ -163,7 +163,7 @@ A 4×4 square lattice (16 sites total, traversed in snake order). `n3d = true` a
 ```toml
 [hubbard_cylinder.geometry]
 lattice  = "square"
-traverse = "snake"
+traverse = "sequential"
 lx       = 8
 ly       = 8
 bcx      = "OBC"

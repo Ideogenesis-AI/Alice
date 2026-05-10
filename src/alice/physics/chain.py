@@ -18,9 +18,9 @@
 
 """1D chain geometry: traversal order and interaction map.
 
-This module provides the `intrcmap_1dchain` geometry builder.  The builder
+This module provides the `intrcmap_1dchain` geometry builder. The builder
 returns a list of `Interaction2Site` objects with `leading_site`,
-`terminal_site`, and `label` filled in.  Coupling constants (`cpl`) are left
+`terminal_site`, and `label` filled in. Coupling constants (`cpl`) are left
 at their default (`0.0`) and are assigned by the model builder in the second
 stage of the pipeline.
 """
@@ -85,13 +85,13 @@ def build_traversal(
     """Build the trivial sequential traversal order for a 1D chain.
 
     A 1D chain has only one meaningful traversal (sequential), so the
-    `traverse` config key is accepted but ignored.  Logs a visual diagram
+    `traverse` config key is accepted but ignored. Logs a visual diagram
     of the traversal at INFO level.
 
     Parameters
     ----------
     geo_cfg:
-        Geometry config dict.  Must contain `lx`.
+        Geometry config dict. Must contain `lx`.
 
     Returns
     -------
@@ -122,7 +122,7 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     Parameters
     ----------
     geo:
-        Fully-resolved geometry struct for the 1D chain.  Relevant config
+        Fully-resolved geometry struct for the 1D chain. Relevant config
         keys (read from `geo.cfg`):
 
         - `bcx` — boundary condition (`'OBC'` or `'PBC'`).
@@ -131,7 +131,7 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     Returns
     -------
     List[Interaction2Site]
-        Interaction objects sorted by `leading_site`.  Tensor fields are
+        Interaction objects sorted by `leading_site`. Tensor fields are
         `None`; `cpl` is `0.0`.
     """
     L   = geo.lx

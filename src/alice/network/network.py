@@ -39,7 +39,7 @@ class Network:
     """Base class for 1D tensor network chains.
 
     Stores a list of site tensors and provides uniform iteration and axis
-    conventions.  Subclasses typically add a `center` attribute together
+    conventions. Subclasses typically add a `center` attribute together
     with `canonical()` and `norm()`.
 
     Axis layout assumed by this base class (shared by MPS and MPO):
@@ -335,7 +335,7 @@ class Network:
 
         When `center` is set, the network is in mixed canonical form and the
         norm equals the Frobenius norm of the center tensor, which is returned
-        directly.  If `center` is `None`, the norm is computed by contracting
+        directly. If `center` is `None`, the norm is computed by contracting
         ⟨ψ|ψ⟩ site by site from left to right.
 
         Returns

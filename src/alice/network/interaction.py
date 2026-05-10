@@ -195,10 +195,10 @@ def build_interaction(
         Either a config dict (with `'geometry'` and `'model'` sub-dicts) or a
         path to a TOML file.
     geometry_fn:
-        Optional override for the geometry struct factory.  Signature:
+        Optional override for the geometry struct factory. Signature:
         `geometry_fn(geo_cfg: dict) -> Geometry`.
     intrcmap_fn:
-        Optional override for the interaction-map builder.  Signature:
+        Optional override for the interaction-map builder. Signature:
         `intrcmap_fn(geo: Geometry) -> list[Interaction2Site]`.
     model_fn:
         Optional override for the model builder. Signature:
