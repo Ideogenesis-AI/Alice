@@ -55,12 +55,19 @@ _DIAG_HEAD      = 2   # columns shown at the left in truncated mode
 _DIAG_TAIL      = 1   # columns shown at the right in truncated mode
 
 
+_TRAVERSE_TITLES: Dict[str, str] = {
+    'snake':  'Snake-like Chain',
+    'zigzag': 'Zigzag Chain',
+}
+
+
 def _log_kagome_diagram(
     lx: int,
     ly: int,
     ord_map: dict[tuple[int, int, int], int],
+    traverse: str = 'snake',
 ) -> None:
-    """Log a staggered-row ASCII diagram of the Kagome snake traversal.
+    """Log a staggered-row ASCII diagram of the Kagome traversal.
 
     The diagram follows the convention used by `_log_2d_diagram` in
     `square.py`: centered within a 60-character log width. Each unit cell
@@ -79,9 +86,13 @@ def _log_kagome_diagram(
         Number of unit-cell rows.
     ord_map:
         Mapping `(row, col, u)` → MPS site index.
+    traverse:
+        Traversal key used to select the diagram title (e.g. `'snake'`,
+        `'zigzag'`).
     """
+    title = f"Traverse over Kagome Lattice via {_TRAVERSE_TITLES.get(traverse, traverse)}"
     logger.info("─" * 60)
-    logger.info("Traverse over Kagome Lattice via Snake-like Chain".center(60))
+    logger.info(title.center(60))
     logger.info("─" * 60)
     logger.info("")
 
@@ -178,6 +189,70 @@ def _log_pairs(pairs: list[str], indent: int = 3, max_per_line: int = 6) -> None
 # Traversal builder
 # ---------------------------------------------------------------------------
 
+def build_traversal_zigzag(
+    lx: int,
+    ly: int,
+) -> tuple[dict[tuple[int, int, int], int], list[tuple[int, int, int]]]:
+    r"""Build zigzag traversal order for a Kagome lattice.
+
+    Column-major zigzag: all columns fill rows top→bottom, with no reversal.
+    Within each (col, row) unit cell the three sublattice sites are ordered
+    A (u=0), B (u=1), C (u=2).
+
+    For `lx=3, ly=3` the MPS indices are:
+
+                    col=0        col=1        col=2
+        row=0    [ 0,  1,  2]  [ 9, 10, 11]  [18, 19, 20]
+        row=1    [ 3,  4,  5]  [12, 13, 14]  [21, 22, 23]
+        row=2    [ 6,  7,  8]  [15, 16, 17]  [24, 25, 26]
+
+    The logged diagram for the same case:
+
+            00───01···09───10···18───19
+             \  /      \  /      \  /
+              02        11        20
+                \      /  \      /  \
+                 03───04···12───13···21───22
+                  \  /      \  /      \  /
+                   05        14        23
+                     \      /  \      /  \
+                      06───07···15───16···24───25
+                       \  /      \  /      \  /
+                        08        17        26
+
+    Logs a visual diagram of the traversal at INFO level.
+
+    Parameters
+    ----------
+    lx:
+        Number of unit-cell columns.
+    ly:
+        Number of unit-cell rows.
+
+    Returns
+    -------
+    tuple
+        `(ord_map, latt)` where `ord_map[(row, col, u)]` gives the MPS
+        site index (0-based) and `latt[site]` gives `(row, col, u)`.
+    """
+    L = lx * ly * 3
+
+    ord_map: dict[tuple[int, int, int], int] = {}
+    site = 0
+    for col in range(lx):
+        for row in range(ly):
+            for u in range(3):
+                ord_map[(row, col, u)] = site
+                site += 1
+
+    latt: list[tuple[int, int, int]] = [None] * L  # type: ignore[list-item]
+    for coord, s in ord_map.items():
+        latt[s] = coord
+
+    _log_kagome_diagram(lx, ly, ord_map, 'zigzag')
+    return ord_map, latt
+
+
 def build_traversal_snake(
     lx: int,
     ly: int,
@@ -239,12 +314,13 @@ def build_traversal_snake(
     for coord, s in ord_map.items():
         latt[s] = coord
 
-    _log_kagome_diagram(lx, ly, ord_map)
+    _log_kagome_diagram(lx, ly, ord_map, 'snake')
     return ord_map, latt
 
 
 _TRAVERSALS: Dict[str, Callable] = {
-    'snake': build_traversal_snake,
+    'snake':  build_traversal_snake,
+    'zigzag': build_traversal_zigzag,
 }
 
 
@@ -261,7 +337,8 @@ def build_traversal(
     ----------
     geo_cfg:
         Geometry config dict. Must contain `lx` and optionally `ly`
-        (default `1`) and `traverse` (default `'snake'`).
+        (default `1`) and `traverse` (default `'snake'`; also accepts
+        `'zigzag'`).
 
     Returns
     -------
