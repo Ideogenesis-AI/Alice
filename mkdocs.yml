@@ -83,6 +83,7 @@ nav:
       - build_intrcmap: api/geometry/build-intrcmap.md
       - intrcmap_1dchain: api/geometry/intrcmap-1dchain.md
       - intrcmap_square: api/geometry/intrcmap-square.md
+      - intrcmap_kagome: api/geometry/intrcmap-kagome.md
     - Local Space:
       - Overview: api/local-space/index.md
       - build_bosonic: api/local-space/build-bosonic.md
