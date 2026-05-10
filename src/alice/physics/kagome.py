@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _DIAG_THRESHOLD = 4   # lx > this → truncate the diagram
-_DIAG_HEAD      = 2   # columns shown at the left in truncated mode
+_DIAG_HEAD      = 3   # columns shown at the left in truncated mode
 _DIAG_TAIL      = 1   # columns shown at the right in truncated mode
 
 
