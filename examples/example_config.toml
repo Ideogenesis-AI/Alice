@@ -139,8 +139,8 @@ compact_every = 10             # call MPO.compact() after every this many terms
 [heisenberg_kagome.geometry]
 lattice  = "kagome"
 traverse = "zigzag"
-lx       = 4
-ly       = 4
+lx       = 6
+ly       = 3
 bcx      = "OBC"
 bcy      = "OBC"
 n2u      = true    # NN upward-triangle bonds (A–B, A–C, B–C within each unit cell)
