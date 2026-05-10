@@ -25,7 +25,11 @@ import logging
 import pytest
 
 from alice.physics.geometry import build_geometry, build_intrcmap
-from alice.physics.kagome import build_traversal_snake, intrcmap_kagome
+from alice.physics.kagome import (
+    build_traversal_snake,
+    build_traversal_zigzag,
+    intrcmap_kagome,
+)
 
 
 # Suppress INFO-level geometry logs during tests.
@@ -36,10 +40,105 @@ def _quiet_geometry(caplog):
 
 
 # ---------------------------------------------------------------------------
+# Kagome zigzag traversal
+# ---------------------------------------------------------------------------
+
+class TestKagomeZigzagTraversal:
+    """Tests for `build_traversal_zigzag` for the Kagome lattice."""
+
+    def test_3x3_zigzag(self):
+        """Zigzag ord_map matches the reference for lx=3, ly=3."""
+        ord_map, latt = build_traversal_zigzag(lx=3, ly=3)
+
+        # Col 0: rows 0→1→2, sites 0–8
+        assert ord_map[(0, 0, 0)] == 0
+        assert ord_map[(0, 0, 1)] == 1
+        assert ord_map[(0, 0, 2)] == 2
+        assert ord_map[(2, 0, 0)] == 6
+        assert ord_map[(2, 0, 2)] == 8
+
+        # Col 1: rows 0→1→2, sites 9–17
+        assert ord_map[(0, 1, 0)] == 9
+        assert ord_map[(0, 1, 1)] == 10
+        assert ord_map[(0, 1, 2)] == 11
+        assert ord_map[(2, 1, 0)] == 15
+        assert ord_map[(2, 1, 2)] == 17
+
+        # Col 2: rows 0→1→2, sites 18–26
+        assert ord_map[(0, 2, 0)] == 18
+        assert ord_map[(2, 2, 2)] == 26
+
+        assert latt[0]  == (0, 0, 0)
+        assert latt[9]  == (0, 1, 0)
+        assert latt[18] == (0, 2, 0)
+
+    def test_latt_inverses(self):
+        """latt[site] is the inverse of ord_map for lx=3, ly=3."""
+        ord_map, latt = build_traversal_zigzag(lx=3, ly=3)
+        for coord, site in ord_map.items():
+            assert latt[site] == coord
+
+    @pytest.mark.parametrize("lx,ly", [
+        (1, 1),
+        (2, 2),
+        (3, 3),
+        (4, 2),
+        (2, 4),
+    ])
+    def test_total_sites(self, lx, ly):
+        """ord_map has lx*ly*3 entries, all values unique; latt has the same length."""
+        expected = lx * ly * 3
+        ord_map, latt = build_traversal_zigzag(lx=lx, ly=ly)
+        assert len(ord_map) == expected
+        assert len(set(ord_map.values())) == expected
+        assert len(latt) == expected
+
+    def test_keys_are_3_tuples(self):
+        """All ord_map keys are 3-tuples (row, col, u) with u in {0, 1, 2}."""
+        ord_map, _ = build_traversal_zigzag(lx=3, ly=2)
+        for key in ord_map:
+            assert isinstance(key, tuple) and len(key) == 3
+            row, col, u = key
+            assert 0 <= row < 2
+            assert 0 <= col < 3
+            assert u in (0, 1, 2)
+
+    def test_values_cover_0_to_L_minus_1(self):
+        """ord_map values form a complete permutation of 0 .. L-1."""
+        lx, ly = 3, 2
+        L = lx * ly * 3
+        ord_map, _ = build_traversal_zigzag(lx=lx, ly=ly)
+        assert set(ord_map.values()) == set(range(L))
+
+    def test_all_cols_top_to_bottom(self):
+        """Every column fills rows 0→ly-1 with consecutive A,B,C triples."""
+        lx, ly = 4, 3
+        ord_map, _ = build_traversal_zigzag(lx=lx, ly=ly)
+        for col in range(lx):
+            base = col * ly * 3
+            for row in range(ly):
+                assert ord_map[(row, col, 0)] == base + row * 3
+                assert ord_map[(row, col, 1)] == base + row * 3 + 1
+                assert ord_map[(row, col, 2)] == base + row * 3 + 2
+
+    def test_differs_from_snake_for_2d(self):
+        """Zigzag and snake produce different ord_maps for a 2D lattice."""
+        snake_map, _  = build_traversal_snake(lx=3, ly=3)
+        zigzag_map, _ = build_traversal_zigzag(lx=3, ly=3)
+        assert snake_map != zigzag_map
+
+    def test_same_as_snake_for_ly_1(self):
+        """For ly=1 zigzag and snake are identical."""
+        snake_map, _  = build_traversal_snake(lx=4, ly=1)
+        zigzag_map, _ = build_traversal_zigzag(lx=4, ly=1)
+        assert snake_map == zigzag_map
+
+
+# ---------------------------------------------------------------------------
 # Kagome snake traversal
 # ---------------------------------------------------------------------------
 
-class TestKagomeTraversal:
+class TestKagomeSnakeTraversal:
     """Tests for `build_traversal_snake` for the Kagome lattice."""
 
     def test_3x3_snake(self):
@@ -50,32 +149,26 @@ class TestKagomeTraversal:
         assert ord_map[(0, 0, 0)] == 0
         assert ord_map[(0, 0, 1)] == 1
         assert ord_map[(0, 0, 2)] == 2
-        assert ord_map[(1, 0, 0)] == 3
-        assert ord_map[(1, 0, 1)] == 4
-        assert ord_map[(1, 0, 2)] == 5
         assert ord_map[(2, 0, 0)] == 6
-        assert ord_map[(2, 0, 1)] == 7
         assert ord_map[(2, 0, 2)] == 8
 
         # Col 1 (odd): rows 2→1→0, sites 9–17
         assert ord_map[(2, 1, 0)] == 9
         assert ord_map[(2, 1, 1)] == 10
         assert ord_map[(2, 1, 2)] == 11
-        assert ord_map[(1, 1, 0)] == 12
-        assert ord_map[(1, 1, 1)] == 13
-        assert ord_map[(1, 1, 2)] == 14
         assert ord_map[(0, 1, 0)] == 15
-        assert ord_map[(0, 1, 1)] == 16
         assert ord_map[(0, 1, 2)] == 17
 
         # Col 2 (even): rows 0→1→2, sites 18–26
         assert ord_map[(0, 2, 0)] == 18
-        assert ord_map[(0, 2, 1)] == 19
-        assert ord_map[(0, 2, 2)] == 20
         assert ord_map[(2, 2, 2)] == 26
 
-    def test_latt_inverses_3x3(self):
-        """latt[site] is the inverse of ord_map[(row,col,u)] for lx=3, ly=3."""
+        assert latt[0]  == (0, 0, 0)
+        assert latt[9]  == (2, 1, 0)
+        assert latt[18] == (0, 2, 0)
+
+    def test_latt_inverses(self):
+        """latt[site] is the inverse of ord_map for lx=3, ly=3."""
         ord_map, latt = build_traversal_snake(lx=3, ly=3)
         for coord, site in ord_map.items():
             assert latt[site] == coord
@@ -113,32 +206,26 @@ class TestKagomeTraversal:
         assert set(ord_map.values()) == set(range(L))
 
     def test_even_col_top_to_bottom(self):
-        """Even columns fill row 0→ly-1 with consecutive A,B,C triples."""
-        ord_map, _ = build_traversal_snake(lx=4, ly=3)
-        for col in range(0, 4, 2):   # even cols: 0, 2
-            # Sites for this column start at col * ly * 3
-            base = col * 3 * 3
-            for row in range(3):
+        """Even columns fill rows 0→ly-1 with consecutive A,B,C triples."""
+        lx, ly = 4, 3
+        ord_map, _ = build_traversal_snake(lx=lx, ly=ly)
+        for col in range(0, lx, 2):
+            base = col * ly * 3
+            for row in range(ly):
                 assert ord_map[(row, col, 0)] == base + row * 3
                 assert ord_map[(row, col, 1)] == base + row * 3 + 1
                 assert ord_map[(row, col, 2)] == base + row * 3 + 2
 
     def test_odd_col_bottom_to_top(self):
-        """Odd columns fill row ly-1→0 with consecutive A,B,C triples."""
+        """Odd columns fill rows ly-1→0 with consecutive A,B,C triples."""
         lx, ly = 4, 3
         ord_map, _ = build_traversal_snake(lx=lx, ly=ly)
-        for col in range(1, lx, 2):  # odd cols: 1, 3
+        for col in range(1, lx, 2):
             base = col * ly * 3
             for row in range(ly):
-                expected_start = base + (ly - 1 - row) * 3
-                assert ord_map[(row, col, 0)] == expected_start
-                assert ord_map[(row, col, 1)] == expected_start + 1
-                assert ord_map[(row, col, 2)] == expected_start + 2
-
-    def test_unknown_traverse_raises(self):
-        """build_geometry raises ValueError for an unrecognised traverse key."""
-        with pytest.raises(ValueError, match="Unknown traversal"):
-            build_geometry({'lx': 2, 'ly': 2, 'lattice': 'kagome', 'traverse': 'hilbert'})
+                assert ord_map[(row, col, 0)] == base + (ly - 1 - row) * 3
+                assert ord_map[(row, col, 1)] == base + (ly - 1 - row) * 3 + 1
+                assert ord_map[(row, col, 2)] == base + (ly - 1 - row) * 3 + 2
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +254,11 @@ class TestKagomeGeometry:
         """geo.ord_map keys are all 3-tuples."""
         geo = build_geometry({'lx': 2, 'ly': 2, 'lattice': 'kagome'})
         assert all(isinstance(k, tuple) and len(k) == 3 for k in geo.ord_map)
+
+    def test_unknown_traverse_raises(self):
+        """build_geometry raises ValueError for an unrecognised traverse key."""
+        with pytest.raises(ValueError, match="Unknown traversal"):
+            build_geometry({'lx': 2, 'ly': 2, 'lattice': 'kagome', 'traverse': 'hilbert'})
 
 
 # ---------------------------------------------------------------------------
