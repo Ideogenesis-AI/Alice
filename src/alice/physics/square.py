@@ -18,12 +18,12 @@
 
 """Square-lattice geometry: traversal orders and interaction map.
 
-This module provides traversal-order generators for 2D square lattices
-(`generate_snake_order`, `generate_zigzag_order`) and the `intrcmap_square`
-geometry builder.  The builder returns a list of `Interaction2Site` objects
-with `leading_site`, `terminal_site`, and `label` filled in.  Coupling
-constants (`cpl`) are left at their default (`0.0`) and are assigned by the
-model builder in the second stage of the pipeline.
+This module provides traversal-order generators (`generate_serpentine_order`,
+`generate_sequential_order`) and the `intrcmap_square` geometry builder. The
+builder returns a list of `Interaction2Site` objects with `leading_site`,
+`terminal_site`, and `label` filled in. Coupling constants (`cpl`) are left
+at their default (`0.0`) and are assigned by the model builder in the second
+stage of the pipeline.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def _log_2d_diagram(
 
     if lx <= _DIAG_THRESHOLD:
         # Full render: all columns shown.
-        # Each site: 2 chars; each connector: 5 chars.  Width = 7 * lx - 5.
+        # Each site: 2 chars; each connector: 5 chars. Width = 7 * lx - 5.
         diagram_width = 7 * lx - 5
         padding       = " " * max(0, (60 - diagram_width) // 2)
 
@@ -121,21 +121,21 @@ def _log_2d_diagram(
     logger.info("")
 
 
-def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
-    """Log a visual diagram of the snake-like lattice traversal."""
+def _log_serpentine_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
+    """Log a visual diagram of the serpentine lattice traversal."""
     def _connector(row: int, col: int) -> str:
         """Return the horizontal connector between col and col+1 at the given row."""
         if (row == 0 and col % 2 == 1) or (row == ly - 1 and col % 2 == 0):
             return "-----"
         return ". . ."
-    _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Snake-like Chain", _connector)
+    _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Serpentine Chain", _connector)
 
 
-def _log_zigzag_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
-    """Log a visual diagram of the zigzag-order lattice traversal."""
+def _log_sequential_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
+    """Log a visual diagram of the sequential-order lattice traversal."""
     # All horizontal connectors are off-path: the inter-column MPS jump
     # goes from the bottom of col c to the top of col c+1, spanning rows.
-    _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Zigzag Chain",
+    _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Sequential Chain",
                     lambda row, col: ". . .")
 
 
@@ -151,14 +151,14 @@ def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None
 # Traversal builders
 # ---------------------------------------------------------------------------
 
-def build_traversal_snake(
+def build_traversal_serpentine(
     lx: int,
     ly: int,
 ) -> tuple[dict[tuple[int, int], int], list[tuple[int, int]]]:
-    """Build snake-like traversal order for a 2D square lattice.
+    """Build serpentine traversal order for a 2D square lattice.
 
     Creates a mapping between site indices and lattice coordinates for
-    a snake-like path through the lattice:
+    a serpentine path through the lattice:
 
         00. . .07-----08. . .15
         |      |      |      |
@@ -191,7 +191,7 @@ def build_traversal_snake(
         col = idx // ly
         ord_map[(row, col)] = idx
 
-    # Reverse odd columns to create the snake pattern.
+    # Reverse odd columns to create the serpentine pattern.
     for col in range(lx):
         if col % 2 == 1:
             for row in range(ly // 2):
@@ -204,18 +204,18 @@ def build_traversal_snake(
     for (row, col), site in ord_map.items():
         latt[site] = (row, col)
 
-    _log_snake_diagram(lx, ly, ord_map)
+    _log_serpentine_diagram(lx, ly, ord_map)
     return ord_map, latt
 
 
-def build_traversal_zigzag(
+def build_traversal_sequential(
     lx: int,
     ly: int,
 ) -> tuple[dict[tuple[int, int], int], list[tuple[int, int]]]:
-    """Build zigzag traversal order for a 2D square lattice.
+    """Build sequential traversal order for a 2D square lattice.
 
     Creates a column-major mapping where every column goes top→bottom —
-    no column reversals, unlike `build_traversal_snake` which reverses odd
+    no column reversals, unlike `build_traversal_serpentine` which reverses odd
     columns:
 
         00. . .04. . .08. . .12
@@ -231,7 +231,7 @@ def build_traversal_zigzag(
     These sites are adjacent in the MPS but span different lattice rows,
     so no `"-----"` appears in the diagram.
 
-    For `ly=1` the result is identical to `build_traversal_snake`.
+    For `ly=1` the result is identical to `build_traversal_serpentine`.
 
     Logs a visual diagram of the traversal at INFO level.
 
@@ -256,20 +256,20 @@ def build_traversal_zigzag(
         row = idx % ly
         col = idx // ly
         ord_map[(row, col)] = idx
-    # No column reversal — unlike snake which reverses odd columns.
+    # No column reversal — unlike serpentine which reverses odd columns.
 
     latt: list[tuple[int, int]] = [None] * L  # type: ignore[list-item]
     for (row, col), site in ord_map.items():
         latt[site] = (row, col)
 
-    _log_zigzag_diagram(lx, ly, ord_map)
+    _log_sequential_diagram(lx, ly, ord_map)
     return ord_map, latt
 
 
 # Map traverse key → (lx, ly) → (ord_map, latt).
 _TRAVERSALS = {
-    'snake':  build_traversal_snake,
-    'zigzag': build_traversal_zigzag,
+    'serpentine': build_traversal_serpentine,
+    'sequential': build_traversal_sequential,
 }
 
 
@@ -285,8 +285,8 @@ def build_traversal(
     Parameters
     ----------
     geo_cfg:
-        Geometry config dict.  Must contain `lx` and optionally `ly`
-        (default `1`) and `traverse` (default `'snake'`).
+        Geometry config dict. Must contain `lx` and optionally `ly`
+        (default `1`) and `traverse` (default `'serpentine'`).
 
     Returns
     -------
@@ -298,8 +298,8 @@ def build_traversal(
     ValueError
         If `traverse` names an unrecognised option.
     """
-    # Determine the traversal order, default: snake order
-    traverse = geo_cfg.get('traverse', 'snake')
+    # Determine the traversal order, default: serpentine order
+    traverse = geo_cfg.get('traverse', 'serpentine')
     if traverse not in _TRAVERSALS:
         raise ValueError(
             f"Unknown traversal order '{traverse}'. "
@@ -319,7 +319,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
     """Generate an interaction map for a 2D square lattice.
 
     Produces nearest-neighbor (NN) and optionally next-nearest-neighbor
-    (NNN) interactions for a 2D square lattice.  Coupling constants are not
+    (NNN) interactions for a 2D square lattice. Coupling constants are not
     set here; the returned interactions have `cpl == 0.0` (the default).
     Labels encode bond topology so that the model builder can assign the
     correct coupling per bond type.
@@ -327,7 +327,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
     Parameters
     ----------
     geo:
-        Fully-resolved geometry struct for the square lattice.  Relevant
+        Fully-resolved geometry struct for the square lattice. Relevant
         config keys (read from `geo.cfg`):
 
         - `bcx` — boundary condition along x (`'OBC'` or `'PBC'`).
@@ -340,7 +340,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
     Returns
     -------
     List[Interaction2Site]
-        Interaction objects sorted by `leading_site`.  Tensor fields are
+        Interaction objects sorted by `leading_site`. Tensor fields are
         `None`; `cpl` is `0.0`.
     """
     lx  = geo.lx
