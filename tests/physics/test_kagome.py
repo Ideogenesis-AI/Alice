@@ -26,8 +26,8 @@ import pytest
 
 from alice.physics.geometry import build_geometry, build_intrcmap
 from alice.physics.kagome import (
-    build_traversal_serpentine,
     build_traversal_sequential,
+    build_traversal_serpentine,
     intrcmap_kagome,
 )
 
