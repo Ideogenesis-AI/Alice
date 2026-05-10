@@ -18,8 +18,8 @@
 
 """Square-lattice geometry: traversal orders and interaction map.
 
-This module provides traversal-order generators (`generate_serpentine_order`,
-`generate_sequential_order`) and the `intrcmap_square` geometry builder. The
+This module provides traversal-order generators (`generate_sequential_order`,
+`generate_serpentine_order`) and the `intrcmap_square` geometry builder. The
 builder returns a list of `Interaction2Site` objects with `leading_site`,
 `terminal_site`, and `label` filled in. Coupling constants (`cpl`) are left
 at their default (`0.0`) and are assigned by the model builder in the second
@@ -121,6 +121,14 @@ def _log_2d_diagram(
     logger.info("")
 
 
+def _log_sequential_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
+    """Log a visual diagram of the sequential-order lattice traversal."""
+    # All horizontal connectors are off-path: the inter-column MPS jump
+    # goes from the bottom of col c to the top of col c+1, spanning rows.
+    _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Sequential Chain",
+                    lambda row, col: ". . .")
+
+
 def _log_serpentine_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
     """Log a visual diagram of the serpentine lattice traversal."""
     def _connector(row: int, col: int) -> str:
@@ -129,14 +137,6 @@ def _log_serpentine_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
             return "-----"
         return ". . ."
     _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Serpentine Chain", _connector)
-
-
-def _log_sequential_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
-    """Log a visual diagram of the sequential-order lattice traversal."""
-    # All horizontal connectors are off-path: the inter-column MPS jump
-    # goes from the bottom of col c to the top of col c+1, spanning rows.
-    _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Sequential Chain",
-                    lambda row, col: ". . .")
 
 
 def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None:
@@ -150,63 +150,6 @@ def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None
 # ---------------------------------------------------------------------------
 # Traversal builders
 # ---------------------------------------------------------------------------
-
-def build_traversal_serpentine(
-    lx: int,
-    ly: int,
-) -> tuple[dict[tuple[int, int], int], list[tuple[int, int]]]:
-    """Build serpentine traversal order for a 2D square lattice.
-
-    Creates a mapping between site indices and lattice coordinates for
-    a serpentine path through the lattice:
-
-        00. . .07-----08. . .15
-        |      |      |      |
-        01. . .06. . .09. . .14
-        |      |      |      |
-        02. . .05. . .10. . .13
-        |      |      |      |
-        03-----04. . .11-----12
-
-    Logs a visual diagram of the traversal at INFO level.
-
-    Parameters
-    ----------
-    lx:
-        Number of columns.
-    ly:
-        Number of rows.
-
-    Returns
-    -------
-    tuple
-        `(ord_map, latt)` where `ord_map[(row, col)]` gives the site index
-        (0-based) and `latt[site_idx]` gives the `(row, col)` tuple.
-    """
-    L = lx * ly
-
-    ord_map: dict[tuple[int, int], int] = {}
-    for idx in range(L):
-        row = idx % ly
-        col = idx // ly
-        ord_map[(row, col)] = idx
-
-    # Reverse odd columns to create the serpentine pattern.
-    for col in range(lx):
-        if col % 2 == 1:
-            for row in range(ly // 2):
-                r1, r2 = row, ly - 1 - row
-                ord_map[(r1, col)], ord_map[(r2, col)] = (
-                    ord_map[(r2, col)], ord_map[(r1, col)]
-                )
-
-    latt: list[tuple[int, int]] = [None] * L  # type: ignore[list-item]
-    for (row, col), site in ord_map.items():
-        latt[site] = (row, col)
-
-    _log_serpentine_diagram(lx, ly, ord_map)
-    return ord_map, latt
-
 
 def build_traversal_sequential(
     lx: int,
@@ -266,10 +209,67 @@ def build_traversal_sequential(
     return ord_map, latt
 
 
+def build_traversal_serpentine(
+    lx: int,
+    ly: int,
+) -> tuple[dict[tuple[int, int], int], list[tuple[int, int]]]:
+    """Build serpentine traversal order for a 2D square lattice.
+
+    Creates a mapping between site indices and lattice coordinates for
+    a serpentine path through the lattice:
+
+        00. . .07-----08. . .15
+        |      |      |      |
+        01. . .06. . .09. . .14
+        |      |      |      |
+        02. . .05. . .10. . .13
+        |      |      |      |
+        03-----04. . .11-----12
+
+    Logs a visual diagram of the traversal at INFO level.
+
+    Parameters
+    ----------
+    lx:
+        Number of columns.
+    ly:
+        Number of rows.
+
+    Returns
+    -------
+    tuple
+        `(ord_map, latt)` where `ord_map[(row, col)]` gives the site index
+        (0-based) and `latt[site_idx]` gives the `(row, col)` tuple.
+    """
+    L = lx * ly
+
+    ord_map: dict[tuple[int, int], int] = {}
+    for idx in range(L):
+        row = idx % ly
+        col = idx // ly
+        ord_map[(row, col)] = idx
+
+    # Reverse odd columns to create the serpentine pattern.
+    for col in range(lx):
+        if col % 2 == 1:
+            for row in range(ly // 2):
+                r1, r2 = row, ly - 1 - row
+                ord_map[(r1, col)], ord_map[(r2, col)] = (
+                    ord_map[(r2, col)], ord_map[(r1, col)]
+                )
+
+    latt: list[tuple[int, int]] = [None] * L  # type: ignore[list-item]
+    for (row, col), site in ord_map.items():
+        latt[site] = (row, col)
+
+    _log_serpentine_diagram(lx, ly, ord_map)
+    return ord_map, latt
+
+
 # Map traverse key → (lx, ly) → (ord_map, latt).
 _TRAVERSALS = {
-    'serpentine': build_traversal_serpentine,
     'sequential': build_traversal_sequential,
+    'serpentine': build_traversal_serpentine,
 }
 
 
@@ -286,7 +286,7 @@ def build_traversal(
     ----------
     geo_cfg:
         Geometry config dict. Must contain `lx` and optionally `ly`
-        (default `1`) and `traverse` (default `'serpentine'`).
+        (default `1`) and `traverse` (default `'sequential'`).
 
     Returns
     -------
@@ -298,8 +298,8 @@ def build_traversal(
     ValueError
         If `traverse` names an unrecognised option.
     """
-    # Determine the traversal order, default: serpentine order
-    traverse = geo_cfg.get('traverse', 'serpentine')
+    # Determine the traversal order, default: sequential order
+    traverse = geo_cfg.get('traverse', 'sequential')
     if traverse not in _TRAVERSALS:
         raise ValueError(
             f"Unknown traversal order '{traverse}'. "

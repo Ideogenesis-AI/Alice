@@ -19,7 +19,7 @@
 """Kagome-lattice geometry: traversal orders and interaction map.
 
 This module provides the traversal-order generators for the Kagome
-lattice (`build_traversal_serpentine`, `build_traversal_sequential`) and the
+lattice (`build_traversal_sequential`, `build_traversal_serpentine`) and the
 `intrcmap_kagome` geometry builder.
 
 The builder returns a list of `Interaction2Site` objects with `leading_site`,
@@ -60,8 +60,8 @@ _DIAG_ROWS_HEAD  = 2   # rows shown at the top in truncated mode
 
 
 _TRAVERSE_TITLES: Dict[str, str] = {
-    'serpentine': 'Serpentine Chain',
     'sequential': 'Sequential Chain',
+    'serpentine': 'Serpentine Chain',
 }
 
 
@@ -69,7 +69,7 @@ def _log_kagome_diagram(
     lx: int,
     ly: int,
     ord_map: dict[tuple[int, int, int], int],
-    traverse: str = 'serpentine',
+    traverse: str = 'sequential',
 ) -> None:
     """Log a staggered-row ASCII diagram of the Kagome traversal.
 
@@ -91,8 +91,8 @@ def _log_kagome_diagram(
     ord_map:
         Mapping `(row, col, u)` → MPS site index.
     traverse:
-        Traversal key used to select the diagram title (e.g. `'serpentine'`,
-        `'sequential'`).
+        Traversal key used to select the diagram title (e.g. `'sequential'`,
+        `'serpentine'`).
     """
     title = f"Traverse over Kagome Lattice via {_TRAVERSE_TITLES.get(traverse, traverse)}"
     logger.info("─" * 60)
@@ -350,8 +350,8 @@ def build_traversal_serpentine(
 
 
 _TRAVERSALS: Dict[str, Callable] = {
-    'serpentine': build_traversal_serpentine,
     'sequential': build_traversal_sequential,
+    'serpentine': build_traversal_serpentine,
 }
 
 
@@ -368,8 +368,8 @@ def build_traversal(
     ----------
     geo_cfg:
         Geometry config dict. Must contain `lx` and optionally `ly`
-        (default `1`) and `traverse` (default `'serpentine'`; also accepts
-        `'sequential'`).
+        (default `1`) and `traverse` (default `'sequential'`; also accepts
+        `'serpentine'`).
 
     Returns
     -------
@@ -381,7 +381,7 @@ def build_traversal(
     ValueError
         If `traverse` names an unrecognised option.
     """
-    traverse = geo_cfg.get('traverse', 'serpentine')
+    traverse = geo_cfg.get('traverse', 'sequential')
     if traverse not in _TRAVERSALS:
         raise ValueError(
             f"Unknown traversal order '{traverse}' for Kagome lattice. "
