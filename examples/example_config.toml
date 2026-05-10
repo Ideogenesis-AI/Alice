@@ -1,7 +1,7 @@
 # Example TOML configurations for build_interaction.
 #
 # Each top-level table is a self-contained configuration with two required
-# sub-tables: [<name>.geometry] and [<name>.model].  Load a section with
+# sub-tables: [<name>.geometry] and [<name>.model]. Load a section with
 # tomllib and pass it directly to build_interaction:
 #
 #   import tomllib
@@ -84,7 +84,7 @@ mu       = 0.0    # chemical potential relative to half-filling
 
 [heisenberg_2d.geometry]
 lattice  = "square"
-traverse = "snake"
+traverse = "serpentine"
 lx       = 4
 ly       = 4
 bcx      = "OBC"
@@ -108,7 +108,7 @@ Jp       = 0.3    # NNN coupling (J2)
 
 [hubbard_cylinder.geometry]
 lattice  = "square"
-traverse = "zigzag"
+traverse = "sequential"
 lx       = 8
 ly       = 8
 bcx      = "OBC"
@@ -138,7 +138,7 @@ compact_every = 10             # call MPO.compact() after every this many terms
 
 [heisenberg_kagome.geometry]
 lattice  = "kagome"
-traverse = "zigzag"
+traverse = "sequential"
 lx       = 6
 ly       = 3
 bcx      = "OBC"
