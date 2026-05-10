@@ -35,7 +35,7 @@ The following algorithms are planned for future releases. Contributions toward a
 
 - **Symmetry-aware MPS/MPO**: block-sparse matrix product states and operators supporting any symmetry group or product group that Nicole supports.
 - **AutoMPO construction**: TOML-configured Hamiltonian builder with built-in model presets (Heisenberg, free-fermion, Hubbard) and full support for custom models.
-- **Flexible geometries**: built-in 1D chain and 2D snake-traversal geometries; custom geometry extensions supported via user-defined functions.
+- **Flexible geometries**: built-in 1D chain, 2D square, and 2D Kagome lattice geometries with configurable traversal orders; custom geometry extensions supported via user-defined functions.
 - **Environment caching**: optional disk-spilling with a sliding in-memory window and asynchronous I/O, enabling DMRG on long chains with limited RAM.
 - **Systematic logging**: comprehensive sweep-by-sweep diagnostics via Python's `logging` module.
 - **PyTorch backend**: all dense block operations run on PyTorch via Nicole, with optional GPU (CUDA/MPS), Ascend NPU acceleration, and on-demand autograd support.

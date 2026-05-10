@@ -21,6 +21,7 @@
 from .system import build_bosonic, build_fermionic, build_conductor
 from .chain import intrcmap_1dchain
 from .square import intrcmap_square
+from .kagome import intrcmap_kagome
 from .geometry import Geometry, build_geometry, build_intrcmap
 from .models import build_heisenberg, build_free_fermion, build_hubbard
 
@@ -35,6 +36,7 @@ __all__ = [
     'build_intrcmap',
     'intrcmap_1dchain',
     'intrcmap_square',
+    'intrcmap_kagome',
     # models — Hamiltonian model builders
     'build_heisenberg',
     'build_free_fermion',

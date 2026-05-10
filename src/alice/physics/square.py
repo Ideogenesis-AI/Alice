@@ -51,7 +51,7 @@ _DIAG_TAIL      = 2   # columns shown at the right in truncated mode
 def _log_2d_diagram(
     lx: int,
     ly: int,
-    ord_map: List[List[int]],
+    ord_map: dict[tuple[int, int], int],
     title: str,
     connector: Callable[[int, int], str],
 ) -> None:
@@ -74,7 +74,7 @@ def _log_2d_diagram(
 
         for row in range(ly):
             line = "".join(
-                f"{ord_map[row][col]:02d}" + (connector(row, col) if col < lx - 1 else "")
+                f"{ord_map[(row, col)]:02d}" + (connector(row, col) if col < lx - 1 else "")
                 for col in range(lx)
             )
             logger.info(padding + line)
@@ -98,11 +98,11 @@ def _log_2d_diagram(
 
         for row in range(ly):
             head_str = "".join(
-                f"{ord_map[row][col]:02d}" + (connector(row, col) if col < head_cols[-1] else "")
+                f"{ord_map[(row, col)]:02d}" + (connector(row, col) if col < head_cols[-1] else "")
                 for col in head_cols
             )
             tail_str = "".join(
-                f"{ord_map[row][col]:02d}" + (connector(row, col) if col < tail_cols[-1] else "")
+                f"{ord_map[(row, col)]:02d}" + (connector(row, col) if col < tail_cols[-1] else "")
                 for col in tail_cols
             )
             logger.info(padding + head_str + gap + tail_str)
@@ -154,7 +154,7 @@ def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None
 def build_traversal_snake(
     lx: int,
     ly: int,
-) -> tuple[List[List[int]], List[tuple[int, int]]]:
+) -> tuple[dict[tuple[int, int], int], list[tuple[int, int]]]:
     """Build snake-like traversal order for a 2D square lattice.
 
     Creates a mapping between site indices and lattice coordinates for
@@ -180,29 +180,29 @@ def build_traversal_snake(
     Returns
     -------
     tuple
-        `(ord_map, latt)` where `ord_map[row][col]` gives the site index
+        `(ord_map, latt)` where `ord_map[(row, col)]` gives the site index
         (0-based) and `latt[site_idx]` gives the `(row, col)` tuple.
     """
     L = lx * ly
 
-    ord_map = [[0] * lx for _ in range(ly)]
+    ord_map: dict[tuple[int, int], int] = {}
     for idx in range(L):
         row = idx % ly
         col = idx // ly
-        ord_map[row][col] = idx
+        ord_map[(row, col)] = idx
 
     # Reverse odd columns to create the snake pattern.
     for col in range(lx):
         if col % 2 == 1:
             for row in range(ly // 2):
-                ord_map[row][col], ord_map[ly - 1 - row][col] = (
-                    ord_map[ly - 1 - row][col], ord_map[row][col]
+                r1, r2 = row, ly - 1 - row
+                ord_map[(r1, col)], ord_map[(r2, col)] = (
+                    ord_map[(r2, col)], ord_map[(r1, col)]
                 )
 
-    latt: List[tuple[int, int]] = [(0, 0)] * L
-    for row in range(ly):
-        for col in range(lx):
-            latt[ord_map[row][col]] = (row, col)
+    latt: list[tuple[int, int]] = [None] * L  # type: ignore[list-item]
+    for (row, col), site in ord_map.items():
+        latt[site] = (row, col)
 
     _log_snake_diagram(lx, ly, ord_map)
     return ord_map, latt
@@ -211,7 +211,7 @@ def build_traversal_snake(
 def build_traversal_zigzag(
     lx: int,
     ly: int,
-) -> tuple[List[List[int]], List[tuple[int, int]]]:
+) -> tuple[dict[tuple[int, int], int], list[tuple[int, int]]]:
     """Build zigzag traversal order for a 2D square lattice.
 
     Creates a column-major mapping where every column goes top→bottom —
@@ -245,23 +245,22 @@ def build_traversal_zigzag(
     Returns
     -------
     tuple
-        `(ord_map, latt)` where `ord_map[row][col]` gives the site index
+        `(ord_map, latt)` where `ord_map[(row, col)]` gives the site index
         (0-based) and `latt[site_idx]` gives the `(row, col)` tuple.
     """
     L = lx * ly
 
-    ord_map = [[0] * lx for _ in range(ly)]
+    ord_map: dict[tuple[int, int], int] = {}
     # Fill column-by-column, top-to-bottom for every column.
     for idx in range(L):
         row = idx % ly
         col = idx // ly
-        ord_map[row][col] = idx
+        ord_map[(row, col)] = idx
     # No column reversal — unlike snake which reverses odd columns.
 
-    latt: List[tuple[int, int]] = [(0, 0)] * L
-    for row in range(ly):
-        for col in range(lx):
-            latt[ord_map[row][col]] = (row, col)
+    latt: list[tuple[int, int]] = [None] * L  # type: ignore[list-item]
+    for (row, col), site in ord_map.items():
+        latt[site] = (row, col)
 
     _log_zigzag_diagram(lx, ly, ord_map)
     return ord_map, latt
@@ -280,7 +279,7 @@ _TRAVERSALS = {
 
 def build_traversal(
     geo_cfg: dict,
-) -> tuple[List[List[int]], List[tuple[int, int]]]:
+) -> tuple[dict[tuple[int, int], int], list[tuple[int, int]]]:
     """Select and run the traversal-order generator for a square lattice.
 
     Parameters
@@ -340,7 +339,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
 
     Returns
     -------
-    list[Interaction2Site]
+    List[Interaction2Site]
         Interaction objects sorted by `leading_site`.  Tensor fields are
         `None`; `cpl` is `0.0`.
     """
@@ -371,7 +370,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
         pairs = []
         for row in range(ly):
             for col in range(lx - 1):
-                a, b = ord_map[row][col], ord_map[row][col + 1]
+                a, b = ord_map[(row, col)], ord_map[(row, col + 1)]
                 start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NN', 'N2X'],
@@ -387,7 +386,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
         pairs = []
         for col in range(lx):
             for row in range(ly - 1):
-                a, b = ord_map[row][col], ord_map[row + 1][col]
+                a, b = ord_map[(row, col)], ord_map[(row + 1, col)]
                 start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NN', 'N2Y'],
@@ -403,7 +402,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
         logger.info(" PBC interaction at X edge:")
         pairs = []
         for row in range(ly):
-            a, b = ord_map[row][0], ord_map[row][lx - 1]
+            a, b = ord_map[(row, 0)], ord_map[(row, lx - 1)]
             start, terminal = min(a, b), max(a, b)
             interactions.append(Interaction2Site(
                 label=['NN', 'PBC', 'N2X'],
@@ -419,7 +418,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
         logger.info(" PBC interaction at Y edge:")
         pairs = []
         for col in range(lx):
-            a, b = ord_map[0][col], ord_map[ly - 1][col]
+            a, b = ord_map[(0, col)], ord_map[(ly - 1, col)]
             start, terminal = min(a, b), max(a, b)
             interactions.append(Interaction2Site(
                 label=['NN', 'PBC', 'N2Y'],
@@ -436,7 +435,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
         pairs = []
         for col in range(lx - 1):
             for row in range(1, ly):
-                a, b = ord_map[row][col], ord_map[row - 1][col + 1]
+                a, b = ord_map[(row, col)], ord_map[(row - 1, col + 1)]
                 start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'N3O'],
@@ -453,7 +452,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
         pairs = []
         for col in range(lx - 1):
             for row in range(ly - 1):
-                a, b = ord_map[row][col], ord_map[row + 1][col + 1]
+                a, b = ord_map[(row, col)], ord_map[(row + 1, col + 1)]
                 start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'N3D'],
@@ -470,7 +469,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
             logger.info(" NNN off-diagonal PBC interaction at X edge (N3O):")
             pairs = []
             for row in range(ly - 1):
-                a, b = ord_map[row][0], ord_map[row + 1][lx - 1]
+                a, b = ord_map[(row, 0)], ord_map[(row + 1, lx - 1)]
                 start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'PBC', 'N3O'],
@@ -485,7 +484,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
             logger.info(" NNN diagonal PBC interaction at X edge (N3D):")
             pairs = []
             for row in range(1, ly):
-                a, b = ord_map[row][0], ord_map[row - 1][lx - 1]
+                a, b = ord_map[(row, 0)], ord_map[(row - 1, lx - 1)]
                 start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'PBC', 'N3D'],
@@ -502,7 +501,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
             logger.info(" NNN off-diagonal PBC interaction at Y edge (N3O):")
             pairs = []
             for col in range(lx - 1):
-                a, b = ord_map[0][col], ord_map[ly - 1][col + 1]
+                a, b = ord_map[(0, col)], ord_map[(ly - 1, col + 1)]
                 start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'PBC', 'N3O'],
@@ -517,7 +516,7 @@ def intrcmap_square(geo: Geometry) -> List[Interaction2Site]:
             logger.info(" NNN diagonal PBC interaction at Y edge (N3D):")
             pairs = []
             for col in range(1, lx):
-                a, b = ord_map[ly - 1][col - 1], ord_map[0][col]
+                a, b = ord_map[(ly - 1, col - 1)], ord_map[(0, col)]
                 start, terminal = min(a, b), max(a, b)
                 interactions.append(Interaction2Site(
                     label=['NNN', 'PBC', 'N3D'],

@@ -47,7 +47,7 @@ _DIAG_HEAD      = 4   # columns shown at the left in truncated mode
 _DIAG_TAIL      = 2   # columns shown at the right in truncated mode
 
 
-def _log_1dchain_diagram(lx: int, ord_map: List[List[int]]) -> None:
+def _log_1dchain_diagram(lx: int, ord_map: dict[tuple[int, int], int]) -> None:
     """Log a visual diagram of the 1D chain lattice."""
     logger.info("─" * 60)
     logger.info(f"1D Chain Lattice ({lx} Sites)".center(60))
@@ -56,11 +56,11 @@ def _log_1dchain_diagram(lx: int, ord_map: List[List[int]]) -> None:
 
     if lx <= _DIAG_THRESHOLD:
         # Full render: all sites connected by "-----".
-        line = "-----".join(f"{ord_map[0][col]:02d}" for col in range(lx))
+        line = "-----".join(f"{ord_map[(0, col)]:02d}" for col in range(lx))
     else:
         # Truncated render: first _DIAG_HEAD + last _DIAG_TAIL, with ⋯ ⋯ gap.
-        head = "-----".join(f"{ord_map[0][col]:02d}" for col in range(_DIAG_HEAD))
-        tail = "-----".join(f"{ord_map[0][col]:02d}" for col in range(lx - _DIAG_TAIL, lx))
+        head = "-----".join(f"{ord_map[(0, col)]:02d}" for col in range(_DIAG_HEAD))
+        tail = "-----".join(f"{ord_map[(0, col)]:02d}" for col in range(lx - _DIAG_TAIL, lx))
         line = f"{head}  ⋯ ⋯  {tail}"
 
     logger.info(line.center(60))
@@ -81,7 +81,7 @@ def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None
 
 def build_traversal(
     geo_cfg: dict,
-) -> tuple[list[list[int]], list[tuple[int, int]]]:
+) -> tuple[dict[tuple[int, int], int], list[tuple[int, int]]]:
     """Build the trivial sequential traversal order for a 1D chain.
 
     A 1D chain has only one meaningful traversal (sequential), so the
@@ -96,11 +96,12 @@ def build_traversal(
     Returns
     -------
     tuple
-        `(ord_map, latt)` for the 1D chain.
+        `(ord_map, latt)` where `ord_map[(0, col)]` gives the site index
+        and `latt[site]` gives `(0, col)`.
     """
     # Generate the trivial sequential traversal order for a 1D chain.
     lx = geo_cfg['lx']
-    ord_map = [[i for i in range(lx)]]
+    ord_map = {(0, col): col for col in range(lx)}
     latt    = [(0, col) for col in range(lx)]
 
     _log_1dchain_diagram(lx, ord_map)
@@ -129,7 +130,7 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
 
     Returns
     -------
-    list[Interaction2Site]
+    List[Interaction2Site]
         Interaction objects sorted by `leading_site`.  Tensor fields are
         `None`; `cpl` is `0.0`.
     """
