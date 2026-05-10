@@ -84,7 +84,7 @@ mu       = 0.0    # chemical potential relative to half-filling
 
 [heisenberg_2d.geometry]
 lattice  = "square"
-traverse = "serpentine"
+traverse = "sequential"
 lx       = 4
 ly       = 4
 bcx      = "OBC"
