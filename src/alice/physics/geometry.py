@@ -95,7 +95,7 @@ class Geometry:
 
     @property
     def traverse(self) -> Optional[str]:
-        """Traversal-order key, e.g. `'snake'` or `'zigzag'`.  `None` when not set."""
+        """Traversal-order key. `None` when not set."""
         return self.cfg.get('traverse')
 
     @property
@@ -155,9 +155,9 @@ def build_geometry(geo_cfg: dict) -> Geometry:
     Parameters
     ----------
     geo_cfg:
-        Geometry sub-dict from the TOML `[geometry]` section.  Must contain
+        Geometry sub-dict from the TOML `[geometry]` section. Must contain
         `lx` and optionally `ly` (default `1`), `lattice` (default
-        `'square'`), and `traverse` (default `'snake'`, used by 2D
+        `'square'`), and `traverse` (default `'serpentine'`, used by 2D
         lattices).
 
     Returns
