@@ -99,18 +99,18 @@ def _log_kagome_diagram(
     truncate = lx > _DIAG_THRESHOLD
 
     # Centering padding:
-    #   Full mode:      width = 10*(lx-1) + 5*(ly-1) + 7
+    #   Full mode:      width = 12*(lx-1) + 6*(ly-1) + 8
     #   Truncated mode: width = head (HEAD cols) + gap (5) + tail (1 col)
-    #                         = 10*(HEAD-1) + 5*(ly-1) + 7 + 5 + 7
+    #                         = 12*(HEAD-1) + 6*(ly-1) + 8 + 5 + 8
     if not truncate:
-        diagram_width = 10 * (lx - 1) + 5 * (ly - 1) + 7
+        diagram_width = 12 * (lx - 1) + 6 * (ly - 1) + 8
     else:
-        diagram_width = 10 * (_DIAG_HEAD - 1) + 5 * (ly - 1) + 19
+        diagram_width = 12 * (_DIAG_HEAD - 1) + 6 * (ly - 1) + 21
     padding = " " * max(0, (60 - diagram_width) // 2)
     gap     = "  ⋯  "
 
     # Scratch buffer large enough for any row in full mode.
-    buf_size = 10 * (lx - 1) + 5 * (ly - 1) + 12
+    buf_size = 12 * (lx - 1) + 6 * (ly - 1) + 12
 
     def _make_buf() -> list[str]:
         return [' '] * buf_size
@@ -128,50 +128,50 @@ def _log_kagome_diagram(
             logger.info(padding + _render(buf))
         else:
             # head: cols 0 .. HEAD-1, up to and including last B label
-            head_end   = 10 * (_DIAG_HEAD - 1) + stagger + 7
+            head_end   = 12 * (_DIAG_HEAD - 1) + stagger + 8
             # tail: last column at its natural x position
-            tail_start = 10 * (lx - 1) + stagger
+            tail_start = 12 * (lx - 1) + stagger
             head_str   = _render(buf[:head_end])
             tail_str   = _render(buf[tail_start:])
             logger.info(padding + head_str + gap + tail_str)
 
     for row in range(ly):
-        stagger = 5 * row
+        stagger = 6 * row
 
         # A–B base line
         ab = _make_buf()
         for col in range(lx):
-            x = 10 * col + stagger
+            x = 12 * col + stagger
             _put(ab, x,     f"{ord_map[(row, col, 0)]:02d}")
-            _put(ab, x + 2, "───")
-            _put(ab, x + 5, f"{ord_map[(row, col, 1)]:02d}")
+            _put(ab, x + 2, "────")
+            _put(ab, x + 6, f"{ord_map[(row, col, 1)]:02d}")
             if col < lx - 1:
-                _put(ab, x + 7, "···")
+                _put(ab, x + 8, "····")
         _emit(ab, stagger)
 
-        # N2U connector: \ at x+1 (A→C), / at x+4 (B→C)
+        # N2U connector: \ at x+2 (A→C), / at x+5 (B→C)
         n2u = _make_buf()
         for col in range(lx):
-            x = 10 * col + stagger
-            _put(n2u, x + 1, "\\")
-            _put(n2u, x + 4, "/")
+            x = 12 * col + stagger
+            _put(n2u, x + 2, "\\")
+            _put(n2u, x + 5, "/")
         _emit(n2u, stagger)
 
         # C apex line
         c = _make_buf()
         for col in range(lx):
-            x = 10 * col + stagger
-            _put(c, x + 2, f"{ord_map[(row, col, 2)]:02d}")
+            x = 12 * col + stagger
+            _put(c, x + 3, f"{ord_map[(row, col, 2)]:02d}")
         _emit(c, stagger)
 
         # Inter-row connector (bond 5 \ and bond 6 /)
         if row < ly - 1:
             ir = _make_buf()
             for col in range(lx):
-                x = 10 * col + stagger
-                _put(ir, x + 4, "\\")       # bond 5: C(col,row) → A(col,row+1)
+                x = 12 * col + stagger
+                _put(ir, x + 5, "\\")       # bond 5: C(col,row) → A(col,row+1)
                 if col >= 1:
-                    _put(ir, x + 1, "/")    # bond 6: C(col,row) ↔ B(col-1,row+1)
+                    _put(ir, x + 2, "/")    # bond 6: C(col,row) ↔ B(col-1,row+1)
             _emit(ir, stagger)
 
     logger.info("")
@@ -208,17 +208,17 @@ def build_traversal_zigzag(
 
     The logged diagram for the same case:
 
-            00───01···09───10···18───19
-             \  /      \  /      \  /
-              02        11        20
-                \      /  \      /  \
-                 03───04···12───13···21───22
-                  \  /      \  /      \  /
-                   05        14        23
-                     \      /  \      /  \
-                      06───07···15───16···24───25
-                       \  /      \  /      \  /
-                        08        17        26
+            00────01····09────10····18────19
+              \  /        \  /        \  /
+               02          11          20
+                 \        /  \        /  \
+                  03────04····12────13····21────22
+                    \  /        \  /        \  /
+                     05          14          23
+                       \        /  \        /  \
+                        06────07····15────16····24────25
+                          \  /        \  /        \  /
+                           08          17          26
 
     Logs a visual diagram of the traversal at INFO level.
 
@@ -272,17 +272,17 @@ def build_traversal_snake(
 
     The logged diagram for the same case:
 
-            00───01···15───16···18───19
-             \  /      \  /      \  /
-              02        17        20
-                \      /  \      /  \
-                03───04···12───13···21───22
-                  \  /      \  /      \  /
-                   05        14        23
-                     \      /  \      /  \
-                     06───07···09───10···24───25
-                       \  /      \  /      \  /
-                        08        11        26
+            00────01····15────16····18────19
+              \  /        \  /        \  /
+               02          17          20
+                 \        /  \        /  \
+                  03────04····12────13····21────22
+                    \  /        \  /        \  /
+                     05          14          23
+                       \        /  \        /  \
+                        06────07····09────10····24────25
+                          \  /        \  /        \  /
+                           08          11          26
 
     Logs a visual diagram of the traversal at INFO level.
 
