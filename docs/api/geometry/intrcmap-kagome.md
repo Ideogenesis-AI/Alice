@@ -25,8 +25,8 @@ The total number of MPS sites is `lx * ly * 3` (three sublattice sites A, B, C p
 
 | Value | Ordering |
 |-------|----------|
-| `"serpentine"` | column-major, alternating direction (default) |
-| `"sequential"` | column-major, same direction every column |
+| `"sequential"` | column-major, same direction every column (default) |
+| `"serpentine"` | column-major, alternating direction |
 
 ### Bond Labels
 
