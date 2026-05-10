@@ -25,7 +25,7 @@ import logging
 import pytest
 
 from alice.physics.geometry import Geometry, build_geometry, build_intrcmap
-from alice.physics.square import build_traversal_serpentine, build_traversal_sequential
+from alice.physics.square import build_traversal_sequential, build_traversal_serpentine
 
 
 # Suppress INFO-level geometry logs during tests.
@@ -33,53 +33,6 @@ from alice.physics.square import build_traversal_serpentine, build_traversal_seq
 def _quiet_geometry(caplog):
     with caplog.at_level(logging.WARNING, logger='alice.physics'):
         yield
-
-
-# ---------------------------------------------------------------------------
-# Serpentine order
-# ---------------------------------------------------------------------------
-
-class TestSerpentineOrder:
-    """Tests for `build_traversal_serpentine`."""
-
-    def test_2x3_lattice(self):
-        """Serpentine order for a 2×3 lattice."""
-        ord_map, latt = build_traversal_serpentine(lx=2, ly=3)
-
-        # Expected (0-based):
-        # 00. . .05
-        # |      |
-        # 01. . .04
-        # |      |
-        # 02-----03
-        assert ord_map[(0, 0)] == 0
-        assert ord_map[(1, 0)] == 1
-        assert ord_map[(2, 0)] == 2
-        assert ord_map[(2, 1)] == 3
-        assert ord_map[(1, 1)] == 4
-        assert ord_map[(0, 1)] == 5
-        assert latt[0] == (0, 0)
-        assert latt[3] == (2, 1)
-        assert latt[5] == (0, 1)
-
-    @pytest.mark.parametrize("lx,ly,expected_sites", [
-        (2, 2, 4),
-        (3, 2, 6),
-        (4, 3, 12),
-        (1, 5, 5),
-    ])
-    def test_total_sites(self, lx, ly, expected_sites):
-        """Total number of sites equals lx * ly; all indices are unique."""
-        ord_map, latt = build_traversal_serpentine(lx, ly)
-        assert len(latt) == expected_sites
-        assert len(ord_map) == expected_sites
-        assert len(set(ord_map.values())) == expected_sites
-
-    def test_1d_chain(self):
-        """1D chain (ly=1) produces sequential serpentine order."""
-        ord_map, latt = build_traversal_serpentine(lx=5, ly=1)
-        assert ord_map == {(0, 0): 0, (0, 1): 1, (0, 2): 2, (0, 3): 3, (0, 4): 4}
-        assert latt == [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +96,53 @@ class TestSequentialOrder:
 
 
 # ---------------------------------------------------------------------------
+# Serpentine order
+# ---------------------------------------------------------------------------
+
+class TestSerpentineOrder:
+    """Tests for `build_traversal_serpentine`."""
+
+    def test_2x3_lattice(self):
+        """Serpentine order for a 2×3 lattice."""
+        ord_map, latt = build_traversal_serpentine(lx=2, ly=3)
+
+        # Expected (0-based):
+        # 00. . .05
+        # |      |
+        # 01. . .04
+        # |      |
+        # 02-----03
+        assert ord_map[(0, 0)] == 0
+        assert ord_map[(1, 0)] == 1
+        assert ord_map[(2, 0)] == 2
+        assert ord_map[(2, 1)] == 3
+        assert ord_map[(1, 1)] == 4
+        assert ord_map[(0, 1)] == 5
+        assert latt[0] == (0, 0)
+        assert latt[3] == (2, 1)
+        assert latt[5] == (0, 1)
+
+    @pytest.mark.parametrize("lx,ly,expected_sites", [
+        (2, 2, 4),
+        (3, 2, 6),
+        (4, 3, 12),
+        (1, 5, 5),
+    ])
+    def test_total_sites(self, lx, ly, expected_sites):
+        """Total number of sites equals lx * ly; all indices are unique."""
+        ord_map, latt = build_traversal_serpentine(lx, ly)
+        assert len(latt) == expected_sites
+        assert len(ord_map) == expected_sites
+        assert len(set(ord_map.values())) == expected_sites
+
+    def test_1d_chain(self):
+        """For ly=1, serpentine order is trivially sequential."""
+        ord_map, latt = build_traversal_serpentine(lx=5, ly=1)
+        assert ord_map == {(0, 0): 0, (0, 1): 1, (0, 2): 2, (0, 3): 3, (0, 4): 4}
+        assert latt == [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]
+
+
+# ---------------------------------------------------------------------------
 # build_geometry — Geometry struct
 # ---------------------------------------------------------------------------
 
@@ -151,19 +151,19 @@ class TestBuildGeometry:
 
     def test_returns_geometry_instance(self):
         """build_geometry returns a Geometry instance."""
-        geo_cfg = {'lx': 4, 'ly': 3, 'lattice': 'square', 'traverse': 'serpentine'}
+        geo_cfg = {'lx': 4, 'ly': 3, 'lattice': 'square', 'traverse': 'sequential'}
         geo = build_geometry(geo_cfg)
         assert isinstance(geo, Geometry)
 
     def test_square_attrs(self):
         """Geometry has correct lx, ly, L, lattice, traverse for a square lattice."""
-        geo_cfg = {'lx': 4, 'ly': 3, 'lattice': 'square', 'traverse': 'serpentine'}
+        geo_cfg = {'lx': 4, 'ly': 3, 'lattice': 'square', 'traverse': 'sequential'}
         geo = build_geometry(geo_cfg)
         assert geo.lx      == 4
         assert geo.ly      == 3
         assert geo.L       == 12
         assert geo.lattice  == 'square'
-        assert geo.traverse == 'serpentine'
+        assert geo.traverse == 'sequential'
 
     def test_chain_attrs(self):
         """Geometry for a chain has ly=1, L=lx."""
@@ -210,6 +210,19 @@ class TestBuildGeometry:
 class TestBuildIntrcmap:
     """Tests for the `build_intrcmap` public dispatcher."""
 
+    def test_square_sequential_dispatches(self):
+        """build_intrcmap with lattice='square', traverse='sequential' works."""
+        geo_cfg = {
+            'lx': 4, 'ly': 3,
+            'bcx': 'OBC', 'bcy': 'OBC',
+            'n2x': True, 'n2y': True, 'n3d': False, 'n3o': False,
+            'lattice': 'square',
+            'traverse': 'sequential',
+        }
+        interactions = build_intrcmap(build_geometry(geo_cfg))
+        assert len(interactions) > 0
+        assert all(intr.cpl == 0.0 for intr in interactions)
+
     def test_square_serpentine_dispatches(self):
         """build_intrcmap with lattice='square', traverse='serpentine' works."""
         geo_cfg = {
@@ -230,21 +243,8 @@ class TestBuildIntrcmap:
         assert len(interactions) == 7
         assert all(intr.cpl == 0.0 for intr in interactions)
 
-    def test_square_sequential_dispatches(self):
-        """build_intrcmap with lattice='square', traverse='sequential' works."""
-        geo_cfg = {
-            'lx': 4, 'ly': 3,
-            'bcx': 'OBC', 'bcy': 'OBC',
-            'n2x': True, 'n2y': True, 'n3d': False, 'n3o': False,
-            'lattice': 'square',
-            'traverse': 'sequential',
-        }
-        interactions = build_intrcmap(build_geometry(geo_cfg))
-        assert len(interactions) > 0
-        assert all(intr.cpl == 0.0 for intr in interactions)
-
     def test_default_traverse(self):
-        """Missing traverse key defaults to 'serpentine'."""
+        """Missing traverse key defaults to 'sequential'."""
         geo_cfg = {
             'lx': 3, 'ly': 2,
             'bcx': 'OBC', 'bcy': 'OBC',
