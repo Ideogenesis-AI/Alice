@@ -50,9 +50,11 @@ logger = logging.getLogger(__name__)
 # Logging helpers
 # ---------------------------------------------------------------------------
 
-_DIAG_THRESHOLD = 4   # lx > this → truncate the diagram
-_DIAG_HEAD      = 3   # columns shown at the left in truncated mode
-_DIAG_TAIL      = 1   # columns shown at the right in truncated mode
+_DIAG_THRESHOLD  = 4   # lx > this → truncate columns
+_DIAG_HEAD       = 3   # columns shown at the left in truncated mode
+_DIAG_TAIL       = 1   # columns shown at the right in truncated mode
+_DIAG_ROWS_THRESHOLD = 3   # ly > this → truncate rows
+_DIAG_ROWS_HEAD  = 2   # rows shown at the top in truncated mode
 
 
 _TRAVERSE_TITLES: Dict[str, str] = {
@@ -97,15 +99,18 @@ def _log_kagome_diagram(
     logger.info("")
 
     truncate = lx > _DIAG_THRESHOLD
+    v_truncate = ly > _DIAG_ROWS_THRESHOLD
 
     # Centering padding:
     #   Full mode:      width = 12*(lx-1) + 6*(ly-1) + 8
-    #   Truncated mode: width = head (HEAD cols) + gap (5) + tail (1 col)
+    #   Truncated mode: width = head (HEAD cols) + gap (≥5) + tail (1 col)
     #                         = 12*(HEAD-1) + 6*(ly-1) + 8 + 5 + 8
+    # For vertical truncation, ly_diag = ROWS_HEAD + 1 (head rows + last row).
+    ly_diag = (_DIAG_ROWS_HEAD + 1) if v_truncate else ly
     if not truncate:
-        diagram_width = 12 * (lx - 1) + 6 * (ly - 1) + 8
+        diagram_width = 12 * (lx - 1) + 6 * (ly_diag - 1) + 8
     else:
-        diagram_width = 12 * (_DIAG_HEAD - 1) + 6 * (ly - 1) + 21
+        diagram_width = 12 * (_DIAG_HEAD - 1) + 6 * (ly_diag - 1) + 21
     padding = " " * max(0, (60 - diagram_width) // 2)
 
     # Scratch buffer large enough for any row in full mode.
@@ -139,8 +144,20 @@ def _log_kagome_diagram(
             line_gap   = " " * (2 + order) + "⋯" + " " * ((order + 1) // 2 + 2)
             logger.info(padding + head_str + line_gap + tail_str)
 
+    v_truncate = ly > _DIAG_ROWS_THRESHOLD
+
     for row in range(ly):
-        stagger = 6 * row
+        # Skip middle rows under vertical truncation.
+        if v_truncate and _DIAG_ROWS_HEAD <= row < ly - 1:
+            continue
+
+        # For the last row in a vertically truncated diagram, use a visual
+        # stagger that places it right after the ⋮ line rather than at its
+        # true (far-right) position.
+        if v_truncate and row == ly - 1:
+            stagger = 6 * _DIAG_ROWS_HEAD
+        else:
+            stagger = 6 * row
 
         # A–B base line
         ab = _make_buf()
@@ -168,14 +185,22 @@ def _log_kagome_diagram(
             _put(c, x + 3, f"{ord_map[(row, col, 2)]:02d}")
         _emit(c, stagger, 3, 2)             # C: tail_trim=3, order=2
 
-        # Inter-row connector (bond 5 \ and bond 6 /)
+        # Inter-row connector (bond 5 \ and bond 6 /) — or vertical ellipsis
         if row < ly - 1:
             ir = _make_buf()
-            for col in range(lx):
-                x = 12 * col + stagger
-                _put(ir, x + 5, "\\")       # bond 5: C(col,row) → A(col,row+1)
-                if col >= 1:
-                    _put(ir, x + 2, "/")    # bond 6: C(col,row) ↔ B(col-1,row+1)
+            if v_truncate and row == _DIAG_ROWS_HEAD - 1:
+                # Replace the IR connector with ⋮ at the same positions.
+                for col in range(lx):
+                    x = 12 * col + stagger
+                    _put(ir, x + 5, "⋮")
+                    if col >= 1:
+                        _put(ir, x + 2, "⋮")
+            else:
+                for col in range(lx):
+                    x = 12 * col + stagger
+                    _put(ir, x + 5, "\\")       # bond 5: C(col,row) → A(col,row+1)
+                    if col >= 1:
+                        _put(ir, x + 2, "/")    # bond 6: C(col,row) ↔ B(col-1,row+1)
             _emit(ir, stagger, 5, 3)        # IR: tail_trim=5, order=3; skips bond-6 / in tail
 
     logger.info("")
