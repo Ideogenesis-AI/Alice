@@ -64,15 +64,16 @@ The **geometry stage** of the AutoMPO pipeline is split into two steps. First, `
 The `Geometry` dataclass stores:
 
 - `cfg` — the raw config dict from `[geometry]`.
-- `ord_map` — a 2D list mapping `(row, col)` → MPS site index.
-- `latt` — a list mapping MPS site index → `(row, col)`.
+- `ord_map` — a `dict[tuple[int, ...], int]` mapping a lattice coordinate tuple → MPS site index.
+- `latt` — a `list[tuple[int, ...]]` mapping MPS site index → lattice coordinate tuple.
 
-It also exposes convenience properties (`lx`, `ly`, `L`, `lattice`, `traverse`) and coordinate-conversion methods (`to_1d(row, col)` and `to_2d(site)`).
+It also exposes convenience properties (`lx`, `ly`, `L`, `lattice`, `traverse`) and coordinate-conversion methods (`to_1d(coord)` and `to_2d(site)`).
 
 Alice provides built-in builders for:
 
 - `intrcmap_1dchain` — a simple nearest-neighbor 1D chain.
 - `intrcmap_square` — a 2D square lattice with configurable traversal order.
+- `intrcmap_kagome` — a 2D Kagome lattice with configurable traversal order.
 - `build_geometry` — constructs a `Geometry` from a config dict.
 - `build_intrcmap` — generates the interaction list from a `Geometry`.
 
