@@ -87,7 +87,7 @@ def _random_mps(
     """Build a random MPS for the spinless free-fermion chain.
 
     Bond charge sectors cover particle numbers 0…⌊L/2⌋ + 4 (capped at L),
-    distributing `bond_dim` states evenly across sectors.  Only U1 symmetry
+    distributing `bond_dim` states evenly across sectors. Only U1 symmetry
     is supported; use `iter_diag` for Z2.
 
     Parameters
