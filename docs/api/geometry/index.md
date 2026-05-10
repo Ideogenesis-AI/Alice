@@ -16,6 +16,7 @@ The geometry module provides the `Geometry` dataclass and functions to generate 
 | [build_intrcmap](build-intrcmap.md) | Generate the interaction map from a `Geometry` |
 | [intrcmap_1dchain](intrcmap-1dchain.md) | Interaction map for a 1D chain |
 | [intrcmap_square](intrcmap-square.md) | Interaction map for a 2D square lattice |
+| [intrcmap_kagome](intrcmap-kagome.md) | Interaction map for a 2D Kagome lattice |
 
 ## How It Fits in the Pipeline
 
@@ -33,6 +34,17 @@ geo_cfg dict
 
 ## Bond Labels
 
+Each `Interaction2Site` produced by a geometry builder carries a `label` list that encodes the bond topology. The model builder uses these labels to assign coupling constants and operator tensors to the correct interaction terms. Labels always begin with the range tag (`'NN'` for nearest-neighbor, `'NNN'` for next-nearest-neighbor) and include `'PBC'` when the bond closes a periodic boundary.
+
+### 1D Chain
+
+| Label | Meaning |
+|-------|---------|
+| `['NN', 'N2X']` | Nearest-neighbor bond |
+| `['NN', 'PBC', 'N2X']` | PBC wrap-around bond |
+
+### Square Lattice
+
 | Label | Meaning |
 |-------|---------|
 | `['NN', 'N2X']` | Nearest-neighbor along x |
@@ -41,6 +53,15 @@ geo_cfg dict
 | `['NN', 'PBC', 'N2Y']` | PBC bond along y |
 | `['NNN', 'N3D']` | Next-nearest-neighbor diagonal |
 | `['NNN', 'N3O']` | Next-nearest-neighbor off-diagonal |
+
+### Kagome Lattice
+
+| Label | Meaning |
+|-------|---------|
+| `['NN', 'N2U']` | Upward-triangle NN bond (A–B, A–C, B–C within a unit cell) |
+| `['NN', 'N2D']` | Downward-triangle NN bond (between adjacent unit cells) |
+| `['NN', 'N2U', 'PBC']` | N2U bond closing a periodic boundary |
+| `['NN', 'N2D', 'PBC']` | N2D bond closing a periodic boundary |
 
 ## See Also
 
