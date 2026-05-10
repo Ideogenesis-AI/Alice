@@ -157,7 +157,7 @@ def build_geometry(geo_cfg: dict) -> Geometry:
     geo_cfg:
         Geometry sub-dict from the TOML `[geometry]` section. Must contain
         `lx` and optionally `ly` (default `1`), `lattice` (default
-        `'square'`), and `traverse` (default `'serpentine'`, used by 2D
+        `'square'`), and `traverse` (default `'sequential'`, used by 2D
         lattices).
 
     Returns
