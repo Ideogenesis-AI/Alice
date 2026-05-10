@@ -107,7 +107,6 @@ def _log_kagome_diagram(
     else:
         diagram_width = 12 * (_DIAG_HEAD - 1) + 6 * (ly - 1) + 21
     padding = " " * max(0, (60 - diagram_width) // 2)
-    gap     = "  ⋯  "
 
     # Scratch buffer large enough for any row in full mode.
     buf_size = 12 * (lx - 1) + 6 * (ly - 1) + 12
@@ -123,17 +122,22 @@ def _log_kagome_diagram(
     def _render(buf: list[str]) -> str:
         return ''.join(buf).rstrip()
 
-    def _emit(buf: list[str], stagger: int) -> None:
+    def _emit(buf: list[str], stagger: int, tail_trim: int = 0, order: int = 0) -> None:
         if not truncate:
             logger.info(padding + _render(buf))
         else:
-            # head: cols 0 .. HEAD-1, up to and including last B label
             head_end   = 12 * (_DIAG_HEAD - 1) + stagger + 8
-            # tail: last column at its natural x position
-            tail_start = 12 * (lx - 1) + stagger
-            head_str   = _render(buf[:head_end])
+            # tail_trim skips intra-column leading offset so the tail content
+            # starts immediately at the relevant character (e.g. \ for N2U),
+            # and drops bond-6 / from the IR tail since it points to a hidden col.
+            tail_start = 12 * (lx - 1) + stagger + tail_trim
+            # Head keeps trailing spaces so ⋯ is anchored at a fixed column.
+            # Each successive line type (AB=0, N2U=1, C=2, IR=3) nudges ⋯ one
+            # position to the right, giving a subtle diagonal to the gap column.
+            head_str   = ''.join(buf[:head_end])
             tail_str   = _render(buf[tail_start:])
-            logger.info(padding + head_str + gap + tail_str)
+            line_gap   = " " * (2 + order) + "⋯" + " " * ((order + 1) // 2 + 2)
+            logger.info(padding + head_str + line_gap + tail_str)
 
     for row in range(ly):
         stagger = 6 * row
@@ -147,7 +151,7 @@ def _log_kagome_diagram(
             _put(ab, x + 6, f"{ord_map[(row, col, 1)]:02d}")
             if col < lx - 1:
                 _put(ab, x + 8, "····")
-        _emit(ab, stagger)
+        _emit(ab, stagger)                  # AB: tail_trim=0, order=0
 
         # N2U connector: \ at x+2 (A→C), / at x+5 (B→C)
         n2u = _make_buf()
@@ -155,14 +159,14 @@ def _log_kagome_diagram(
             x = 12 * col + stagger
             _put(n2u, x + 2, "\\")
             _put(n2u, x + 5, "/")
-        _emit(n2u, stagger)
+        _emit(n2u, stagger, 2, 1)           # N2U: tail_trim=2, order=1
 
         # C apex line
         c = _make_buf()
         for col in range(lx):
             x = 12 * col + stagger
             _put(c, x + 3, f"{ord_map[(row, col, 2)]:02d}")
-        _emit(c, stagger)
+        _emit(c, stagger, 3, 2)             # C: tail_trim=3, order=2
 
         # Inter-row connector (bond 5 \ and bond 6 /)
         if row < ly - 1:
@@ -172,7 +176,7 @@ def _log_kagome_diagram(
                 _put(ir, x + 5, "\\")       # bond 5: C(col,row) → A(col,row+1)
                 if col >= 1:
                     _put(ir, x + 2, "/")    # bond 6: C(col,row) ↔ B(col-1,row+1)
-            _emit(ir, stagger)
+            _emit(ir, stagger, 5, 3)        # IR: tail_trim=5, order=3; skips bond-6 / in tail
 
     logger.info("")
 
