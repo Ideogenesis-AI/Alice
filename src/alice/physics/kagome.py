@@ -18,10 +18,12 @@
 
 """Kagome-lattice geometry: traversal orders and interaction map.
 
-This module provides the snake-order traversal generator for the Kagome
-lattice (`build_traversal_snake`) and the `intrcmap_kagome` geometry builder.
+This module provides the traversal-order generators for the Kagome
+lattice (`build_traversal_serpentine`, `build_traversal_sequential`) and the
+`intrcmap_kagome` geometry builder.
+
 The builder returns a list of `Interaction2Site` objects with `leading_site`,
-`terminal_site`, and `label` filled in.  Coupling constants (`cpl`) are left
+`terminal_site`, and `label` filled in. Coupling constants (`cpl`) are left
 at their default (`0.0`) and are assigned by the model builder in the second
 stage of the pipeline.
 
@@ -58,8 +60,8 @@ _DIAG_ROWS_HEAD  = 2   # rows shown at the top in truncated mode
 
 
 _TRAVERSE_TITLES: Dict[str, str] = {
-    'snake':  'Snake-like Chain',
-    'zigzag': 'Zigzag Chain',
+    'serpentine': 'Serpentine Chain',
+    'sequential': 'Sequential Chain',
 }
 
 
@@ -67,7 +69,7 @@ def _log_kagome_diagram(
     lx: int,
     ly: int,
     ord_map: dict[tuple[int, int, int], int],
-    traverse: str = 'snake',
+    traverse: str = 'serpentine',
 ) -> None:
     """Log a staggered-row ASCII diagram of the Kagome traversal.
 
@@ -89,8 +91,8 @@ def _log_kagome_diagram(
     ord_map:
         Mapping `(row, col, u)` → MPS site index.
     traverse:
-        Traversal key used to select the diagram title (e.g. `'snake'`,
-        `'zigzag'`).
+        Traversal key used to select the diagram title (e.g. `'serpentine'`,
+        `'sequential'`).
     """
     title = f"Traverse over Kagome Lattice via {_TRAVERSE_TITLES.get(traverse, traverse)}"
     logger.info("─" * 60)
@@ -218,13 +220,13 @@ def _log_pairs(pairs: list[str], indent: int = 3, max_per_line: int = 6) -> None
 # Traversal builder
 # ---------------------------------------------------------------------------
 
-def build_traversal_zigzag(
+def build_traversal_sequential(
     lx: int,
     ly: int,
 ) -> tuple[dict[tuple[int, int, int], int], list[tuple[int, int, int]]]:
-    r"""Build zigzag traversal order for a Kagome lattice.
+    r"""Build sequential traversal order for a Kagome lattice.
 
-    Column-major zigzag: all columns fill rows top→bottom, with no reversal.
+    Column-major sequential: all columns fill rows top→bottom, with no reversal.
     Within each (col, row) unit cell the three sublattice sites are ordered
     A (u=0), B (u=1), C (u=2).
 
@@ -278,17 +280,17 @@ def build_traversal_zigzag(
     for coord, s in ord_map.items():
         latt[s] = coord
 
-    _log_kagome_diagram(lx, ly, ord_map, 'zigzag')
+    _log_kagome_diagram(lx, ly, ord_map, 'sequential')
     return ord_map, latt
 
 
-def build_traversal_snake(
+def build_traversal_serpentine(
     lx: int,
     ly: int,
 ) -> tuple[dict[tuple[int, int, int], int], list[tuple[int, int, int]]]:
-    r"""Build snake-like traversal order for a Kagome lattice.
+    r"""Build serpentine traversal order for a Kagome lattice.
 
-    Column-major snake: even columns fill rows top→bottom, odd columns
+    Column-major serpentine: even columns fill rows top→bottom, odd columns
     fill rows bottom→top. Within each (col, row) unit cell the three
     sublattice sites are ordered A (u=0), B (u=1), C (u=2).
 
@@ -343,13 +345,13 @@ def build_traversal_snake(
     for coord, s in ord_map.items():
         latt[s] = coord
 
-    _log_kagome_diagram(lx, ly, ord_map, 'snake')
+    _log_kagome_diagram(lx, ly, ord_map, 'serpentine')
     return ord_map, latt
 
 
 _TRAVERSALS: Dict[str, Callable] = {
-    'snake':  build_traversal_snake,
-    'zigzag': build_traversal_zigzag,
+    'serpentine': build_traversal_serpentine,
+    'sequential': build_traversal_sequential,
 }
 
 
@@ -366,8 +368,8 @@ def build_traversal(
     ----------
     geo_cfg:
         Geometry config dict. Must contain `lx` and optionally `ly`
-        (default `1`) and `traverse` (default `'snake'`; also accepts
-        `'zigzag'`).
+        (default `1`) and `traverse` (default `'serpentine'`; also accepts
+        `'sequential'`).
 
     Returns
     -------
@@ -379,7 +381,7 @@ def build_traversal(
     ValueError
         If `traverse` names an unrecognised option.
     """
-    traverse = geo_cfg.get('traverse', 'snake')
+    traverse = geo_cfg.get('traverse', 'serpentine')
     if traverse not in _TRAVERSALS:
         raise ValueError(
             f"Unknown traversal order '{traverse}' for Kagome lattice. "
@@ -399,7 +401,7 @@ def intrcmap_kagome(geo: Geometry) -> List[Interaction2Site]:
 
     Produces nearest-neighbor (NN) interactions within each upward triangle
     (N2U) and between unit cells via three downward-triangle bond families
-    (N2D).  Coupling constants are not set here; all returned interactions
+    (N2D). Coupling constants are not set here; all returned interactions
     have `cpl == 0.0`.
 
     Labels encode bond topology:
@@ -422,7 +424,7 @@ def intrcmap_kagome(geo: Geometry) -> List[Interaction2Site]:
     Returns
     -------
     List[Interaction2Site]
-        Interaction objects sorted by `leading_site`.  Tensor fields are
+        Interaction objects sorted by `leading_site`. Tensor fields are
         `None`; `cpl` is `0.0`.
     """
     lx  = geo.lx
