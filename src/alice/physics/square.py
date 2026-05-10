@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _DIAG_THRESHOLD = 8   # lx > this → truncate the diagram
-_DIAG_HEAD      = 4   # columns shown at the left in truncated mode
+_DIAG_HEAD      = 5   # columns shown at the left in truncated mode
 _DIAG_TAIL      = 2   # columns shown at the right in truncated mode
 
 
@@ -80,7 +80,7 @@ def _log_2d_diagram(
             logger.info(padding + line)
 
             if row < ly - 1:
-                logger.info(padding + "".join("|      " for _ in range(lx)))
+                logger.info(padding + "".join("▕      " for _ in range(lx)))
 
     else:
         # Truncated render: first _DIAG_HEAD columns + last _DIAG_TAIL columns.
@@ -109,13 +109,13 @@ def _log_2d_diagram(
 
             if row < ly - 1:
                 # Build the inter-row vline with the same total width as a data
-                # row so that each "|" sits directly under its column's site.
+                # row so that each "▕" sits directly under its column's site.
                 vline = [" "] * diagram_width
                 for i in range(_DIAG_HEAD):
-                    vline[i * 7] = "|"
+                    vline[i * 7] = "▕"
                 tail_offset = 7 * _DIAG_HEAD - 5 + len(gap)
                 for i in range(_DIAG_TAIL):
-                    vline[tail_offset + i * 7] = "|"
+                    vline[tail_offset + i * 7] = "▕"
                 logger.info(padding + "".join(vline))
 
     logger.info("")
@@ -126,7 +126,7 @@ def _log_sequential_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
     # All horizontal connectors are off-path: the inter-column MPS jump
     # goes from the bottom of col c to the top of col c+1, spanning rows.
     _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Sequential Chain",
-                    lambda row, col: ". . .")
+                    lambda row, col: " ··· ")
 
 
 def _log_serpentine_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
@@ -134,8 +134,8 @@ def _log_serpentine_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
     def _connector(row: int, col: int) -> str:
         """Return the horizontal connector between col and col+1 at the given row."""
         if (row == 0 and col % 2 == 1) or (row == ly - 1 and col % 2 == 0):
-            return "-----"
-        return ". . ."
+            return "─────"
+        return " ··· "
     _log_2d_diagram(lx, ly, ord_map, "Traverse over 2D Lattice via Serpentine Chain", _connector)
 
 
@@ -161,13 +161,13 @@ def build_traversal_sequential(
     no column reversals, unlike `build_traversal_serpentine` which reverses odd
     columns:
 
-        00. . .04. . .08. . .12
-        |      |      |      |
-        01. . .05. . .09. . .13
-        |      |      |      |
-        02. . .06. . .10. . .14
-        |      |      |      |
-        03. . .07. . .11. . .15
+        00 ··· 04 ··· 08 ··· 12
+        ▕      ▕      ▕      ▕
+        01 ··· 05 ··· 09 ··· 13
+        ▕      ▕      ▕      ▕
+        02 ··· 06 ··· 10 ··· 14
+        ▕      ▕      ▕      ▕
+        03 ··· 07 ··· 11 ··· 15
 
     The MPS jump between columns goes from the bottom of col `c`
     (site `(c+1)*ly - 1`) to the top of col `c+1` (site `(c+1)*ly`).
@@ -218,13 +218,13 @@ def build_traversal_serpentine(
     Creates a mapping between site indices and lattice coordinates for
     a serpentine path through the lattice:
 
-        00. . .07-----08. . .15
-        |      |      |      |
-        01. . .06. . .09. . .14
-        |      |      |      |
-        02. . .05. . .10. . .13
-        |      |      |      |
-        03-----04. . .11-----12
+        00 ··· 07─────08 ··· 15
+        ▕      ▕      ▕      ▕
+        01 ··· 06 ··· 09 ··· 14
+        ▕      ▕      ▕      ▕
+        02 ··· 05 ··· 10 ··· 13
+        ▕      ▕      ▕      ▕
+        03─────04 ··· 11─────12
 
     Logs a visual diagram of the traversal at INFO level.
 
