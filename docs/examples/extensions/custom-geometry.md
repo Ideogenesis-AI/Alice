@@ -33,7 +33,7 @@ def build_honeycomb_geometry(geo_cfg: dict) -> Geometry:
     lx = geo_cfg["lx"]
     ly = geo_cfg["ly"]
 
-    # --- define your snake / brickwork ordering here ---
+    # --- define your serpentine / brickwork ordering here ---
     # ord_map[row][col] = MPS site index (0-based)
     ord_map = [[row * lx + col for col in range(lx)] for row in range(ly)]
     latt    = [(row, col) for row in range(ly) for col in range(lx)]
