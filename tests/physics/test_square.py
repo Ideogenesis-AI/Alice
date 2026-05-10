@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for `intrcmap_square` — the snake-order square-lattice geometry builder."""
+"""Tests for `intrcmap_square` — the serpentine-order square-lattice geometry builder."""
 
 from __future__ import annotations
 
@@ -260,7 +260,7 @@ class TestCouplingAndStructure:
 # Exact bond correctness — 4×4 OBC square lattice
 # ---------------------------------------------------------------------------
 
-# Snake order (4×4, OBC):
+# Serpentine order (4×4, OBC):
 #   00. . .07-----08. . .15
 #   |      |      |      |
 #   01. . .06. . .09. . .14
@@ -311,8 +311,8 @@ def _bonds(interactions):
     return {(i.leading_site, i.terminal_site) for i in interactions}
 
 
-class TestSnakeExactBonds4x4:
-    """Exact (leading, terminal) pairs for a 4×4 OBC square lattice (snake order)."""
+class TestSerpentineExactBonds4x4:
+    """Exact (leading, terminal) pairs for a 4×4 OBC square lattice (serpentine order)."""
 
     def test_n2x_bonds(self):
         """n2x only: bonds match exactly the precomputed N2X set."""
@@ -406,8 +406,8 @@ _PBC_Y_N3O_4x4 = frozenset({(0, 4), (7, 11), (8, 12)})
 _PBC_Y_N3D_4x4 = frozenset({(3, 7), (4, 8), (11, 15)})
 
 
-class TestSnakeExactBondsPBC4x4:
-    """Exact PBC bond pairs for a 4×4 square lattice (snake order)."""
+class TestSerpentineExactBondsPBC4x4:
+    """Exact PBC bond pairs for a 4×4 square lattice (serpentine order)."""
 
     def test_pbc_x_nn_bonds(self):
         """bcx=PBC, n2x=True: PBC-X NN bonds match exactly."""
