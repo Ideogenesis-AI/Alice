@@ -79,7 +79,7 @@ def build_hamiltonian(
     if trunc is None:
         trunc = {'thresh': 1e-14}
 
-    # Filter out zero-coupling interactions before validation.  A zero coupling
+    # Filter out zero-coupling interactions before validation. A zero coupling
     # contributes nothing to the Hamiltonian and may legitimately have tensor
     # fields left unset (e.g. NNN bonds with Jp=0 from the model builder).
     active = [intr for intr in interactions if intr.cpl != 0.0]

@@ -138,7 +138,7 @@ def split_forward(
     """SVD-split Θ for a forward (left-to-right) sweep step.
 
     Decomposes Θ as `M_i · M_{i+1}` where `M_i` is left-isometric and
-    `M_{i+1}` carries the singular values.  The bond dimension of the new
+    `M_{i+1}` carries the singular values. The bond dimension of the new
     internal index is controlled by `trunc`.
 
     This replaces the `mps.canonical(i + 1)` call used in 1-site DMRG.
@@ -222,7 +222,7 @@ def discarded_weight(theta: Tensor, trunc: Optional[dict]) -> float:
 
     Merges axes 0 and 2 of `theta` (the same bipartition used by `split_forward`
     and `split_backward`) and performs a second SVD with `requires_info=True` to
-    read back `info["discarded_weight"]`.  This is an intentional second SVD;
+    read back `info["discarded_weight"]`. This is an intentional second SVD;
     it is called only once per full sweep at the center bond, so the overhead is
     negligible relative to the Davidson optimisation cost.
 
@@ -238,7 +238,7 @@ def discarded_weight(theta: Tensor, trunc: Optional[dict]) -> float:
     -------
     float
         Sum of all singular values discarded by `trunc` across all charge
-        sectors.  Zero when `trunc` is `None` or nothing is cut.
+        sectors. Zero when `trunc` is `None` or nothing is cut.
     """
     merged, _ = merge_axes(theta, [0, 2], merged_tag='_dw_merged_')
     *_, info = svd(merged, axis=0, trunc=trunc, requires_info=True)
