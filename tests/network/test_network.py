@@ -593,7 +593,7 @@ class TestMPO:
         """redistribute_norm() must not change the total MPO norm.
 
         Each tensor is multiplied by factor = N^(1/L) and then the center
-        tensor is divided by N.  The product of all scale factors is
+        tensor is divided by N. The product of all scale factors is
         factor^L / N = 1, so the operator — and its Frobenius norm — is
         unchanged.
         """
