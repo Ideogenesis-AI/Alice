@@ -1,6 +1,98 @@
 # Changelog
 
-## 0.1.1 — May 6, 2026
+## [0.1.2] - 2026-05-11
+
+**Geometry Expansion and Refactor**
+
+Introduces Kagome lattice support, a full refactor of the geometry subsystem around a
+`Geometry` dataclass, a unified traversal-order naming scheme, and ASCII text diagrams
+for MPS and MPO chains. Also adds `Sp4`/`Sm4` operator templates to `build_bosonic` and
+`build_conductor`. Several breaking changes to the geometry and `build_interaction` APIs;
+the DMRG, Hamiltonian, and algorithm APIs are unchanged.
+
+### Kagome Lattice
+
+- New `alice.physics.kagome` module with `intrcmap_kagome`: nearest-neighbor bond
+  generation for Kagome lattices, covering N2U (upward-triangle: A–B, A–C, B–C within
+  each unit cell) and N2D (downward-triangle: bonds between adjacent unit cells), with
+  OBC/PBC boundary conditions along both axes.
+- Traversal orders `'sequential'` (column-major, default) and `'serpentine'`
+  (column-major with alternating row direction) for Kagome lattices.
+- `intrcmap_kagome` is exported from `alice.physics` alongside `intrcmap_1dchain`
+  and `intrcmap_square`.
+
+### Geometry Module Refactor
+
+- New `Geometry` dataclass returned by `build_geometry`; carries `cfg`, `ord_map`,
+  and `latt` as a single typed object with derived properties `lattice`, `traverse`,
+  `lx`, `ly`, `L`, and helpers `to_1d`/`to_2d`.
+- All `intrcmap_*` functions now take a `Geometry` as input (previously a plain dict)
+  and continue to return `List[Interaction2Site]`.
+- `build_interaction` now returns `(interactions, spc, geo)` — the third element
+  changed from an `int` (site count) to the `Geometry` instance.
+- New `build_intrcmap(geo)` dispatcher: reconstructs the bond list from any `Geometry`
+  instance, decoupling lattice construction from bond enumeration.
+- New `build_traversal` helpers in all three lattice modules (`chain.py`, `square.py`,
+  `kagome.py`); 1D chain and square lattice geometries separated into their own modules.
+- `ord_map` keys changed from integer flat indices to coordinate tuples: `(row, col)`
+  for chain and square, `(row, col, u)` for Kagome (where `u` is the sublattice index
+  0=A, 1=B, 2=C), making coordinate lookups explicit for all lattice types.
+
+### Traversal Order Naming
+
+- `'snake'` is renamed to `'serpentine'` (same behavior: columns alternate
+  direction, even columns top→bottom, odd columns bottom → top).
+- `'sequential'` is a new order (all columns top → bottom, no reversal) and is
+  now the default for square and Kagome lattices.
+- All documentation, example configs, and tests updated to the new naming.
+
+### MPS/MPO Text Display
+
+- New `alice.network.display` module with `network_summary`: Unicode ASCII-art chain
+  diagrams showing tensor nodes, bond dimensions, center site, and summary info.
+- `MPS.__repr__` and `MPO.__repr__` delegate to `network_summary`, giving readable
+  representations in REPLs and notebooks.
+
+### New Operator Templates
+
+- `build_bosonic` and `build_conductor` gain `Sp4`/`Sp4dag`/`Sm4`/`Sm4dag` templates
+  (U(1)-only), enabling AutoMPO construction for models where raising and lowering
+  channels must be handled separately.
+
+### Documentation
+
+- New API reference pages for `intrcmap_kagome` and `build_intrcmap`; geometry and
+  traversal pages updated to reflect the refactored two-stage construction pipeline.
+- All documentation page headings standardized to title case.
+
+### Statistics
+
+- **~650 tests** across 21 test modules (up from 538 / 19 modules in v0.1.0).
+- **119 commits** since v0.1.1.
+- **65 files changed**, 3,380 insertions, 824 deletions.
+- **20 source modules** in three subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`.
+
+### Compatibility
+
+- **Breaking Changes:**
+    - `build_geometry` return type changed from `List[Interaction2Site]` to `Geometry`.
+    - All `intrcmap_*` functions now take a `Geometry` as input instead of a plain dict;
+      return type `List[Interaction2Site]` is unchanged.
+    - `build_interaction` third return value changed from `int` (site count) to `Geometry`.
+    - `geometry_fn` callable override signature changed from
+      `(geo: dict) -> List[Interaction2Site]` to `(geo_cfg: dict) -> Geometry`; a new
+      `intrcmap_fn` override was added with signature
+      `(geo: Geometry) -> List[Interaction2Site]`.
+    - The public function `generate_snake_order` is removed; its traversal logic is now
+      internal.
+    - The TOML key `traverse: 'snake'` is deprecated; `'snake'` was renamed to
+      `'serpentine'`, and `'sequential'` is the new default order.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.6.
+
+---
+
+## [0.1.1] - 2026-05-06
 
 **Documentation Website**
 
@@ -66,7 +158,7 @@ backward compatible with v0.1.0.
 
 ---
 
-## 0.1.0 — May 4, 2026
+## [0.1.0] - 2026-05-04
 
 Initial stable release of Alice.
 
@@ -123,3 +215,7 @@ Initial stable release of Alice.
 - 196 commits across 10+ feature branches.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
+
+[0.1.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.2
+[0.1.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.1
+[0.1.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.0
