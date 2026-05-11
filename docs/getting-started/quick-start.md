@@ -87,19 +87,13 @@ print(f"Converged: {summary.converged} after {summary.n_sweeps} sweeps")
 ### 6. Save the result
 
 ```python
-import torch
-
-payload = summary.serialize()
-torch.save(payload, "result.pt")
+summary.save("ground_state.ckpt")
 ```
 
 Reload later:
 
 ```python
-from alice import dmrg
-
-data    = torch.load("result.pt", weights_only=True)
-summary = dmrg.Summary.deserialize(data)
+summary = dmrg.Summary.load("ground_state.ckpt")
 ```
 
 ## Expected Output
