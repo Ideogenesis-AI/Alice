@@ -78,10 +78,12 @@ nav:
       - build_interaction: api/interaction/build-interaction.md
     - Geometry:
       - Overview: api/geometry/index.md
-      - generate_snake_order: api/geometry/generate-snake-order.md
+      - Geometry: api/geometry/geometry.md
+      - build_geometry: api/geometry/build-geometry.md
+      - build_intrcmap: api/geometry/build-intrcmap.md
       - intrcmap_1dchain: api/geometry/intrcmap-1dchain.md
       - intrcmap_square: api/geometry/intrcmap-square.md
-      - build_geometry: api/geometry/build-geometry.md
+      - intrcmap_kagome: api/geometry/intrcmap-kagome.md
     - Local Space:
       - Overview: api/local-space/index.md
       - build_bosonic: api/local-space/build-bosonic.md
@@ -107,6 +109,7 @@ nav:
     - AutoMPO from TOML: examples/autompo-toml.md
     - Extensions:
       - Custom geometry: examples/extensions/custom-geometry.md
+      - Custom intrcmap: examples/extensions/custom-intrcmap.md
       - Custom local space: examples/extensions/custom-space.md
       - Custom model: examples/extensions/custom-model.md
 

@@ -102,7 +102,7 @@ data    = torch.load("result.pt", weights_only=True)
 summary = dmrg.Summary.deserialize(data)
 ```
 
-## Expected output
+## Expected Output
 
 For a 20-site Heisenberg chain with OBC, U(1) symmetry, and bond dimension 64, the run converges in 2 sweeps. Alice logs the sweep progress at INFO level:
 
@@ -126,7 +126,7 @@ Difference       : +9.0235e-03  (finite-size + truncation error)
 
 The ~0.009 gap is expected: for L=20 with OBC the finite-size correction alone accounts for most of the difference with the thermodynamic-limit Bethe-ansatz value of \(E/L = 1/4 - \ln 2 \approx -0.4431\).
 
-## Next steps
+## Next Steps
 
 - See the [full DMRG examples](../examples/dmrg/heisenberg.md) for complete initialization code.
 - Learn how to load all options from a TOML file in [AutoMPO from TOML](../examples/autompo-toml.md).

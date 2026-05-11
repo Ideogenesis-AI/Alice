@@ -231,16 +231,16 @@ def dmrg_conductor(
             'mu': mu,
         },
     }
-    interactions, spc, L_built = build_interaction(cfg)
-    mpo = build_hamiltonian(interactions, L_built, spc)
+    interactions, spc, geo = build_interaction(cfg)
+    mpo = build_hamiltonian(interactions, geo.L, spc)
 
     # -----------------------------------------------------------------------
     # Build the initial MPS from iterative diagonalization (U = 0 limit)
     # -----------------------------------------------------------------------
-    mps = _iter_diag_mps(L_built, bond_dim=bond_dim, t=t, symmetry=symmetry)
+    mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, t=t, symmetry=symmetry)
 
     if verbose:
-        print(f"Chain length   : {L_built}")
+        print(f"Chain length   : {geo.L}")
         print(f"Symmetry       : {symmetry}")
         print(f"Hopping t      : {t}")
         print(f"Hubbard U      : {U}")
@@ -282,13 +282,13 @@ def dmrg_conductor(
         status = "converged" if summary.converged else "not converged"
         print(f"Sweeps performed : {summary.n_sweeps}  ({status})")
         print(f"Ground-state E   : {summary.energy:.10f}")
-        print(f"Energy per site  : {summary.energy / L_built:.10f}")
+        print(f"Energy per site  : {summary.energy / geo.L:.10f}")
         print(f"MPS bond dims    : {summary.bond_dims}")
 
         print()
         # The U=0 free-fermion exact energy serves as a lower bound and a
         # reference for how much the Hubbard interaction raises the energy.
-        E_free_N   = exact_halffilling_energy_band(L_built, t)
+        E_free_N   = exact_halffilling_energy_band(geo.L, t)
         E_free_inf = -4.0 * t / np.pi
         print(f"Reference (U=0, finite, half-filling) : {E_free_N:.10f}")
         print(f"Reference E/N  (U=0, N→∞, half-fill) : {E_free_inf:.10f}")

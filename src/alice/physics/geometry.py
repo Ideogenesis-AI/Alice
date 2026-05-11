@@ -16,551 +16,199 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Lattice geometry builders for MPS interaction maps.
+"""Lattice geometry: the `Geometry` dataclass and public dispatchers.
 
-This module provides functions to generate interaction maps for 1D MPS
-traversing 2D lattices.  Each builder returns a list of `Interaction2Site`
-objects with `leading_site`, `terminal_site`, and `label` filled in.
-Coupling constants (`cpl`) are left at their default (`0.0`) and are
-assigned by the model builder in the second stage of the pipeline.
+This module owns the `Geometry` dataclass, `build_geometry` (struct factory),
+`build_intrcmap` (interaction-list dispatcher), and the `_LATTICES` registry.
 
-The public entry point for TOML-driven construction is `build_geometry`,
-which dispatches on the `lattice` and `traverse` keys.
+Naming convention used throughout:
+
+- `geo_cfg` — raw `dict` from the TOML `[geometry]` section.
+- `geo` — a `Geometry` instance.
+
+To add a new lattice type, create a module under `alice.physics` that
+implements:
+
+- `build_traversal(geo_cfg: dict) → (ord_map, latt)` — traversal selection
+  and validation for that lattice.
+- An `intrcmap_*` builder with signature `(geo: Geometry) → list[Interaction2Site]`.
+
+Add the `intrcmap_*` builder to `_LATTICES` and add a branch to the
+conditional import in `build_geometry`.
+
+Built-in lattice modules:
+
+- `alice.physics.chain` — 1D chain (`build_traversal`, `intrcmap_1dchain`).
+- `alice.physics.square` — square lattice (`build_traversal`, `intrcmap_square`).
+- `alice.physics.kagome` — Kagome lattice (`build_traversal`, `intrcmap_kagome`).
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 from alice.network.interaction import Interaction2Site
+from alice.physics.chain import intrcmap_1dchain
+from alice.physics.kagome import intrcmap_kagome
+from alice.physics.square import intrcmap_square
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Logging helpers
+# Geometry dataclass
 # ---------------------------------------------------------------------------
 
-_DIAG_THRESHOLD = 8   # lx > this → truncate the diagram
-_DIAG_HEAD      = 4   # columns shown at the left in truncated mode
-_DIAG_TAIL      = 2   # columns shown at the right in truncated mode
+@dataclass
+class Geometry:
+    """Fully-resolved lattice geometry for one MPS simulation.
 
+    Constructed by `build_geometry` from a raw `[geometry]` config dict.
+    Passed to `intrcmap_*` builders and to traversal-aware utilities such
+    as `to_1d` / `to_2d`.
 
-def _log_1dchain_diagram(lx: int, ord_map: List[List[int]]) -> None:
-    """Log a visual diagram of the 1D chain lattice."""
-    logger.info("─" * 60)
-    logger.info(f"1D Chain Lattice ({lx} Sites)".center(60))
-    logger.info("─" * 60)
-    logger.info("")
-
-    if lx <= _DIAG_THRESHOLD:
-        # Full render: all sites connected by "-----".
-        line = "-----".join(f"{ord_map[0][col]:02d}" for col in range(lx))
-    else:
-        # Truncated render: first _DIAG_HEAD + last _DIAG_TAIL, with ⋯ ⋯ gap.
-        head = "-----".join(f"{ord_map[0][col]:02d}" for col in range(_DIAG_HEAD))
-        tail = "-----".join(f"{ord_map[0][col]:02d}" for col in range(lx - _DIAG_TAIL, lx))
-        line = f"{head}  ⋯ ⋯  {tail}"
-
-    logger.info(line.center(60))
-    logger.info("")
-
-
-def _log_snake_diagram(lx: int, ly: int, ord_map: List[List[int]]) -> None:
-    """Log a visual diagram of the snake-like lattice traversal."""
-    logger.info("─" * 60)
-    logger.info("Traverse over 2D Lattice via Snake-like Chain".center(60))
-    logger.info("─" * 60)
-    logger.info("")
-
-    def _connector(row: int, col: int) -> str:
-        """Return the horizontal connector between col and col+1 at the given row."""
-        if (row == 0 and col % 2 == 1) or (row == ly - 1 and col % 2 == 0):
-            return "-----"
-        return ". . ."
-
-    if lx <= _DIAG_THRESHOLD:
-        # Full render: all columns shown.
-        # Each site: 2 chars; each connector: 5 chars.  Width = 7 * lx - 5.
-        diagram_width = 7 * lx - 5
-        padding       = " " * max(0, (60 - diagram_width) // 2)
-
-        for row in range(ly):
-            line = "".join(
-                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < lx - 1 else "")
-                for col in range(lx)
-            )
-            logger.info(padding + line)
-
-            if row < ly - 1:
-                logger.info(padding + "".join("|      " for _ in range(lx)))
-
-    else:
-        # Truncated render: first _DIAG_HEAD columns + last _DIAG_TAIL columns.
-        # Gap token "  ⋯ ⋯  " (8 chars) replaces the hidden interior.
-        head_cols  = list(range(_DIAG_HEAD))
-        tail_cols  = list(range(lx - _DIAG_TAIL, lx))
-        gap = "  ⋯ ⋯  "
-
-        # Width of the visible portion:
-        #   head: _DIAG_HEAD * 2 + (_DIAG_HEAD - 1) * 5 = 7 * _DIAG_HEAD - 5
-        #   gap:  len(gap)
-        #   tail: _DIAG_TAIL * 2 + (_DIAG_TAIL - 1) * 5 = 7 * _DIAG_TAIL - 5
-        diagram_width = (7 * _DIAG_HEAD - 5) + len(gap) + (7 * _DIAG_TAIL - 5)
-        padding       = " " * max(0, (60 - diagram_width) // 2)
-
-        for row in range(ly):
-            head_str = "".join(
-                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < head_cols[-1] else "")
-                for col in head_cols
-            )
-            tail_str = "".join(
-                f"{ord_map[row][col]:02d}" + (_connector(row, col) if col < tail_cols[-1] else "")
-                for col in tail_cols
-            )
-            logger.info(padding + head_str + gap + tail_str)
-
-            if row < ly - 1:
-                # Build the inter-row vline with the same total width as a data
-                # row so that each "|" sits directly under its column's site.
-                vline = [" "] * diagram_width
-                for i in range(_DIAG_HEAD):
-                    vline[i * 7] = "|"
-                tail_offset = 7 * _DIAG_HEAD - 5 + len(gap)
-                for i in range(_DIAG_TAIL):
-                    vline[tail_offset + i * 7] = "|"
-                logger.info(padding + "".join(vline))
-
-    logger.info("")
-
-
-def _log_pairs(pairs: List[str], indent: int = 3, max_per_line: int = 6) -> None:
-    """Log interaction pairs with automatic line wrapping."""
-    indent_str = " " * indent
-    for i in range(0, len(pairs), max_per_line):
-        chunk = pairs[i:i + max_per_line]
-        logger.info(indent_str + ", ".join(chunk))
-
-
-# ---------------------------------------------------------------------------
-# Traversal orders
-# ---------------------------------------------------------------------------
-
-def generate_snake_order(
-    lx: int,
-    ly: int,
-) -> tuple[List[List[int]], List[tuple[int, int]]]:
-    """Generate snake-like traversal order for a 2D square lattice.
-
-    Creates a mapping between site indices and lattice coordinates for
-    a snake-like path through the lattice:
-
-        00. . .07-----08. . .15
-        |      |      |      |
-        01. . .06. . .09. . .14
-        |      |      |      |
-        02. . .05. . .10. . .13
-        |      |      |      |
-        03-----04. . .11-----12
-
-    Parameters
+    Attributes
     ----------
-    lx:
-        Number of columns.
-    ly:
-        Number of rows.
-
-    Returns
-    -------
-    tuple
-        `(ord_map, latt)` where `ord_map[row][col]` gives the site index
-        (0-based) and `latt[site_idx]` gives the `(row, col)` tuple.
+    cfg:
+        Original geometry config dict (`[geometry]` section from TOML).
+        Contains all geometry parameters including `lattice`, `traverse`,
+        `lx`, `ly`, boundary conditions, and bond-inclusion flags.
+    ord_map:
+        Dict mapping coordinate tuples to 1D site indices (0-based).
+        Key length depends on the lattice: `(row, col)` for chain/square,
+        `(row, col, u)` for multi-sublattice lattices such as Kagome.
+    latt:
+        List where `latt[site]` gives the coordinate tuple for that site.
+        Element type matches the key type of `ord_map`.
     """
-    L = lx * ly
 
-    ord_map = [[0] * lx for _ in range(ly)]
-    for idx in range(L):
-        row = idx % ly
-        col = idx // ly
-        ord_map[row][col] = idx
+    cfg:     dict
+    ord_map: dict[tuple[int, ...], int]
+    latt:    list[tuple[int, ...]]
 
-    # Reverse odd columns to create the snake pattern.
-    for col in range(lx):
-        if col % 2 == 1:
-            for row in range(ly // 2):
-                ord_map[row][col], ord_map[ly - 1 - row][col] = (
-                    ord_map[ly - 1 - row][col], ord_map[row][col]
-                )
+    @property
+    def lattice(self) -> str:
+        """Lattice-type key, e.g. `'chain'` or `'square'`."""
+        return self.cfg.get('lattice', 'square')
 
-    latt: List[tuple[int, int]] = [(0, 0)] * L
-    for row in range(ly):
-        for col in range(lx):
-            latt[ord_map[row][col]] = (row, col)
+    @property
+    def traverse(self) -> Optional[str]:
+        """Traversal-order key. `None` when not set."""
+        return self.cfg.get('traverse')
 
-    return ord_map, latt
+    @property
+    def lx(self) -> int:
+        """Number of columns (sites along x)."""
+        return self.cfg['lx']
 
+    @property
+    def ly(self) -> int:
+        """Number of rows (sites along y); `1` for a 1D chain."""
+        return self.cfg.get('ly', 1)
 
-# Registry of available traversal-order generators.
-_TRAVERSALS: Dict[str, object] = {
-    'snake': generate_snake_order,
-}
+    @property
+    def L(self) -> int:
+        """Total number of MPS/MPO sites (length of the tensor network).
+
+        Equals `len(latt)`, which is the authoritative site count for all
+        lattice types. For single-sublattice lattices (chain, square) this
+        coincides with `lx * ly`. For multi-sublattice lattices (e.g.
+        Kagome with 3 sites per unit cell) it equals `lx * ly * n_sub`.
+        """
+        return len(self.latt)
+
+    def to_1d(self, coord: tuple[int, ...]) -> int:
+        """Convert a lattice coordinate tuple to a 1D site index."""
+        return self.ord_map[coord]
+
+    def to_2d(self, site: int) -> tuple[int, ...]:
+        """Convert a 1D site index to a lattice coordinate tuple."""
+        return self.latt[site]
 
 
 # ---------------------------------------------------------------------------
-# Lattice geometry builders
+# Dispatch registries
 # ---------------------------------------------------------------------------
 
-def intrcmap_1dchain(geo: dict, order_fn=None) -> List[Interaction2Site]:
-    """Generate an interaction map for a 1D chain.
-
-    Produces nearest-neighbor (NN) bonds along the chain and, when
-    `bcx='PBC'`, a single periodic bond connecting the two ends.
-    Coupling constants are not set; `cpl` is `0.0` on all returned objects.
-
-    Parameters
-    ----------
-    geo:
-        Geometry sub-dict from the TOML `[geometry]` section.  Expected
-        keys:
-
-        - `lx` — number of sites.
-        - `bcx` — boundary condition (`'OBC'` or `'PBC'`).
-        - `n2x` — include NN bonds (default `True`).
-    order_fn:
-        Accepted but ignored.  Present so the function can be stored in
-        `_LATTICES` alongside 2D builders that receive a traversal function
-        from `build_geometry`.
-
-    Returns
-    -------
-    list[Interaction2Site]
-        Interaction objects sorted by `leading_site`.  Tensor fields are
-        `None`; `cpl` is `0.0`.
-    """
-    L   = geo['lx']
-    bcx = geo.get('bcx', 'OBC').upper()
-    n2x = bool(geo.get('n2x', True))
-
-    ord_map, _ = generate_snake_order(L, 1)
-
-    interactions: List[Interaction2Site] = []
-
-    _log_1dchain_diagram(L, ord_map)
-    logger.info("─" * 60)
-    logger.info("Interactions Info".center(60))
-    logger.info("─" * 60)
-    logger.info("")
-
-    if n2x:
-        logger.info(" NN interaction (N2X):")
-        pairs = []
-        for si in range(L - 1):
-            interactions.append(Interaction2Site(
-                label=['NN', 'N2X'],
-                leading_site=si,
-                terminal_site=si + 1,
-            ))
-            pairs.append(f"({si:02d},{si+1:02d})")
-        _log_pairs(pairs)
-
-        if bcx == 'PBC':
-            logger.info("")
-            logger.info(" PBC interaction at X edge:")
-            interactions.append(Interaction2Site(
-                label=['NN', 'PBC', 'N2X'],
-                leading_site=0,
-                terminal_site=L - 1,
-            ))
-            _log_pairs([f"({0:02d},{L-1:02d})"])
-
-    interactions.sort(key=lambda x: x.leading_site)
-
-    logger.info("")
-    logger.info(f"Two-site interactions: {len(interactions)}")
-    logger.info("")
-
-    return interactions
-
-
-def intrcmap_square(geo: dict, order_fn=generate_snake_order) -> List[Interaction2Site]:
-    """Generate an interaction map for a 2D square lattice.
-
-    Produces nearest-neighbor (NN) and optionally next-nearest-neighbor
-    (NNN) interactions for a 2D square lattice.  Coupling constants are not
-    set here; the returned interactions have `cpl == 0.0` (the default).
-    Labels encode bond topology so that the model builder can assign the
-    correct coupling per bond type.
-
-    Parameters
-    ----------
-    geo:
-        Geometry sub-dict from the TOML `[geometry]` section.  Expected keys:
-
-        - `lx` — number of columns.
-        - `ly` — number of rows.
-        - `bcx` — boundary condition along x (`'OBC'` or `'PBC'`).
-        - `bcy` — boundary condition along y (`'OBC'` or `'PBC'`).
-        - `n2x` — include NN bonds along x (default `True`).
-        - `n2y` — include NN bonds along y (default `True`).
-        - `n3d` — include NNN diagonal bonds (default `False`).
-        - `n3o` — include NNN off-diagonal bonds (default `False`).
-    order_fn:
-        Traversal-order generator `(lx, ly) → (ord_map, latt)`.  Defaults
-        to `generate_snake_order`; `build_geometry` supplies a different
-        function when a non-default traversal is requested.
-
-    Returns
-    -------
-    list[Interaction2Site]
-        Interaction objects sorted by `leading_site`.  Tensor fields are
-        `None`; `cpl` is `0.0`.
-    """
-    lx  = geo['lx']
-    ly  = geo['ly']
-    L   = lx * ly
-    bcx = geo.get('bcx', 'OBC').upper()
-    bcy = geo.get('bcy', 'OBC').upper()
-
-    # Bond-inclusion flags.
-    n2x = bool(geo.get('n2x', True))
-    n2y = bool(geo.get('n2y', True))
-    n3d = bool(geo.get('n3d', False))
-    n3o = bool(geo.get('n3o', False))
-
-    # === 1D CHAIN (ly == 1): delegate to the dedicated builder ===
-    if ly == 1:
-        return intrcmap_1dchain(geo)
-
-    ord_map, _ = order_fn(lx, ly)
-
-    interactions: List[Interaction2Site] = []
-
-    _log_snake_diagram(lx, ly, ord_map)
-    logger.info("─" * 60)
-    logger.info("Interactions Info".center(60))
-    logger.info("─" * 60)
-    logger.info("")
-
-    if n2x:
-        logger.info(" NN interaction along X axis:")
-        pairs = []
-        for row in range(ly):
-            for col in range(lx - 1):
-                a, b = ord_map[row][col], ord_map[row][col + 1]
-                start, terminal = min(a, b), max(a, b)
-                interactions.append(Interaction2Site(
-                    label=['NN', 'N2X'],
-                    leading_site=start,
-                    terminal_site=terminal,
-                ))
-                pairs.append(f"({start:02d},{terminal:02d})")
-        _log_pairs(pairs)
-
-    if n2y:
-        logger.info("")
-        logger.info(" NN interaction along Y axis:")
-        pairs = []
-        for col in range(lx):
-            for row in range(ly - 1):
-                a, b = ord_map[row][col], ord_map[row + 1][col]
-                start, terminal = min(a, b), max(a, b)
-                interactions.append(Interaction2Site(
-                    label=['NN', 'N2Y'],
-                    leading_site=start,
-                    terminal_site=terminal,
-                ))
-                pairs.append(f"({start:02d},{terminal:02d})")
-        _log_pairs(pairs)
-
-    # === PBC along X ===
-    if bcx == 'PBC':
-        logger.info("")
-        logger.info(" PBC interaction at X edge:")
-        pairs = []
-        for row in range(ly):
-            a, b = ord_map[row][0], ord_map[row][lx - 1]
-            start, terminal = min(a, b), max(a, b)
-            interactions.append(Interaction2Site(
-                label=['NN', 'PBC', 'N2X'],
-                leading_site=start,
-                terminal_site=terminal,
-            ))
-            pairs.append(f"({start:02d},{terminal:02d})")
-        _log_pairs(pairs)
-
-    # === PBC along Y ===
-    if bcy == 'PBC':
-        logger.info("")
-        logger.info(" PBC interaction at Y edge:")
-        pairs = []
-        for col in range(lx):
-            a, b = ord_map[0][col], ord_map[ly - 1][col]
-            start, terminal = min(a, b), max(a, b)
-            interactions.append(Interaction2Site(
-                label=['NN', 'PBC', 'N2Y'],
-                leading_site=start,
-                terminal_site=terminal,
-            ))
-            pairs.append(f"({start:02d},{terminal:02d})")
-        _log_pairs(pairs)
-
-    # === NNN off-diagonal (N3O): (row, col) ↔ (row-1, col+1) ===
-    if n3o:
-        logger.info("")
-        logger.info(" NNN off-diagonal interaction (N3O):")
-        pairs = []
-        for col in range(lx - 1):
-            for row in range(1, ly):
-                a, b = ord_map[row][col], ord_map[row - 1][col + 1]
-                start, terminal = min(a, b), max(a, b)
-                interactions.append(Interaction2Site(
-                    label=['NNN', 'N3O'],
-                    leading_site=start,
-                    terminal_site=terminal,
-                ))
-                pairs.append(f"({start:02d},{terminal:02d})")
-        _log_pairs(pairs)
-
-    # === NNN diagonal (N3D): (row, col) ↔ (row+1, col+1) ===
-    if n3d:
-        logger.info("")
-        logger.info(" NNN diagonal interaction (N3D):")
-        pairs = []
-        for col in range(lx - 1):
-            for row in range(ly - 1):
-                a, b = ord_map[row][col], ord_map[row + 1][col + 1]
-                start, terminal = min(a, b), max(a, b)
-                interactions.append(Interaction2Site(
-                    label=['NNN', 'N3D'],
-                    leading_site=start,
-                    terminal_site=terminal,
-                ))
-                pairs.append(f"({start:02d},{terminal:02d})")
-        _log_pairs(pairs)
-
-    # === NNN PBC along X ===
-    if bcx == 'PBC':
-        if n3o:
-            logger.info("")
-            logger.info(" NNN off-diagonal PBC interaction at X edge (N3O):")
-            pairs = []
-            for row in range(ly - 1):
-                a, b = ord_map[row][0], ord_map[row + 1][lx - 1]
-                start, terminal = min(a, b), max(a, b)
-                interactions.append(Interaction2Site(
-                    label=['NNN', 'PBC', 'N3O'],
-                    leading_site=start,
-                    terminal_site=terminal,
-                ))
-                pairs.append(f"({start:02d},{terminal:02d})")
-            _log_pairs(pairs)
-
-        if n3d:
-            logger.info("")
-            logger.info(" NNN diagonal PBC interaction at X edge (N3D):")
-            pairs = []
-            for row in range(1, ly):
-                a, b = ord_map[row][0], ord_map[row - 1][lx - 1]
-                start, terminal = min(a, b), max(a, b)
-                interactions.append(Interaction2Site(
-                    label=['NNN', 'PBC', 'N3D'],
-                    leading_site=start,
-                    terminal_site=terminal,
-                ))
-                pairs.append(f"({start:02d},{terminal:02d})")
-            _log_pairs(pairs)
-
-    # === NNN PBC along Y ===
-    if bcy == 'PBC':
-        if n3o:
-            logger.info("")
-            logger.info(" NNN off-diagonal PBC interaction at Y edge (N3O):")
-            pairs = []
-            for col in range(lx - 1):
-                a, b = ord_map[0][col], ord_map[ly - 1][col + 1]
-                start, terminal = min(a, b), max(a, b)
-                interactions.append(Interaction2Site(
-                    label=['NNN', 'PBC', 'N3O'],
-                    leading_site=start,
-                    terminal_site=terminal,
-                ))
-                pairs.append(f"({start:02d},{terminal:02d})")
-            _log_pairs(pairs)
-
-        if n3d:
-            logger.info("")
-            logger.info(" NNN diagonal PBC interaction at Y edge (N3D):")
-            pairs = []
-            for col in range(1, lx):
-                a, b = ord_map[ly - 1][col - 1], ord_map[0][col]
-                start, terminal = min(a, b), max(a, b)
-                interactions.append(Interaction2Site(
-                    label=['NNN', 'PBC', 'N3D'],
-                    leading_site=start,
-                    terminal_site=terminal,
-                ))
-                pairs.append(f"({start:02d},{terminal:02d})")
-            _log_pairs(pairs)
-
-    interactions.sort(key=lambda x: x.leading_site)
-
-    logger.info("")
-    logger.info(f"Two-site interactions: {len(interactions)}")
-    logger.info("")
-
-    return interactions
-
-
-# Registry of available lattice builders.
+# Map lattice key → (geo: Geometry) → list[Interaction2Site].
+# To add a new lattice type: import the builder and add it here.
 _LATTICES: Dict[str, object] = {
-    'chain': intrcmap_1dchain,
+    'chain':  intrcmap_1dchain,
     'square': intrcmap_square,
+    'kagome': intrcmap_kagome,
 }
 
 
 # ---------------------------------------------------------------------------
-# Public dispatcher
+# Public dispatchers
 # ---------------------------------------------------------------------------
 
-def build_geometry(geo: dict) -> List[Interaction2Site]:
-    """Dispatch geometry construction from a `[geometry]` config dict.
+def build_geometry(geo_cfg: dict) -> Geometry:
+    """Construct a `Geometry` from a `[geometry]` config dict.
 
-    Reads the `lattice` and `traverse` keys to select the lattice builder
-    and traversal-order generator, then delegates to the builder.
+    Validates the `lattice` key, then delegates traversal selection and
+    validation to the lattice-specific `build_traversal` dispatcher, then
+    returns a fully-populated `Geometry` dataclass.
+
+    Parameters
+    ----------
+    geo_cfg:
+        Geometry sub-dict from the TOML `[geometry]` section. Must contain
+        `lx` and optionally `ly` (default `1`), `lattice` (default
+        `'square'`), and `traverse` (default `'sequential'`, used by 2D
+        lattices).
+
+    Returns
+    -------
+    Geometry
+        Fully-resolved geometry struct ready for passing to `build_intrcmap`
+        or any `intrcmap_*` builder.
+
+    Raises
+    ------
+    ValueError
+        If `lattice` names an unrecognised option, or if `traverse` names
+        an option not supported by the selected lattice module.
+    """
+    if geo_cfg.get('lattice', 'chain') not in _LATTICES:
+        raise ValueError(
+            f"Unknown lattice type '{geo_cfg.get('lattice', 'chain')}'. "
+            f"Available: {list(_LATTICES.keys())}"
+        )
+
+    match geo_cfg.get('lattice', 'chain'):
+        case 'chain':
+            from alice.physics.chain import build_traversal   # noqa: PLC0415
+        case 'square':
+            from alice.physics.square import build_traversal  # noqa: PLC0415
+        case 'kagome':
+            from alice.physics.kagome import build_traversal  # noqa: PLC0415
+
+    ord_map, latt = build_traversal(geo_cfg)
+
+    return Geometry(geo_cfg, ord_map, latt)
+
+
+def build_intrcmap(geo: Geometry) -> List[Interaction2Site]:
+    """Generate an interaction map from a `Geometry` instance.
+
+    Looks up the lattice builder registered for `geo.lattice` and delegates
+    to it.
 
     Parameters
     ----------
     geo:
-        Geometry sub-dict from the TOML `[geometry]` section.  Must contain
-        `lattice` (e.g. `'square'`) and optionally `traverse` (default
-        `'snake'`).
+        Fully-resolved geometry struct, typically produced by `build_geometry`.
 
     Returns
     -------
     list[Interaction2Site]
         Interaction objects sorted by `leading_site`, with `cpl == 0.0`
         and tensor fields set to `None`.
-
-    Raises
-    ------
-    ValueError
-        If `lattice` or `traverse` names an unrecognised option.
     """
-    lattice  = geo.get('lattice', 'square')
-    traverse = geo.get('traverse', 'snake')
-
-    if traverse not in _TRAVERSALS:
-        raise ValueError(
-            f"Unknown traversal order '{traverse}'. "
-            f"Available: {list(_TRAVERSALS)}"
-        )
-    if lattice not in _LATTICES:
-        raise ValueError(
-            f"Unknown lattice type '{lattice}'. "
-            f"Available: {list(_LATTICES)}"
-        )
-
-    order_fn   = _TRAVERSALS[traverse]
-    lattice_fn = _LATTICES[lattice]
-    return lattice_fn(geo, order_fn)
+    # Lookup the lattice builder registered for `geo.lattice`
+    lattice_fn = _LATTICES[geo.lattice]
+    # Delegate to the lattice builder
+    return lattice_fn(geo)

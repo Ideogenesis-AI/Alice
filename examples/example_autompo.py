@@ -93,13 +93,13 @@ def main() -> None:
     print()
 
     # Stage 1 + 2: geometry and model
-    interactions, spc, L = build_interaction(sec)
+    interactions, spc, geo = build_interaction(sec)
 
     # Stage 3: build the Hamiltonian MPO
-    mpo = build_hamiltonian(interactions, L, spc, **autompo_opts)
+    mpo = build_hamiltonian(interactions, geo.L, spc, **autompo_opts)
 
     print()
-    print(f"Chain length : {L}")
+    print(f"Chain length : {geo.L}")
     print(f"MPO length   : {len(mpo)}")
     print(f"Bond dims    : {mpo.bond_dims}")
 

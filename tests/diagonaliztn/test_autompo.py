@@ -41,7 +41,7 @@ def _chain_config(L: int, model: str, category: str, **model_kwargs) -> dict:
     return {
         'geometry': {
             'lattice':  'square',
-            'traverse': 'snake',
+            'traverse': 'sequential',
             'lx': L,
             'ly': 1,
             'bcx': 'OBC',
@@ -61,7 +61,7 @@ def _square_config(Lx: int, Ly: int, model: str, category: str, **model_kwargs) 
     return {
         'geometry': {
             'lattice':  'square',
-            'traverse': 'snake',
+            'traverse': 'sequential',
             'lx': Lx,
             'ly': Ly,
             'bcx': 'OBC',
@@ -88,8 +88,8 @@ class TestAutoMPOBasic:
         L = 6
         config = _chain_config(L, 'Heisenberg', 'bosonic',
                                symmetry='U1', spin=0.5, J=1.0)
-        interactions, spc, L_ret = build_interaction(config)
-        assert L_ret == L
+        interactions, spc, geo = build_interaction(config)
+        assert geo.L == L
         return build_hamiltonian(interactions, L, spc)
 
     def test_length(self, heisenberg_mpo):
@@ -338,17 +338,17 @@ class TestCompactPhysics:
 
     @pytest.fixture(scope='class')
     def heisenberg_4x2_mpo(self):
-        """4×2 Heisenberg square lattice (snake ordering), U1 symmetry."""
+        """4×2 Heisenberg square lattice (sequential ordering), U1 symmetry."""
         cfg = _square_config(4, 2, 'Heisenberg', 'bosonic', symmetry='U1', spin=0.5, J=1.0)
-        interactions, spc, L = build_interaction(cfg)
-        return build_hamiltonian(interactions, L, spc)
+        interactions, spc, geo = build_interaction(cfg)
+        return build_hamiltonian(interactions, geo.L, spc)
 
     @pytest.fixture(scope='class')
     def heisenberg_4x3_mpo(self):
-        """4×3 Heisenberg square lattice (snake ordering), U1 symmetry."""
+        """4×3 Heisenberg square lattice (sequential ordering), U1 symmetry."""
         cfg = _square_config(4, 3, 'Heisenberg', 'bosonic', symmetry='U1', spin=0.5, J=1.0)
-        interactions, spc, L = build_interaction(cfg)
-        return build_hamiltonian(interactions, L, spc)
+        interactions, spc, geo = build_interaction(cfg)
+        return build_hamiltonian(interactions, geo.L, spc)
 
     # ------------------------------------------------------------------
     # Heisenberg chain (U1): exact bulk bond dimension = 5

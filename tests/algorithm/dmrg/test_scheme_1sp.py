@@ -219,7 +219,7 @@ class TestProjectComplement:
     def test_right_discarded_orthogonal_to_projector(self, heisenberg_L4):
         """M_tilde_i1 · rh_disc† ≈ 0 when M_tilde_i1 (right-isometric) is the projector.
 
-        `split_backward` yields a right-isometric V factor.  When used as the
+        `split_backward` yields a right-isometric V factor. When used as the
         projector, (I − M_tilde_i1† M_tilde_i1) is an orthogonal projector and
         M_tilde_i1 acting on rh_disc returns zero by the identity
         (I − P) P† = 0, where P = M_tilde_i1† M_tilde_i1.

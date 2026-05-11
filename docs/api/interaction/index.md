@@ -16,20 +16,21 @@ The `alice.network.interaction` module defines the dataclasses that represent Ha
 |----------|-------------|
 | [build_interaction](build-interaction.md) | Build interaction list from TOML config |
 
-## Pipeline overview
+## Pipeline Overview
 
 ```
 config (TOML or dict)
     │
     ▼ build_interaction()
     │
-    ├─ Stage 1: geometry_fn(geo_cfg)
-    │       → list[Interaction2Site]  (sites + labels, no tensors, cpl=0.0)
+    ├─ Stage 1: geometry_fn(geo_cfg)  →  Geometry
     │
-    ├─ Stage 2: model_fn(interactions, L, **model_cfg)
+    ├─ Stage 2: intrcmap_fn(geo)      →  list[Interaction2Site]  (sites + labels, no tensors, cpl=0.0)
+    │
+    ├─ Stage 3: model_fn(interactions, L, **model_cfg)
     │       → fills cpl + tensor fields in place
     │
-    └─ returns (interactions, spc, L)
+    └─ returns (interactions, spc, geo)
 ```
 
 ## See Also

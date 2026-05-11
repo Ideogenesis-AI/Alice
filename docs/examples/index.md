@@ -2,7 +2,7 @@
 
 This section provides complete, working code examples demonstrating Alice's main features.
 
-## How examples work
+## How Examples Work
 
 Code blocks marked with `exec="1"` run during the documentation build and their output is shown inline. This means the results you see are always up to date with the current version of Alice.
 

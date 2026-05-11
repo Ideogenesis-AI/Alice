@@ -39,7 +39,7 @@ class Network:
     """Base class for 1D tensor network chains.
 
     Stores a list of site tensors and provides uniform iteration and axis
-    conventions.  Subclasses typically add a `center` attribute together
+    conventions. Subclasses typically add a `center` attribute together
     with `canonical()` and `norm()`.
 
     Axis layout assumed by this base class (shared by MPS and MPO):
@@ -335,7 +335,7 @@ class Network:
 
         When `center` is set, the network is in mixed canonical form and the
         norm equals the Frobenius norm of the center tensor, which is returned
-        directly.  If `center` is `None`, the norm is computed by contracting
+        directly. If `center` is `None`, the norm is computed by contracting
         ⟨ψ|ψ⟩ site by site from left to right.
 
         Returns
@@ -525,6 +525,9 @@ class MPS(Network):
                 )
         super()._validate()
 
+    def __repr__(self) -> str:
+        from alice.network.display import network_summary
+        return network_summary(self)
 
 
 class MPO(Network):
@@ -592,6 +595,10 @@ class MPO(Network):
                     f"(axis 3) must have opposite directions"
                 )
         super()._validate()
+
+    def __repr__(self) -> str:
+        from alice.network.display import network_summary
+        return network_summary(self)
 
     def compact(self, trunc: Optional[dict] = None) -> None:
         """Compress the MPO bond dimensions in-place with norm preservation.

@@ -6,7 +6,7 @@ Populate interactions for the Hubbard model.
     options:
       heading_level: 2
 
-## Model parameters
+## Model Parameters
 
 | TOML key | Type | Default | Description |
 |----------|------|---------|-------------|

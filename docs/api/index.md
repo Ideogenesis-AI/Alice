@@ -30,10 +30,11 @@ Lattice geometry builders and traversal-order generators.
 
 | Symbol | Description |
 |--------|-------------|
-| [generate_snake_order](geometry/generate-snake-order.md) | Snake-like traversal for 2D lattices |
+| [Geometry](geometry/geometry.md) | Resolved lattice geometry struct |
+| [build_geometry](geometry/build-geometry.md) | Construct a `Geometry` from a config dict |
+| [build_intrcmap](geometry/build-intrcmap.md) | Generate the interaction map from a `Geometry` |
 | [intrcmap_1dchain](geometry/intrcmap-1dchain.md) | Interaction map for 1D chains |
 | [intrcmap_square](geometry/intrcmap-square.md) | Interaction map for 2D square lattices |
-| [build_geometry](geometry/build-geometry.md) | TOML dispatcher for geometry builders |
 
 ## Local Space
 
@@ -85,7 +86,7 @@ Ground-state DMRG algorithm.
 → [build_interaction](interaction/build-interaction.md) — see [AutoMPO from TOML](../examples/autompo-toml.md)
 
 **Use a 2D square lattice geometry**
-→ [intrcmap_square](geometry/intrcmap-square.md), [generate_snake_order](geometry/generate-snake-order.md)
+→ [intrcmap_square](geometry/intrcmap-square.md), [build_geometry](geometry/build-geometry.md)
 
 **Define a custom geometry**
 → [build_geometry](geometry/build-geometry.md) — see [Custom geometry](../examples/extensions/custom-geometry.md)
