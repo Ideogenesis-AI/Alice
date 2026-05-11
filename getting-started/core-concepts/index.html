@@ -1365,6 +1365,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1428,14 +1432,70 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/geometry/generate-snake-order/" class="md-nav__link">
+      <a href="../../api/geometry/geometry/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    generate_snake_order
+    Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/geometry/build-geometry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/geometry/build-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_intrcmap
   
 
     
@@ -1512,14 +1572,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/geometry/build-geometry/" class="md-nav__link">
+      <a href="../../api/geometry/intrcmap-kagome/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    build_geometry
+    intrcmap_kagome
   
 
     
@@ -2351,6 +2411,8 @@
       
         
       
+        
+      
     
     
     
@@ -2413,6 +2475,34 @@
     
   
     Custom geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/extensions/custom-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom intrcmap
   
 
     
@@ -2688,33 +2778,44 @@
 </ul>
 <p>A list of <code>Interaction</code> objects forms the complete description of a Hamiltonian. The AutoMPO pipeline populates these objects in two stages (geometry, then model) and passes the result to <code>build_hamiltonian</code>.</p>
 <h2 id="geometry">Geometry<a class="headerlink" href="#geometry" title="Permanent link">&para;</a></h2>
-<p>The <strong>geometry stage</strong> of the AutoMPO pipeline creates the list of <code>Interaction2Site</code> objects with <code>leading_site</code>, <code>terminal_site</code>, and <code>label</code> fields filled in, but all tensor fields set to <code>None</code> and all coupling constants left at <code>0.0</code>.</p>
+<p>The <strong>geometry stage</strong> of the AutoMPO pipeline is split into two steps. First, <code>build_geometry</code> resolves the lattice configuration into a <code>Geometry</code> struct. Second, <code>build_intrcmap</code> uses that struct to create the list of bare <code>Interaction2Site</code> objects.</p>
+<p>The <code>Geometry</code> dataclass stores:</p>
+<ul>
+<li><code>cfg</code> — the raw config dict from <code>[geometry]</code>.</li>
+<li><code>ord_map</code> — a <code>dict[tuple[int, ...], int]</code> mapping a lattice coordinate tuple → MPS site index.</li>
+<li><code>latt</code> — a <code>list[tuple[int, ...]]</code> mapping MPS site index → lattice coordinate tuple.</li>
+</ul>
+<p>It also exposes convenience properties (<code>lx</code>, <code>ly</code>, <code>L</code>, <code>lattice</code>, <code>traverse</code>) and coordinate-conversion methods (<code>to_1d(coord)</code> and <code>to_2d(site)</code>).</p>
 <p>Alice provides built-in builders for:</p>
 <ul>
 <li><code>intrcmap_1dchain</code> — a simple nearest-neighbor 1D chain.</li>
-<li><code>intrcmap_square</code> — a 2D square lattice traversed in snake order.</li>
-<li><code>build_geometry</code> — the TOML dispatcher that calls the right builder based on the <code>lattice</code> key.</li>
+<li><code>intrcmap_square</code> — a 2D square lattice with configurable traversal order.</li>
+<li><code>intrcmap_kagome</code> — a 2D Kagome lattice with configurable traversal order.</li>
+<li><code>build_geometry</code> — constructs a <code>Geometry</code> from a config dict.</li>
+<li><code>build_intrcmap</code> — generates the interaction list from a <code>Geometry</code>.</li>
 </ul>
-<p>Custom geometries can be registered by passing a <code>geometry_fn</code> to <code>build_interaction</code>, or by pointing to an external Python file via the <code>[plugin]</code> section of a TOML config.</p>
+<p>Custom geometries can be plugged in by passing <code>geometry_fn</code> and/or <code>intrcmap_fn</code> to <code>build_interaction</code>, or by pointing to external Python files via the <code>[plugin]</code> section of a TOML config.</p>
 <h2 id="autompo-pipeline">AutoMPO Pipeline<a class="headerlink" href="#autompo-pipeline" title="Permanent link">&para;</a></h2>
-<p>The full pipeline from a TOML config to a Hamiltonian MPO has three stages:</p>
+<p>The full pipeline from a TOML config to a Hamiltonian MPO has four stages:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>TOML config
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    │
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    ▼
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> build_interaction(config)
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    │
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    ├── Stage 1: Geometry  →  list[Interaction2Site]  (sites + labels)
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    ├── Stage 1: Geometry    →  Geometry (cfg, ord_map, latt, lx, ly, L, …)
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    │
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    ├── Stage 2: Model     →  fills cpl + tensors on each Interaction
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    ├── Stage 2: Intrcmap    →  list[Interaction2Site]  (sites + labels)
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    │
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    └── returns (interactions, spc, L)
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>                │
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>                ▼
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>         build_hamiltonian(interactions, L, spc)
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                │
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                └── returns MPO
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    ├── Stage 3: Model       →  fills cpl + tensors on each Interaction
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    │
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    └── returns (interactions, spc, geo)
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>                │
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                ▼
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>         build_hamiltonian(interactions, geo.L, spc)
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>                │
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>                └── returns MPO
 </span></code></pre></div>
-<p><code>build_interaction</code> accepts either a path to a TOML file or a pre-loaded config dict. <code>build_hamiltonian</code> assembles the MPO term by term using Nicole's <code>oplus</code>, then compresses it with SVD sweeps.</p>
+<p><code>build_interaction</code> accepts either a path to a TOML file or a pre-loaded config dict. You can replace any stage by passing <code>geometry_fn</code>, <code>intrcmap_fn</code>, <code>model_fn</code>, or <code>space_fn</code> kwargs, or via <code>[plugin]</code> entries in the TOML config. <code>build_hamiltonian</code> assembles the MPO term by term using Nicole's <code>oplus</code>, then compresses it with SVD sweeps.</p>
 <h2 id="measurement">Measurement<a class="headerlink" href="#measurement" title="Permanent link">&para;</a></h2>
 <p>Once you have an MPS state and an MPO observable, the expectation value <span class="arithmatex">\(\langle\psi|O|\psi\rangle\)</span> is computed with:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">energy</span> <span class="o">=</span> <span class="n">alice</span><span class="o">.</span><span class="n">observe</span><span class="p">(</span><span class="n">mps</span><span class="p">,</span> <span class="n">hamiltonian_mpo</span><span class="p">)</span>
@@ -2742,7 +2843,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 6, 2026 08:04:46 UTC"><span class="timeago" datetime="2026-05-06T08:04:46+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 6, 2026 08:04:46 UTC">2026-05-06</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 11, 2026 08:37:35 UTC"><span class="timeago" datetime="2026-05-11T08:37:35+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 11, 2026 08:37:35 UTC">2026-05-11</span>
   </span>
 
     

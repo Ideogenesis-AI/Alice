@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://ideogenesis-ai.github.io/Alice/api/geometry/intrcmap-1dchain/">
       
       
-        <link rel="prev" href="../generate-snake-order/">
+        <link rel="prev" href="../build-intrcmap/">
       
       
         <link rel="next" href="../intrcmap-square/">
@@ -1235,6 +1235,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1299,14 +1303,70 @@
   
   
     <li class="md-nav__item">
-      <a href="../generate-snake-order/" class="md-nav__link">
+      <a href="../geometry/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    generate_snake_order
+    Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../build-geometry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../build-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_intrcmap
   
 
     
@@ -1401,7 +1461,7 @@
   <a href="#toml-keys" class="md-nav__link">
     <span class="md-ellipsis">
       
-        TOML keys
+        TOML Keys
       
     </span>
   </a>
@@ -1463,14 +1523,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../build-geometry/" class="md-nav__link">
+      <a href="../intrcmap-kagome/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    build_geometry
+    intrcmap_kagome
   
 
     
@@ -2311,6 +2371,8 @@
       
         
       
+        
+      
     
     
     
@@ -2373,6 +2435,34 @@
     
   
     Custom geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/extensions/custom-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom intrcmap
   
 
     
@@ -2498,7 +2588,7 @@
   <a href="#toml-keys" class="md-nav__link">
     <span class="md-ellipsis">
       
-        TOML keys
+        TOML Keys
       
     </span>
   </a>
@@ -2551,6 +2641,7 @@
 
 <h1 id="intrcmap_1dchain">intrcmap_1dchain<a class="headerlink" href="#intrcmap_1dchain" title="Permanent link">&para;</a></h1>
 <p>Generate an interaction map for a 1D chain.</p>
+<p>Call <code>build_geometry(geo_cfg)</code> to construct a <code>Geometry</code>, then pass it here. The TOML keys below are the fields that belong in the <code>[geometry]</code> section.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -2561,7 +2652,7 @@
 
 
 <a href="#alice.physics.intrcmap_1dchain" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">intrcmap_1dchain</span><span class="p">(</span><span class="n">geo</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">order_fn</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Interaction2Site</span><span class="p">]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">intrcmap_1dchain</span><span class="p">(</span><span class="n">geo</span><span class="p">:</span> <span class="n">Geometry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Interaction2Site</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2588,14 +2679,18 @@ Coupling constants are not set; <code>cpl</code> is <code>0.0</code> on all retu
                 <code>geo</code>
             </td>
             <td>
-                  <code><span title="dict">dict</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            Geometry
+
+
+  
+      dataclass
+   (alice.physics.geometry.Geometry)" href="../geometry/#alice.physics.Geometry">Geometry</a></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Geometry sub-dict from the TOML <code>[geometry]</code> section.  Expected
-keys:</p>
+                <p>Fully-resolved geometry struct for the 1D chain. Relevant config
+keys (read from <code>geo.cfg</code>):</p>
 <ul>
-<li><code>lx</code> — number of sites.</li>
 <li><code>bcx</code> — boundary condition (<code>'OBC'</code> or <code>'PBC'</code>).</li>
 <li><code>n2x</code> — include NN bonds (default <code>True</code>).</li>
 </ul>
@@ -2603,23 +2698,6 @@ keys:</p>
             </td>
             <td>
                 <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>order_fn</code>
-            </td>
-            <td>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Accepted but ignored.  Present so the function can be stored in
-<code>_LATTICES</code> alongside 2D builders that receive a traversal function
-from <code>build_geometry</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
             </td>
           </tr>
       </tbody>
@@ -2637,7 +2715,7 @@ from <code>build_geometry</code>.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="            Interaction2Site
+                  <code><span title="typing.List">List</span>[<a class="autorefs autorefs-internal" title="            Interaction2Site
 
 
   
@@ -2646,7 +2724,7 @@ from <code>build_geometry</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Interaction objects sorted by <code>leading_site</code>.  Tensor fields are
+                <p>Interaction objects sorted by <code>leading_site</code>. Tensor fields are
 <code>None</code>; <code>cpl</code> is <code>0.0</code>.</p>
               </div>
             </td>
@@ -2657,7 +2735,7 @@ from <code>build_geometry</code>.</p>
 
     </div>
 
-</div><h2 id="toml-keys">TOML keys<a class="headerlink" href="#toml-keys" title="Permanent link">&para;</a></h2>
+</div><h2 id="toml-keys">TOML Keys<a class="headerlink" href="#toml-keys" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -2691,7 +2769,8 @@ from <code>build_geometry</code>.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../intrcmap-square/">intrcmap_square</a> — 2D square lattice.</li>
-<li><a href="../build-geometry/">build_geometry</a> — dispatches to this function when <code>lattice = "chain"</code>.</li>
+<li><a href="../build-geometry/">build_geometry</a> — constructs the <code>Geometry</code> passed to this function when <code>lattice = "chain"</code>.</li>
+<li><a href="../build-intrcmap/">build_intrcmap</a> — calls this function based on <code>geo.lattice</code>.</li>
 </ul>
 
 
@@ -2715,7 +2794,7 @@ from <code>build_geometry</code>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 6, 2026 08:04:45 UTC"><span class="timeago" datetime="2026-05-06T08:04:45+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 6, 2026 08:04:45 UTC">2026-05-06</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 11, 2026 08:37:34 UTC"><span class="timeago" datetime="2026-05-11T08:37:34+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 11, 2026 08:37:34 UTC">2026-05-11</span>
   </span>
 
     

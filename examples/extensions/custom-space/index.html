@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://ideogenesis-ai.github.io/Alice/examples/extensions/custom-space/">
       
       
-        <link rel="prev" href="../custom-geometry/">
+        <link rel="prev" href="../custom-intrcmap/">
       
       
         <link rel="next" href="../custom-model/">
@@ -1224,6 +1224,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1287,14 +1291,70 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../api/geometry/generate-snake-order/" class="md-nav__link">
+      <a href="../../../api/geometry/geometry/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    generate_snake_order
+    Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/geometry/build-geometry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/geometry/build-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_intrcmap
   
 
     
@@ -1371,14 +1431,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../api/geometry/build-geometry/" class="md-nav__link">
+      <a href="../../../api/geometry/intrcmap-kagome/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    build_geometry
+    intrcmap_kagome
   
 
     
@@ -2218,6 +2278,8 @@
       
         
       
+        
+      
     
     
     
@@ -2281,6 +2343,34 @@
     
   
     Custom geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom intrcmap
   
 
     
@@ -2364,7 +2454,7 @@
   <a href="#what-a-space-builder-does" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What a space builder does
+        What a Space Builder Does
       
     </span>
   </a>
@@ -2375,7 +2465,7 @@
   <a href="#example-spin-1-site-with-u1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example: spin-1 site with U(1)
+        Example: Spin-1 Site with U(1)
       
     </span>
   </a>
@@ -2386,7 +2476,7 @@
   <a href="#using-a-custom-space-builder" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using a custom space builder
+        Using a Custom Space Builder
       
     </span>
   </a>
@@ -2397,7 +2487,7 @@
   <a href="#fully-custom-site-no-load_space" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Fully custom site (no load_space)
+        Fully Custom Site (No load_space)
       
     </span>
   </a>
@@ -2497,7 +2587,7 @@
   <a href="#what-a-space-builder-does" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What a space builder does
+        What a Space Builder Does
       
     </span>
   </a>
@@ -2508,7 +2598,7 @@
   <a href="#example-spin-1-site-with-u1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example: spin-1 site with U(1)
+        Example: Spin-1 Site with U(1)
       
     </span>
   </a>
@@ -2519,7 +2609,7 @@
   <a href="#using-a-custom-space-builder" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Using a custom space builder
+        Using a Custom Space Builder
       
     </span>
   </a>
@@ -2530,7 +2620,7 @@
   <a href="#fully-custom-site-no-load_space" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Fully custom site (no load_space)
+        Fully Custom Site (No load_space)
       
     </span>
   </a>
@@ -2583,14 +2673,14 @@
 
 <h1 id="custom-local-space">Custom Local Space<a class="headerlink" href="#custom-local-space" title="Permanent link">&para;</a></h1>
 <p>The three built-in local space builders (<code>build_bosonic</code>, <code>build_fermionic</code>, <code>build_conductor</code>) cover spin, spinless-fermion, and spinful-fermion sites. For other physical systems — bosons with a finite truncation, mixed-valence sites, or entirely custom degrees of freedom — you can provide your own space builder.</p>
-<h2 id="what-a-space-builder-does">What a space builder does<a class="headerlink" href="#what-a-space-builder-does" title="Permanent link">&para;</a></h2>
+<h2 id="what-a-space-builder-does">What a Space Builder Does<a class="headerlink" href="#what-a-space-builder-does" title="Permanent link">&para;</a></h2>
 <p>A space builder calls Nicole's <code>load_space</code> (or constructs an <code>Index</code> directly) to obtain:</p>
 <ul>
 <li><code>spc</code> — a Nicole <code>Index</code> encoding the local Hilbert space (physical quantum numbers and their dimensions).</li>
 <li><code>Op</code> — a dict of named Nicole <code>Tensor</code> objects that serve as MPO operator templates.</li>
 </ul>
 <p>The operator templates your model builder will use must be pre-built here. The tensor axis conventions are described in the <a href="../../../api/local-space/">Local Space API overview</a>.</p>
-<h2 id="example-spin-1-site-with-u1">Example: spin-1 site with U(1)<a class="headerlink" href="#example-spin-1-site-with-u1" title="Permanent link">&para;</a></h2>
+<h2 id="example-spin-1-site-with-u1">Example: Spin-1 Site with U(1)<a class="headerlink" href="#example-spin-1-site-with-u1" title="Permanent link">&para;</a></h2>
 <p>The built-in <code>build_bosonic</code> already handles this (<code>spin=1.0</code>), but here is how you would replicate it from scratch to understand the pattern:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice.physics.system</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">_make_i4</span><span class="p">,</span> <span class="n">_make_spin_templates</span><span class="p">,</span>   <span class="c1"># internal helpers (not public API)</span>
@@ -2625,7 +2715,7 @@
 </span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>
 </span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>    <span class="k">return</span> <span class="n">spc</span><span class="p">,</span> <span class="n">Op</span>
 </span></code></pre></div>
-<h2 id="using-a-custom-space-builder">Using a custom space builder<a class="headerlink" href="#using-a-custom-space-builder" title="Permanent link">&para;</a></h2>
+<h2 id="using-a-custom-space-builder">Using a Custom Space Builder<a class="headerlink" href="#using-a-custom-space-builder" title="Permanent link">&para;</a></h2>
 <p>Pass <code>space_fn</code> directly to <code>build_interaction</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_interaction</span><span class="p">,</span> <span class="n">build_hamiltonian</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
@@ -2643,7 +2733,7 @@
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">space</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my_space.py:build_spin1_u1&quot;</span>
 </span></code></pre></div>
 <p>The <code>space_fn</code> is forwarded to the model builder (e.g. <code>build_heisenberg</code>) as a keyword argument, overriding its default space builder.</p>
-<h2 id="fully-custom-site-no-load_space">Fully custom site (no <code>load_space</code>)<a class="headerlink" href="#fully-custom-site-no-load_space" title="Permanent link">&para;</a></h2>
+<h2 id="fully-custom-site-no-load_space">Fully Custom Site (No <code>load_space</code>)<a class="headerlink" href="#fully-custom-site-no-load_space" title="Permanent link">&para;</a></h2>
 <p>For a system that Nicole's <code>load_space</code> does not support, construct the <code>Index</code> directly:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">nicole</span><span class="w"> </span><span class="kn">import</span> <span class="n">Direction</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">nicole.index</span><span class="w"> </span><span class="kn">import</span> <span class="n">Index</span><span class="p">,</span> <span class="n">Sector</span>
@@ -2691,7 +2781,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 6, 2026 08:04:46 UTC"><span class="timeago" datetime="2026-05-06T08:04:46+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 6, 2026 08:04:46 UTC">2026-05-06</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 11, 2026 08:37:35 UTC"><span class="timeago" datetime="2026-05-11T08:37:35+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 11, 2026 08:37:35 UTC">2026-05-11</span>
   </span>
 
     

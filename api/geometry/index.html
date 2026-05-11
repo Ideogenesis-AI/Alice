@@ -18,7 +18,7 @@
         <link rel="prev" href="../interaction/build-interaction/">
       
       
-        <link rel="next" href="generate-snake-order/">
+        <link rel="next" href="geometry/">
       
       
         
@@ -1235,6 +1235,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1299,14 +1303,70 @@
   
   
     <li class="md-nav__item">
-      <a href="generate-snake-order/" class="md-nav__link">
+      <a href="geometry/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    generate_snake_order
+    Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="build-geometry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="build-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_intrcmap
   
 
     
@@ -1383,14 +1443,14 @@
   
   
     <li class="md-nav__item">
-      <a href="build-geometry/" class="md-nav__link">
+      <a href="intrcmap-kagome/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    build_geometry
+    intrcmap_kagome
   
 
     
@@ -2231,6 +2291,8 @@
       
         
       
+        
+      
     
     
     
@@ -2293,6 +2355,34 @@
     
   
     Custom geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/extensions/custom-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom intrcmap
   
 
     
@@ -2404,6 +2494,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#functions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2418,7 +2519,7 @@
   <a href="#how-it-fits-in-the-pipeline" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How it fits in the pipeline
+        How It Fits in the Pipeline
       
     </span>
   </a>
@@ -2429,10 +2530,49 @@
   <a href="#bond-labels" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Bond labels
+        Bond Labels
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Bond Labels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1d-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1D Chain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#square-lattice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Square Lattice
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kagome-lattice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kagome Lattice
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2481,7 +2621,22 @@
 
 
 <h1 id="geometry">Geometry<a class="headerlink" href="#geometry" title="Permanent link">&para;</a></h1>
-<p>The geometry module provides functions to generate interaction maps for 1D MPS traversing 1D or 2D lattices.</p>
+<p>The geometry module provides the <code>Geometry</code> dataclass and functions to generate interaction maps for 1D MPS traversing 1D or 2D lattices.</p>
+<h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="geometry/">Geometry</a></td>
+<td>Resolved lattice geometry struct</td>
+</tr>
+</tbody>
+</table>
 <h2 id="functions">Functions<a class="headerlink" href="#functions" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2492,8 +2647,12 @@
 </thead>
 <tbody>
 <tr>
-<td><a href="generate-snake-order/">generate_snake_order</a></td>
-<td>Snake traversal ordering for 2D lattices</td>
+<td><a href="build-geometry/">build_geometry</a></td>
+<td>Construct a <code>Geometry</code> from a config dict</td>
+</tr>
+<tr>
+<td><a href="build-intrcmap/">build_intrcmap</a></td>
+<td>Generate the interaction map from a <code>Geometry</code></td>
 </tr>
 <tr>
 <td><a href="intrcmap-1dchain/">intrcmap_1dchain</a></td>
@@ -2504,20 +2663,43 @@
 <td>Interaction map for a 2D square lattice</td>
 </tr>
 <tr>
-<td><a href="build-geometry/">build_geometry</a></td>
-<td>TOML dispatcher for geometry builders</td>
+<td><a href="intrcmap-kagome/">intrcmap_kagome</a></td>
+<td>Interaction map for a 2D Kagome lattice</td>
 </tr>
 </tbody>
 </table>
-<h2 id="how-it-fits-in-the-pipeline">How it fits in the pipeline<a class="headerlink" href="#how-it-fits-in-the-pipeline" title="Permanent link">&para;</a></h2>
-<p>The geometry stage creates <code>Interaction2Site</code> objects with <code>leading_site</code>, <code>terminal_site</code>, and <code>label</code> filled in. Coupling constants (<code>cpl</code>) are left at <code>0.0</code> and tensor fields at <code>None</code>; the model builder fills these in the second stage.</p>
+<h2 id="how-it-fits-in-the-pipeline">How It Fits in the Pipeline<a class="headerlink" href="#how-it-fits-in-the-pipeline" title="Permanent link">&para;</a></h2>
+<p>The geometry stage creates <code>Interaction2Site</code> objects with <code>leading_site</code>, <code>terminal_site</code>, and <code>label</code> filled in. Coupling constants (<code>cpl</code>) are left at <code>0.0</code> and tensor fields at <code>None</code>; the model builder fills these in the next stage.</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>geo_cfg dict
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    │
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    ▼ build_geometry(geo_cfg)  — dispatches by lattice + traverse
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    ▼ build_geometry(geo_cfg)
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    │
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    └── list[Interaction2Site]  (sites + labels only)
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    └── Geometry  ──▶  build_intrcmap(geo)
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                             │
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                             └── list[Interaction2Site]  (sites + labels only)
 </span></code></pre></div>
-<h2 id="bond-labels">Bond labels<a class="headerlink" href="#bond-labels" title="Permanent link">&para;</a></h2>
+<h2 id="bond-labels">Bond Labels<a class="headerlink" href="#bond-labels" title="Permanent link">&para;</a></h2>
+<p>Each <code>Interaction2Site</code> produced by a geometry builder carries a <code>label</code> list that encodes the bond topology. The model builder uses these labels to assign coupling constants and operator tensors to the correct interaction terms. Labels always begin with the range tag (<code>'NN'</code> for nearest-neighbor, <code>'NNN'</code> for next-nearest-neighbor) and include <code>'PBC'</code> when the bond closes a periodic boundary.</p>
+<h3 id="1d-chain">1D Chain<a class="headerlink" href="#1d-chain" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>['NN', 'N2X']</code></td>
+<td>Nearest-neighbor bond</td>
+</tr>
+<tr>
+<td><code>['NN', 'PBC', 'N2X']</code></td>
+<td>PBC wrap-around bond</td>
+</tr>
+</tbody>
+</table>
+<h3 id="square-lattice">Square Lattice<a class="headerlink" href="#square-lattice" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -2552,10 +2734,38 @@
 </tr>
 </tbody>
 </table>
+<h3 id="kagome-lattice">Kagome Lattice<a class="headerlink" href="#kagome-lattice" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>['NN', 'N2U']</code></td>
+<td>Upward-triangle NN bond (A–B, A–C, B–C within a unit cell)</td>
+</tr>
+<tr>
+<td><code>['NN', 'N2D']</code></td>
+<td>Downward-triangle NN bond (between adjacent unit cells)</td>
+</tr>
+<tr>
+<td><code>['NN', 'N2U', 'PBC']</code></td>
+<td>N2U bond closing a periodic boundary</td>
+</tr>
+<tr>
+<td><code>['NN', 'N2D', 'PBC']</code></td>
+<td>N2D bond closing a periodic boundary</td>
+</tr>
+</tbody>
+</table>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../interaction/interaction-2site/">Interaction2Site</a> — objects produced by geometry builders.</li>
 <li><a href="../../examples/extensions/custom-geometry/">Custom geometry example</a></li>
+<li><a href="../../examples/extensions/custom-intrcmap/">Custom intrcmap example</a></li>
 </ul>
 
 
@@ -2579,7 +2789,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 6, 2026 08:04:45 UTC"><span class="timeago" datetime="2026-05-06T08:04:45+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 6, 2026 08:04:45 UTC">2026-05-06</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 11, 2026 08:37:34 UTC"><span class="timeago" datetime="2026-05-11T08:37:34+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 11, 2026 08:37:34 UTC">2026-05-11</span>
   </span>
 
     

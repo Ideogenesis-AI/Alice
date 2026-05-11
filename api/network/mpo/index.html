@@ -1043,6 +1043,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#string-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        String Representation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1319,6 +1330,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1385,14 +1400,70 @@
   
   
     <li class="md-nav__item">
-      <a href="../../geometry/generate-snake-order/" class="md-nav__link">
+      <a href="../../geometry/geometry/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    generate_snake_order
+    Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../geometry/build-geometry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../geometry/build-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_intrcmap
   
 
     
@@ -1469,14 +1540,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../geometry/build-geometry/" class="md-nav__link">
+      <a href="../../geometry/intrcmap-kagome/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    build_geometry
+    intrcmap_kagome
   
 
     
@@ -2317,6 +2388,8 @@
       
         
       
+        
+      
     
     
     
@@ -2379,6 +2452,34 @@
     
   
     Custom geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/extensions/custom-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom intrcmap
   
 
     
@@ -2514,6 +2615,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#string-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        String Representation
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2858,7 +2970,46 @@ norm is concentrated in a well-defined center tensor).</p>
 
     </div>
 
-</div><h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+</div><h2 id="string-representation">String Representation<a class="headerlink" href="#string-representation" title="Permanent link">&para;</a></h2>
+<p><code>repr(mpo)</code> (and therefore the interactive display in notebooks and REPLs) renders
+a text diagram of the chain:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>               Matrix Product Operator (MPO)                
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>               ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾                
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>           ╷   ╷   ╷   ╷     ╷     ╷   ╷   ╷   ╷            
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>           □───□───□───□─···─⊡─···─□───□───□───□            
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>           ╵   ╵   ╵   ╵     ╵     ╵   ╵   ╵   ╵            
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>               length: 100     max bond: 64
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>               center: 49      norm: 1.00e+00
+</span></code></pre></div>
+<p><strong>Chain row</strong> — each node is one site; consecutive sites are joined by <code>───</code>.
+When the chain is too long to show in full, a gap <code>─···─</code> is inserted and only
+a subset of sites near the edges and center is displayed.</p>
+<p><strong>Physical-index rows</strong> — the downward stub <code>╵</code> beneath each node is the
+physical-input (ket) index; the upward stub <code>╷</code> above is the physical-output
+(bra) index.</p>
+<p><strong>Node symbols:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>□</code></td>
+<td>Regular site</td>
+</tr>
+<tr>
+<td><code>⊡</code></td>
+<td>Orthogonality center (<code>center</code> attribute)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Info block</strong> — <code>length</code> is the number of sites <code>L</code>; <code>max bond</code> is the largest
+bond dimension across all virtual indices; <code>center</code> is the orthogonality center
+index (<code>None</code> if not set); <code>norm</code> is <code>‖O‖</code>.</p>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../network/">Network</a> — base class providing <code>canonical()</code>, <code>norm()</code>, <code>serialize()</code>, and more.</li>
 <li><a href="../mps/">MPS</a> — matrix product state.</li>
@@ -2887,7 +3038,7 @@ norm is concentrated in a well-defined center tensor).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 6, 2026 08:04:45 UTC"><span class="timeago" datetime="2026-05-06T08:04:45+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 6, 2026 08:04:45 UTC">2026-05-06</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 11, 2026 08:37:35 UTC"><span class="timeago" datetime="2026-05-11T08:37:35+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 11, 2026 08:37:35 UTC">2026-05-11</span>
   </span>
 
     

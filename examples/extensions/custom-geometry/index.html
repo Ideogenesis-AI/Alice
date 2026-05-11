@@ -18,7 +18,7 @@
         <link rel="prev" href="../../autompo-toml/">
       
       
-        <link rel="next" href="../custom-space/">
+        <link rel="next" href="../custom-intrcmap/">
       
       
         
@@ -1224,6 +1224,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1287,14 +1291,70 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../api/geometry/generate-snake-order/" class="md-nav__link">
+      <a href="../../../api/geometry/geometry/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    generate_snake_order
+    Geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/geometry/build-geometry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_geometry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../api/geometry/build-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_intrcmap
   
 
     
@@ -1371,14 +1431,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../api/geometry/build-geometry/" class="md-nav__link">
+      <a href="../../../api/geometry/intrcmap-kagome/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    build_geometry
+    intrcmap_kagome
   
 
     
@@ -2218,6 +2278,8 @@
       
         
       
+        
+      
     
     
     
@@ -2336,7 +2398,7 @@
   <a href="#what-a-geometry-function-does" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What a geometry function does
+        What a Geometry Function Does
       
     </span>
   </a>
@@ -2347,7 +2409,7 @@
   <a href="#example-honeycomb-lattice" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example: honeycomb lattice
+        Example: Honeycomb Lattice
       
     </span>
   </a>
@@ -2355,10 +2417,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#method-1-pass-geometry_fn-directly" class="md-nav__link">
+  <a href="#method-1-pass-callables-directly" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Method 1: Pass geometry_fn directly
+        Method 1: Pass Callables Directly
       
     </span>
   </a>
@@ -2369,7 +2431,18 @@
   <a href="#method-2-toml-plugin-spec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Method 2: TOML plugin spec
+        Method 2: TOML Plugin Spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replacing-only-one-stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replacing Only One Stage
       
     </span>
   </a>
@@ -2380,7 +2453,7 @@
   <a href="#handling-intermediate-sites" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Handling intermediate sites
+        Handling Intermediate Sites
       
     </span>
   </a>
@@ -2402,6 +2475,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../custom-intrcmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom intrcmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2508,7 +2609,7 @@
   <a href="#what-a-geometry-function-does" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What a geometry function does
+        What a Geometry Function Does
       
     </span>
   </a>
@@ -2519,7 +2620,7 @@
   <a href="#example-honeycomb-lattice" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example: honeycomb lattice
+        Example: Honeycomb Lattice
       
     </span>
   </a>
@@ -2527,10 +2628,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#method-1-pass-geometry_fn-directly" class="md-nav__link">
+  <a href="#method-1-pass-callables-directly" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Method 1: Pass geometry_fn directly
+        Method 1: Pass Callables Directly
       
     </span>
   </a>
@@ -2541,7 +2642,18 @@
   <a href="#method-2-toml-plugin-spec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Method 2: TOML plugin spec
+        Method 2: TOML Plugin Spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#replacing-only-one-stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replacing Only One Stage
       
     </span>
   </a>
@@ -2552,7 +2664,7 @@
   <a href="#handling-intermediate-sites" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Handling intermediate sites
+        Handling Intermediate Sites
       
     </span>
   </a>
@@ -2604,47 +2716,59 @@
 
 
 <h1 id="custom-geometry">Custom Geometry<a class="headerlink" href="#custom-geometry" title="Permanent link">&para;</a></h1>
-<p>Alice dispatches geometry construction via <code>build_geometry</code>, which reads the <code>lattice</code> key from a <code>[geometry]</code> config dict. You can plug in your own geometry function in two ways: by passing <code>geometry_fn</code> directly to <code>build_interaction</code>, or by specifying a plugin file path in the TOML config.</p>
-<h2 id="what-a-geometry-function-does">What a geometry function does<a class="headerlink" href="#what-a-geometry-function-does" title="Permanent link">&para;</a></h2>
-<p>A geometry function receives the <code>[geometry]</code> sub-dict and returns a list of <code>Interaction2Site</code> objects with:</p>
+<p>Alice separates geometry construction into two stages: <code>build_geometry</code> constructs a <code>Geometry</code> struct from the <code>[geometry]</code> config dict, and <code>build_intrcmap</code> generates the list of bare <code>Interaction2Site</code> objects from that struct. You can replace either stage — or both — with your own callables.</p>
+<h2 id="what-a-geometry-function-does">What a Geometry Function Does<a class="headerlink" href="#what-a-geometry-function-does" title="Permanent link">&para;</a></h2>
+<p>A <code>geometry_fn</code> receives the <code>[geometry]</code> sub-dict and returns a <code>Geometry</code> instance. The <code>Geometry</code> struct carries the resolved lattice layout so that the interaction-map step can use it. Construct a <code>Geometry</code> with:</p>
 <ul>
-<li><code>leading_site</code> and <code>terminal_site</code> filled in (0-based site indices).</li>
-<li><code>label</code> set to a list of strings encoding bond topology (e.g. <code>['NN', 'N2X']</code>).</li>
-<li><code>cpl = 0.0</code> (coupling is assigned by the model builder, not the geometry builder).</li>
-<li>Tensor fields left as <code>None</code>.</li>
+<li><code>cfg</code> — the raw config dict.</li>
+<li><code>ord_map</code> — a 2D list mapping <code>(row, col)</code> → MPS site index.</li>
+<li><code>latt</code> — a list mapping MPS site index → <code>(row, col)</code>.</li>
 </ul>
-<h2 id="example-honeycomb-lattice">Example: honeycomb lattice<a class="headerlink" href="#example-honeycomb-lattice" title="Permanent link">&para;</a></h2>
-<p>Suppose you want to define a honeycomb lattice traversed with a custom MPS ordering. Here is the structure of a geometry function:</p>
+<p>The <code>intrcmap_fn</code> downstream can then query <code>geo.lx</code>, <code>geo.ly</code>, <code>geo.L</code>, <code>geo.to_1d(row, col)</code>, and <code>geo.to_2d(site)</code> to build the interaction list.</p>
+<h2 id="example-honeycomb-lattice">Example: Honeycomb Lattice<a class="headerlink" href="#example-honeycomb-lattice" title="Permanent link">&para;</a></h2>
+<p>Suppose you want to define a honeycomb lattice traversed with a custom MPS ordering. Split the work into two functions:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># my_geometry.py</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">Interaction2Site</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_honeycomb</span><span class="p">(</span><span class="n">geo</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Interaction2Site</span><span class="p">]:</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build NN interaction map for a honeycomb lattice.</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice.physics</span><span class="w"> </span><span class="kn">import</span> <span class="n">Geometry</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">Interaction2Site</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="sd">    Expected geo keys:</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="sd">        lx     — number of unit cells along x</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="sd">        ly     — number of unit cells along y</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="sd">        bcx    — &#39;OBC&#39; or &#39;PBC&#39;</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="sd">    Returns a list of Interaction2Site with labels [&#39;NN&#39;, &#39;A&#39;], [&#39;NN&#39;, &#39;B&#39;],</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="sd">    [&#39;NN&#39;, &#39;C&#39;] for the three bond orientations.</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">lx</span>  <span class="o">=</span> <span class="n">geo</span><span class="p">[</span><span class="s2">&quot;lx&quot;</span><span class="p">]</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">ly</span>  <span class="o">=</span> <span class="n">geo</span><span class="p">[</span><span class="s2">&quot;ly&quot;</span><span class="p">]</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">bcx</span> <span class="o">=</span> <span class="n">geo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bcx&quot;</span><span class="p">,</span> <span class="s2">&quot;OBC&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">interactions</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="c1"># --- define your MPS site ordering and bonds here ---</span>
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="c1"># For each nearest-neighbor bond (i, j) with i &lt; j:</span>
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="c1">#</span>
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="c1"># interactions.append(Interaction2Site(</span>
-</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>    <span class="c1">#     leading_site  = i,</span>
-</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>    <span class="c1">#     terminal_site = j,</span>
-</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>    <span class="c1">#     label         = [&#39;NN&#39;, &#39;A&#39;],   # bond type A</span>
-</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>    <span class="c1"># ))</span>
-</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>
-</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>    <span class="k">return</span> <span class="n">interactions</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_honeycomb_geometry</span><span class="p">(</span><span class="n">geo_cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Geometry</span><span class="p">:</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the MPS site ordering for a honeycomb lattice.</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="sd">    Expected geo_cfg keys:</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="sd">        lx — number of unit cells along x</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="sd">        ly — number of unit cells along y</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">lx</span> <span class="o">=</span> <span class="n">geo_cfg</span><span class="p">[</span><span class="s2">&quot;lx&quot;</span><span class="p">]</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">ly</span> <span class="o">=</span> <span class="n">geo_cfg</span><span class="p">[</span><span class="s2">&quot;ly&quot;</span><span class="p">]</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="c1"># --- define your sequential / brickwork ordering here ---</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="c1"># ord_map[row][col] = MPS site index (0-based)</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">ord_map</span> <span class="o">=</span> <span class="p">[[</span><span class="n">row</span> <span class="o">*</span> <span class="n">lx</span> <span class="o">+</span> <span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">lx</span><span class="p">)]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ly</span><span class="p">)]</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">latt</span>    <span class="o">=</span> <span class="p">[(</span><span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ly</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">lx</span><span class="p">)]</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="k">return</span> <span class="n">Geometry</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">geo_cfg</span><span class="p">,</span> <span class="n">ord_map</span><span class="o">=</span><span class="n">ord_map</span><span class="p">,</span> <span class="n">latt</span><span class="o">=</span><span class="n">latt</span><span class="p">)</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_honeycomb_intrcmap</span><span class="p">(</span><span class="n">geo</span><span class="p">:</span> <span class="n">Geometry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Interaction2Site</span><span class="p">]:</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Build NN interaction map for a honeycomb lattice.</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="sd">    Returns a list of Interaction2Site with labels [&#39;NN&#39;, &#39;A&#39;], [&#39;NN&#39;, &#39;B&#39;],</span>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="sd">    [&#39;NN&#39;, &#39;C&#39;] for the three bond orientations.</span>
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>    <span class="n">interactions</span> <span class="o">=</span> <span class="p">[]</span>
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>    <span class="c1"># --- define your nearest-neighbor bonds here ---</span>
+</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>    <span class="c1"># For each bond (i, j) with i &lt; j:</span>
+</span><span id="__span-0-35"><a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>    <span class="c1">#</span>
+</span><span id="__span-0-36"><a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>    <span class="c1"># interactions.append(Interaction2Site(</span>
+</span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>    <span class="c1">#     leading_site  = i,</span>
+</span><span id="__span-0-38"><a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>    <span class="c1">#     terminal_site = j,</span>
+</span><span id="__span-0-39"><a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>    <span class="c1">#     label         = [&#39;NN&#39;, &#39;A&#39;],   # bond type A</span>
+</span><span id="__span-0-40"><a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>    <span class="c1"># ))</span>
+</span><span id="__span-0-41"><a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>
+</span><span id="__span-0-42"><a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>    <span class="k">return</span> <span class="n">interactions</span>
 </span></code></pre></div>
 <p>Key rules:</p>
 <ul>
@@ -2652,9 +2776,9 @@
 <li><strong>Do not set <code>cpl</code> or any tensor fields</strong> — those are the model builder's responsibility.</li>
 <li><strong><code>label</code> contents are arbitrary strings</strong> — the model builder uses them to assign couplings.</li>
 </ul>
-<h2 id="method-1-pass-geometry_fn-directly">Method 1: Pass <code>geometry_fn</code> directly<a class="headerlink" href="#method-1-pass-geometry_fn-directly" title="Permanent link">&para;</a></h2>
+<h2 id="method-1-pass-callables-directly">Method 1: Pass Callables Directly<a class="headerlink" href="#method-1-pass-callables-directly" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_interaction</span><span class="p">,</span> <span class="n">build_hamiltonian</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">my_geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_honeycomb</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">my_geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_honeycomb_geometry</span><span class="p">,</span> <span class="n">build_honeycomb_intrcmap</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">config</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="s2">&quot;geometry&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;lx&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;ly&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;bcx&quot;</span><span class="p">:</span> <span class="s2">&quot;OBC&quot;</span><span class="p">},</span>
@@ -2662,12 +2786,16 @@
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>              <span class="s2">&quot;symmetry&quot;</span><span class="p">:</span> <span class="s2">&quot;U1&quot;</span><span class="p">,</span> <span class="s2">&quot;spin&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s2">&quot;J&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span>
 </span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">}</span>
 </span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">interactions</span><span class="p">,</span> <span class="n">spc</span><span class="p">,</span> <span class="n">L</span> <span class="o">=</span> <span class="n">build_interaction</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">geometry_fn</span><span class="o">=</span><span class="n">build_honeycomb</span><span class="p">)</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">hamiltonian</span> <span class="o">=</span> <span class="n">build_hamiltonian</span><span class="p">(</span><span class="n">interactions</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">spc</span><span class="p">)</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">interactions</span><span class="p">,</span> <span class="n">spc</span><span class="p">,</span> <span class="n">geo</span> <span class="o">=</span> <span class="n">build_interaction</span><span class="p">(</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">config</span><span class="p">,</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">geometry_fn</span><span class="o">=</span><span class="n">build_honeycomb_geometry</span><span class="p">,</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">intrcmap_fn</span><span class="o">=</span><span class="n">build_honeycomb_intrcmap</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p">)</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="n">hamiltonian</span> <span class="o">=</span> <span class="n">build_hamiltonian</span><span class="p">(</span><span class="n">interactions</span><span class="p">,</span> <span class="n">geo</span><span class="o">.</span><span class="n">L</span><span class="p">,</span> <span class="n">spc</span><span class="p">)</span>
 </span></code></pre></div>
-<p>The <code>geometry_fn</code> keyword takes priority over any <code>[plugin]</code> section in the config.</p>
-<h2 id="method-2-toml-plugin-spec">Method 2: TOML plugin spec<a class="headerlink" href="#method-2-toml-plugin-spec" title="Permanent link">&para;</a></h2>
-<p>Specify the function in the TOML file using <code>"path/to/file.py:function_name"</code> syntax:</p>
+<p>Keyword arguments take priority over any <code>[plugin]</code> section in the config.</p>
+<h2 id="method-2-toml-plugin-spec">Method 2: TOML Plugin Spec<a class="headerlink" href="#method-2-toml-plugin-spec" title="Permanent link">&para;</a></h2>
+<p>Specify the functions in the TOML file using <code>"path/to/file.py:function_name"</code> syntax:</p>
 <div class="language-toml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">[honeycomb.geometry]</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">lx</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">ly</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span>
@@ -2681,7 +2809,8 @@
 </span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">J</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0</span>
 </span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
 </span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="k">[honeycomb.plugin]</span>
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">geometry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my_geometry.py:build_honeycomb&quot;</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">geometry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my_geometry.py:build_honeycomb_geometry&quot;</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="n">intrcmap</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;my_geometry.py:build_honeycomb_intrcmap&quot;</span>
 </span></code></pre></div>
 <p>Then load normally:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">tomllib</span>
@@ -2690,15 +2819,25 @@
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;honeycomb.toml&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">tomllib</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">interactions</span><span class="p">,</span> <span class="n">spc</span><span class="p">,</span> <span class="n">L</span> <span class="o">=</span> <span class="n">build_interaction</span><span class="p">(</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;honeycomb&quot;</span><span class="p">])</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">interactions</span><span class="p">,</span> <span class="n">spc</span><span class="p">,</span> <span class="n">geo</span> <span class="o">=</span> <span class="n">build_interaction</span><span class="p">(</span><span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;honeycomb&quot;</span><span class="p">])</span>
 </span></code></pre></div>
 <p>Relative paths in the plugin spec are resolved relative to the TOML file's directory.</p>
-<h2 id="handling-intermediate-sites">Handling intermediate sites<a class="headerlink" href="#handling-intermediate-sites" title="Permanent link">&para;</a></h2>
+<h2 id="replacing-only-one-stage">Replacing Only One Stage<a class="headerlink" href="#replacing-only-one-stage" title="Permanent link">&para;</a></h2>
+<p>You can replace just the geometry stage and keep the built-in <code>build_intrcmap</code>, or vice versa. For example, if your honeycomb ordering is compatible with the standard square-lattice bond rules, you only need <code>geometry_fn</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">interactions</span><span class="p">,</span> <span class="n">spc</span><span class="p">,</span> <span class="n">geo</span> <span class="o">=</span> <span class="n">build_interaction</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">config</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">geometry_fn</span><span class="o">=</span><span class="n">build_honeycomb_geometry</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>See <a href="../custom-intrcmap/">Custom intrcmap</a> for examples of replacing only the interaction-map stage.</p>
+<h2 id="handling-intermediate-sites">Handling Intermediate Sites<a class="headerlink" href="#handling-intermediate-sites" title="Permanent link">&para;</a></h2>
 <p>For long-range bonds where <code>terminal_site &gt; leading_site + 1</code>, the model builder must also set <code>intermid_tnsr</code>. When writing a custom model for your geometry, make sure to populate <code>intermid_tnsr</code> for all such bonds. See <a href="../custom-model/">Custom model</a> for how to do this.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../../api/geometry/build-geometry/">build_geometry API</a></li>
+<li><a href="../../../api/geometry/geometry/">Geometry API</a> — the struct returned by <code>geometry_fn</code>.</li>
+<li><a href="../../../api/geometry/build-geometry/">build_geometry API</a>, <a href="../../../api/geometry/build-intrcmap/">build_intrcmap API</a> — built-in implementations.</li>
 <li><a href="../../../api/geometry/intrcmap-1dchain/">intrcmap_1dchain</a>, <a href="../../../api/geometry/intrcmap-square/">intrcmap_square</a> — built-in examples to follow.</li>
+<li><a href="../custom-intrcmap/">Custom intrcmap</a> — replace only the interaction-map stage.</li>
 <li><a href="../custom-model/">Custom model</a> — pair a custom geometry with a custom model.</li>
 </ul>
 
@@ -2723,7 +2862,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 6, 2026 08:04:46 UTC"><span class="timeago" datetime="2026-05-06T08:04:46+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 6, 2026 08:04:46 UTC">2026-05-06</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 11, 2026 08:37:35 UTC"><span class="timeago" datetime="2026-05-11T08:37:35+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 11, 2026 08:37:35 UTC">2026-05-11</span>
   </span>
 
     
