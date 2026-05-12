@@ -20,6 +20,7 @@
 
 from .interaction import Interaction, Interaction1Site, Interaction2Site, build_interaction
 from .network import MPS, MPO, Network
+from .automps import init_mps
 from .observe import observe
 from .autompo import build_hamiltonian
 
@@ -33,6 +34,8 @@ __all__ = [
     'MPS',
     'MPO',
     'Network',
+    # automps
+    'init_mps',
     # observe
     'observe',
     # autompo
