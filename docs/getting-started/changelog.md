@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.1.3] - 2026-05-13
+
+**MPS Init and DMRG Checkpointing**
+
+Introduces `init_mps`, a universal MPS initializer that replaces the per-example
+`_random_mps` helpers with a single particle-type–agnostic function. Adds atomic
+per-sweep checkpointing to DMRG via `dmrg.Options.checkpoint_dir`, and exposes
+`Network.bond_states` for counting physical states at each bond in non-Abelian
+simulations. No breaking changes.
+
+### Universal MPS Initializer
+
+- New `alice.network.automps` module with `init_mps`: constructs an initial MPS for
+  DMRG from any `(Spc, Op)` pair returned by `load_space`. Works for bosonic,
+  fermionic, and conductor sites without a `particle_type=` argument.
+- `bond_dim=1`: deterministic product state with exact charge targeting, one sector per
+  bond; best paired with CBE (`scheme='1sp'`) or 2-site (`scheme='2s'`) DMRG.
+- `bond_dim>1`: random MPS with group-derived bond sectors; reachable charges are
+  selected by BFS from the center-bond charge to depth 2.
+- Auto-balanced `config=None` heuristic covers all standard even-*L* half-filled cases:
+  alternating high/low for 2-sector spaces, single neutral sector for 3-sector spaces,
+  alternating neutral-pair for 4-sector spaces, SU(2) dimer path for pure-SU(2) spaces.
+- Exported from `alice` top-level namespace and from `alice.network`.
+- DMRG example scripts (`dmrg_heisenberg`, `dmrg_freefermion`, `dmrg_conductor`)
+  updated to accept an `init` parameter (`'iter_diag'` or `'random'`) using `init_mps`;
+  per-example `_random_mps` helpers removed.
+
+### DMRG Checkpointing
+
+- New `checkpoint_dir` option in `dmrg.Options`: after every completed sweep the
+  current state is serialized to `dmrg.ckpt` via an atomic write (write to
+  `dmrg_lock.ckpt`, then rename). On POSIX systems the rename is atomic, so a crash
+  during serialization cannot corrupt the previous checkpoint.
+- Checkpoint file is in PyTorch format, loadable via `dmrg.Summary.load`.
+- Defaults to the current working directory at `run()` call time (matching `.logging`).
+
+### `Network.bond_states`
+
+- New `bond_states` property on `Network`: returns the number of physical states per
+  internal bond (length `L - 1`). Equal to `bond_dims` for Abelian groups; larger for
+  SU(2) due to multiplet degeneracy (*2j+1* states per multiplet of spin *j*).
+
+### Documentation
+
+- New API reference page for `init_mps` with parameter table, charge-convention notes,
+  and runnable examples; `Network` reference updated with `bond_states`.
+- Quick-start guide updated to use `init_mps` and the `Summary` checkpoint interface.
+
+### Statistics
+
+- **~700 tests** across 22 test modules (up from ~650 / 21 modules in v0.1.2).
+- **16 commits** since v0.1.2.
+- **17 files changed**, 1,319 insertions, 187 deletions.
+- **21 source modules** in three subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`.
+
+### Compatibility
+
+- **Breaking Changes:** None — fully backward compatible with v0.1.2.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.6.
+
+---
+
 ## [0.1.2] - 2026-05-11
 
 **Geometry Expansion and Refactor**
@@ -216,6 +279,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.1.3]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.0
