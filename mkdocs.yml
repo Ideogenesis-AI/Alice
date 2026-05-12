@@ -69,6 +69,7 @@ nav:
       - Network: api/network/network.md
       - MPS: api/network/mps.md
       - MPO: api/network/mpo.md
+      - initialize: api/network/init-mps.md
       - observe: api/network/observe.md
     - Interaction:
       - Overview: api/interaction/index.md

@@ -158,6 +158,16 @@ class Options(AlgorithmOptions):
         Θ̃ = truncated SVD of M[i] ⊗ M[i+1] inside the CBE expansion.
         Only used when `scheme = '1sp'`. `None` keeps the full bond (no
         additional truncation beyond the existing bond dimension).
+    checkpoint_dir:
+        Directory to write checkpoint files into. A `dmrg.ckpt` file
+        (PyTorch format, loadable via `dmrg.Summary.load`) is written after
+        every full sweep using an atomic write: the data is first serialised
+        to `dmrg_lock.ckpt` in the same directory, then renamed to
+        `dmrg.ckpt` on success, so a failed write cannot corrupt the
+        previous checkpoint. `None` (default) resolves to `Path.cwd()` at
+        the time `run()` is called, mirroring `.logging`. Pass an explicit
+        path string to write elsewhere. Stored as `str` for TOML
+        compatibility.
     """
 
     scheme: str = '1s'
@@ -173,6 +183,7 @@ class Options(AlgorithmOptions):
     env_window: int = 2
     expand_k: int = 4
     expand_alpha: Optional[int] = None
+    checkpoint_dir: Optional[str] = None
 
     def __post_init__(self) -> None:
         # Normalise the scheme alias to the canonical name immediately.
@@ -276,6 +287,59 @@ class Summary(AlgorithmSummary):
 
 
 # ---------------------------------------------------------------------------
+# Checkpoint helper
+# ---------------------------------------------------------------------------
+
+def _save_checkpoint(
+    mps: MPS,
+    energies: List[float],
+    discarded_weights: List[float],
+    sweep_count: int,
+    ckpt_dir: Path,
+) -> None:
+    """Write an atomic checkpoint of the current DMRG state.
+
+    Serialises the current MPS and energy history to `dmrg_lock.ckpt` in
+    `ckpt_dir`, then renames it to `dmrg.ckpt`. The rename is atomic on
+    POSIX systems, so a crash during serialisation cannot corrupt the
+    previously written checkpoint.
+
+    Parameters
+    ----------
+    mps:
+        Current MPS (modified in-place by the sweep).
+    energies:
+        Energy history up to and including the current sweep.
+    discarded_weights:
+        Discarded-weight history up to and including the current sweep.
+    sweep_count:
+        Number of full sweeps completed so far.
+    ckpt_dir:
+        Directory in which `dmrg.ckpt` and `dmrg_lock.ckpt` are written.
+    """
+    import torch
+
+    summary = Summary(
+        energy=energies[-1],
+        state=mps,
+        energies=list(energies),
+        converged=False,
+        n_sweeps=sweep_count,
+        bond_dims=list(mps.bond_dims),
+        discarded_weights=list(discarded_weights),
+    )
+
+    lock_path = ckpt_dir / 'dmrg_lock.ckpt'
+    ckpt_path = ckpt_dir / 'dmrg.ckpt'
+
+    torch.save(summary.serialize(), lock_path)
+    # Atomic rename: on POSIX this is guaranteed to be atomic; on Windows it
+    # is best-effort (Path.replace uses MoveFileExW which is not atomic but
+    # still avoids leaving a half-written dmrg.ckpt on disk).
+    lock_path.replace(ckpt_path)
+
+
+# ---------------------------------------------------------------------------
 # Top-level entry point
 # ---------------------------------------------------------------------------
 
@@ -338,6 +402,11 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         (_cache / 'left').mkdir(parents=True, exist_ok=True)
         (_cache / 'right').mkdir(parents=True, exist_ok=True)
 
+    # Resolve the checkpoint directory; default to Path.cwd() when unset,
+    # mirroring the convention used by configure_logging.
+    _ckpt: Path = Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else Path.cwd()
+    _ckpt.mkdir(parents=True, exist_ok=True)
+
     # For 2-site DMRG the effective fetch ranges are narrower than [0, L-1]:
     #   env_left  is never fetched at index L-1 (that tensor is never written).
     #   env_right is never fetched at index 0  (the boundary block is written
@@ -396,6 +465,8 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         logger.info("  env cache dir     : %s", _cache)
         logger.info("  env window        : %d", opts.env_window)
         logger.info("  env async I/O     : %s", opts.env_async_io)
+    if opts.checkpoint_dir is not None:
+        logger.info("  checkpoint dir    : %s", _ckpt)
     logger.info("")
 
     w = len(str(opts.n_sweeps))
@@ -421,6 +492,8 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
             energies.append(energy)
             discarded_weights.append(dw)
             sweep_count += 1
+
+            _save_checkpoint(mps, energies, discarded_weights, sweep_count, _ckpt)
 
             logger.debug("sweep %*d / %d: backward sweep finished", w, sweep_idx + 1, opts.n_sweeps)
             logger.debug("  local E = %+.12g", energy)

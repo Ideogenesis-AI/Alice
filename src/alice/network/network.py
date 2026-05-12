@@ -222,6 +222,17 @@ class Network:
         return [self._tensors[i].indices[1].dim for i in range(self.L - 1)]
 
     @property
+    def bond_states(self) -> List[int]:
+        """Number of physical states at each internal bond (length `L - 1`).
+
+        Entry *i* is the state count of the right bond of site *i*, which equals
+        the left bond of site *i+1*. For Abelian symmetry groups this is identical
+        to `bond_dims`; for non-Abelian groups (e.g. SU(2)) it is larger due to
+        multiplet degeneracy: each multiplet of spin *j* contributes *2j+1* states.
+        """
+        return [self._tensors[i].indices[1].num_states for i in range(self.L - 1)]
+
+    @property
     def phys_dims(self) -> List[int]:
         """Physical dimension at each site (axis 2, the ket index)."""
         return [self._tensors[i].indices[2].dim for i in range(self.L)]

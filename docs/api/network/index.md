@@ -14,6 +14,7 @@ The `alice.network` module provides the core tensor network data structures: `MP
 
 | Function | Description |
 |----------|-------------|
+| [init_mps](init-mps.md) | Construct an initial MPS for DMRG |
 | [observe](observe.md) | Compute expectation value ⟨ψ\|O\|ψ⟩ |
 
 ## See Also

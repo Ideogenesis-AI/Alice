@@ -66,8 +66,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests" / "diagonal
 from conductor import iter_diag_band, exact_halffilling_energy_band  # pyright: ignore[reportMissingImports]
 
 import alice
-from alice import MPS, build_hamiltonian, build_interaction
+from alice import MPS, build_hamiltonian, build_interaction, init_mps
 from alice import dmrg
+from nicole import load_space
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +132,8 @@ def dmrg_conductor(
     e_tol: float = 1e-8,
     davidson_tol: float = 1e-10,
     trunc_thresh: float = 1e-15,
+    init: str = 'iter_diag',
+    seed: int = 42,
     expand_k: int = 4,
     expand_alpha: int = None,
     env_cache_dir: str = None,
@@ -140,10 +143,13 @@ def dmrg_conductor(
 ) -> Tuple[dmrg.Summary, MPS]:
     """Run DMRG for the 1D Hubbard chain.
 
-    The initial MPS is always obtained from iterative diagonalization of the
-    non-interacting (U = 0) spinful tight-binding chain. This free-fermion
-    state provides a good starting point for the interacting problem and
-    typically allows convergence in a few sweeps.
+    Two initializations are supported via `init`:
+
+    - `iter_diag` (default): iterative diagonalization of the U = 0
+      free-fermion limit. Provides an excellent starting point for the
+      interacting problem and typically converges in a few sweeps.
+    - `random`: random MPS with group-derived bond sectors. Faster to
+      construct but may require more sweeps.
 
     Parameters
     ----------
@@ -184,6 +190,12 @@ def dmrg_conductor(
         SVD truncation threshold: singular values below this fraction of the
         largest singular value are discarded (default: 1e-15). Applied at
         every canonical step in the `'2s'` and `'1sp'` schemes.
+    init:
+        Initial MPS strategy: `'iter_diag'` (iterative diagonalization of
+        the U=0 free-fermion chain, default) or `'random'` (random MPS with
+        group-derived bond sectors).
+    seed:
+        Base random seed used when `init='random'`.
     expand_k:
         Maximum number of complement vectors added per bond end in the `'1sp'`
         scheme (default: 4). Ignored for `'1s'` and `'2s'`.
@@ -216,6 +228,8 @@ def dmrg_conductor(
         raise ValueError(
             f"symmetry must be one of {_VALID_SYMMETRIES}, got {symmetry!r}"
         )
+    if init not in ('iter_diag', 'random'):
+        raise ValueError(f"init must be 'iter_diag' or 'random', got {init!r}")
 
     # -----------------------------------------------------------------------
     # Build the Hamiltonian MPO
@@ -235,9 +249,13 @@ def dmrg_conductor(
     mpo = build_hamiltonian(interactions, geo.L, spc)
 
     # -----------------------------------------------------------------------
-    # Build the initial MPS from iterative diagonalization (U = 0 limit)
+    # Build the initial MPS
     # -----------------------------------------------------------------------
-    mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, t=t, symmetry=symmetry)
+    if init == 'iter_diag':
+        mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, t=t, symmetry=symmetry)
+    else:
+        Spc, Op = load_space('Band', symmetry)
+        mps = init_mps(geo.L, Spc, Op, bond_dim=bond_dim, seed=seed)
 
     if verbose:
         print(f"Chain length   : {geo.L}")
@@ -245,7 +263,7 @@ def dmrg_conductor(
         print(f"Hopping t      : {t}")
         print(f"Hubbard U      : {U}")
         print(f"Chemical pot μ : {mu}  (effective μ_eff = {mu + U / 2:.4f})")
-        print(f"Initialization : iter_diag (U=0 free-fermion MPS)")
+        print(f"Initialization : {init}")
         print(f"Scheme         : {scheme}")
         if scheme in ('1sp', '1-site-plus', 'one-site-plus'):
             alpha_str = str(expand_alpha) if expand_alpha is not None else 'full'
@@ -352,6 +370,17 @@ def _parse_args():
         help='band symmetry exploited (default: U1,U1)',
     )
     p.add_argument(
+        '--init', choices=['iter_diag', 'random'], default='iter_diag',
+        help=(
+            'MPS initialization strategy: iter_diag (iterative diagonalization of the '
+            'U=0 free-fermion chain, default) or random (random tensors)'
+        ),
+    )
+    p.add_argument(
+        '--seed', type=int, default=42, metavar='S',
+        help='base random seed used when --init random (default: 42)',
+    )
+    p.add_argument(
         '--scheme', choices=['1s', '2s', '1sp'], default='1s',
         help='DMRG update scheme: 1s (1-site, default), 2s (2-site), or 1sp (1-site-plus / CBE)',
     )
@@ -421,6 +450,8 @@ if __name__ == '__main__':
         e_tol=args.e_tol,
         davidson_tol=args.davidson_tol,
         trunc_thresh=args.trunc_thresh,
+        init=args.init,
+        seed=args.seed,
         expand_k=args.expand_k,
         expand_alpha=args.expand_alpha,
         env_cache_dir=args.env_cache_dir,

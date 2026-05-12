@@ -38,9 +38,8 @@ Two initializations are supported via --init:
 - `iter_diag` (default): iterative diagonalization, growing the chain
   site by site and keeping `bond_dim` states. Provides a good starting
   point and typically converges in one or two sweeps.
-- `random`: random MPS with `bond_dim // n_sectors` states per particle-
-  number sector (U1 symmetry only). Simpler to construct but requires more
-  sweeps to converge.
+- `random`: random MPS with group-derived bond sectors. Simpler to construct
+  but requires more sweeps to converge.
 
 Run from the repository root:
 
@@ -68,84 +67,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests" / "diagonal
 from fermionic import iter_diag_ferm, exact_halffilling_energy  # pyright: ignore[reportMissingImports]
 
 import alice
-from alice import MPS, build_hamiltonian, build_interaction
+from alice import MPS, build_hamiltonian, build_interaction, init_mps
 from alice import dmrg
-from nicole import Direction, Tensor, load_space
-from nicole.index import Index, Sector
-
-
-# ---------------------------------------------------------------------------
-# Initial MPS construction
-# ---------------------------------------------------------------------------
-
-def _random_mps(
-    L: int,
-    bond_dim: int,
-    symmetry: str = 'U1',
-    seed: int = 42,
-) -> MPS:
-    """Build a random MPS for the spinless free-fermion chain.
-
-    Bond charge sectors cover particle numbers 0…⌊L/2⌋ + 4 (capped at L),
-    distributing `bond_dim` states evenly across sectors. Only U1 symmetry
-    is supported; use `iter_diag` for Z2.
-
-    Parameters
-    ----------
-    L:
-        Chain length.
-    bond_dim:
-        Total number of states distributed across bond charge sectors.
-    symmetry:
-        Must be `'U1'` (conserve particle number). `'Z2'` is not supported
-        for random initialization; use `init='iter_diag'` instead.
-    seed:
-        Base random seed for reproducibility.
-
-    Returns
-    -------
-    MPS
-        Right-canonical MPS (`center == 0`).
-
-    Raises
-    ------
-    ValueError
-        If `symmetry` is not `'U1'`.
-    """
-    if symmetry != 'U1':
-        raise ValueError(
-            f"random MPS initialization only supports 'U1' symmetry, got {symmetry!r}; "
-            "use --init iter_diag for Z2"
-        )
-
-    Spc, Op = load_space('Ferm', symmetry)
-    vac = Op["vac"]
-
-    # Cover particle-number sectors from 0 to half-filling + a small buffer.
-    Nmax = min(L // 2 + 4, L)
-    bond_charges = tuple(range(0, Nmax + 1))
-
-    dim_per_sector = max(1, bond_dim // len(bond_charges))
-    bulk = Index(
-        direction=Direction.IN,
-        group=Spc.group,
-        sectors=tuple(Sector(charge=q, dim=dim_per_sector) for q in bond_charges),
-    )
-
-    tensors = []
-    for i in range(L):
-        l_idx = vac if i == 0 else bulk
-        r_idx = (vac if i == L - 1 else bulk).flip()
-        T = Tensor.random(
-            [l_idx, r_idx, Spc],
-            seed=seed + i,
-            itags=[f'A{i:02d}', f'A{i + 1:02d}', f's{i:02d}'],
-        )
-        tensors.append(T)
-
-    mps = MPS(tensors, center=None)
-    mps.canonical(0)
-    return mps
+from nicole import load_space
 
 
 def _iter_diag_mps(
@@ -224,8 +148,7 @@ def dmrg_freefermion(
         Nearest-neighbor hopping amplitude.
     symmetry:
         Symmetry exploited: `'U1'` (conserve particle number) or `'Z2'`
-        (fermion parity only). Random initialization is only available for
-        `'U1'`; use `init='iter_diag'` with `'Z2'`.
+        (fermion parity only).
     scheme:
         DMRG update scheme: `'1s'` (1-site, default), `'2s'` (2-site), or
         `'1sp'` (1-site-plus / controlled bond expansion). The 2-site scheme
@@ -242,7 +165,7 @@ def dmrg_freefermion(
         every canonical step in the `'2s'` and `'1sp'` schemes.
     init:
         Initial MPS strategy: `'iter_diag'` (iterative diagonalization,
-        default) or `'random'` (random tensors, U1 only).
+        default) or `'random'` (random tensors with group-derived sectors).
     seed:
         Base random seed used when `init='random'`.
     expand_k:
@@ -298,7 +221,8 @@ def dmrg_freefermion(
     if init == 'iter_diag':
         mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, t=t, symmetry=symmetry)
     else:
-        mps = _random_mps(geo.L, bond_dim=bond_dim, symmetry=symmetry, seed=seed)
+        Spc, Op = load_space('Ferm', symmetry)
+        mps = init_mps(geo.L, Spc, Op, bond_dim=bond_dim, seed=seed)
 
     if verbose:
         print(f"Chain length   : {geo.L}")

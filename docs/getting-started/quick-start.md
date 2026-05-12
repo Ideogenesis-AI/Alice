@@ -49,23 +49,25 @@ hamiltonian = build_hamiltonian(interactions, L, spc)
 
 ### 4. Create an initial MPS
 
-A random initial MPS in the half-filling sector (`S_z = 0`) can be constructed using Nicole's `isometry` utility. For simplicity you can also load one from disk if you have a previous result.
+`init_mps` constructs a symmetry-aware initial MPS from the physical space
+returned by Nicole's `load_space`. It works for all particle types without a
+separate symmetry argument.
 
 ```python
-from nicole import isometry, Index, Sector, Direction
+from nicole import load_space
+from alice import init_mps
 
-# Build a trivial dim-1 boundary bond
-bond = Index([Sector(0, 1)], Direction.OUT)
-# Build a product-state MPS (up-down-up-down...) as an initial guess
-tensors = []
-for i in range(L):
-    spc_i = hamiltonian[i].indices[2]
-    t = isometry(bond, spc_i)
-    # ... (full initialization left to the extended example)
-    tensors.append(t)
+Spc, Op = load_space('Spin', 'U1', {'J': 0.5})
+
+# Product state (bond_dim=1) — exact charge targeting, best for CBE / 2-site DMRG
+mps = init_mps(L, Spc, Op, bond_dim=1)
+
+# Random MPS (bond_dim>1) — group-derived bond sectors, more friendly to 1-site DMRG
+# mps = init_mps(L, Spc, Op, bond_dim=32)
 ```
 
-For a complete working initialization example, see [DMRG: Heisenberg chain](../examples/dmrg/heisenberg.md).
+See [init_mps](../api/network/init-mps.md) for the full signature and all
+supported symmetry groups.
 
 ### 5. Run DMRG
 
@@ -87,19 +89,13 @@ print(f"Converged: {summary.converged} after {summary.n_sweeps} sweeps")
 ### 6. Save the result
 
 ```python
-import torch
-
-payload = summary.serialize()
-torch.save(payload, "result.pt")
+summary.save("ground_state.ckpt")
 ```
 
 Reload later:
 
 ```python
-from alice import dmrg
-
-data    = torch.load("result.pt", weights_only=True)
-summary = dmrg.Summary.deserialize(data)
+summary = dmrg.Summary.load("ground_state.ckpt")
 ```
 
 ## Expected Output

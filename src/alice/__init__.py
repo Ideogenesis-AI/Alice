@@ -25,6 +25,7 @@ from .network import (
     build_interaction,
     build_hamiltonian,
     MPS, MPO, Network,
+    init_mps,
     observe,
 )
 from .algorithm import dmrg
@@ -44,6 +45,8 @@ __all__ = [
     'MPS',
     'MPO',
     'Network',
+    # initializers
+    'init_mps',
     # measurement
     'observe',
     # algorithms (as submodules)

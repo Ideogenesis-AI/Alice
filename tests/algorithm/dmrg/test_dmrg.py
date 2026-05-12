@@ -298,3 +298,52 @@ class TestDmrg:
         assert abs(summary.energy - E_exact) < 1e-5, (
             f"L=4 Heisenberg 2-site energy {summary.energy} != {E_exact}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Checkpointing Functionality
+# ---------------------------------------------------------------------------
+
+class TestCheckpoint:
+    """Tests for the per-sweep checkpoint writing logic."""
+
+    def test_checkpoint_file_created(self, heisenberg_L2, tmp_path):
+        """dmrg.ckpt is written to checkpoint_dir after run()."""
+        mps, mpo = heisenberg_L2
+        run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
+        assert (tmp_path / 'dmrg.ckpt').exists()
+
+    def test_lock_file_not_present(self, heisenberg_L2, tmp_path):
+        """dmrg_lock.ckpt is renamed away on success and must not exist afterwards."""
+        mps, mpo = heisenberg_L2
+        run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
+        assert not (tmp_path / 'dmrg_lock.ckpt').exists()
+
+    def test_checkpoint_loadable(self, heisenberg_L2, tmp_path):
+        """Checkpoint loads correctly and energy matches the run summary."""
+        mps, mpo = heisenberg_L2
+        summary = run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
+        loaded = Summary.load(tmp_path / 'dmrg.ckpt')
+        assert abs(loaded.energy - summary.energy) < 1e-12
+        assert loaded.n_sweeps == summary.n_sweeps
+
+    def test_checkpoint_written_to_cwd_by_default(self, heisenberg_L2, tmp_path):
+        """With checkpoint_dir=None, dmrg.ckpt is written to Path.cwd()."""
+        mps, mpo = heisenberg_L2
+        run(mps, mpo, Options(n_sweeps=1))
+        assert (tmp_path / 'dmrg.ckpt').exists()
+
+    def test_checkpoint_written_each_sweep(self, heisenberg_L2, tmp_path):
+        """Checkpoint reflects the sweep count of the last sweep performed."""
+        mps, mpo = heisenberg_L2
+        summary = run(mps, mpo, Options(n_sweeps=3, checkpoint_dir=str(tmp_path)))
+        loaded = Summary.load(tmp_path / 'dmrg.ckpt')
+        assert loaded.n_sweeps == summary.n_sweeps
+
+    def test_checkpoint_dir_toml_round_trip(self, tmp_path):
+        """checkpoint_dir survives a to_toml / load_toml round trip."""
+        original = Options(checkpoint_dir='/tmp/ckpt')
+        path = tmp_path / 'opts.toml'
+        original.to_toml(path)
+        loaded = Options.load_toml(path)
+        assert loaded.checkpoint_dir == '/tmp/ckpt'
