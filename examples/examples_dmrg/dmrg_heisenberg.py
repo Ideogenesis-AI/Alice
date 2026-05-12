@@ -64,78 +64,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests" / "diagonal
 from bosonic import iter_diag_spin  # pyright: ignore[reportMissingImports]
 
 import alice
-from alice import MPS, build_hamiltonian, build_interaction
+from alice import MPS, build_hamiltonian, build_interaction, init_mps
 from alice import dmrg
-from nicole import Direction, Tensor, load_space
-from nicole.index import Index, Sector
-
-
-# ---------------------------------------------------------------------------
-# Initial MPS construction
-# ---------------------------------------------------------------------------
-
-def _random_mps(
-    L: int,
-    bond_dim: int,
-    spin: float = 0.5,
-    symmetry: str = 'U1',
-    seed: int = 42,
-) -> MPS:
-    """Build a random MPS for the Heisenberg spin chain.
-
-    Charge sectors span the range ±(2S·L) for U1 and 0…(2S·L) for SU2.
-    `bond_dim` states are distributed evenly across sectors, with at least
-    one state per sector.
-
-    Parameters
-    ----------
-    L:
-        Chain length.
-    bond_dim:
-        Total number of states distributed across bond charge sectors.
-    spin:
-        Site spin quantum number.
-    symmetry:
-        `'U1'` or `'SU2'`.
-    seed:
-        Base random seed for reproducibility.
-
-    Returns
-    -------
-    MPS
-        Right-canonical MPS (`center == 0`).
-    """
-    Spc, Op = load_space('Spin', symmetry, {'J': spin})
-    vac = Op["vac"]
-
-    # Charge range: for U1 use ±Smax, for SU2 use 0…Smax (non-negative).
-    Smax = 6
-    if symmetry == 'U1':
-        bond_charges = tuple(range(-Smax, Smax + 1))
-    else:
-        bond_charges = tuple(range(0, Smax + 1))
-
-    dim_per_sector = max(1, bond_dim // len(bond_charges))
-    bulk = Index(
-        direction=Direction.IN,
-        group=Spc.group,
-        sectors=tuple(Sector(charge=q, dim=dim_per_sector) for q in bond_charges),
-    )
-
-    tensors = []
-    for i in range(L):
-        l_idx = vac if i == 0 else bulk
-        r_idx = (vac if i == L - 1 else bulk).flip()
-        T = Tensor.random(
-            [l_idx, r_idx, Spc],
-            seed=seed + i,
-            itags=[f'A{i:02d}', f'A{i + 1:02d}', f's{i:02d}'],
-        )
-        tensors.append(T)
-
-    mps = MPS(tensors, center=None)
-    mps.canonical(0)
-    return mps
+from nicole import load_space
 
 
 def _iter_diag_mps(
@@ -211,8 +142,8 @@ def dmrg_heisenberg(
         Chain length.
     bond_dim:
         Maximum bond dimension. For `init='iter_diag'` this is the number
-        of states (multiplets for SU2) kept at each step. For
-        `init='random'` the total is distributed evenly across bond sectors.
+        of states (multiplets for SU2) kept at each step. For `init='random'`
+        the total is distributed across group-derived bond sectors.
     n_sweeps:
         Maximum number of full sweeps (forward + backward half-sweep each).
     J:
@@ -295,7 +226,8 @@ def dmrg_heisenberg(
     if init == 'iter_diag':
         mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, J=J, spin=spin, symmetry=symmetry)
     else:
-        mps = _random_mps(geo.L, bond_dim=bond_dim, spin=spin, symmetry=symmetry, seed=seed)
+        Spc, Op = load_space('Spin', symmetry, {'J': spin})
+        mps = init_mps(geo.L, Spc, Op, bond_dim=bond_dim, seed=seed)
 
     if verbose:
         print(f"Chain length   : {geo.L}")
