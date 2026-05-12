@@ -27,8 +27,8 @@ returned by `load_space`. It supports two modes:
   grow the bond dimension during the first sweep.
 
 - `bond_dim>1` — random MPS with group-derived bond sectors. Bond sectors are
-  chosen via a BFS from the center-bond charge, replacing the hardcoded
-  heuristics in the per-example `_random_mps` helpers.
+  chosen via a breadth-first search (BFS) from the center-bond charge,
+  replacing the hardcoded heuristics in the per-example `_random_mps` helpers.
 
 Both modes are particle-type agnostic: the `(Spc, Op)` pair fully encodes
 all symmetry information, so no separate `spin=`, `symmetry=`, or
