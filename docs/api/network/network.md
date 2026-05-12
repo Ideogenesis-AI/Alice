@@ -10,6 +10,7 @@ Base class for 1D tensor network chains.
         - bc
         - center
         - bond_dims
+        - bond_states
         - phys_dims
         - itag_prefix
         - canonical
