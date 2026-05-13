@@ -2,198 +2,202 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/logging/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/dmrg/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/dmrg/options/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/dmrg/run/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/dmrg/summary/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/geometry/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/geometry/build-geometry/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/geometry/build-intrcmap/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/geometry/geometry/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/geometry/intrcmap-1dchain/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/geometry/intrcmap-kagome/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/geometry/intrcmap-square/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/hamiltonian/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/hamiltonian/build-free-fermion/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/hamiltonian/build-hamiltonian/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/hamiltonian/build-heisenberg/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/hamiltonian/build-hubbard/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/interaction/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/interaction/build-interaction/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/interaction/interaction-1site/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/interaction/interaction-2site/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/interaction/interaction/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/local-space/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/local-space/build-bosonic/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/local-space/build-conductor/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/local-space/build-fermionic/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/network/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
+    </url>
+    <url>
+         <loc>https://ideogenesis-ai.github.io/Alice/api/network/init-mps/</loc>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/network/mpo/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/network/mps/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/network/network/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/api/network/observe/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/autompo-toml/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/dmrg/free-fermion/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/dmrg/heisenberg/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/dmrg/hubbard/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/extensions/custom-geometry/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/extensions/custom-intrcmap/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/extensions/custom-model/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/examples/extensions/custom-space/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/getting-started/changelog/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/getting-started/contributing/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/getting-started/core-concepts/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/getting-started/git-control/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/getting-started/installation/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/getting-started/quick-start/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
     <url>
          <loc>https://ideogenesis-ai.github.io/Alice/getting-started/what-is-alice/</loc>
-         <lastmod>2026-05-11</lastmod>
+         <lastmod>2026-05-13</lastmod>
     </url>
 </urlset>
