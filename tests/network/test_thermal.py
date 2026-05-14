@@ -41,11 +41,13 @@ from nicole import Direction, load_space, identity
 
 from alice.network import (
     Interaction1Site,
+    Interaction2Site,
     NormalMPO,
     build_hamiltonian,
     observe,
     thermal_mpo,
 )
+from alice.physics.system import build_fermionic
 from alice.network.thermal import _identity_mpo
 
 
@@ -498,3 +500,75 @@ class TestThermalMPO:
         rho = thermal_mpo(H_mpo, 0.3, self._ORDER, Spc)
         E = observe(rho, H_mpo)
         assert isinstance(E, float)
+
+
+# ---------------------------------------------------------------------------
+# Fixture: spinless fermion U(1)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope='module')
+def ferm_u1():
+    """Spinless fermion U(1) space and operators (module scope for performance)."""
+    return build_fermionic(symmetry='U1')
+
+
+# ---------------------------------------------------------------------------
+# Tests: free fermion tight-binding chain
+# ---------------------------------------------------------------------------
+
+class TestFreeFermionThermal:
+    """Physics tests for `thermal_mpo` on a spinless tight-binding chain.
+
+    The Hamiltonian is H = -t Σ_i (c†_i c_{i+1} + h.c.) with OBC.
+    Single-particle energies are ε_k = -2t cos(kπ/(L+1)).
+    The exact partition function and thermal energy follow from free-fermion
+    statistics: Z = ∏_k (1 + e^{-β ε_k}) and ⟨H⟩ = Σ_k ε_k n_F(ε_k).
+    """
+
+    _L = 4
+    _t = 1.0
+    _ORDER = 25
+
+    def _exact_energies(self):
+        return [
+            -2 * self._t * math.cos(k * math.pi / (self._L + 1))
+            for k in range(1, self._L + 1)
+        ]
+
+    def _Z_exact(self, beta):
+        return math.prod(1 + math.exp(-beta * e) for e in self._exact_energies())
+
+    def _E_exact(self, beta):
+        return sum(e / (math.exp(beta * e) + 1) for e in self._exact_energies())
+
+    @pytest.fixture(scope='class')
+    def tight_binding_h(self, ferm_u1):
+        """Tight-binding Hamiltonian MPO for an L-site chain."""
+        Spc, Op = ferm_u1
+        L = self._L
+        interactions = [
+            Interaction2Site(
+                cpl=-self._t,
+                leading_site=i,
+                terminal_site=i + 1,
+                leading_tnsr=Op['G4'].clone(),
+                terminal_tnsr=Op['G4dag'].clone(),
+            )
+            for i in range(L - 1)
+        ]
+        return build_hamiltonian(interactions, L, Spc), Spc
+
+    @pytest.mark.parametrize('beta', [0.5, 1.0])
+    def test_partition_function(self, tight_binding_h, beta):
+        """Partition function ``Tr[ρ]`` matches the exact free-fermion result."""
+        H_mpo, Spc = tight_binding_h
+        rho = thermal_mpo(H_mpo, beta, self._ORDER, Spc)
+        assert math.isclose(rho.trace(), self._Z_exact(beta), rel_tol=1e-6)
+
+    @pytest.mark.parametrize('beta', [0.5, 1.0])
+    def test_thermal_energy(self, tight_binding_h, beta):
+        """Thermal energy ``⟨H⟩_β`` matches the exact free-fermion result."""
+        H_mpo, Spc = tight_binding_h
+        rho = thermal_mpo(H_mpo, beta, self._ORDER, Spc)
+        E = observe(rho, H_mpo)
+        assert math.isclose(E, self._E_exact(beta), rel_tol=1e-4)
