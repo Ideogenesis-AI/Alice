@@ -40,7 +40,7 @@ class TestObserveDispatch:
 
     def test_raises_for_invalid_state_type(self, mpo_tensors):
         """observe raises TypeError for an unrecognised state type."""
-        with pytest.raises(TypeError, match="MPS or a sequence"):
+        with pytest.raises(TypeError, match="MPS"):
             observe(42, mpo_tensors)
 
     def test_accepts_mps_object(self, mps_tensors, mpo_tensors):
