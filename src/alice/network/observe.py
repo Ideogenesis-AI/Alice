@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Sequence, Union
 
 from nicole import Direction, Tensor, einsum, identity
@@ -38,13 +39,15 @@ def observe(
 
     - `MPS` (or a plain sequence of tensors): evaluates ⟨ψ|O|ψ⟩ via a
       left-to-right MPS-MPO-MPS transfer-matrix sweep.
-    - `MPO` (thermal density matrix): not yet implemented.
+    - `NormalMPO` (thermal density matrix): evaluates
+      ``Tr[ρ O] / Tr[ρ]`` by forming the MPO product ``ρ · O``, compressing
+      it, and returning the ratio of traces.
 
     Parameters
     ----------
     state:
-        The state to evaluate. Either an `MPS` object, or a plain sequence
-        of MPS site tensors.
+        The state to evaluate. Either an `MPS` object, a plain sequence of
+        MPS site tensors, or a `NormalMPO` thermal density matrix.
     observable:
         The observable encoded as an `MPO` object, or a plain sequence of
         MPO site tensors, of the same length as `state`.
@@ -57,19 +60,60 @@ def observe(
     Raises
     ------
     TypeError
-        If `state` is not an `MPS` or a sequence of tensors.
+        If `state` is not an `MPS`, `NormalMPO`, or a sequence of tensors.
     NotImplementedError
-        If `state` is an `MPO` (thermal density matrix support is pending).
+        If `state` is a plain `MPO` (use a `NormalMPO` for thermal states).
     """
+    # Import here to avoid a top-level circular dependency
+    # (thermal.py imports from network.py, which is fine, but we cannot
+    # import NormalMPO at module load time without potential issues).
+    from .thermal import NormalMPO
+
+    if isinstance(state, NormalMPO):
+        return _observe_thermal(state, observable)
     if isinstance(state, MPO):
         raise NotImplementedError(
-            "observe for thermal states (MPO density matrix) is not yet implemented."
+            "observe() does not support a plain MPO as the state. "
+            "Wrap the density matrix in a NormalMPO first."
         )
     if isinstance(state, (MPS, Sequence)):
         return _observe_mps(state, observable)
     raise TypeError(
-        f"state must be an MPS or a sequence of tensors, got {type(state).__name__!r}"
+        f"state must be an MPS, NormalMPO, or a sequence of tensors, "
+        f"got {type(state).__name__!r}"
     )
+
+
+def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
+    """Compute the thermal expectation value ``Tr[ρ O] / Tr[ρ]``.
+
+    Forms the MPO product ``ρ · O``, compresses it with `compact()`, and
+    returns the ratio of its trace to ``Tr[ρ]``.
+
+    Parameters
+    ----------
+    rho:
+        Thermal density matrix as a `NormalMPO`.
+    observable:
+        The observable as an `MPO` (or plain sequence of MPO site tensors).
+
+    Returns
+    -------
+    float
+        The thermal expectation value ``Tr[ρ O] / Tr[ρ]``.
+    """
+    from .thermal import NormalMPO
+
+    if not isinstance(observable, MPO):
+        observable = MPO(list(observable))
+
+    O_norm = NormalMPO.from_mpo(observable)
+    product = rho @ O_norm
+    product.compact()
+    denominator = rho.trace()
+    if math.isclose(denominator, 0.0, abs_tol=1e-15):
+        raise ZeroDivisionError("Tr[ρ] is numerically zero; cannot compute expectation value")
+    return product.trace() / denominator
 
 
 def _observe_mps(
