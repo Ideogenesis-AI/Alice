@@ -21,7 +21,7 @@
 This module provides `NormalMPO`, an `MPO` subclass that maintains its
 internal tensors at unit Frobenius norm while tracking the true physical
 scale as `_scale`, and `thermal_mpo`, which approximates
-``ρ(β) = exp(−βH)`` via a truncated Taylor series.
+`ρ(β) = exp(−βH)` via a truncated Taylor series.
 
 The one-directional import chain is: `thermal.py` → `network.py`. No
 circular dependency is introduced.
@@ -92,8 +92,8 @@ def _identity_mpo(spc: Index, L: int) -> MPO:
 class NormalMPO(MPO):
     """MPO with a separately tracked overall scale factor.
 
-    Represents the physical operator as ``_scale × mpo``, where the internal
-    MPO satisfies ``mpo.norm() ≈ 1`` after `compact()` or `from_mpo()`. All
+    Represents the physical operator as `_scale × mpo`, where the internal
+    MPO satisfies `mpo.norm() ≈ 1` after `compact()` or `from_mpo()`. All
     arithmetic operations (`+`, `@`, `*`) preserve this representation,
     updating `_scale` analytically without altering the unit-norm convention
     until `compact()` is called explicitly.
@@ -102,13 +102,13 @@ class NormalMPO(MPO):
     ----------
     tensors:
         Non-empty list of site tensors, each with 4 axes
-        ``(left_bond, right_bond, phys_in, phys_out)``.
+        `(left_bond, right_bond, phys_in, phys_out)`.
     scale:
-        Overall scale factor. Defaults to ``1.0``.
+        Overall scale factor. Defaults to `1.0`.
     bc:
-        Boundary condition: ``'OBC'`` (default) or ``'PBC'``.
+        Boundary condition: `'OBC'` (default) or `'PBC'`.
     center:
-        Orthogonality center site index, or ``None`` if unspecified.
+        Orthogonality center site index, or `None` if unspecified.
     """
 
     def __init__(
@@ -130,7 +130,7 @@ class NormalMPO(MPO):
         """Create a `NormalMPO` from a plain `MPO`.
 
         The input MPO is not modified. The returned object has
-        ``mpo.norm() ≈ 1`` and ``scale == original_frobenius_norm``.
+        `mpo.norm() ≈ 1` and `scale == original_frobenius_norm`.
 
         Parameters
         ----------
@@ -140,7 +140,7 @@ class NormalMPO(MPO):
         Returns
         -------
         NormalMPO
-            Normalized copy with ``center=0``.
+            Normalized copy with `center=0`.
 
         Raises
         ------
@@ -189,7 +189,7 @@ class NormalMPO(MPO):
         trunc:
             Truncation options forwarded to `canonical()` during the
             right-to-left compression sweep. Defaults to
-            ``{'thresh': 1e-14}``.
+            `{'thresh': 1e-14}`.
         """
         if trunc is None:
             trunc = {'thresh': 1e-14}
@@ -222,18 +222,18 @@ class NormalMPO(MPO):
     # ------------------------------------------------------------------
 
     def trace(self) -> float:
-        r"""Compute the MPO trace :math:`\operatorname{Tr}[\rho]`.
+        r"""Compute the MPO trace \(\operatorname{Tr}[\rho]\).
 
         Performs a left-to-right transfer-matrix sweep. At each site the
-        physical indices (phys_in and phys_out, sharing itag ``s{i:02d}``
+        physical indices (phys_in and phys_out, sharing itag `s{i:02d}`
         with opposite directions) are traced using Nicole's `trace` function,
-        yielding a 2-leg bond tensor.         Adjacent bond tensors are chained with
+        yielding a 2-leg bond tensor. Adjacent bond tensors are chained with
         `einsum`.
 
         Returns
         -------
         float
-            ``_scale × Tr[internal_mpo]``.
+            `_scale × Tr[internal_mpo]`.
         """
         L = self.L
         # Site 0: partial trace over physical axes → 2-leg bond tensor.
@@ -256,36 +256,36 @@ class NormalMPO(MPO):
     # ------------------------------------------------------------------
 
     def __matmul__(self, other: NormalMPO) -> NormalMPO:
-        """Return the MPO product ``self @ other`` without canonicalization.
+        """Return the MPO product `self @ other` without canonicalization.
 
-        For each site ``i``:
+        For each site `i`:
 
-        1. Retag the bond axes of ``self[i]`` to ``'L1'``/``'R1'`` and
-           ``other[i]`` to ``'L2'``/``'R2'`` (isolates bond structure from
+        1. Retag the bond axes of `self[i]` to `'L1'`/`'R1'` and
+           `other[i]` to `'L2'`/`'R2'` (isolates bond structure from
            shared physical itags).
-        2. Contract over the shared physical axis (``self``'s ``phys_out``
-           × ``other``'s ``phys_in``) via
-           ``einsum('abrs,cdsu->acbdru', W1, W2)``, producing a 6-axis
-           tensor ``(L1, L2, R1, R2, phys_in, phys_out)``.
-        3. Fuse right bonds first: ``merge_axes(C, [2, 3], 'R', OUT)``
-           → axes ``(R, L1, L2, r, u)``.
-        4. Fuse left bonds: ``merge_axes(C, [1, 2], 'L', IN)``
-           → axes ``(L, R, phys_in, phys_out)``. *(Correct index order.)*
+        2. Contract over the shared physical axis (`self`'s `phys_out`
+           × `other`'s `phys_in`) via
+           `einsum('abrs,cdsu->acbdru', W1, W2)`, producing a 6-axis
+           tensor `(L1, L2, R1, R2, phys_in, phys_out)`.
+        3. Fuse right bonds first: `merge_axes(C, [2, 3], 'R', OUT)`
+           → axes `(R, L1, L2, r, u)`.
+        4. Fuse left bonds: `merge_axes(C, [1, 2], 'L', IN)`
+           → axes `(L, R, phys_in, phys_out)`. *(Correct index order.)*
         5. Retag to standard MPO bond itags.
 
-        The resulting bond dimensions are ``χ(self) × χ(other)`` before any
+        The resulting bond dimensions are `χ(self) × χ(other)` before any
         `compact()` call.
 
         Parameters
         ----------
         other:
             Right operand, must have the same chain length and physical
-            space as ``self``.
+            space as `self`.
 
         Returns
         -------
         NormalMPO
-            Raw product MPO with ``scale = self._scale * other._scale``.
+            Raw product MPO with `scale = self._scale * other._scale`.
         """
         L = self.L
         ndigits = max(2, len(str(L)))
@@ -329,10 +329,10 @@ class NormalMPO(MPO):
     # ------------------------------------------------------------------
 
     def __add__(self, other: NormalMPO) -> NormalMPO:
-        """Return the MPO sum ``self + other`` without canonicalization.
+        """Return the MPO sum `self + other` without canonicalization.
 
-        Distributes the relative weight ``alpha = other._scale / self._scale``
-        uniformly across sites as ``alpha^(1/L)`` per site of ``other``,
+        Distributes the relative weight `alpha = other._scale / self._scale`
+        uniformly across sites as `alpha^(1/L)` per site of `other`,
         then combines site tensors via `oplus` following the same bond-axis
         convention as `build_hamiltonian`:
 
@@ -340,23 +340,23 @@ class NormalMPO(MPO):
         - Interior sites: fuse both bonds (axes 0 and 1).
         - Site L-1 (terminal): fuse left bond (axis 0).
 
-        Requires ``L >= 2``.
+        Requires `L >= 2`.
 
         Parameters
         ----------
         other:
             Right summand. Must have the same chain length and physical
-            space as ``self``.
+            space as `self`.
 
         Returns
         -------
         NormalMPO
-            Raw sum MPO with ``scale = self._scale``.
+            Raw sum MPO with `scale = self._scale`.
 
         Raises
         ------
         ValueError
-            If ``L < 2``.
+            If `L < 2`.
         """
         L = self.L
         if L < 2:
@@ -416,7 +416,7 @@ class NormalMPO(MPO):
         )
 
     def __rmul__(self, scalar: float) -> NormalMPO:
-        """Support ``scalar * mpo``; delegates to `__mul__`."""
+        """Support `scalar * mpo`; delegates to `__mul__`."""
         return self.__mul__(scalar)
 
 
@@ -434,12 +434,10 @@ def thermal_mpo(
 
     Computes
 
-    .. math::
+    \[\rho(\beta) = e^{-\beta H} \approx \sum_{n=0}^{N}
+        \frac{(-\beta)^n}{n!} H^n\]
 
-        \rho(\beta) = e^{-\beta H} \approx \sum_{n=0}^{N}
-            \frac{(-\beta)^n}{n!} H^n
-
-    where :math:`H^0 = I` (identity). The computation is performed in
+    where \(H^0 = I\) (identity). The computation is performed in
     MPO arithmetic, keeping the underlying MPO normalized at each step
     (via explicit `compact()` calls) to prevent numerical blow-up.
 
@@ -448,18 +446,18 @@ def thermal_mpo(
     H:
         Hamiltonian as an MPO (will not be modified).
     beta:
-        Inverse temperature :math:`\beta \geq 0`.
+        Inverse temperature \(\beta \geq 0\).
     order:
-        Truncation order :math:`N` of the Taylor series.
+        Truncation order \(N\) of the Taylor series.
     spc:
         Physical space index used to build the identity MPO
-        (:math:`H^0 = I`).
+        (\(H^0 = I\)).
 
     Returns
     -------
     NormalMPO
-        Approximation of :math:`e^{-\beta H}` with physical scale stored
-        in ``_scale`` (which equals :math:`Z = \operatorname{Tr}[\rho]`
+        Approximation of \(e^{-\beta H}\) with physical scale stored
+        in `_scale` (which equals \(Z = \operatorname{Tr}[\rho]\)
         up to the MPO norm).
 
     Notes
