@@ -23,6 +23,7 @@ from .network import MPS, MPO, Network
 from .automps import init_mps
 from .observe import observe
 from .autompo import build_hamiltonian
+from .thermal import NormalMPO, thermal_mpo
 
 __all__ = [
     # interaction
@@ -40,4 +41,7 @@ __all__ = [
     'observe',
     # autompo
     'build_hamiltonian',
+    # thermal
+    'NormalMPO',
+    'thermal_mpo',
 ]
