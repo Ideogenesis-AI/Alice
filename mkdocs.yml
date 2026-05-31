@@ -69,8 +69,10 @@ nav:
       - Network: api/network/network.md
       - MPS: api/network/mps.md
       - MPO: api/network/mpo.md
+      - NormalMPO: api/network/normal-mpo.md
       - initialize: api/network/init-mps.md
       - observe: api/network/observe.md
+      - thermal_mpo: api/network/thermal-mpo.md
     - Interaction:
       - Overview: api/interaction/index.md
       - Interaction: api/interaction/interaction.md
