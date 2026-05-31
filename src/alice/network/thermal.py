@@ -429,6 +429,8 @@ def thermal_mpo(
     beta: float,
     order: int,
     spc: Index,
+    trunc: Optional[dict] = None,
+    coeff_thresh: float = 1e-15,
 ) -> NormalMPO:
     r"""Approximate the thermal density matrix via a Taylor expansion.
 
@@ -448,10 +450,20 @@ def thermal_mpo(
     beta:
         Inverse temperature \(\beta \geq 0\).
     order:
-        Truncation order \(N\) of the Taylor series.
+        Maximum truncation order \(N\) of the Taylor series. The loop
+        terminates early if the Taylor coefficient \(|\beta^n / n!|\)
+        drops below `coeff_thresh` before reaching `N`.
     spc:
         Physical space index used to build the identity MPO
         (\(H^0 = I\)).
+    trunc:
+        Truncation options forwarded to each `compact()` call during the
+        Taylor series accumulation. Defaults to `{'thresh': 1e-14}`.
+    coeff_thresh:
+        Early-stopping threshold on the Taylor coefficient magnitude
+        \(|\beta^n / n!|\). Once the coefficient falls below this value
+        the remaining terms are below machine precision and the loop
+        exits. Defaults to `1e-15` (safe for double precision).
 
     Returns
     -------
@@ -478,9 +490,12 @@ def thermal_mpo(
 
     for n in range(1, order + 1):
         coeff = (-beta) ** n / factorial(n)
+        if abs(coeff) < coeff_thresh:
+            break
         rho = rho + H_pow * coeff
-        rho.compact()
-        H_pow = H_pow @ H_n
-        H_pow.compact()
+        rho.compact(trunc)
+        if n < order and abs((-beta) ** (n + 1) / factorial(n + 1)) >= coeff_thresh:
+            H_pow = H_pow @ H_n
+            H_pow.compact(trunc)
 
     return rho
