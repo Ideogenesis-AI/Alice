@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.1.4] - 2026-05-31
+
+**Thermal Density Matrix**
+
+Introduces `NormalMPO`, an `MPO` subclass with a separately tracked scale factor, and
+`thermal_mpo`, which approximates `ρ(β) = exp(−βH)` via a truncated Taylor series in MPO
+arithmetic. The `observe` function is extended to accept `NormalMPO` as the state
+argument, enabling finite-temperature expectation values within the existing workflow.
+No breaking changes.
+
+### `NormalMPO`
+
+- New `NormalMPO` class in `alice.network.thermal`: represents an operator as
+  `scale × mpo_unit`, keeping the internal MPO at unit Frobenius norm and carrying the
+  physical magnitude in a separate `_scale` attribute.
+- `*` (scalar multiply): only `_scale` is updated; site tensors are not modified.
+  `@` (MPO product) and `+` (MPO sum) produce new site tensors with `_scale` set to
+  the combined physical magnitude. `compact()` folds the extracted SVD norm into
+  `_scale` after each compression sweep and restores standard bond-arrow directions
+  via `capcup`.
+- Class method `NormalMPO.from_mpo(mpo)` constructs a `NormalMPO` from any plain `MPO`.
+- Exported from `alice.network` and the `alice` top-level namespace.
+
+### `thermal_mpo`
+
+- New `thermal_mpo(H, beta, order, spc)` function: computes
+  `ρ(β) ≈ Σ (−β)^n/n! · H^n` via MPO arithmetic, calling `compact()` after every
+  addition and power step to control bond growth. Early exit when the Taylor coefficient
+  drops below `coeff_thresh` (default `1e-15`).
+- The returned `NormalMPO` carries `_scale ≈ Tr[ρ]` (the partition function, up to the
+  MPO norm).
+- Exported from `alice.network` and the `alice` top-level namespace.
+
+### `observe` Updated for Thermal States
+
+- `observe` now accepts a `NormalMPO` as the state argument: forms the MPO product
+  `ρ @ O`, compresses it with `compact()`, and returns `Tr[ρ O] / Tr[ρ]` — the
+  normalized thermal expectation value.
+
+### Documentation
+
+- New API reference pages for `NormalMPO` and `thermal_mpo`; `alice.network` index and
+  `observe` reference updated to document the new types.
+
+### Statistics
+
+- **~740 tests** across 23 test modules (up from ~700 / 22 modules in v0.1.3).
+- **13 commits** since v0.1.3.
+- **9 files changed**, 1,192 insertions, 10 deletions.
+- **22 source modules** in three subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`.
+
+### Compatibility
+
+- **Breaking Changes:** None — fully backward compatible with v0.1.3.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.1.3] - 2026-05-13
 
 **MPS Init and DMRG Checkpointing**
@@ -279,6 +338,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.1.4]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.4
 [0.1.3]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.1
