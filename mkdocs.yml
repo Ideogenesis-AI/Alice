@@ -103,6 +103,11 @@ nav:
       - Options: api/dmrg/options.md
       - Summary: api/dmrg/summary.md
       - Launch: api/dmrg/run.md
+    - XTRG:
+      - Overview: api/xtrg/index.md
+      - Options: api/xtrg/options.md
+      - Summary: api/xtrg/summary.md
+      - Launch: api/xtrg/run.md
   - Examples:
     - Overview: examples/index.md
     - DMRG:
