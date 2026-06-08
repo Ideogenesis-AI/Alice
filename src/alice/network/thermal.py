@@ -451,8 +451,9 @@ def thermal_mpo(
         Inverse temperature \(\beta \geq 0\).
     order:
         Maximum truncation order \(N\) of the Taylor series. The loop
-        terminates early if the Taylor coefficient \(|\beta^n / n!|\)
-        drops below `coeff_thresh` before reaching `N`.
+        terminates early once the actual contribution of the \(n\)-th
+        term — measured as \(|\beta^n / n!| \times \|H^n\|_F\) — drops
+        below `coeff_thresh`.
     spc:
         Physical space index used to build the identity MPO
         (\(H^0 = I\)).
@@ -460,10 +461,13 @@ def thermal_mpo(
         Truncation options forwarded to each `compact()` call during the
         Taylor series accumulation. Defaults to `{'thresh': 1e-14}`.
     coeff_thresh:
-        Early-stopping threshold on the Taylor coefficient magnitude
-        \(|\beta^n / n!|\). Once the coefficient falls below this value
-        the remaining terms are below machine precision and the loop
-        exits. Defaults to `1e-15` (safe for double precision).
+        Early-stopping threshold on the actual contribution magnitude of
+        the \(n\)-th Taylor term, \(|\beta^n / n!| \times \|H^n\|_F\).
+        Once this falls below `coeff_thresh` the remaining contributions
+        are negligible and the loop exits. Defaults to `1e-15`. Note
+        that checking the bare coefficient \(|\beta^n / n!|\) alone is
+        insufficient for Hamiltonians with large operator norm, because
+        \(\|H^n\|_F\) can be much larger than 1.
 
     Returns
     -------
@@ -490,11 +494,16 @@ def thermal_mpo(
 
     for n in range(1, order + 1):
         coeff = (-beta) ** n / factorial(n)
-        if abs(coeff) < coeff_thresh:
+        # Early stop: compare the actual contribution magnitude
+        # |coeff| * ||H^n||_F against the threshold, not the bare
+        # coefficient alone.  The bare coefficient beta^n/n! can be
+        # below machine precision while |coeff| * ||H^n||_F is still
+        # non-negligible for Hamiltonians with large operator norm.
+        if abs(coeff) * H_pow.scale < coeff_thresh:
             break
         rho = rho + H_pow * coeff
         rho.compact(trunc)
-        if n < order and abs((-beta) ** (n + 1) / factorial(n + 1)) >= coeff_thresh:
+        if n < order:
             H_pow = H_pow @ H_n
             H_pow.compact(trunc)
 
