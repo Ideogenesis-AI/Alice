@@ -122,6 +122,14 @@ class TestOptions:
         content = path.read_text()
         assert 'max_bond' not in content
 
+    def test_env_cache_dir_toml_round_trip(self, tmp_path):
+        """env_cache_dir survives a to_toml / load_toml round trip."""
+        original = Options(env_cache_dir='/tmp/envs')
+        path = tmp_path / 'opts.toml'
+        original.to_toml(path)
+        loaded = Options.load_toml(path)
+        assert loaded.env_cache_dir == '/tmp/envs'
+
 
 # ---------------------------------------------------------------------------
 # Summary
@@ -347,3 +355,94 @@ class TestCheckpoint:
         original.to_toml(path)
         loaded = Options.load_toml(path)
         assert loaded.checkpoint_dir == '/tmp/ckpt'
+
+
+# ---------------------------------------------------------------------------
+# Environment caching
+# ---------------------------------------------------------------------------
+
+class TestEnvCache:
+    """Tests for the unique-subdirectory environment cache created by run()."""
+
+    def test_unique_subdir_removed_on_success(self, heisenberg_L2, tmp_path):
+        """run() removes the unique cache subdirectory on successful completion."""
+        mps, mpo = heisenberg_L2
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        run(mps, mpo, Options(
+            n_sweeps=1,
+            env_cache_dir=str(cache_dir),
+            checkpoint_dir=str(tmp_path / 'ckpt'),
+        ))
+        subdirs = [p for p in cache_dir.iterdir() if p.is_dir()]
+        assert subdirs == []
+
+    def test_unique_subdir_created_inside_cache_dir(self, heisenberg_L2, tmp_path):
+        """run() creates a unique subdirectory inside env_cache_dir during execution."""
+        from unittest.mock import patch
+        import shutil as _shutil
+
+        seen_subdirs: list = []
+        original_rmtree = _shutil.rmtree
+
+        def capturing_rmtree(path, **kwargs):
+            seen_subdirs.append(path)
+            original_rmtree(path, **kwargs)
+
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        mps, mpo = heisenberg_L2
+        with patch('alice.algorithm.dmrg.dmrg.shutil.rmtree', side_effect=capturing_rmtree):
+            run(mps, mpo, Options(
+                n_sweeps=1,
+                env_cache_dir=str(cache_dir),
+                checkpoint_dir=str(tmp_path / 'ckpt'),
+            ))
+
+        assert len(seen_subdirs) == 1
+        subdir = seen_subdirs[0]
+        assert subdir.parent == cache_dir
+        # Name is exactly 8 hex characters.
+        assert len(subdir.name) == 8
+        assert all(c in '0123456789abcdef' for c in subdir.name)
+
+    def test_two_runs_use_distinct_subdirs(self, heisenberg_L2, tmp_path):
+        """Two sequential runs with the same env_cache_dir use different subdirectories."""
+        from unittest.mock import patch
+        import shutil as _shutil
+
+        seen_subdirs: list = []
+        original_rmtree = _shutil.rmtree
+
+        def capturing_rmtree(path, **kwargs):
+            seen_subdirs.append(path)
+            original_rmtree(path, **kwargs)
+
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        opts = Options(
+            n_sweeps=1,
+            env_cache_dir=str(cache_dir),
+            checkpoint_dir=str(tmp_path / 'ckpt'),
+        )
+        mps, mpo = heisenberg_L2
+        with patch('alice.algorithm.dmrg.dmrg.shutil.rmtree', side_effect=capturing_rmtree):
+            run(mps, mpo, opts)
+            run(mps, mpo, opts)
+
+        assert len(seen_subdirs) == 2
+        assert seen_subdirs[0] != seen_subdirs[1]
+
+    def test_no_leftover_files_after_two_runs(self, heisenberg_L2, tmp_path):
+        """env_cache_dir has no subdirectories after two sequential runs."""
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        opts = Options(
+            n_sweeps=1,
+            env_cache_dir=str(cache_dir),
+            checkpoint_dir=str(tmp_path / 'ckpt'),
+        )
+        mps, mpo = heisenberg_L2
+        run(mps, mpo, opts)
+        run(mps, mpo, opts)
+        assert list(cache_dir.iterdir()) == []

@@ -39,6 +39,8 @@ from __future__ import annotations
 
 import logging
 import math
+import shutil
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -135,12 +137,16 @@ class Options(AlgorithmOptions):
     e_tol:
         Energy convergence criterion: DMRG stops when `|E_new - E_old| < e_tol`.
     env_cache_dir:
-        Directory for environment block cache files. When set, each block is
-        serialised to `{env_cache_dir}/left/{i:05d}.pt` or
-        `{env_cache_dir}/right/{i:05d}.pt` and evicted from memory once it
-        exits the sliding window, keeping peak memory proportional to
-        `env_window` rather than to chain length. `None` (default) keeps all
-        blocks in memory. Stored as `str` for TOML compatibility.
+        Root directory for environment block cache files. When set, `run()`
+        creates a unique subdirectory inside it (first 8 hex characters of a
+        UUID4, e.g. `{env_cache_dir}/a1b2c3d4/`) so that concurrent runs
+        sharing the same config do not overwrite each other's blocks. Inside
+        that subdirectory, `left/{i:05d}.pt` and `right/{i:05d}.pt` files are
+        written and evicted from memory once they exit the sliding window,
+        keeping peak memory proportional to `env_window` rather than to chain
+        length. The unique subdirectory is removed automatically when `run()`
+        returns (or raises). `None` (default) keeps all blocks in memory.
+        Stored as `str` for TOML compatibility.
     env_async_io:
         If `True` (default), environment block I/O is submitted to a
         background thread so it overlaps with the Davidson step. Only
@@ -396,9 +402,12 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     _2s = (opts.scheme == '2s')
     _1sp = (opts.scheme == '1sp')
 
-    # Resolve the optional disk-cache directory and create sub-dirs if needed.
-    _cache: Optional[Path] = Path(opts.env_cache_dir) if opts.env_cache_dir else None
-    if _cache is not None:
+    # Resolve the optional disk-cache directory. A unique subdirectory
+    # (first 8 hex digits of a UUID4) is created inside the user-supplied
+    # path so that concurrent runs sharing the same config do not collide.
+    _cache: Optional[Path] = None
+    if opts.env_cache_dir:
+        _cache = Path(opts.env_cache_dir) / uuid.uuid4().hex[:8]
         (_cache / 'left').mkdir(parents=True, exist_ok=True)
         (_cache / 'right').mkdir(parents=True, exist_ok=True)
 
@@ -513,6 +522,11 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         # Flush pending async writes and release the I/O thread.
         env_left.shutdown()
         env_right.shutdown()
+        # Remove the run-specific cache subdirectory; ignore errors so that a
+        # partially-written or already-deleted directory does not mask the real
+        # exception (if any) from the sweep loop.
+        if _cache is not None:
+            shutil.rmtree(_cache, ignore_errors=True)
 
     logger.info("")
 
