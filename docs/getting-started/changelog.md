@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.1.5] - 2026-06-08
+
+**Cache Isolation and Thermal MPO**
+
+Fixes DMRG environment-block caching for concurrent runs and corrects the early-stopping
+criterion in `thermal_mpo` to account for the operator norm of `H`. No breaking changes.
+
+### DMRG Environment Cache Isolation
+
+- `dmrg.run()` now creates a unique subdirectory (first 8 hex characters of a UUID4,
+  e.g. `{env_cache_dir}/a1b2c3d4/`) inside `env_cache_dir` per invocation. Previously,
+  concurrent runs sharing the same `env_cache_dir` wrote to the same `left/` and
+  `right/` paths and could corrupt each other's cached blocks.
+- The unique subdirectory is removed automatically in a `finally` block on return or
+  exception, leaving no stale files behind.
+- `Options.env_cache_dir` docstring updated to document the subdirectory scheme and
+  automatic cleanup.
+
+### `thermal_mpo` Early-Stopping Correction
+
+- The early-stopping guard now tests `|β^n / n!| × ‖H^n‖_F < coeff_thresh` rather
+  than the bare coefficient `|β^n / n!|` alone. For Hamiltonians with large operator
+  norm, `‖H^n‖_F` can be much larger than 1, causing the old criterion to exit
+  prematurely before the series had converged.
+- The conditional that skipped the power-update step when the next coefficient was small
+  has been removed; `H_pow` is now always advanced when `n < order`.
+- `order` and `coeff_thresh` parameter docstrings updated to describe the corrected
+  criterion.
+
+### Statistics
+
+- **~795 tests** across 23 test modules (up from ~740 / 23 modules in v0.1.4).
+- **3 commits** since v0.1.4.
+- **4 files changed**, 141 insertions, 19 deletions.
+- **22 source modules** in three subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`.
+
+### Compatibility
+
+- **Breaking Changes:** None — fully backward compatible with v0.1.4.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.1.4] - 2026-05-31
 
 **Thermal Density Matrix**
@@ -338,6 +382,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.1.5]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.5
 [0.1.4]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.4
 [0.1.3]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.2
