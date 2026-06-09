@@ -51,10 +51,10 @@ The diagram below summarises how `target_qn`, `config`, `Q[L]`, and
  Q[L] == target?
  ├─ Yes ──► (no action)
  └─ No  ──┬─ target was defaulted (Q_vac) ──► WARNING  (e.g. odd L, no target_qn given)
-           └─ target was explicit           ──► ValueError  (physically unreachable)
+          └─ target was explicit          ──► ValueError  (physically unreachable)
 
  effective_right = target  if target was given explicitly
-                = Q[L]    if target was defaulted  (crucial for odd-L random MPS)
+                 = Q[L]    if target was defaulted  (crucial for odd-L random MPS)
 
  bond_dim == 1?
  ├─ Yes ──► product_state_mps(cfg, Q)   right boundary = Q[L]  (rigid)
