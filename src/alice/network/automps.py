@@ -580,13 +580,11 @@ def init_mps(
     if Q[L] != target_qn:
         if not _target_given:
             # Default target (Q_vac) was not achieved — typically odd L.
-            logger.warning(
-                "init_mps: auto-config could not return to Q_vac=%s for L=%d "
-                "(got Q[L]=%s). Multiple target sectors may be valid "
-                "(e.g. Sz = \u00b1\u00bd for odd-L spin-\u00bd). "
-                "Pass target_qn= to select a sector explicitly.",
-                Q_vac, L, Q[L],
-            )
+            logger.warning("init_mps: auto-config could not return to Q_vac=%s", Q_vac)
+            logger.warning("for L=%d (got Q[L]=%s). Multiple target sectors", L, Q[L])
+            logger.warning("may be valid (e.g. Sz = \u00b1\u00bd for odd-L spin-\u00bd).")
+            logger.warning("Pass target_qn= to select a sector explicitly.")
+            logger.info("")
         else:
             raise ValueError(
                 f"init_mps: target_qn={target_qn!r} is not reachable for "
