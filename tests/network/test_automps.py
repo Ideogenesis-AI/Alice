@@ -94,7 +94,7 @@ class TestBondCharges:
         Spc, Op = spin_su2
         L = 6
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
 
         assert len(Q) == L + 1
@@ -108,7 +108,7 @@ class TestBondCharges:
         Spc, Op = spin_u1
         L = 6
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
 
         assert len(Q) == L + 1
@@ -126,12 +126,12 @@ class TestBondCharges:
         L = 6
         Q_f = _bond_charges(
             Spc_f.group, Spc_f,
-            _auto_config(L, Spc_f, Spc_f.group, _q_vac(Op_f)),
+            _auto_config(L, Spc_f, Spc_f.group, _q_vac(Op_f), _q_vac(Op_f)),
             _q_vac(Op_f),
         )
         Q_s = _bond_charges(
             Spc_s.group, Spc_s,
-            _auto_config(L, Spc_s, Spc_s.group, _q_vac(Op_s)),
+            _auto_config(L, Spc_s, Spc_s.group, _q_vac(Op_s), _q_vac(Op_s)),
             _q_vac(Op_s),
         )
         assert Q_f == Q_s
@@ -141,7 +141,7 @@ class TestBondCharges:
         Spc, Op = ferm_z2
         L = 8  # even L required for closure
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
 
         assert len(Q) == L + 1
@@ -153,7 +153,7 @@ class TestBondCharges:
         Spc, Op = band_u1su2
         L = 8
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
 
         assert len(Q) == L + 1
@@ -165,7 +165,7 @@ class TestBondCharges:
         Spc, Op = band_u1u1
         L = 8
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
 
         assert len(Q) == L + 1
@@ -187,7 +187,7 @@ class TestBondCharges:
         Spc, Op = spin_su2
         for L in (4, 6, 10):
             Q_vac = _q_vac(Op)
-            cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+            cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
             Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
             assert len(Q) == L + 1
 
@@ -204,7 +204,7 @@ class TestAutoConfig:
         Spc, Op = spin_su2
         L = 8
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         assert cfg == [0] * L
 
     def test_spin_u1_alternates(self, spin_u1):
@@ -212,7 +212,7 @@ class TestAutoConfig:
         Spc, Op = spin_u1
         L = 8
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         assert len(cfg) == L
         # Config alternates: each entry is in {0, 1} and adjacent entries differ.
         assert set(cfg) <= {0, 1}
@@ -224,7 +224,7 @@ class TestAutoConfig:
         Spc, Op = ferm_u1
         L = 8
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         assert len(cfg) == L
         assert set(cfg) <= {0, 1}
         for i in range(L - 1):
@@ -235,7 +235,7 @@ class TestAutoConfig:
         Spc, Op = ferm_z2
         L = 8
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         assert len(cfg) == L
         # All entries should be the same (single-sector fill works for even L).
         assert len(set(cfg)) == 1
@@ -245,7 +245,7 @@ class TestAutoConfig:
         Spc, Op = band_u1su2
         L = 8
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         assert len(cfg) == L
         # Doublet sector (first component U1=0) — all sites should use it.
         assert len(set(cfg)) == 1
@@ -258,7 +258,7 @@ class TestAutoConfig:
         Spc, Op = band_u1u1
         L = 8
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         assert len(cfg) == L
         # Two distinct neutral sectors should alternate.
         assert len(set(cfg)) == 2
@@ -285,6 +285,49 @@ class TestAutoConfig:
         Spc, Op = spin_u1
         with pytest.raises(ValueError, match="bond_dim"):
             init_mps(6, Spc, Op, bond_dim=0)
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: _auto_config with explicit target_qn
+# ---------------------------------------------------------------------------
+
+class TestAutoConfigTargetQn:
+    """Verify that _auto_config reaches target_qn when given explicitly."""
+
+    def test_spin_u1_odd_L_target_positive(self, spin_u1):
+        """Spin U1, L=7, target_qn=+1: greedy achieves Q[7]=+1 exactly."""
+        Spc, Op = spin_u1
+        Q_vac = _q_vac(Op)
+        cfg = _auto_config(7, Spc, Spc.group, Q_vac, target_qn=1)
+        Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
+        assert len(cfg) == 7
+        assert Q[7] == 1
+
+    def test_spin_u1_odd_L_target_negative(self, spin_u1):
+        """Spin U1, L=7, target_qn=-1: greedy achieves Q[7]=-1 exactly."""
+        Spc, Op = spin_u1
+        Q_vac = _q_vac(Op)
+        cfg = _auto_config(7, Spc, Spc.group, Q_vac, target_qn=-1)
+        Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
+        assert len(cfg) == 7
+        assert Q[7] == -1
+
+    def test_even_L_target_qvac_same_as_before(self, spin_u1):
+        """Even L, target_qn=Q_vac: same config as without target_qn argument."""
+        Spc, Op = spin_u1
+        L = 8
+        Q_vac = _q_vac(Op)
+        cfg_default = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
+        cfg_explicit = _auto_config(L, Spc, Spc.group, Q_vac, target_qn=Q_vac)
+        assert cfg_default == cfg_explicit
+
+    def test_ferm_u1_odd_L_target_achievable(self, ferm_u1):
+        """Ferm U1, L=7, target_qn=1: auto-config achieves Q[7]=1."""
+        Spc, Op = ferm_u1
+        Q_vac = _q_vac(Op)
+        cfg = _auto_config(7, Spc, Spc.group, Q_vac, target_qn=1)
+        Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
+        assert Q[7] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -335,7 +378,7 @@ class TestReachableCharges:
     def test_count_independent_of_L(self, spin_su2):
         """Sector count from BFS depends only on Q_c and d, never on L.
 
-        `_reachable_charges` takes no L argument.  Calling it twice with the
+        `_reachable_charges` takes no L argument. Calling it twice with the
         same (Q_c, d) must always give the same result.
         """
         Spc, _ = spin_su2
@@ -470,7 +513,7 @@ class TestInitMpsRandom:
         bond_dim = 8
         mps = init_mps(L, Spc, Op, bond_dim=bond_dim)
         Q_vac = _q_vac(Op)
-        cfg = _auto_config(L, Spc, Spc.group, Q_vac)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
         Q_c = _bond_charges(Spc.group, Spc, cfg, Q_vac)[L // 2]
         allowed = _reachable_charges(Spc.group, Spc, Q_c, d=2)
         # Check all interior bond charges lie in the allowed set.
@@ -496,3 +539,142 @@ class TestInitMpsRandom:
         mps1 = init_mps(8, Spc, Op, bond_dim=8, seed=42)
         mps2 = init_mps(8, Spc, Op, bond_dim=8, seed=42)
         assert mps1.bond_dims == mps2.bond_dims
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: odd-L random MPS
+# ---------------------------------------------------------------------------
+
+class TestInitMpsOddL:
+    """Regression tests for odd-length random MPS (was producing zero tensors)."""
+
+    @pytest.mark.parametrize('space_fixture', [
+        'spin_u1', 'spin_su2', 'ferm_u1', 'ferm_z2', 'band_u1u1', 'band_u1su2',
+    ])
+    def test_odd_L_nonzero_norm(self, space_fixture, request):
+        """Random MPS for odd L has nonzero norm after canonicalization.
+
+        Before the fix, pinning the right boundary to Q_vac made all blocks of
+        the last site tensor charge-forbidden, producing a zero MPS.
+        """
+        Spc, Op = request.getfixturevalue(space_fixture)
+        mps = init_mps(7, Spc, Op, bond_dim=8)
+        assert isinstance(mps, MPS)
+        assert float(mps.norm()) > 1e-10, "MPS norm is zero — right boundary charge bug"
+
+    def test_odd_L_right_boundary_charge(self, spin_u1):
+        """Right boundary of last tensor carries Q[L] from the charge path."""
+        Spc, Op = spin_u1
+        L = 7
+        Q_vac = _q_vac(Op)
+        cfg = _auto_config(L, Spc, Spc.group, Q_vac, Q_vac)
+        Q = _bond_charges(Spc.group, Spc, cfg, Q_vac)
+        expected_qn = Q[L]
+
+        mps = init_mps(L, Spc, Op, bond_dim=8)
+        # The right bond of site L-1 is axis 1. After canonicalization it
+        # should be a single-sector dummy index with charge = Q[L].
+        right_idx = mps[L - 1].indices[1]
+        assert len(right_idx.sectors) == 1
+        assert right_idx.sectors[0].charge == expected_qn
+
+    def test_odd_L_warning_emitted(self, spin_u1, caplog):
+        """A WARNING is logged for odd L when target_qn is not given."""
+        import logging
+        Spc, Op = spin_u1
+        with caplog.at_level(logging.WARNING, logger='alice.network.automps'):
+            init_mps(7, Spc, Op, bond_dim=8)
+        assert any(
+            record.levelno >= logging.WARNING
+            for record in caplog.records
+        ), "Expected a WARNING for odd-L chain without explicit target_qn"
+
+
+# ---------------------------------------------------------------------------
+# Tests for the target_qn parameter
+# ---------------------------------------------------------------------------
+
+class TestTargetQn:
+    """Tests for the `target_qn` keyword argument on `init_mps`."""
+
+    def test_explicit_target_qn_random_mps(self, spin_u1):
+        """Explicit target_qn is used as the right boundary charge (random mode)."""
+        Spc, Op = spin_u1
+        L = 7
+        Q_vac = _q_vac(Op)
+        # Use +1 as the target: the auto-config greedy reaches it exactly.
+        qn = 1
+        mps = init_mps(L, Spc, Op, bond_dim=8, target_qn=qn)
+        right_idx = mps[L - 1].indices[1]
+        assert len(right_idx.sectors) == 1
+        assert right_idx.sectors[0].charge == qn
+
+    def test_explicit_target_qn_product_state(self, spin_u1):
+        """target_qn drives the auto-config in product-state mode (bond_dim=1).
+
+        For Spin U1, L=7, target_qn=+1: the auto-config greedy achieves Q[7]=+1
+        exactly, so the product state has norm 1 and the right boundary of the
+        last tensor carries charge +1.
+        """
+        Spc, Op = spin_u1
+        L = 7
+        mps = init_mps(L, Spc, Op, bond_dim=1, target_qn=1)
+        assert isinstance(mps, MPS)
+        # Norm must be nonzero (product state was not killed by a wrong boundary).
+        assert float(mps.norm()) > 1e-10
+        # Right boundary of last site must carry the requested charge.
+        right_idx = mps[L - 1].indices[1]
+        assert len(right_idx.sectors) == 1
+        assert right_idx.sectors[0].charge == 1
+
+    def test_explicit_target_qn_no_warning(self, spin_u1, caplog):
+        """No warning is emitted when target_qn is given explicitly and achieved."""
+        import logging
+        Spc, Op = spin_u1
+        L = 7
+        # target_qn=1 is achievable for L=7 Spin U1 → no mismatch warning.
+        with caplog.at_level(logging.WARNING, logger='alice.network.automps'):
+            init_mps(L, Spc, Op, bond_dim=8, target_qn=1)
+        assert not any(
+            record.levelno >= logging.WARNING
+            for record in caplog.records
+        ), "Unexpected warning when target_qn is achievable"
+
+    def test_target_qn_even_L_no_warning(self, spin_u1, caplog):
+        """No warning is emitted for even L without explicit target_qn."""
+        import logging
+        Spc, Op = spin_u1
+        with caplog.at_level(logging.WARNING, logger='alice.network.automps'):
+            init_mps(8, Spc, Op, bond_dim=8)
+        assert not any(
+            record.levelno >= logging.WARNING
+            for record in caplog.records
+        ), "Unexpected warning for even-L chain"
+
+    def test_negative_target_qn_product_state(self, spin_u1):
+        """target_qn=-1 also works for product-state mode (Sz = -½, L=7)."""
+        Spc, Op = spin_u1
+        mps = init_mps(7, Spc, Op, bond_dim=1, target_qn=-1)
+        right_idx = mps[6].indices[1]
+        assert right_idx.sectors[0].charge == -1
+
+    def test_unreachable_target_qn_raises_random(self, spin_u1):
+        """ValueError when target_qn has the wrong parity for the given L (random mode).
+
+        For Spin U1, each site contributes ±1. After L=4 sites the bond charge
+        is always even (-4, -2, 0, 2, 4); an odd target such as 1 is unreachable.
+        """
+        Spc, Op = spin_u1
+        with pytest.raises(ValueError, match="target_qn"):
+            init_mps(4, Spc, Op, bond_dim=8, target_qn=1)
+
+    def test_unreachable_target_qn_raises_product_state(self, spin_u1):
+        """ValueError when target_qn has the wrong parity for the given L (product state).
+
+        Same parity argument as the random-mode test: L=4 Spin U1 cannot reach
+        an odd charge, so bond_dim=1 must also raise rather than silently produce
+        an MPS in the wrong sector.
+        """
+        Spc, Op = spin_u1
+        with pytest.raises(ValueError, match="target_qn"):
+            init_mps(4, Spc, Op, bond_dim=1, target_qn=1)
