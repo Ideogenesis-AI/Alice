@@ -41,19 +41,24 @@ All standard Nicole physical spaces use a particle-hole symmetric convention:
 - Ferm U1: empty = -1, occupied = +1.
 - Band (U1⊗U1 or U1⊗SU2): half-filled site has first U1 component = 0.
 
-This means the center-bond charge Q_c for a balanced auto-config is always
-in {0, (0,0), (0,...)} — independent of chain length L.
+For even L with a balanced auto-config the center-bond charge Q_c is in
+{0, (0,0), (0,...)}. For odd L the bond charge path cannot return to Q_vac
+and Q[L] ≠ Q_vac; `init_mps` logs a WARNING and the `target_qn` parameter
+allows the caller to select the desired sector explicitly.
 """
 
 from __future__ import annotations
 
-import warnings
+import logging
 from typing import Dict, Optional
 
 from nicole import Direction, Tensor
 from nicole.index import Index, Sector
 
 from .network import MPS
+
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -163,24 +168,30 @@ def _reachable_charges(group, Spc: Index, Q_c, d: int = 2) -> set:
 # Auto-balanced site configuration
 # ---------------------------------------------------------------------------
 
-def _auto_config(L: int, Spc: Index, group, Q_vac) -> list[int]:
-    """Choose a physically balanced site configuration automatically.
+def _auto_config(L: int, Spc: Index, group, Q_vac, target_qn) -> list[int]:
+    """Choose a site configuration that targets a given right-boundary charge.
 
-    Produces a configuration (list of physical-sector indices) that:
+    Returns a list of physical-sector indices (length L) whose accumulated bond
+    charge `Q[L]` equals `target_qn` whenever an exact pattern exists. When
+    no exact pattern is found, falls back to a greedy heuristic that minimizes
+    `_charge_dist(Q_next, target_qn)` at each step; in that case `Q[L]` may
+    differ from `target_qn` and `init_mps` (the single warning site) will log
+    a WARNING.
 
-    1. Gives alternating bond charges (dimer/VBS path for SU2).
-    2. Has total charge Q_L = Q_vac (matches the right-boundary vacuum).
-    3. Requires no particle-type knowledge — inferred from `Spc.sectors`.
+    This function is a pure helper with no side effects.
 
-    Strategy
-    --------
-    - 1 sector: all sites use sector 0 (forced).
-    - 2+ sectors: tries single-sector fill first (works for SU2 and Z2 with
-      even L), then period-2 alternation (works for U1 and Band spaces).
-    - Checks Q_L = Q_vac by construction; tries pairs sorted high-charge first
-      so that bond Q_1 is positive, matching the natural half-filling path.
-    - Falls back to a greedy charge-neutrality heuristic if no exact pattern
-      is found (e.g., some odd-L cases).
+    Strategy (in priority order)
+    ----------------------------
+    1. **Single-sector fill** — all sites use sector `k`; accepted if the
+       accumulated path closes exactly at `target_qn`. Works for Z2/SU2 with
+       compatible `(L, target_qn)` combinations.
+    2. **Period-2 alternation** — all (ki, kj) pairs are enumerated; the full
+       path of length L is checked against `target_qn`. Pairs where both
+       sectors have a neutral first-component (U1=0) are preferred, favoring
+       half-filling for Band spaces.
+    3. **Greedy fallback** — at each step picks the sector whose next bond
+       charge is closest (L1) to `target_qn`. Exact for Abelian 2-sector
+       spaces when `target_qn` is achievable; best-effort otherwise.
 
     Parameters
     ----------
@@ -191,7 +202,9 @@ def _auto_config(L: int, Spc: Index, group, Q_vac) -> list[int]:
     group:
         Nicole group object.
     Q_vac:
-        Vacuum charge (charge of `Op['vac'].sectors[0]`).
+        Vacuum charge; used as the left boundary (starting charge).
+    target_qn:
+        Desired right-boundary charge `Q[L]`.
 
     Returns
     -------
@@ -210,40 +223,32 @@ def _auto_config(L: int, Spc: Index, group, Q_vac) -> list[int]:
         reverse=True,
     )
 
-    # Priority 1: single sector k applied L times returns to Q_vac.
-    # Works for Z2 (occupied sector flips parity each time, returning to 0
-    # after an even number of sites) and SU2 (even L, dimer path returns to 0).
+    # Priority 1: single sector k applied L times reaches target_qn.
     for k in sector_order:
         Q = Q_vac
         for _ in range(L):
             Q = _next_charge(group, Q, Spc.sectors[k].charge)
-        if Q == Q_vac:
+        if Q == target_qn:
             return [k] * L
 
-    # Priority 2: period-2 alternation (ki, kj) where applying ki then kj
-    # returns to Q_vac.  Works for U1 (alternating ±1 charges) and Band
-    # spaces (alternating spin-up/spin-down or doublet/doublet).
+    # Priority 2: period-2 alternation (ki, kj) — enumerate all pairs and
+    # check the full length-L path against target_qn. No per-period shortcut
+    # is applied, so this works for any target (not just Q_vac).
     #
-    # Collect all valid pairs, then prefer those where both sectors have a
-    # neutral first-component charge (i.e., U1 = 0 for product groups).  This
-    # selects spin-up/spin-down alternation for Band U1⊗U1 over the
-    # doubly-occupied/empty alternation, which is closer to half-filling.
+    # Among valid pairs prefer those where both sectors have a neutral first
+    # charge component (U1=0), which selects spin-up/spin-down alternation for
+    # Band U1⊗U1 over doubly-occupied/empty, staying closer to half-filling.
     valid_pairs = []
     for ki in sector_order:
-        Q_mid = _next_charge(group, Q_vac, Spc.sectors[ki].charge)
         for kj in sector_order:
-            if _next_charge(group, Q_mid, Spc.sectors[kj].charge) != Q_vac:
-                continue
             cfg = [ki if i % 2 == 0 else kj for i in range(L)]
             Q = Q_vac
             for c in cfg:
                 Q = _next_charge(group, Q, Spc.sectors[c].charge)
-            if Q == Q_vac:
+            if Q == target_qn:
                 valid_pairs.append((ki, kj))
 
     if valid_pairs:
-        # Prefer pairs where both sectors have neutral first charge component
-        # (works for both scalar and tuple charges).
         def _first_comp(q):
             return q[0] if isinstance(q, tuple) else q
 
@@ -255,22 +260,16 @@ def _auto_config(L: int, Spc: Index, group, Q_vac) -> list[int]:
         ki, kj = (neutral_pairs if neutral_pairs else valid_pairs)[0]
         return [ki if i % 2 == 0 else kj for i in range(L)]
 
-    # Fallback: greedy — at each step pick the sector that minimizes the
-    # distance of the new bond charge from Q_vac.  This does not guarantee
-    # Q_L = Q_vac but is better than an arbitrary choice.
-    warnings.warn(
-        f"init_mps: could not find an exact auto-config for L={L}. "
-        "The product state may not close to the vacuum boundary. "
-        "Pass an explicit config for precise charge targeting.",
-        UserWarning,
-        stacklevel=4,
-    )
+    # Fallback: greedy — minimize L1 distance to target_qn at each step.
+    # For Abelian 2-sector spaces this reaches target_qn exactly when it is
+    # achievable (correct parity/magnitude); otherwise returns the closest
+    # approximation. init_mps checks Q[L] == target_qn and warns if not.
     cfg = []
     Q = Q_vac
     for _ in range(L):
         best_k = min(
             range(n),
-            key=lambda k: _charge_dist(_next_charge(group, Q, Spc.sectors[k].charge), Q_vac),
+            key=lambda k: _charge_dist(_next_charge(group, Q, Spc.sectors[k].charge), target_qn),
         )
         cfg.append(best_k)
         Q = _next_charge(group, Q, Spc.sectors[best_k].charge)
@@ -348,10 +347,10 @@ def _product_state_mps(
 def _random_mps(
     L: int,
     Spc: Index,
-    Op: Dict[str, Tensor],
     Q: list,
     bond_dim: int,
     seed: int,
+    target_qn,
 ) -> MPS:
     """Build a random MPS with group-derived bond sectors.
 
@@ -363,20 +362,30 @@ def _random_mps(
     - No phantom sectors (charges that cannot be reached by any physical
       configuration) waste bond dimension.
 
+    Both boundary indices are constructed as single-sector dummy indices with
+    dimension 1: the left boundary carries Q[0] = Q_vac and the right boundary
+    carries `target_qn`. Using `target_qn` (instead of always pinning the right
+    boundary to Q_vac) is essential for odd L, where Q[L] ≠ Q_vac and a
+    hard-coded vacuum right boundary makes every block of the last tensor
+    charge-forbidden, producing a zero MPS after canonicalization.
+
     Parameters
     ----------
     L:
         Chain length.
     Spc:
         Physical Index.
-    Op:
-        Operator dictionary from `load_space`.
     Q:
-        Bond charge sequence from `_bond_charges` (used to determine Q_c).
+        Bond charge sequence from `_bond_charges` (used to determine Q_c and
+        the left boundary charge Q[0]).
     bond_dim:
         Target total bond dimension distributed across bond sectors.
     seed:
         Base random seed; site i uses seed+i.
+    target_qn:
+        Charge for the right boundary dummy index. Should equal Q[L] for a
+        physically consistent MPS; may be overridden by the caller via
+        `init_mps(target_qn=...)`.
 
     Returns
     -------
@@ -384,7 +393,6 @@ def _random_mps(
         Right-canonical random MPS with center 0.
     """
     group = Spc.group
-    vac = Op['vac']
     Q_c = Q[L // 2]
 
     charges = _reachable_charges(group, Spc, Q_c, d=2)
@@ -406,10 +414,23 @@ def _random_mps(
         ),
     )
 
+    # Single-sector boundary indices: left carries Q[0] = Q_vac, right
+    # carries target_qn (= Q[L] for the default auto-config path).
+    l_bnd = Index(
+        direction=Direction.IN,
+        group=group,
+        sectors=(Sector(charge=Q[0], dim=1),),
+    )
+    r_bnd = Index(
+        direction=Direction.OUT,
+        group=group,
+        sectors=(Sector(charge=target_qn, dim=1),),
+    )
+
     tensors = []
     for i in range(L):
-        l_idx = vac if i == 0 else bulk
-        r_idx = (vac if i == L - 1 else bulk).flip()
+        l_idx = l_bnd if i == 0 else bulk
+        r_idx = r_bnd if i == L - 1 else bulk.flip()
         t = Tensor.random(
             [l_idx, r_idx, Spc],
             seed=seed + i,
@@ -437,6 +458,7 @@ def init_mps(
     bond_dim: int = 1,
     *,
     config: Optional[list[int]] = None,
+    target_qn=None,
     seed: int = 42,
 ) -> MPS:
     """Construct an initial MPS for DMRG.
@@ -458,19 +480,33 @@ def init_mps(
 
         - `bond_dim=1`: deterministic product state, bond dimension 1. Best
           used with CBE (`scheme='1sp'`) or 2-site (`scheme='2s'`) DMRG.
-        - `bond_dim>1`: random MPS with group-derived bond sectors.  Bond
+        - `bond_dim>1`: random MPS with group-derived bond sectors. Bond
           sectors are chosen by BFS from the center-bond charge to depth 2,
           fixing the sector count regardless of L.
     config:
         Optional list of physical-sector indices (0-based into `Spc.sectors`),
-        one per site. When `None` (default) an auto-balanced configuration is
-        selected: alternating high/low sectors for 2-sector spaces, single
-        neutral-charge sector for 3-sector spaces, alternating neutral-pair
-        for 4-sector spaces, and the SU2 dimer path for pure-SU2 spaces.
-        The auto-config is designed for even L and balanced (half-filled)
-        systems; pass an explicit config for odd L or unusual fillings.
+        one per site. When `None` (default) `_auto_config` selects a balanced
+        configuration targeting `target_qn` (see below).
+    target_qn:
+        Desired total quantum number of the chain, i.e. the right-boundary
+        charge `Q[L]`. When `None` (default) the target is `Q_vac`
+        (half-filling).
+
+        The parameter affects both modes, but in different ways:
+
+        - `bond_dim=1` (product state): `target_qn` is passed to `_auto_config`
+          which tries to find a config whose charge path ends at `target_qn`.
+          The right boundary is always `Q[L]` from the resulting path.
+        - `bond_dim>1` (random MPS): `_auto_config` targets `target_qn` for a
+          physically relevant center-bond charge. The right boundary is
+          explicitly pinned to `target_qn`.
+
+        In both modes, if the auto-config's `Q[L]` differs from `target_qn`
+        (meaning `target_qn` is unreachable for this `L` and physical space),
+        a `ValueError` is raised. When `target_qn` is `None` and `Q[L]` is
+        not `Q_vac` (e.g. odd L), a WARNING is logged instead.
     seed:
-        Base random seed used when `bond_dim>1`.  Site `i` uses `seed+i`.
+        Base random seed used when `bond_dim>1`. Site `i` uses `seed+i`.
 
     Returns
     -------
@@ -480,7 +516,9 @@ def init_mps(
     Raises
     ------
     ValueError
-        If `bond_dim < 1` or if an explicit `config` has the wrong length.
+        If `bond_dim < 1`, if an explicit `config` has the wrong length, or if
+        an explicit `target_qn` is not reachable for the given `L` and physical
+        space (i.e. auto-config's charge path ends at a different sector).
 
     Examples
     --------
@@ -495,6 +533,12 @@ def init_mps(
 
     >>> Spc, Op = load_space('Ferm', 'U1')
     >>> mps = init_mps(20, Spc, Op, bond_dim=32)
+
+    Odd-length chain — product state and random MPS with explicit Sz = +½:
+
+    >>> Spc, Op = load_space('Spin', 'U1', {'J': 0.5})
+    >>> mps1 = init_mps(7, Spc, Op, bond_dim=1,  target_qn=1)
+    >>> mps2 = init_mps(7, Spc, Op, bond_dim=32, target_qn=1)
     """
     if bond_dim < 1:
         raise ValueError(f"bond_dim must be >= 1, got {bond_dim}")
@@ -507,14 +551,51 @@ def init_mps(
     group = Spc.group
     Q_vac = Op['vac'].sectors[0].charge
 
+    # Track whether target_qn was given explicitly so we can emit the right
+    # warning message when the auto-config cannot achieve it.
+    _target_given = target_qn is not None
+    if target_qn is None:
+        target_qn = Q_vac
+
     cfg = (
         list(config)
         if config is not None
-        else _auto_config(L, Spc, group, Q_vac)
+        else _auto_config(L, Spc, group, Q_vac, target_qn)
     )
 
     Q = _bond_charges(group, Spc, cfg, Q_vac)
 
+    # Determine the effective right-boundary charge.
+    # - When target_qn was given explicitly, honor it for both modes. For
+    #   bond_dim>1 the boundary is pinned directly; for bond_dim=1 the boundary
+    #   is Q[L] (rigid), so a mismatch warning is emitted below.
+    # - When target_qn was defaulted to Q_vac, use Q[L] as the effective right
+    #   boundary for bond_dim>1. This is the crucial fix for odd L: the auto-
+    #   config cannot return to Q_vac, so using Q_vac as the right boundary
+    #   makes all blocks charge-forbidden; Q[L] is always safe.
+    effective_right = target_qn if _target_given else Q[L]
+
+    # When the charge path does not end at the target, either warn (default
+    # target, e.g. odd L) or raise (explicit target that is unreachable).
+    if Q[L] != target_qn:
+        if not _target_given:
+            # Default target (Q_vac) was not achieved — typically odd L.
+            logger.warning(
+                "init_mps: auto-config could not return to Q_vac=%s for L=%d "
+                "(got Q[L]=%s). Multiple target sectors may be valid "
+                "(e.g. Sz = \u00b1\u00bd for odd-L spin-\u00bd). "
+                "Pass target_qn= to select a sector explicitly.",
+                Q_vac, L, Q[L],
+            )
+        else:
+            raise ValueError(
+                f"init_mps: target_qn={target_qn!r} is not reachable for "
+                f"L={L} with the given physical space "
+                f"(auto-config ended at Q[L]={Q[L]!r}). "
+                "Adjust target_qn or pass an explicit config= whose charge "
+                "path reaches the desired sector."
+            )
+
     if bond_dim == 1:
         return _product_state_mps(L, Spc, Op, cfg, Q)
-    return _random_mps(L, Spc, Op, Q, bond_dim, seed)
+    return _random_mps(L, Spc, Q, bond_dim, seed, effective_right)
