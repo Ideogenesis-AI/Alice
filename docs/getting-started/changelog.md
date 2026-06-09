@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.1.6] - 2026-06-10
+
+**MPS Initialization for Odd Chains**
+
+Extends `init_mps` with a `target_qn` parameter for explicit quantum-number targeting,
+fixes a silent zero-MPS bug in random initialization for odd-L chains, and replaces
+`warnings.warn` with structured `logging` throughout `automps`. No breaking changes.
+
+### `init_mps`: `target_qn` Parameter
+
+- New `target_qn` keyword on `init_mps`: the desired right-boundary charge `Q[L]` (total
+  quantum number of the chain). Defaults to `Q_vac` (half-filling), preserving behavior
+  for even-L even-filling cases.
+- When `target_qn` is given and the auto-config cannot reach it (e.g. `target_qn=0` for
+  odd-L spin-½), `init_mps` raises a `ValueError` in both modes rather than silently
+  producing an MPS in the wrong sector.
+
+### Odd-L Random MPS Fix
+
+- **Bug fixed:** `_random_mps` previously pinned both boundary indices to `Op['vac']`
+  (charge `Q_vac`). For odd L, where no config can return to `Q_vac`, every charge block
+  of the last tensor was forbidden and the MPS canonicalized to zero.
+- The right boundary is now constructed with `Q[L]` (the actual charge reached by the
+  auto-config path) when `target_qn` was not given explicitly. For even L this is still
+  `Q_vac`; for odd L it is the correct non-vacuum charge.
+
+### Warning System Upgrade
+
+- `init_mps` no longer calls `warnings.warn(UserWarning)` for odd-L chains where
+  `Q_vac` is unreachable. The message is now emitted via `logging.getLogger(__name__)`
+  and recommends passing `target_qn` explicitly.
+
+### `_auto_config` Generalization
+
+- `_auto_config` now accepts `target_qn` and all three internal strategies (single-sector
+  fill, period-2 alternation, greedy fallback) target `target_qn` instead of `Q_vac`.
+- The function is now a pure helper with no side effects; the sole warning site is
+  `init_mps`.
+
+### Documentation
+
+- `init-mps.md` gains a **Logic Overview** decision diagram, an **Odd-chain lengths**
+  section with a spin-½ example, and a corrected **Bond Sectors in Random Mode** table
+  note (BFS is seeded from `Q_c = Q[L//2]`, not from `Q_vac`).
+
+### Statistics
+
+- **814 tests** across 23 test modules (up from ~795 / 23 modules in v0.1.5).
+- **5 commits** since v0.1.5.
+- **4 files changed**, 423 insertions, 89 deletions.
+- **22 source modules** in three subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`.
+
+### Compatibility
+
+- **Breaking Changes:** None — fully backward compatible with v0.1.5.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.1.5] - 2026-06-08
 
 **Cache Isolation and Thermal MPO**
@@ -382,6 +442,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.1.6]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.6
 [0.1.5]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.5
 [0.1.4]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.4
 [0.1.3]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.3
