@@ -1100,6 +1100,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#logic-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logic Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#charge-conventions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1115,6 +1126,17 @@
     <span class="md-ellipsis">
       
         Bond Sectors in Random Mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#odd-chain-lengths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Odd-chain lengths
       
     </span>
   </a>
@@ -2715,6 +2737,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#logic-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logic Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#charge-conventions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2730,6 +2763,17 @@
     <span class="md-ellipsis">
       
         Bond Sectors in Random Mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#odd-chain-lengths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Odd-chain lengths
       
     </span>
   </a>
@@ -2804,8 +2848,9 @@
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">bond_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MPS</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">target_qn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MPS</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2888,7 +2933,7 @@ all required symmetry information.</p>
 <ul>
 <li><code>bond_dim=1</code>: deterministic product state, bond dimension 1. Best
   used with CBE (<code>scheme='1sp'</code>) or 2-site (<code>scheme='2s'</code>) DMRG.</li>
-<li><code>bond_dim&gt;1</code>: random MPS with group-derived bond sectors.  Bond
+<li><code>bond_dim&gt;1</code>: random MPS with group-derived bond sectors. Bond
   sectors are chosen by BFS from the center-bond charge to depth 2,
   fixing the sector count regardless of L.</li>
 </ul>
@@ -2908,12 +2953,38 @@ all required symmetry information.</p>
             <td>
               <div class="doc-md-description">
                 <p>Optional list of physical-sector indices (0-based into <code>Spc.sectors</code>),
-one per site. When <code>None</code> (default) an auto-balanced configuration is
-selected: alternating high/low sectors for 2-sector spaces, single
-neutral-charge sector for 3-sector spaces, alternating neutral-pair
-for 4-sector spaces, and the SU2 dimer path for pure-SU2 spaces.
-The auto-config is designed for even L and balanced (half-filled)
-systems; pass an explicit config for odd L or unusual fillings.</p>
+one per site. When <code>None</code> (default) <code>_auto_config</code> selects a balanced
+configuration targeting <code>target_qn</code> (see below).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>target_qn</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Desired total quantum number of the chain, i.e. the right-boundary
+charge <code>Q[L]</code>. When <code>None</code> (default) the target is <code>Q_vac</code>
+(half-filling).</p>
+<p>The parameter affects both modes, but in different ways:</p>
+<ul>
+<li><code>bond_dim=1</code> (product state): <code>target_qn</code> is passed to <code>_auto_config</code>
+  which tries to find a config whose charge path ends at <code>target_qn</code>.
+  The right boundary is always <code>Q[L]</code> from the resulting path.</li>
+<li><code>bond_dim&gt;1</code> (random MPS): <code>_auto_config</code> targets <code>target_qn</code> for a
+  physically relevant center-bond charge. The right boundary is
+  explicitly pinned to <code>target_qn</code>.</li>
+</ul>
+<p>In both modes, if the auto-config's <code>Q[L]</code> differs from <code>target_qn</code>
+(meaning <code>target_qn</code> is unreachable for this <code>L</code> and physical space),
+a <code>ValueError</code> is raised. When <code>target_qn</code> is <code>None</code> and <code>Q[L]</code> is
+not <code>Q_vac</code> (e.g. odd L), a WARNING is logged instead.</p>
               </div>
             </td>
             <td>
@@ -2929,7 +3000,7 @@ systems; pass an explicit config for odd L or unusual fillings.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Base random seed used when <code>bond_dim&gt;1</code>.  Site <code>i</code> uses <code>seed+i</code>.</p>
+                <p>Base random seed used when <code>bond_dim&gt;1</code>. Site <code>i</code> uses <code>seed+i</code>.</p>
               </div>
             </td>
             <td>
@@ -2978,7 +3049,9 @@ systems; pass an explicit config for odd L or unusual fillings.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>bond_dim &lt; 1</code> or if an explicit <code>config</code> has the wrong length.</p>
+                <p>If <code>bond_dim &lt; 1</code>, if an explicit <code>config</code> has the wrong length, or if
+an explicit <code>target_qn</code> is not reachable for the given <code>L</code> and physical
+space (i.e. auto-config's charge path ends at a different sector).</p>
               </div>
             </td>
           </tr>
@@ -2996,6 +3069,11 @@ systems; pass an explicit config for odd L or unusual fillings.</p>
     <p>Random MPS for spinless fermions (U1), bond dimension 32:</p>
     <div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">&#39;Ferm&#39;</span><span class="p">,</span> <span class="s1">&#39;U1&#39;</span><span class="p">)</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mps</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
+</span></code></pre></div>
+    <p>Odd-length chain — product state and random MPS with explicit Sz = +½:</p>
+    <div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">&#39;Spin&#39;</span><span class="p">,</span> <span class="s1">&#39;U1&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;J&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mps1</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>  <span class="n">target_qn</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mps2</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">target_qn</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </span></code></pre></div>
 
 
@@ -3020,10 +3098,41 @@ site 0) to compress spurious bond dimension from both ends.</p>
 <p>Both modes are particle-type agnostic: no <code>spin=</code>, <code>symmetry=</code>, or
 <code>particle_type=</code> argument is required. The <code>(Spc, Op)</code> pair returned by
 Nicole's <code>load_space</code> encodes all symmetry information.</p>
+<h3 id="logic-overview">Logic Overview<a class="headerlink" href="#logic-overview" title="Permanent link">&para;</a></h3>
+<p>The diagram below summarises how <code>target_qn</code>, <code>config</code>, <code>Q[L]</code>, and
+<code>bond_dim</code> interact inside <code>init_mps</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a> target_qn given?
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a> ├─ No  ──► target = Q_vac  (half-filling default)
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a> └─ Yes ──► target = target_qn
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a> config given?
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a> ├─ No  ──► cfg = _auto_config(L, Spc, group, Q_vac, target)
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a> │             tries: single-sector fill → period-2 alternation → greedy
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a> └─ Yes ──► cfg = config  (used verbatim)
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a> Q = _bond_charges(cfg, Q_vac)   →  Q[0..L]
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a> Q[L] == target?
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a> ├─ Yes ──► (no action)
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a> └─ No  ──┬─ target was defaulted (Q_vac) ──► WARNING  (e.g. odd L, no target_qn given)
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>          └─ target was explicit          ──► ValueError  (physically unreachable)
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a> effective_right = target  if target was given explicitly
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>                 = Q[L]    if target was defaulted  (crucial for odd-L random MPS)
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a> bond_dim == 1?
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a> ├─ Yes ──► product_state_mps(cfg, Q)   right boundary = Q[L]  (rigid)
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a> └─ No  ──► random_mps(Q, bond_dim, effective_right)
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>               BFS seed  = Q[L//2]   (center-bond charge from cfg)
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>               right pin = effective_right
+</span></code></pre></div>
+<p>The key asymmetry is that in product-state mode the right boundary is always
+<code>Q[L]</code> — it cannot be overridden because every intermediate bond charge is
+fixed by the charge path. In random mode the right boundary is pinned
+explicitly to <code>effective_right</code>, which decouples it from the config path.</p>
 <h3 id="charge-conventions">Charge Conventions<a class="headerlink" href="#charge-conventions" title="Permanent link">&para;</a></h3>
 <p>All standard Nicole physical spaces define charges relative to the half-filled
-reference, so the center-bond charge for a balanced auto-config is always zero
-regardless of chain length:</p>
+reference, so the center-bond charge for a balanced even-L auto-config is zero:</p>
 <table>
 <thead>
 <tr>
@@ -3077,8 +3186,8 @@ regardless of chain length:</p>
 </table>
 <h3 id="bond-sectors-in-random-mode">Bond Sectors in Random Mode<a class="headerlink" href="#bond-sectors-in-random-mode" title="Permanent link">&para;</a></h3>
 <p>Bond sectors for the random MPS (<code>bond_dim&gt;1</code>) are found by BFS of depth 2
-from Q_vac. The table below lists the resulting sector sets (for spin-½ where
-applicable):</p>
+from <code>Q_c = Q[L//2]</code>. The table below lists the resulting sector sets for a
+Q_vac-targeted auto-config (spin-½ where applicable):</p>
 <table>
 <thead>
 <tr>
@@ -3130,6 +3239,35 @@ applicable):</p>
 </tr>
 </tbody>
 </table>
+<p>When <code>target_qn</code> is given, <code>Q_c = Q[L//2]</code> is computed from the
+<code>target_qn</code>-targeted auto-config, which shifts the center-bond charge toward
+the requested sector.</p>
+<h3 id="odd-chain-lengths">Odd-chain lengths<a class="headerlink" href="#odd-chain-lengths" title="Permanent link">&para;</a></h3>
+<p>For odd <code>L</code>, no site configuration can return the bond charge to <code>Q_vac</code> in an
+odd number of fusion steps with the standard physical sectors. The three exact
+strategies in <code>_auto_config</code> (single-sector fill and period-2 alternation) all
+fail, and the greedy fallback produces <code>Q[L] ≠ Q_vac</code>.</p>
+<p><strong>Default behavior</strong> (<code>target_qn</code> not given): <code>init_mps</code> targets <code>Q_vac</code> and,
+finding <code>Q[L] ≠ Q_vac</code>, logs a <code>WARNING</code> that multiple target sectors may
+exist and recommends passing <code>target_qn</code> explicitly. Both modes then use the
+greedy's <code>Q[L]</code> as the effective right boundary.</p>
+<p><strong>Explicit <code>target_qn</code></strong>: pass the desired sector directly. For Abelian
+2-sector spaces the greedy reaches the target exactly when it is achievable
+(correct parity and magnitude). If the requested sector is unreachable — e.g.
+<code>target_qn=0</code> for odd-L spin-½ — <code>init_mps</code> raises a <code>ValueError</code> in both
+modes rather than silently constructing an MPS in the wrong sector.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Spin-½ U(1), L=7 — both modes work with the same target_qn</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">&#39;Spin&#39;</span><span class="p">,</span> <span class="s1">&#39;U1&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;J&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Product state in the Sz = +½ sector</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">mps_ps</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>  <span class="n">target_qn</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Random MPS in the Sz = +½ sector, bond dimension 32</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">mps_rd</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">target_qn</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</span></code></pre></div>
+<p>For Abelian spaces the two valid targets for odd-L spin-½ are <code>target_qn=+1</code>
+(Sz = +½) and <code>target_qn=-1</code> (Sz = −½). Any other value is physically
+unreachable and raises <code>ValueError</code>.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../mps/">MPS</a> — the returned object type.</li>
@@ -3161,7 +3299,7 @@ applicable):</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="June 8, 2026 13:12:46 UTC"><span class="timeago" datetime="2026-06-08T13:12:46+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 8, 2026 13:12:46 UTC">2026-06-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="June 10, 2026 09:14:03 UTC"><span class="timeago" datetime="2026-06-10T09:14:03+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="June 10, 2026 09:14:03 UTC">2026-06-10</span>
   </span>
 
     
