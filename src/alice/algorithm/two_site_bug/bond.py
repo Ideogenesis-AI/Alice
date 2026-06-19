@@ -14,44 +14,44 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
+# Author of code: Madhav Menon.
 
 
-"""Nearest-neighbour bond Hamiltonians and two-site gates for the BUG integrator.
+"""Nearest-neighbour bond Hamiltonians for the two-site BUG integrator.
 
-The gate-based BUG integrator evolves an `MPS` with the time-evolution operator
-of a nearest-neighbour Hamiltonian, split into commuting odd/even bond groups
-(a Trotter split). The bare two-site bond Hamiltonian for bond *(i, i+1)* is
-reused directly from the AutoMPO interaction list (`build_interaction`): the
-leading and terminal MPO tensors of an `Interaction2Site` term are contracted
-over their shared operator channel, exactly as `build_hamiltonian` would, so no
-new operator algebra is introduced.
+The faithful Basis-Update & Galerkin (BUG) integrator (Ceruti, Kusch & Lubich,
+*BIT* 2022; arXiv:2304.05660) evolves an `MPS` under a nearest-neighbour
+Hamiltonian split into commuting odd/even bond groups. Each bond carries the
+*bare* two-site Hamiltonian term `h_{i,i+1}` — not a pre-exponentiated gate. The
+KLS local update (see :mod:`alice.algorithm.two_site_bug.kls`) exponentiates the
+*projected* effective Hamiltonian internally; this module only supplies the bond
+terms.
 
-Index conventions follow the rest of Alice:
+The bond Hamiltonian for bond *(i, i+1)* is reused directly from the AutoMPO
+interaction list (`build_interaction`): the leading and terminal MPO tensors of
+an `Interaction2Site` term are contracted over their shared operator channel,
+exactly as `build_hamiltonian` would, so no new operator algebra is introduced.
 
-- A bond Hamiltonian `h` is a 4-index tensor with axes
-  `(bra_i, ket_i, bra_{i+1}, ket_{i+1})`; physical (`bra`/`ket`) directions match
-  the MPS physical index and its dual.
-- A two-site gate `G = exp(coeff * h)` is a 4-index tensor with axes
-  `(ket_i, ket_{i+1}, bra_i, bra_{i+1})`: the `ket` axes contract a two-site MPS
-  block, the `bra` axes become the updated physical indices.
-
-The matrix exponential runs block-wise on the PyTorch backend (via Nicole), so
-it inherits device, dtype, and autograd support and preserves the symmetry block
-structure exactly.
+Index convention (shared with the rest of Alice): a bond Hamiltonian `h` is a
+4-index tensor with axes `(bra_i, ket_i, bra_{i+1}, ket_{i+1})`, the physical
+`bra`/`ket` directions matching the MPS physical index and its dual.
 """
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import torch
-from nicole import Tensor, contract, einsum, merge_axes
+from nicole import Tensor, contract, permute
 
 from alice.network.interaction import Interaction, Interaction1Site, Interaction2Site
 
 
 def to_complex(tensor: Tensor) -> Tensor:
     """Return a copy of `tensor` with every block cast to `complex128`.
+
+    The KLS update exponentiates Hamiltonian terms, so the state must share the
+    `complex128` dtype of the PyTorch backend.
 
     Parameters
     ----------
@@ -124,7 +124,7 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
 
     Sums every nearest-neighbour `Interaction2Site` term onto its bond. Bonds
     with no term are left as `None`. This yields the bond decomposition
-    `H = Σ_b h_b` used by the Trotter split.
+    `H = Σ_b h_b` used by the odd/even Trotter split.
 
     Parameters
     ----------
@@ -144,7 +144,7 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
     ------
     NotImplementedError
         If a non-nearest-neighbour two-site term or a one-site term with a
-        non-zero coupling is present (the gate-based BUG integrator targets
+        non-zero coupling is present (the two-site BUG integrator targets
         nearest-neighbour Hamiltonians).
     """
     generators: List[Optional[Tensor]] = [None] * (length - 1)
@@ -152,7 +152,7 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
         if isinstance(intr, Interaction1Site):
             if intr.cpl != 0.0:
                 raise NotImplementedError(
-                    "gate-based BUG currently supports nearest-neighbour two-site "
+                    "two-site BUG currently supports nearest-neighbour two-site "
                     f"Hamiltonians only; found a one-site term on site {intr.site}"
                 )
             continue
@@ -161,7 +161,7 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
                 continue
             if intr.terminal_site != intr.leading_site + 1:
                 raise NotImplementedError(
-                    "gate-based BUG supports nearest-neighbour terms only; found a "
+                    "two-site BUG supports nearest-neighbour terms only; found a "
                     f"term coupling sites {intr.leading_site} and {intr.terminal_site}"
                 )
             bond = intr.leading_site
@@ -170,97 +170,40 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
     return generators
 
 
-def exp_bond_gate(h: Tensor, coeff: complex) -> Tensor:
-    """Exponentiate a bond Hamiltonian into a two-site gate `exp(coeff * h)`.
+def kernel_gate(h: Tensor, site_l_itag: str, site_r_itag: str) -> Tensor:
+    """Relabel a bond Hamiltonian into the local-KLS kernel's gate convention.
 
-    Merges the two `bra` axes and the two `ket` axes of `h` into a single
-    matrix per symmetry sector, applies `torch.linalg.matrix_exp` block-wise on
-    the PyTorch backend, then unmerges back to a 4-index gate. Because the merge
-    groups states by total charge, the block-wise exponential equals the full
-    matrix exponential while preserving the symmetry structure exactly.
+    The faithful-KLS kernel applies a bare two-site term `g` to a two-site block
+    `theta` with `einsum('LRlr,aLRb->alrb', g, theta)`, then strips the trailing
+    ``*`` from the output physical itags. It therefore expects `g` with axes
+    `(ket_i, ket_j, bra_i, bra_j)`: the *ket* legs (`L`, `R`) carry the two site
+    itags and contract `theta`'s physical legs, while the *bra* legs (`l`, `r`)
+    carry the starred itags `('{si}*', '{sj}*')` and become the updated legs.
+
+    `bond_hamiltonian` returns the term with axes
+    `(bra_i, ket_i, bra_j, ket_j)`; this permutes to `(ket_i, ket_j, bra_i,
+    bra_j)` and retags the four legs with the two sites' physical itags so the
+    gate contracts the actual MPS physical indices.
 
     Parameters
     ----------
     h:
-        4-index bond Hamiltonian with axes `(bra_i, ket_i, bra_{i+1}, ket_{i+1})`.
-    coeff:
-        Scalar multiplying `h` before exponentiation. For real-time evolution by
-        a step `dt` use `coeff = -1j * dt`.
+        Bond Hamiltonian with axes `(bra_i, ket_i, bra_j, ket_j)` (from
+        :func:`bond_hamiltonian`).
+    site_l_itag:
+        Physical itag of the left site `i` in the MPS.
+    site_r_itag:
+        Physical itag of the right site `i+1` in the MPS.
 
     Returns
     -------
     Tensor
-        4-index gate with axes `(ket_i, ket_{i+1}, bra_i, bra_{i+1})`.
+        Complex gate with axes `(ket_i, ket_j, bra_i, bra_j)` and itags
+        `(site_l, site_r, '{site_l}*', '{site_r}*')`.
     """
-    # Merge bra_i, bra_{i+1} -> B and ket_i, ket_{i+1} -> K, leaving a (K, B)
-    # operator matrix in each total-charge sector.
-    merged_bra, split_bra = merge_axes(h, [0, 2], merged_tag='_bug_bra_')
-    merged, split_ket = merge_axes(merged_bra, [1, 2], merged_tag='_bug_ket_')
-
-    exp_data = {
-        key: torch.linalg.matrix_exp(coeff * block.to(torch.complex128))
-        for key, block in merged.data.items()
-    }
-    gate_matrix = Tensor(
-        indices=merged.indices,
-        itags=merged.itags,
-        data=exp_data,
-        dtype=torch.complex128,
+    gate = permute(to_complex(h), [1, 3, 0, 2])
+    gate.retag(
+        [0, 1, 2, 3],
+        [site_l_itag, site_r_itag, f'{site_l_itag}*', f'{site_r_itag}*'],
     )
-
-    # Unmerge: (K, B) -> (B, ket_i, ket_{i+1}) -> (ket_i, ket_{i+1}, bra_i, bra_{i+1}).
-    gate = contract(gate_matrix, to_complex(split_ket), axes=(0, 2))
-    gate = contract(gate, to_complex(split_bra), axes=(0, 2))
     return gate
-
-
-def retag_gate_for_bond(gate: Tensor, phys_itags: Tuple[str, str]) -> Tensor:
-    """Relabel a gate's physical axes with the itags of a specific bond.
-
-    :func:`exp_bond_gate` returns a gate with generic physical itags. Before the
-    gate can contract a two-site block, its `ket` and `bra` axes must carry the
-    physical itags of the two sites it acts on (Nicole contracts by matching
-    itag and opposite direction). `ket` and `bra` axes share an itag but have
-    opposite directions, exactly as an MPO's two physical axes do.
-
-    Parameters
-    ----------
-    gate:
-        Gate with axes `(ket_i, ket_{i+1}, bra_i, bra_{i+1})`.
-    phys_itags:
-        Physical itags `('s{i:02d}', 's{i+1:02d}')` of the two sites.
-
-    Returns
-    -------
-    Tensor
-        A copy of `gate` whose four axes carry the bond's physical itags.
-    """
-    si, sj = phys_itags
-    out = gate.clone()
-    out.retag([0, 1, 2, 3], [si, sj, si, sj])
-    return out
-
-
-def apply_bond_gate(theta: Tensor, gate: Tensor) -> Tensor:
-    """Apply a two-site gate to a two-site MPS block.
-
-    Contracts the gate `ket` axes with the physical axes of `theta`; the gate
-    `bra` axes become the updated physical axes. The gate must already carry the
-    bond's physical itags (see :func:`retag_gate_for_bond`).
-
-    Parameters
-    ----------
-    theta:
-        Two-site block with axes `(left, right, phys_i, phys_{i+1})`.
-    gate:
-        Gate with axes `(ket_i, ket_{i+1}, bra_i, bra_{i+1})` already relabelled
-        for this bond.
-
-    Returns
-    -------
-    Tensor
-        Updated two-site block with axes `(left, right, phys_i, phys_{i+1})`.
-    """
-    # theta (a=left, c=right, r=phys_i, s=phys_{i+1}); gate (r=ket_i, s=ket_{i+1},
-    # k=bra_i, u=bra_{i+1}). Contract physical/ket axes -> (a, c, k, u).
-    return einsum('acrs,rsku->acku', theta, gate)

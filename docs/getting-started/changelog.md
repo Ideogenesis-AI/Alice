@@ -4,23 +4,29 @@
 
 **Two-Site BUG Time Integrator**
 
-Adds `alice.algorithm.two_site_bug`, a gate-based two-site BUG (Basis-Update &
-Galerkin) integrator for real- and imaginary-time evolution of an MPS under a
-nearest-neighbour Hamiltonian. It is built entirely on the existing Alice/Nicole
-stack — `MPS`, the AutoMPO interaction list, `decomp`, and the PyTorch backend —
-and adds no new tensor infrastructure.
+Adds `alice.algorithm.two_site_bug`, the faithful rank-adaptive two-site BUG
+(Basis-Update & Galerkin) integrator of Ceruti, Kusch & Lubich
+([arXiv:2304.05660](https://arxiv.org/abs/2304.05660)) for real- and
+imaginary-time evolution of an MPS under a nearest-neighbour Hamiltonian. The
+Alice-facing driver is built on the existing Alice/Nicole stack — `MPS`, the
+AutoMPO interaction list, and the PyTorch backend; the symmetry-aware faithful-KLS
+local kernel is vendored, Nicole-native, in a private `_kernel` subpackage.
 
 ### `alice.algorithm.two_site_bug`
 
-- **`run(mps, interactions, opts)`** evolves the state with even/odd Trotter
-  sweeps of two-site bond gates, splitting each two-site block with a truncated
-  SVD so the bond dimension adapts (the basis augmentation). Supports first-order
-  (`'lie'`) and symmetric second-order (`'strang'`) steps and imaginary-time
-  cooling.
-- **Bond gates** are reused from the AutoMPO interaction list: the leading and
-  terminal MPO tensors of each nearest-neighbour `Interaction2Site` are contracted
-  over their operator channel and exponentiated block-wise on the PyTorch backend,
-  preserving the symmetry block structure exactly.
+- **`run(mps, interactions, opts)`** evolves the state with commuting even/odd
+  Trotter sweeps of *local* K/L/S bond updates: each update augments the left and
+  right frames from the evolved K and L factors, evolves the small core in the
+  augmented bases (Galerkin), and truncates with an SVD so the bond dimension
+  adapts (the basis augmentation). The local substeps exponentiate the projected
+  effective Hamiltonian internally (Krylov `expv`) — exact at full rank. Supports
+  first-order (`'lie'`) and symmetric second-order (`'strang'`) steps and
+  imaginary-time cooling.
+- **Bond Hamiltonians** are reused from the AutoMPO interaction list: the leading
+  and terminal MPO tensors of each nearest-neighbour `Interaction2Site` are
+  contracted over their operator channel to form the bare two-site term fed to the
+  KLS kernel. The kernel is symmetry-aware (works with the U(1) charge sectors of
+  the MPS).
 - **`Options`** (TOML-loadable) and **`Summary`** mirror the DMRG interface. The
   summary records, per step, the kept bond dimension and the *proposed* augmented
   dimension, so the rank growth and the discarded augmentation are both visible.

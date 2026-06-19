@@ -125,6 +125,60 @@ def dense_total_sz(length: int, charges: List[int]) -> torch.Tensor:
     return sum(_embed(sz, i, length) for i in range(length))
 
 
+def dense_hamiltonian(interactions, length: int, charges: List[int]) -> torch.Tensor:
+    """Assemble the full `d**L` dense Hamiltonian from Alice's own bond terms.
+
+    Densifies each nearest-neighbour `Interaction2Site` bond Hamiltonian exactly as
+    the integrator consumes it (`build_bond_generators`) and lifts it to the full
+    Hilbert space. This is convention-exact — the dense operator is, by
+    construction, the same Hamiltonian the MPS evolves under — so it avoids any
+    basis/normalisation mismatch a hand-written model matrix could introduce.
+
+    Parameters
+    ----------
+    interactions:
+        Interaction list from `build_interaction`.
+    length:
+        Number of sites `L`.
+    charges:
+        Charges of the physical space in dense order (fixes the local basis).
+
+    Returns
+    -------
+    torch.Tensor
+        Dense `(d**L, d**L)` Hamiltonian, `d = len(charges)`.
+    """
+    from alice.algorithm.two_site_bug._kernel import to_dense
+    from alice.algorithm.two_site_bug.bond import build_bond_generators
+
+    generators = build_bond_generators(interactions, length)
+    d = len(charges)
+    dim = d ** length
+    ham = torch.zeros((dim, dim), dtype=torch.complex128)
+    eye = torch.eye(d, dtype=torch.complex128)
+    for bond, h in enumerate(generators):
+        if h is None:
+            continue
+        # h axes: (bra_i, ket_i, bra_j, ket_j). Densify, then reorder to the
+        # operator matrix [(bra_i, bra_j), (ket_i, ket_j)].
+        dense = to_dense(h, [h.itags[0], h.itags[1], h.itags[2], h.itags[3]]).to(torch.complex128)
+        local = dense.permute(0, 2, 1, 3).reshape(d * d, d * d)
+        factors: List[torch.Tensor] = []
+        site = 0
+        while site < length:
+            if site == bond:
+                factors.append(local)
+                site += 2
+            else:
+                factors.append(eye)
+                site += 1
+        lifted = factors[0]
+        for factor in factors[1:]:
+            lifted = torch.kron(lifted.contiguous(), factor.contiguous())
+        ham = ham + lifted
+    return ham
+
+
 def product_vector(config: List[int], charges: List[int]) -> torch.Tensor:
     """Build the dense product-state vector for a sector-index configuration.
 
@@ -156,10 +210,23 @@ def exact_evolve(ham: torch.Tensor, psi0: torch.Tensor, t: float) -> torch.Tenso
     return evecs @ (torch.exp(-1j * t * evals) * (evecs.conj().T @ psi0))
 
 
-def _core_dense(core: Tensor) -> torch.Tensor:
-    """Densify a 3-index MPS core `(left, right, phys)` to a dense torch tensor."""
+def _core_dense(core: Tensor, charges: List[int]) -> torch.Tensor:
+    """Densify a 3-index MPS core `(left, right, phys)` to a dense torch tensor.
+
+    The bonds are densified to their own (symmetry-restricted) dimensions, but the
+    physical axis is *embedded into the full local basis* of size `len(charges)`:
+    a symmetric core only stores the physical sectors its charge structure allows
+    (e.g. a boundary site pinned to one charge has a dim-1 physical leg), so each
+    present physical charge `q` is placed at its global basis index
+    `charges.index(q)` and the rest is zero. This makes the contracted state live
+    in the full `len(charges)**L` space the dense ED helpers use.
+    """
+    phys_table = {q: (charges.index(q), 1) for q in charges}
     offsets = []
-    for index in core.indices:
+    for axis, index in enumerate(core.indices):
+        if axis == 2:  # physical leg → full local basis
+            offsets.append((phys_table, len(charges)))
+            continue
         table = {}
         cursor = 0
         for sector in index.sectors:
@@ -177,21 +244,26 @@ def _core_dense(core: Tensor) -> torch.Tensor:
     return dense
 
 
-def mps_to_vector(mps: MPS) -> torch.Tensor:
-    """Contract an OBC MPS into a dense state vector in the physical basis order.
+def mps_to_vector(mps: MPS, charges: List[int]) -> torch.Tensor:
+    """Contract an OBC MPS into a dense state vector in the full physical basis.
 
     Parameters
     ----------
     mps:
         MPS with trivial (dimension-1) boundary bonds.
+    charges:
+        Charges of the full physical space, in dense order (from `Spc.sectors`).
+        Each site's physical leg is embedded into this `len(charges)`-dimensional
+        basis (see `_core_dense`), so the result has length `len(charges)**L`
+        regardless of which charges each site's symmetric core actually carries.
 
     Returns
     -------
     torch.Tensor
-        Dense state vector of length `prod(phys_dims)`.
+        Dense state vector of length `len(charges)**L`.
     """
-    psi = _core_dense(mps[0])[0]  # drop trivial left bond -> (right, phys_0)
+    psi = _core_dense(mps[0], charges)[0]  # drop trivial left bond -> (right, phys_0)
     for site in range(1, mps.L):
-        psi = torch.tensordot(psi, _core_dense(mps[site]), dims=([0], [0]))
+        psi = torch.tensordot(psi, _core_dense(mps[site], charges), dims=([0], [0]))
         psi = psi.movedim(-2, 0)  # keep the open right bond at the front
     return psi[0].reshape(-1)  # drop trivial right bond

@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for the gate-based two-site BUG integrator (Options, Summary, run)."""
+"""Tests for the faithful-KLS two-site BUG integrator (Options, Summary, run)."""
 
 from __future__ import annotations
 
@@ -24,31 +24,51 @@ import dataclasses
 
 import pytest
 import torch
+from nicole import Index, Tensor
 
 from alice import init_mps
 from alice.algorithm import two_site_bug
-from alice.algorithm.two_site_bug.gate import build_bond_generators
+from alice.algorithm.two_site_bug.bond import build_bond_generators
 from alice.network.interaction import Interaction2Site
 
 from .conftest import (
-    dense_heisenberg,
+    dense_hamiltonian,
     dense_total_sz,
     exact_evolve,
     heisenberg_chain,
     mps_to_vector,
-    product_vector,
 )
 
 
 def _domain_wall(length, spin_space):
-    """Return `(mps, interactions, charges, config)` for a Heisenberg domain wall."""
-    spc_index, operators = spin_space
-    charges = [sector.charge for sector in spc_index.sectors]
+    """Return `(mps, interactions, charges, psi0)` for a full-phys Heisenberg domain wall.
+
+    The state is the Sz=0 domain wall `|↓…↓↑…↑⟩`. `init_mps(config=...)` builds it
+    as a product state but pins each physical leg to its single occupied charge
+    (dim-1 phys), which freezes the dynamics and cannot densify to the full `2**L`
+    space. Each physical leg is therefore inflated to the full spin-1/2 index (the
+    occupied-charge block is kept, the empty charge added) so spins can flip and the
+    state densifies to `2**L`. `psi0` is the dense initial vector (one nonzero
+    amplitude), in the same physical basis order as the dense ED helpers.
+    """
+    _, operators = spin_space
     interactions, spc, _ = heisenberg_chain(length)
+    charges = [sector.charge for sector in spc.sectors]
     config = [0] * (length // 2) + [1] * (length - length // 2)
     target = sum(charges[c] for c in config)
     mps = init_mps(length, spc, operators, config=config, target_qn=target)
-    return mps, interactions, charges, config
+    # Inflate each pinned (dim-1) physical leg to the full local space.
+    for i in range(mps.L):
+        core = mps[i]
+        full_phys = Index(core.indices[2].direction, core.indices[2].group, spc.sectors)
+        mps[i] = Tensor(
+            indices=(core.indices[0], core.indices[1], full_phys),
+            itags=core.itags,
+            data={key: block.clone() for key, block in core.data.items()},
+            dtype=core.dtype,
+        )
+    psi0 = mps_to_vector(mps, charges)
+    return mps, interactions, charges, psi0
 
 
 # ---------------------------------------------------------------------------
@@ -152,28 +172,27 @@ class TestDynamics:
             assert abs(norm - 1.0) < 1e-10
 
     def test_total_sz_conserved(self, spin_space):
-        mps, interactions, charges, config = _domain_wall(6, spin_space)
+        mps, interactions, charges, psi0 = _domain_wall(6, spin_space)
         sz_total = dense_total_sz(6, charges)
-        psi0 = product_vector(config, charges)
-        sz_before = (psi0.conj() @ sz_total @ psi0).real.item()
+        sz_before = (psi0.conj() @ sz_total @ psi0).real.item() / psi0.norm().item() ** 2
         summary = two_site_bug.run(
             mps, interactions, two_site_bug.Options(dt=0.05, n_steps=10, max_bond=64)
         )
-        vec = mps_to_vector(summary.state)
+        vec = mps_to_vector(summary.state, charges)
         sz_after = (vec.conj() @ sz_total @ vec).real.item() / vec.norm().item() ** 2
         assert abs(sz_after - sz_before) < 1e-10
 
     def test_fidelity_matches_exact_diagonalization(self, spin_space):
         length = 6
-        mps, interactions, charges, config = _domain_wall(length, spin_space)
-        ham = dense_heisenberg(length, charges)
-        psi0 = product_vector(config, charges)
+        mps, interactions, charges, psi0 = _domain_wall(length, spin_space)
+        ham = dense_hamiltonian(interactions, length, charges)
+        psi0 = psi0 / psi0.norm()
         dt, n_steps = 0.05, 20
         summary = two_site_bug.run(
             mps, interactions,
             two_site_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
         )
-        evolved = mps_to_vector(summary.state)
+        evolved = mps_to_vector(summary.state, charges)
         evolved = evolved / evolved.norm()
         exact = exact_evolve(ham, psi0, dt * n_steps)
         exact = exact / exact.norm()
@@ -182,9 +201,9 @@ class TestDynamics:
 
     def test_strang_converges_second_order(self, spin_space):
         length = 6
-        _, interactions, charges, config = _domain_wall(length, spin_space)
-        ham = dense_heisenberg(length, charges)
-        psi0 = product_vector(config, charges)
+        _, interactions, charges, psi0 = _domain_wall(length, spin_space)
+        ham = dense_hamiltonian(interactions, length, charges)
+        psi0 = psi0 / psi0.norm()
 
         def infidelity(dt, n_steps):
             mps, _, _, _ = _domain_wall(length, spin_space)
@@ -192,7 +211,7 @@ class TestDynamics:
                 mps, interactions,
                 two_site_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
             )
-            evolved = mps_to_vector(summary.state)
+            evolved = mps_to_vector(summary.state, charges)
             evolved = evolved / evolved.norm()
             exact = exact_evolve(ham, psi0, dt * n_steps)
             exact = exact / exact.norm()
@@ -206,16 +225,17 @@ class TestDynamics:
 
     def test_strang_beats_lie(self, spin_space):
         length = 6
-        ham = dense_heisenberg(length, [s.charge for s in spin_space[0].sectors])
+        _, interactions, charges, _ = _domain_wall(length, spin_space)
+        ham = dense_hamiltonian(interactions, length, charges)
 
         def infidelity(order):
-            mps, interactions, charges, config = _domain_wall(length, spin_space)
-            psi0 = product_vector(config, charges)
+            mps, interactions, charges, psi0 = _domain_wall(length, spin_space)
+            psi0 = psi0 / psi0.norm()
             summary = two_site_bug.run(
                 mps, interactions,
                 two_site_bug.Options(dt=0.1, n_steps=10, order=order, max_bond=64, normalize=False),
             )
-            evolved = mps_to_vector(summary.state)
+            evolved = mps_to_vector(summary.state, charges)
             evolved = evolved / evolved.norm()
             exact = exact_evolve(ham, psi0, 1.0)
             exact = exact / exact.norm()
@@ -225,16 +245,16 @@ class TestDynamics:
 
     def test_imaginary_time_lowers_energy(self, spin_space):
         length = 6
-        mps, interactions, charges, config = _domain_wall(length, spin_space)
-        ham = dense_heisenberg(length, charges)
+        mps, interactions, charges, psi0 = _domain_wall(length, spin_space)
+        ham = dense_hamiltonian(interactions, length, charges)
         ground = torch.linalg.eigvalsh(ham)[0].item()
-        psi0 = product_vector(config, charges)
+        psi0 = psi0 / psi0.norm()
         energy_before = (psi0.conj() @ ham @ psi0).real.item()
         summary = two_site_bug.run(
             mps, interactions,
             two_site_bug.Options(dt=0.05, n_steps=40, imaginary_time=True, max_bond=64),
         )
-        vec = mps_to_vector(summary.state)
+        vec = mps_to_vector(summary.state, charges)
         vec = vec / vec.norm()
         energy_after = (vec.conj() @ ham @ vec).real.item()
         assert energy_after < energy_before

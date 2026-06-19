@@ -16,14 +16,19 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Top-level BUG driver: options, summary, and entry-point function.
+"""Top-level two-site BUG driver: options, summary, and entry-point function.
 
-The gate-based BUG (Basis-Update & Galerkin) integrator evolves an `MPS` under a
-nearest-neighbour Hamiltonian by applying two-site bond gates in symmetric
-(Strang) or first-order (Lie) Trotter half-sweeps, splitting each two-site block
-with a truncated SVD that adapts the bond dimension. Bond Hamiltonians are reused
-directly from the AutoMPO interaction list, so any nearest-neighbour model and
-symmetry that `build_interaction` supports works unchanged.
+The faithful Basis-Update & Galerkin (BUG) integrator (Ceruti, Kusch & Lubich,
+arXiv:2304.05660) evolves an `MPS` under a nearest-neighbour Hamiltonian by
+odd/even Trotter sweeps of *local* two-site updates. Each bond update is the
+rank-adaptive K/L/S step: it augments the left frame from the evolved K factor,
+augments the right frame from the evolved L factor, evolves the small core S in
+the augmented bases (Galerkin), and truncates with an SVD. The local substeps
+exponentiate the *projected* effective Hamiltonian internally (Krylov `expv`) —
+no pre-formed gate is applied — so the step is the faithful KLS update, exact at
+full rank. Bond Hamiltonians are reused directly from the AutoMPO interaction
+list, so any nearest-neighbour model and symmetry that `build_interaction`
+supports works unchanged.
 
 Typical usage:
 
@@ -48,10 +53,15 @@ from alice.network.interaction import Interaction
 from alice.network.network import Network
 
 from ..interface import AlgorithmOptions, AlgorithmSummary
-from .gate import build_bond_generators, exp_bond_gate, to_complex
+from ._kernel import with_expv_backend, with_time_prefactor
+from .bond import build_bond_generators, kernel_gate, to_complex
 from .scheme import parity_sweep
 
 logger = logging.getLogger(__name__)
+
+# Sentinel bond cap used when `Options.max_bond is None` (keep every singular
+# value at the post-S-step SVD, i.e. unlimited growth up to the local capacity).
+_UNLIMITED_BOND = 1 << 30
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +109,7 @@ def _resolve_order(alias: str) -> str:
 
 @dataclass
 class Options(AlgorithmOptions):
-    """BUG run options.
+    """Two-site BUG run options.
 
     All fields have sensible defaults so `Options()` is a valid minimal
     configuration. Use `Options.from_toml` to load from an `[algorithm]` TOML
@@ -116,13 +126,27 @@ class Options(AlgorithmOptions):
         Trotter order. Canonical values and their aliases:
 
         - `'strang'` / `'second'` / `'2'`: symmetric second-order step
-          (forward + backward half-sweep with half-step gates).
-        - `'lie'` / `'first'` / `'1'`: first-order step (one half-sweep,
-          alternating direction each step).
+          `U_even(dt/2) · U_odd(dt) · U_even(dt/2)`.
+        - `'lie'` / `'first'` / `'1'`: first-order step `U_even(dt) · U_odd(dt)`.
     max_bond:
-        Maximum bond dimension kept at each SVD split. `None` means no limit.
+        Maximum bond dimension kept by the post-S-step SVD truncation. `None`
+        means no explicit cap (rank adapts up to the local capacity).
     trunc_thresh:
-        SVD truncation threshold forwarded to `decomp` at each split.
+        Singular-value threshold of the post-S-step SVD. Each bond keeps only the
+        directions whose weight exceeds it, so the rank grows only as far as the
+        state's entanglement requires — the discarded-weight control of the
+        rank adaptation.
+    augment:
+        If `True` (default), the local KLS update may grow the bond basis from
+        the evolved K/L directions. If `False`, the bond dimension is held fixed
+        (parallel basis update without rank adaptation).
+    aug_krylov_depth:
+        Number of K/L Krylov directions stacked before the augmented basis is
+        extracted (`1` is the standard rank-adaptive BUG).
+    lanczos_tol:
+        Termination tolerance of the local Lanczos `expv` solves.
+    lanczos_maxiter:
+        Maximum Lanczos iterations per local substep.
     imaginary_time:
         If `True`, evolve with `exp(-dt H)` (imaginary time) instead of
         `exp(-i dt H)`. Combined with `normalize`, this cools the state toward
@@ -138,6 +162,10 @@ class Options(AlgorithmOptions):
     order: str = 'strang'
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-12
+    augment: bool = True
+    aug_krylov_depth: int = 1
+    lanczos_tol: float = 1e-15
+    lanczos_maxiter: int = 30
     imaginary_time: bool = False
     normalize: bool = True
 
@@ -151,7 +179,7 @@ class Options(AlgorithmOptions):
 
 @dataclass
 class Summary(AlgorithmSummary):
-    """BUG output.
+    """Two-site BUG output.
 
     Attributes
     ----------
@@ -171,9 +199,13 @@ class Summary(AlgorithmSummary):
         Maximum *kept* bond dimension after each step (length `n_steps`).
     aug_dims:
         Maximum *proposed* (pre-truncation) augmented bond dimension over the
-        bonds of each step (length `n_steps`). This is the basis-augmentation
-        size the BUG step works in before the truncated split; comparing it with
-        `max_bond_dims` shows how much rank growth the truncation discards.
+        bonds of each step (length `n_steps`). This is the rank the K/L
+        augmentation reaches before the truncated S-step split; comparing it
+        with `max_bond_dims` shows how much rank growth the truncation discards.
+    disc_weights:
+        Maximum relative discarded weight over the bonds of each step (length
+        `n_steps`) — the fraction of bond weight the `trunc_thresh` S-step SVD
+        throws away. Near zero means the kept rank captures the state faithfully.
     """
 
     state: MPS
@@ -183,6 +215,7 @@ class Summary(AlgorithmSummary):
     bond_dims: List[int] = field(default_factory=list)
     max_bond_dims: List[int] = field(default_factory=list)
     aug_dims: List[int] = field(default_factory=list)
+    disc_weights: List[float] = field(default_factory=list)
 
     def serialize(self) -> Dict:
         """Serialize the summary to a plain dict compatible with `torch.save`.
@@ -191,8 +224,8 @@ class Summary(AlgorithmSummary):
         -------
         Dict
             Serialized summary with keys `"version"`, `"n_steps"`, `"times"`,
-            `"norms"`, `"bond_dims"`, `"max_bond_dims"`, `"aug_dims"`, and
-            `"state"`.
+            `"norms"`, `"bond_dims"`, `"max_bond_dims"`, `"aug_dims"`,
+            `"disc_weights"`, and `"state"`.
         """
         return {
             'version': 1,
@@ -202,6 +235,7 @@ class Summary(AlgorithmSummary):
             'bond_dims': self.bond_dims,
             'max_bond_dims': self.max_bond_dims,
             'aug_dims': self.aug_dims,
+            'disc_weights': self.disc_weights,
             'state': self.state.serialize(),
         }
 
@@ -237,6 +271,7 @@ class Summary(AlgorithmSummary):
             bond_dims=data['bond_dims'],
             max_bond_dims=data['max_bond_dims'],
             aug_dims=data.get('aug_dims', []),
+            disc_weights=data.get('disc_weights', []),
         )
 
 
@@ -245,20 +280,22 @@ class Summary(AlgorithmSummary):
 # ---------------------------------------------------------------------------
 
 def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = None) -> Summary:
-    """Evolve an MPS under a nearest-neighbour Hamiltonian with the BUG integrator.
+    """Evolve an MPS under a nearest-neighbour Hamiltonian with the two-site BUG integrator.
 
-    Builds the per-bond gates once from the AutoMPO interaction list, then applies
-    `opts.n_steps` Trotter steps. The state is canonicalised to `center = 0`
-    before the first step and returned with `center = 0`.
+    Builds the per-bond Hamiltonian terms once from the AutoMPO interaction list,
+    then applies `opts.n_steps` odd/even Trotter steps of the faithful K/L/S local
+    update. The state is canonicalised to `center = 0` before the first step and
+    returned with `center = 0`.
 
     Parameters
     ----------
     mps:
-        Initial MPS state. Canonicalised in-place to `center = 0` first.
+        Initial MPS state. Promoted to `complex128` and canonicalised in-place to
+        `center = 0` first.
     interactions:
         Interaction list from `build_interaction`. Every active term must be a
         nearest-neighbour `Interaction2Site` (see
-        :func:`alice.algorithm.two_site_bug.gate.build_bond_generators`).
+        :func:`alice.algorithm.two_site_bug.bond.build_bond_generators`).
     opts:
         Run options. Defaults to `Options()` if `None`.
 
@@ -275,35 +312,44 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
     if opts is None:
         opts = Options()
     if mps.L < 2:
-        raise ValueError(f"BUG evolution requires at least 2 sites, got L={mps.L}")
+        raise ValueError(f"two-site BUG evolution requires at least 2 sites, got L={mps.L}")
 
-    trunc: Optional[dict] = {'thresh': opts.trunc_thresh}
-    if opts.max_bond is not None:
-        trunc['nkeep'] = opts.max_bond
+    maxdim = opts.max_bond if opts.max_bond is not None else _UNLIMITED_BOND
+    # Real-time evolution uses exp(-i dt H); imaginary time uses exp(-dt H). The
+    # kernel multiplies its local timestep by this prefactor internally.
+    prefactor: complex = -1.0 if opts.imaginary_time else -1j
 
-    # Real-time evolution uses exp(-i dt H); imaginary time uses exp(-dt H).
-    step_coeff: complex = -opts.dt if opts.imaginary_time else -1j * opts.dt
-
-    generators = build_bond_generators(interactions, mps.L)
-    gates_full = [None if h is None else exp_bond_gate(h, step_coeff) for h in generators]
-    gates_half = [None if h is None else exp_bond_gate(h, 0.5 * step_coeff) for h in generators]
-
-    # The gates are complex (matrix exponential); promote the state so every
-    # contraction shares the complex128 dtype of the PyTorch backend.
+    # Promote the state to complex128 so every local exponential shares the
+    # PyTorch backend dtype, then bring the center to site 0.
     for site in range(mps.L):
         mps[site] = to_complex(mps[site])
-
-    # Bring the MPS into right-canonical form with the center at site 0.
     mps.canonical(0)
+
+    # Bare per-bond Hamiltonian terms, relabelled into the local-KLS kernel's
+    # gate convention against the MPS physical itags. Built once and reused for
+    # every sweep (the kernel exponentiates the projected term per substep).
+    generators = build_bond_generators(interactions, mps.L)
+    gates = [
+        None if h is None else kernel_gate(h, mps[b].itags[2], mps[b + 1].itags[2])
+        for b, h in enumerate(generators)
+    ]
+
+    def sweep(parity: str, tau: float):
+        return parity_sweep(
+            mps, gates, parity, tau, maxdim,
+            opts.augment, opts.aug_krylov_depth, opts.trunc_thresh,
+            opts.lanczos_tol, opts.lanczos_maxiter,
+        )
 
     times: List[float] = []
     norms: List[float] = []
     max_bond_dims: List[int] = []
     aug_dims: List[int] = []
+    disc_weights: List[float] = []
 
     n_active = sum(1 for h in generators if h is not None)
     logger.info("─" * 60)
-    logger.info("Commencing: BUG Time Evolution".center(60))
+    logger.info("Commencing: Two-Site BUG Time Evolution".center(60))
     logger.info("─" * 60)
     logger.info("")
     logger.info("  order             : %s", opts.order)
@@ -313,38 +359,42 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
     logger.info("  steps             : %d", opts.n_steps)
     logger.info("  evolution         : %s", "imaginary" if opts.imaginary_time else "real")
     logger.info("  max bond dim      : %s", opts.max_bond if opts.max_bond is not None else 'unlimited')
-    logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
+    logger.info("  augment           : %s", opts.augment)
     logger.info("")
 
     w = len(str(opts.n_steps))
-    for step in range(opts.n_steps):
-        if opts.order == 'strang':
-            # Symmetric Strang step: U_odd(dt/2) · U_even(dt) · U_odd(dt/2).
-            augmented = max(
-                parity_sweep(mps, gates_half, 'odd', trunc),
-                parity_sweep(mps, gates_full, 'even', trunc),
-                parity_sweep(mps, gates_half, 'odd', trunc),
+    with with_time_prefactor(prefactor), with_expv_backend('native_hermitian_lanczos'):
+        for step in range(opts.n_steps):
+            if opts.order == 'strang':
+                # Symmetric Strang step: U_even(dt/2) · U_odd(dt) · U_even(dt/2).
+                results = [
+                    sweep('even', 0.5 * opts.dt),
+                    sweep('odd', opts.dt),
+                    sweep('even', 0.5 * opts.dt),
+                ]
+            else:
+                # First-order Lie step: U_even(dt) · U_odd(dt).
+                results = [
+                    sweep('even', opts.dt),
+                    sweep('odd', opts.dt),
+                ]
+            augmented = max(aug for aug, _ in results)
+            discarded = max(disc for _, disc in results)
+
+            norm = mps.norm()
+            if opts.normalize:
+                mps.normalize()
+
+            times.append((step + 1) * opts.dt)
+            norms.append(norm)
+            max_bond_dims.append(max(mps.bond_dims) if mps.bond_dims else 1)
+            aug_dims.append(augmented)
+            disc_weights.append(discarded)
+
+            logger.info(
+                "step %*d / %d: t = %g, norm = %.10f, kept bond = %d, augmented = %d, disc = %.2e",
+                w, step + 1, opts.n_steps, times[-1], norm, max_bond_dims[-1], augmented, discarded,
             )
-        else:
-            # First-order Lie step: U_odd(dt) · U_even(dt).
-            augmented = max(
-                parity_sweep(mps, gates_full, 'odd', trunc),
-                parity_sweep(mps, gates_full, 'even', trunc),
-            )
-
-        norm = mps.norm()
-        if opts.normalize:
-            mps.normalize()
-
-        times.append((step + 1) * opts.dt)
-        norms.append(norm)
-        max_bond_dims.append(max(mps.bond_dims) if mps.bond_dims else 1)
-        aug_dims.append(augmented)
-
-        logger.info(
-            "step %*d / %d: t = %g, norm = %.10f, kept bond = %d, augmented = %d",
-            w, step + 1, opts.n_steps, times[-1], norm, max_bond_dims[-1], augmented,
-        )
 
     # Ensure the returned state has the center at site 0 for a well-defined norm.
     if mps.center != 0:
@@ -360,4 +410,5 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
         bond_dims=list(mps.bond_dims),
         max_bond_dims=max_bond_dims,
         aug_dims=aug_dims,
+        disc_weights=disc_weights,
     )
