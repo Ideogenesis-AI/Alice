@@ -103,6 +103,11 @@ nav:
       - Options: api/dmrg/options.md
       - Summary: api/dmrg/summary.md
       - Launch: api/dmrg/run.md
+    - Two-Site BUG:
+      - Overview: api/two-site-bug/index.md
+      - Options: api/two-site-bug/options.md
+      - Summary: api/two-site-bug/summary.md
+      - Launch: api/two-site-bug/run.md
   - Examples:
     - Overview: examples/index.md
     - DMRG:

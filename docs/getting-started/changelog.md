@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+**Two-Site BUG Time Integrator**
+
+Adds `alice.algorithm.two_site_bug`, a gate-based two-site BUG (Basis-Update &
+Galerkin) integrator for real- and imaginary-time evolution of an MPS under a
+nearest-neighbour Hamiltonian. It is built entirely on the existing Alice/Nicole
+stack — `MPS`, the AutoMPO interaction list, `decomp`, and the PyTorch backend —
+and adds no new tensor infrastructure.
+
+### `alice.algorithm.two_site_bug`
+
+- **`run(mps, interactions, opts)`** evolves the state with even/odd Trotter
+  sweeps of two-site bond gates, splitting each two-site block with a truncated
+  SVD so the bond dimension adapts (the basis augmentation). Supports first-order
+  (`'lie'`) and symmetric second-order (`'strang'`) steps and imaginary-time
+  cooling.
+- **Bond gates** are reused from the AutoMPO interaction list: the leading and
+  terminal MPO tensors of each nearest-neighbour `Interaction2Site` are contracted
+  over their operator channel and exponentiated block-wise on the PyTorch backend,
+  preserving the symmetry block structure exactly.
+- **`Options`** (TOML-loadable) and **`Summary`** mirror the DMRG interface. The
+  summary records, per step, the kept bond dimension and the *proposed* augmented
+  dimension, so the rank growth and the discarded augmentation are both visible.
+- Validated against exact diagonalization (state fidelity, exact norm
+  conservation, U(1) charge conservation, and second-order Trotter convergence).
+
 ## [0.1.6] - 2026-06-10
 
 **MPS Initialization for Odd Chains**

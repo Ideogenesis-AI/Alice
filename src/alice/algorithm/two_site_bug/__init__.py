@@ -16,12 +16,23 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Algorithm module: tensor network algorithms built on the network layer."""
+"""BUG algorithm package.
 
-from . import two_site_bug
-from . import dmrg
+Implements the gate-based two-site BUG (Basis-Update & Galerkin) time
+integrator: a nearest-neighbour Hamiltonian is evolved by even/odd Trotter
+sweeps of two-site bond gates, each block split with a truncated SVD that adapts
+the bond dimension. The public API includes:
+
+- `Options` — run options (loadable from TOML).
+- `Summary` — output dataclass.
+- `run`     — top-level entry point.
+"""
+
+from .two_site_bug import Options, Summary
+from .two_site_bug import run
 
 __all__ = [
-    'two_site_bug',
-    'dmrg',
+    'Options',
+    'Summary',
+    'run',
 ]

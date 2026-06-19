@@ -16,12 +16,4 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Algorithm module: tensor network algorithms built on the network layer."""
-
-from . import two_site_bug
-from . import dmrg
-
-__all__ = [
-    'two_site_bug',
-    'dmrg',
-]
+"""Tests for alice.algorithm.two_site_bug: gate-based two-site BUG integrator."""
