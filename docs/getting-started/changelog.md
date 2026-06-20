@@ -4,7 +4,7 @@
 
 **Two-Site BUG Time Integrator**
 
-Adds `alice.algorithm.two_site_bug`, the faithful rank-adaptive two-site BUG
+Adds `alice.algorithm.two_site_bug`, the rank-adaptive two-site BUG
 (Basis-Update & Galerkin) integrator of Ceruti, Kusch & Lubich
 ([arXiv:2304.05660](https://arxiv.org/abs/2304.05660)) for real- and
 imaginary-time evolution of an MPS under a nearest-neighbour Hamiltonian. The
