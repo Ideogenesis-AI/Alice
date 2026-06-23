@@ -19,7 +19,9 @@
 """Algorithm module: tensor network algorithms built on the network layer."""
 
 from . import dmrg
+from . import tdvp2
 
 __all__ = [
     'dmrg',
+    'tdvp2',
 ]

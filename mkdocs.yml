@@ -103,6 +103,11 @@ nav:
       - Options: api/dmrg/options.md
       - Summary: api/dmrg/summary.md
       - Launch: api/dmrg/run.md
+    - Two-Site TDVP:
+      - Overview: api/tdvp2/index.md
+      - Options: api/tdvp2/options.md
+      - Summary: api/tdvp2/summary.md
+      - Launch: api/tdvp2/run.md
   - Examples:
     - Overview: examples/index.md
     - DMRG:

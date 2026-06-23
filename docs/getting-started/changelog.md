@@ -1,5 +1,36 @@
 # Changelog
 
+## [Unreleased]
+
+**Two-Site TDVP Time Integrator**
+
+Adds `alice.algorithm.tdvp2`, a rank-adaptive two-site Time-Dependent Variational
+Principle integrator (Haegeman et al., [arXiv:1408.5056](https://arxiv.org/abs/1408.5056))
+for real- and imaginary-time evolution of an MPS under a Hamiltonian MPO. It is
+built on the shared MPS/MPO core and reuses the DMRG environment machinery and
+effective-Hamiltonian contractions, so it depends only on `alice.network` and
+`alice.algorithm.dmrg`.
+
+### `alice.algorithm.tdvp2`
+
+- **`run(mps, mpo, opts)`** evolves the state with symmetric (Strang) steps: a
+  forward half-sweep evolves each two-site block forward in time and the carried
+  one-site tensor backward in time (the inverse-free backward correction that
+  removes the shared-bond double counting), and a reverse half-sweep mirrors it.
+  The local substeps exponentiate the *effective Hamiltonian* — the MPS tensor
+  bracketed by the left/right MPO environments — with a Hermitian Krylov `expv`.
+  The per-bond SVD truncation makes the bond dimension adapt; real and imaginary
+  time (ground-state cooling) are both supported.
+- Takes a Hamiltonian **MPO** (from `build_hamiltonian`), like DMRG, and reuses
+  the DMRG `Environment` blocks, transfer-matrix steps, and the 1-/2-site
+  effective-Hamiltonian contractions. The local Krylov exponential and the
+  evolution-prefactor handling are self-contained in the package.
+- **`Options`** (TOML-loadable) and **`Summary`** mirror the DMRG interface; the
+  summary records the kept bond dimension and the norm per step.
+- Validated against exact diagonalization on the Heisenberg chain (state fidelity,
+  exact norm conservation, U(1) total-Sz conservation, imaginary-time cooling
+  toward the ground state, and bond-dimension growth as a domain wall melts).
+
 ## [0.1.6] - 2026-06-10
 
 **MPS Initialization for Odd Chains**
