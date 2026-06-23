@@ -21,9 +21,11 @@
 from . import two_site_bug
 from . import discarded_bug
 from . import dmrg
+from . import tdvp2
 
 __all__ = [
     'two_site_bug',
     'discarded_bug',
     'dmrg',
+    'tdvp2',
 ]

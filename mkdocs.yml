@@ -113,6 +113,11 @@ nav:
       - Options: api/discarded-bug/options.md
       - Summary: api/discarded-bug/summary.md
       - Launch: api/discarded-bug/run.md
+    - Two-Site TDVP:
+      - Overview: api/tdvp2/index.md
+      - Options: api/tdvp2/options.md
+      - Summary: api/tdvp2/summary.md
+      - Launch: api/tdvp2/run.md
   - Examples:
     - Overview: examples/index.md
     - DMRG:

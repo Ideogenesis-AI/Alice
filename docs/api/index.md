@@ -87,6 +87,16 @@ Variant of the two-site BUG with project-before generators and direct-sum basis 
 | [Summary](discarded-bug/summary.md) | Discarded-projector BUG output dataclass |
 | [run](discarded-bug/run.md) | Top-level discarded-projector BUG entry point |
 
+## Two-Site TDVP
+
+Rank-adaptive two-site TDVP time integrator (real and imaginary time).
+
+| Symbol | Description |
+|--------|-------------|
+| [Options](tdvp2/options.md) | TDVP run options |
+| [Summary](tdvp2/summary.md) | TDVP output dataclass |
+| [run](tdvp2/run.md) | Top-level TDVP entry point |
+
 ## Logging
 
 | Symbol | Description |
