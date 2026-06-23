@@ -33,6 +33,29 @@ local kernel is vendored, Nicole-native, in a private `_kernel` subpackage.
 - Validated against exact diagonalization (state fidelity, exact norm
   conservation, U(1) charge conservation, and second-order Trotter convergence).
 
+**Discarded-Projector BUG Variant**
+
+Adds `alice.algorithm.discarded_bug`, a rank-adaptive BUG integrator derived from
+the faithful CKL scheme that differs only in the local bond update. It reuses the
+two-site BUG's sweep, AutoMPO bond Hamiltonians, Krylov substeps, and
+`Options`/`Summary`; only the per-bond candidate is new.
+
+### `alice.algorithm.discarded_bug`
+
+- **`run(mps, interactions, opts)`** evolves the state with the same odd/even
+  Trotter sweep as the two-site BUG, but the local K/L/S update (1) applies the
+  discarded (orthogonal-complement) projector to the K/L *generator* before the
+  exponential (`project-before`), and (2) grows the frames by a plain per-sector
+  direct sum `[U0 | Qk]` / `[V0 ; Ql]` with no augmented overlap matrices — the
+  S-step projects the two-site tensor straight onto the augmented bases.
+- The project-before generator is non-Hermitian, so the K/L substep uses a
+  symmetry-preserving tensor **Arnoldi** exponential; the Hermitian S-step reuses
+  the faithful kernel's tensor Lanczos. Everything stays in the U(1) block-sparse
+  Nicole representation, so the kept bond dimension respects the charge sectors.
+- **`Options`** and **`Summary`** are reused from `two_site_bug` unchanged.
+- Validated against exact diagonalization (state fidelity, norm and U(1) charge
+  conservation, rank growth, and second-order Trotter convergence).
+
 ## [0.1.6] - 2026-06-10
 
 **MPS Initialization for Odd Chains**

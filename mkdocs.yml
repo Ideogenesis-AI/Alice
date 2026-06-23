@@ -108,6 +108,11 @@ nav:
       - Options: api/two-site-bug/options.md
       - Summary: api/two-site-bug/summary.md
       - Launch: api/two-site-bug/run.md
+    - Discarded-Projector BUG:
+      - Overview: api/discarded-bug/index.md
+      - Options: api/discarded-bug/options.md
+      - Summary: api/discarded-bug/summary.md
+      - Launch: api/discarded-bug/run.md
   - Examples:
     - Overview: examples/index.md
     - DMRG:

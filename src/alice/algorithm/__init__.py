@@ -19,9 +19,11 @@
 """Algorithm module: tensor network algorithms built on the network layer."""
 
 from . import two_site_bug
+from . import discarded_bug
 from . import dmrg
 
 __all__ = [
     'two_site_bug',
+    'discarded_bug',
     'dmrg',
 ]

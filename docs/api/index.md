@@ -67,6 +67,26 @@ Ground-state DMRG algorithm.
 | [Summary](dmrg/summary.md) | DMRG output dataclass |
 | [run](dmrg/run.md) | Top-level DMRG entry point |
 
+## Two-Site BUG
+
+Rank-adaptive two-site Basis-Update & Galerkin time integrator (real and imaginary time).
+
+| Symbol | Description |
+|--------|-------------|
+| [Options](two-site-bug/options.md) | BUG run options |
+| [Summary](two-site-bug/summary.md) | BUG output dataclass |
+| [run](two-site-bug/run.md) | Top-level BUG entry point |
+
+## Discarded-Projector BUG
+
+Variant of the two-site BUG with project-before generators and direct-sum basis growth.
+
+| Symbol | Description |
+|--------|-------------|
+| [Options](discarded-bug/options.md) | Discarded-projector BUG run options |
+| [Summary](discarded-bug/summary.md) | Discarded-projector BUG output dataclass |
+| [run](discarded-bug/run.md) | Top-level discarded-projector BUG entry point |
+
 ## Logging
 
 | Symbol | Description |
