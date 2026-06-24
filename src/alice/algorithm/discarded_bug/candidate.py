@@ -17,272 +17,482 @@
 # Author of code: Madhav Menon.
 
 
-"""Discarded-projector BUG local bond candidate.
+"""Local two-site update of the discarded-projector BUG integrator.
 
-This is the *only* file that differs from the faithful Ceruti–Kusch–Lubich K/L/S
-update in :mod:`alice.algorithm.two_site_bug._kernel`. Everything else — the
-Nicole tensor helpers, the Krylov ``expv`` substeps, the QR/SVD linear algebra,
-and the gate-application convention — is reused unchanged from that kernel.
+One rank-adaptive Basis-Update & Galerkin (BUG) step on a single bond, with the
+basis growth driven by the **discarded** (orthogonal-complement) projector and
+**without** ever forming the augmented overlap matrices ``M``, ``N``.
 
-Discarded-projector BUG vs faithful BUG (state ``Θ0 = U0 · S0 · V0``)
----------------------------------------------------------------------
-The faithful update grows the left frame by evolving ``K0 = U0·S0`` under the
-right-projected generator ``H_K = V0† H V0`` and orthonormalising ``[U0 | K1]``
-*through an overlap matrix* ``M̂`` that transports the core (``Ŝ0 = M̂ S0 N̂``).
-The discarded variant changes exactly two things, and nothing else:
+State on a bond: ``Theta0 = U0 . S0 . V0`` with ``U0`` left-isometric on
+``(link_l, site_l)``, ``V0`` right-isometric on ``(site_r, link_r)``, and ``S0``
+the center. The effective Hamiltonian enters through the MPO **environments**: the
+two-site action is ``H = E_left . W_i . W_{i+1} . E_right`` (the DMRG
+:func:`~alice.algorithm.dmrg.scheme_2s.matvec_2s`), so unlike a bare-gate TEBD
+update the local generator sees the whole chain through the environments and there
+is no Trotter splitting error.
 
-1. **Project-before.** The discarded (orthogonal-complement) projector is applied
-   to the K/L *generator* before the exponential, not to the integrated factor.
-   The K generator becomes ``G_K = P⊥_U0 · H_K`` with ``P⊥_U0 = I − U0 U0†`` and
-   the L generator ``G_L = H_L · P⊥_V0`` with ``P⊥_V0 = I − V0† V0``. Because the
-   projected generator is non-Hermitian, the K/L substep uses the general
-   (``issymmetric=False``) Krylov path rather than the Hermitian Lanczos.
+The update (:func:`block_local_update`)
+    1. **Evolve the two-site block once** under the two-site effective Hamiltonian,
+       ``Theta1 = exp(tau H) Theta0`` (Hermitian, so the Lanczos exponential).
+    2. **Grow the frames from** ``Theta1``: the augmented left isometry is
+       ``U_aug = qr([colspace(Theta1 | link_l, site_l) | U0])`` and the augmented
+       right isometry is ``V_aug = qr([rowspace(Theta1 | link_r, site_r) ; V0])`` —
+       the discarded-projector direct sum (the leading ``U0``/``V0`` keep the old
+       frame exactly inside; the QR drops dependent columns so a saturated leg gives
+       no spurious growth). No overlap matrix ``M``/``N`` is built.
+    3. **Project the evolved block** onto the augmented frames for the Galerkin core
+       ``S = U_aug+ Theta1 V_aug+`` (the time evolution is already in ``Theta1``;
+       there is no separate S-step), then **SVD-truncate** to ``maxdim`` / ``cutoff``
+       to set the new (possibly larger) bond rank.
 
-2. **Direct sum, no overlap matrices.** The new directions are isolated by the
-   discarded projector and stacked onto the old isometry by a plain QR
-   (``Û = [U0 | Qk]``, ``V̂ = [V0 ; Ql]``) — no ``M̂``/``N̂`` is formed. The S-step
-   then projects the *current* two-site tensor directly onto the augmented bases,
-   ``Ŝ0 = Û† Θ0 V̂†`` (the ``_transported_s_start_from_augmented_bases`` helper),
-   evolves it in the augmented basis, and truncates with an SVD.
+Why grow from the evolved block
+    Acting with ``H`` on the two-site window is what creates the new Schmidt
+    direction — a domain-wall interface block ``Theta1`` has Schmidt rank 2, so the
+    bond *must* grow ``1 -> 2`` in one step. A generator that froze a neighbour at
+    the old rank-deficient frame (projecting ``H Theta0`` onto ``V0 V0+``) would
+    annihilate exactly that direction, because the new content is orthogonal to the
+    old single-state frame. Reading the frames off the full ``Theta1`` keeps the
+    physical legs free, so the genuine entanglement growth survives. This is the
+    two-site analogue of the reference leaf basis-update (which keeps the leaf's
+    physical leg open and only projects the *other* subtrees' bonds).
 
-The S-step generator, the augmented-basis Galerkin evolution, and the final SVD
-truncation are identical to the faithful kernel.
+Forward-only / inverse-free
+    A single block evolution and a single truncation, with **no** backward (``-tau``)
+    substep and no overlap-matrix inverse — BUG is inverse-free by design. The
+    growth and accuracy come entirely from the discarded-projector augmentation and
+    the Galerkin core.
+
+Everything stays in the symmetry-blocked Nicole representation (the QR, the SVD,
+the direct sum via :func:`nicole.oplus`), so the U(1) charge sectors are respected
+throughout — a dense standard-basis step would mix sectors and be rejected.
+
+Index conventions
+    * ``U0``    : ``(link_l, site_l, mid_u)`` — left-isometric over ``(link_l, site_l)``
+    * ``V0``    : ``(mid_v, link_r, site_r)`` — right-isometric over ``(link_r, site_r)``
+    * ``S0``    : ``(mid_u, mid_v)``
+    * theta (for ``matvec_2s``) : ``(link_l, link_r, site_l, site_r)``
 """
 
 from __future__ import annotations
 
-import math
-from typing import Any
+from dataclasses import dataclass
+from typing import Tuple
 
 import torch
-from nicole import Tensor, decomp
+from nicole import Tensor, conj, contract, decomp, oplus
 
-# Everything below is reused verbatim from the faithful two-site BUG kernel.
-from ..two_site_bug._kernel.indices import Ix, fresh_itag
-from ..two_site_bug._kernel.krylov import (
-    active_time_prefactor,
-    tensor_inner,
-    tensor_lanczos_expv,
-)
-from ..two_site_bug._kernel.nicole_helpers import dag, tcontract
-from ..two_site_bug._kernel.kls.frame import (
-    LocalBondFrame,
-    _apply_gate_named,
-    _clone_tensor_with_ixs,
-    _singular_values_from_diag_tensor,
-    _tensor_ix,
-)
-from ..two_site_bug._kernel.kls.symmetric_completion import (
-    _symmetric_augmented_left_isometry_from_k,
-    _symmetric_augmented_right_isometry_from_l,
-)
+from ._krylov import tensor_lanczos_expv
 
 
-def _tensor_arnoldi_expv(apply, dt: complex, x: Tensor, *, maxiter: int = 30, tol: float = 1e-15) -> Tensor:
-    """Return ``exp(dt * A) @ x`` for a NON-Hermitian Nicole-tensor action ``apply``.
+# ---------------------------------------------------------------------------
+# Bond snapshot
+# ---------------------------------------------------------------------------
 
-    A tensor-native Arnoldi (modified Gram–Schmidt) exponential: it builds an
-    orthonormal Krylov basis of Nicole tensors and a small dense upper-Hessenberg
-    matrix ``H``, then forms ``y = β · V · exp(dt H) e1``. Everything stays in the
-    symmetry-blocked Nicole representation — unlike a dense standard-basis Krylov,
-    it never produces amplitudes outside the admissible U(1) blocks. This is the
-    non-Hermitian counterpart of
-    :func:`alice.algorithm.two_site_bug._kernel.krylov.tensor_lanczos_expv` and
-    matches the Julia ``KrylovKit.exponentiate(..., issymmetric=false)`` path used
-    by the reference discarded-BUG K/L substeps.
+@dataclass
+class BondSnapshot:
+    """Canonical two-site window extracted for one local update.
+
+    Attributes
+    ----------
+    U0:
+        Left isometry with axes ``(link_l, site_l, mid_u)``.
+    V0:
+        Right isometry with axes ``(mid_v, link_r, site_r)``.
+    S0:
+        Center with axes ``(mid_u, mid_v)``.
+    bond_itag:
+        itag carried by the internal bond of this two-site window (used to tag
+        the new isometries and the truncated bond).
     """
-    beta0 = float(x.norm().real if hasattr(x.norm(), "real") else x.norm())
-    if beta0 == 0.0:
-        return x
-    m = max(int(maxiter), 1)
-    basis = [(1.0 / beta0) * x]
-    # H[i, j] = <basis[i] | A basis[j]>; the sub-diagonal H[j+1, j] is the norm of
-    # the residual after orthogonalising A basis[j] against basis[0..j].
-    H = torch.zeros((m, m), dtype=torch.complex128)
-    used = 1
-    for j in range(m):
-        w = apply(basis[j])
-        for i in range(j + 1):
-            hij = tensor_inner(basis[i], w)
-            H[i, j] = hij
-            w = w + (-hij) * basis[i]
-        used = j + 1
-        nrm = float(w.norm().real if hasattr(w.norm(), "real") else w.norm())
-        if nrm <= tol or j == m - 1:
-            break
-        H[j + 1, j] = nrm
-        basis.append((1.0 / nrm) * w)
 
-    Hk = H[:used, :used]
-    coeff = torch.linalg.matrix_exp(dt * Hk)[:, 0] * beta0
-    out = coeff[0] * basis[0]
-    for idx in range(1, used):
-        out = out + coeff[idx] * basis[idx]
-    return out
+    U0: Tensor
+    V0: Tensor
+    S0: Tensor
+    bond_itag: str
 
 
-def _discarded_local_bond_candidate(
-    frame: LocalBondFrame,
-    gate: Tensor,
-    dt: complex,
-    maxdim: int = 200,
-    s_dt: complex | None = None,
-    augment: bool = True,
-    aug_krylov_depth: int = 1,
-    aug_tol: float = 1e-12,
-    trunc_thresh: float | None = None,
-    lanczos_tol: float = 1e-15,
-    lanczos_maxiter: int = 30,
-):
-    """Run one discarded-projector K/L/S local update (see module docstring)."""
-    s_dt_eff = dt if s_dt is None else s_dt
-    augment_left_here = augment and frame.old_rank < frame.left_capacity
-    augment_right_here = augment and frame.old_rank < frame.right_capacity
-    prefactor = active_time_prefactor()
+def bond_snapshot(left_core: Tensor, right_core: Tensor, bond_itag: str) -> BondSnapshot:
+    """Split two adjacent MPS cores into a canonical ``(U0, S0, V0)`` window.
 
-    # ---- K-step: project-before, then integrate K0 = U0·S0 ----
-    # H_K x = V0†-projected gate action; G_K x = P⊥_U0 (H_K x), P⊥_U0 = I − U0 U0†.
-    # The projected generator is NON-Hermitian, so we use a symmetry-preserving
-    # tensor Arnoldi exponential (never densifying to the standard basis, which
-    # would break the U(1) block structure of the Nicole tensor).
-    K0_tens = tcontract(frame.U0_tens, frame.S0_tens)        # (link_l, site_l, mid_k)
-    mid_k = _tensor_ix(K0_tens, 2)
+    Mirrors the Julia ``_canonical_quantum_bond_snapshot``: a QR-like split of the
+    left core exposes a left isometry ``U0`` and a left carry, an LQ-like split of
+    the right core exposes a right isometry ``V0`` and a right carry, and the two
+    carries contract over the shared bond to give the center ``S0``. Both splits
+    are computed with Nicole's ``UR`` decomposition (``U``/``V`` isometric, the
+    singular values folded into the carry), so the U(1) sectors are preserved.
 
-    def apply_gk(x_tens: Tensor) -> Tensor:
-        theta = tcontract(x_tens, frame.V0_tens)
-        evolved = _apply_gate_named(gate, theta, frame.site_l.itag, frame.site_r.itag)
-        HK = tcontract(evolved, dag(frame.V0_tens))          # H_K x on (link_l, site_l, mid_k)
-        # P⊥_U0 on (link_l, site_l): HK − U0 (U0† HK).
-        return HK - tcontract(frame.U0_tens, tcontract(dag(frame.U0_tens), HK))
+    Parameters
+    ----------
+    left_core:
+        MPS tensor at site ``i`` with axes ``(link_l, bond, site_l)``.
+    right_core:
+        MPS tensor at site ``i+1`` with axes ``(bond, link_r, site_r)`` whose left
+        bond shares the itag of ``left_core``'s right bond.
+    bond_itag:
+        itag to assign to the internal ``mid_u`` bond of the left isometry.
 
-    K1_tens = _tensor_arnoldi_expv(apply_gk, prefactor * dt, K0_tens,
-                                   maxiter=lanczos_maxiter, tol=lanczos_tol)
-    # Direct sum Û = [U0 | Qk], built per U(1) charge sector so the Nicole block
-    # structure stays valid (a symmetry-blind dense QR would mix sectors and be
-    # rejected). No overlap matrix M̂ is formed — the discarded variant projects
-    # Θ0 onto the augmented bases directly in the S-step below.
-    U_aug_tens, _M_hat, n_new_k = _symmetric_augmented_left_isometry_from_k(
-        frame.U0_tens, K1_tens, frame.link_l, frame.site_l, frame.canon_u0, mid_k,
-        augment=augment_left_here, max_rank=math.inf, aug_tol=aug_tol)
-
-    # ---- L-step: project-before, then integrate L0 = S0·V0 ----
-    L0_tens = tcontract(frame.S0_tens, frame.V0_tens)        # (mid_l, site_r, link_r)
-    mid_l = _tensor_ix(L0_tens, 0)
-
-    def apply_gl(x_tens: Tensor) -> Tensor:
-        theta = tcontract(frame.U0_tens, x_tens)
-        evolved = _apply_gate_named(gate, theta, frame.site_l.itag, frame.site_r.itag)
-        HL = tcontract(dag(frame.U0_tens), evolved)          # H_L x on (mid_l, site_r, link_r)
-        # P⊥_V0 on (site_r, link_r): HL − (HL V0†) V0.
-        return HL - tcontract(tcontract(HL, dag(frame.V0_tens)), frame.V0_tens)
-
-    L1_tens = _tensor_arnoldi_expv(apply_gl, prefactor * dt, L0_tens,
-                                   maxiter=lanczos_maxiter, tol=lanczos_tol)
-    V_aug_tens, _N_hat, n_new_l = _symmetric_augmented_right_isometry_from_l(
-        frame.V0_tens, L1_tens, frame.canon_v0, mid_l, frame.site_r, frame.link_r,
-        augment=augment_right_here, max_rank=math.inf, aug_tol=aug_tol)
-
-    # ---- S-step: project Θ0 directly onto the augmented bases (no M̂/N̂), evolve ----
-    # Ŝ0 = Û† Θ0 V̂† as a tensor contraction. dag(U_aug) exposes the augmented left
-    # mid-leg, dag(V_aug) the augmented right mid-leg, so Ŝ0 is automatically tagged
-    # to contract back with U_aug_tens / V_aug_tens in apply_s_tensor below.
-    theta0_tens = tcontract(tcontract(frame.U0_tens, frame.S0_tens), frame.V0_tens)
-    S_start_tens = tcontract(tcontract(dag(U_aug_tens), theta0_tens), dag(V_aug_tens))
-
-    def apply_s_tensor(x_tens: Tensor) -> Tensor:
-        theta = tcontract(tcontract(U_aug_tens, x_tens), V_aug_tens)
-        evolved = _apply_gate_named(gate, theta, frame.site_l.itag, frame.site_r.itag)
-        projected = tcontract(dag(U_aug_tens), evolved)
-        return tcontract(projected, dag(V_aug_tens))
-
-    S_new_tens = _advance_s_tensor_in_bases_tensor(
-        apply_s_tensor, s_dt_eff, S_start_tens, lanczos_tol, lanczos_maxiter)
-
-    # ---- truncate: SVD sets the new (rank-adaptive) bond dimension ----
-    # Done in the symmetry-blocked Nicole representation (mirrors the faithful
-    # kernel's S-step split), so the kept rank respects the U(1) sectors.
-    final_left_tag = fresh_itag(frame.link_mid.itag)
-    final_right_tag = fresh_itag(frame.link_mid.itag)
-    U_s, Sdiag, Vh = decomp(
-        S_new_tens, 0, mode="SVD",
-        itag=(final_left_tag, final_right_tag),
-        trunc={
-            "nkeep": int(maxdim),
-            "thresh": max(float(aug_tol if trunc_thresh is None else trunc_thresh), 1e-14),
-        },
-    )
-    left_tmp = tcontract(U_aug_tens, U_s)
-    right_tmp = tcontract(tcontract(Sdiag, Vh, axes=([1], [0])), V_aug_tens)
-    left_tmp.retag({final_left_tag: frame.link_mid.itag})
-    right_tmp.retag({final_left_tag: frame.link_mid.itag})
-
-    new_bond = Ix(frame.link_mid.itag, int(left_tmp.indices[2].dim), left_tmp.indices[2].direction,
-                  left_tmp.indices[2].sectors, left_tmp.indices[2].group)
-    right_bond = Ix(frame.link_mid.itag, int(right_tmp.indices[0].dim), right_tmp.indices[0].direction,
-                    right_tmp.indices[0].sectors, right_tmp.indices[0].group)
-    left_core = _clone_tensor_with_ixs(left_tmp, [frame.link_l, frame.site_l, new_bond])
-    right_core = _clone_tensor_with_ixs(right_tmp, [right_bond, frame.site_r, frame.link_r])
-    svals = _singular_values_from_diag_tensor(Sdiag)
-
-    return {
-        "left_core": left_core,
-        "right_core": right_core,
-        "U_aug_tens": U_aug_tens,
-        "V_aug_tens": V_aug_tens,
-        "S_new": S_new_tens,
-        "n_new_k": int(n_new_k),
-        "n_new_l": int(n_new_l),
-        "keep": int(left_core.indices[2].dim),
-        "svals": svals,
-    }
-
-
-def _advance_s_tensor_in_bases_tensor(apply_s, dt, S_start_tens, lanczos_tol, lanczos_maxiter):
-    """Evolve the augmented-basis core with the Hermitian tensor Lanczos ``expv``.
-
-    The S-step generator ``Û† H V̂``-projected is Hermitian (it is the faithful
-    Galerkin generator on the augmented bases), so this reuses the same Hermitian
-    tensor exponential the faithful kernel uses for its S-step.
+    Returns
+    -------
+    BondSnapshot
+        The canonical window ``(U0, S0, V0)`` with the conventions in the module
+        docstring.
     """
-    return tensor_lanczos_expv(
-        apply_s, active_time_prefactor() * dt, S_start_tens,
-        maxiter=lanczos_maxiter, tol=lanczos_tol,
-    )
+    # Canonicalise the two-site window by QR/LQ, matching the reference
+    # ``_canonical_quantum_bond_snapshot`` (QR of the left core, LQ of the right):
+    # the upper-/lower-triangular factors define the gauge that is transported as
+    # the orthogonality center moves along the chain.
+    #
+    # Left core (link_l, bond, site_l): QR separating (link_l, site_l) onto the Q
+    # side -> U0 = (link_l, site_l, mid_u) left-isometric, R = (mid_u, bond).
+    u0, left_carry = decomp(left_core, axes=[0, 2], mode='QR', itag=bond_itag)
+    # Right core (bond, link_r, site_r): QR separating (link_r, site_r) onto the Q
+    # side (an LQ of the right core) -> Viso = (link_r, site_r, mid_v) right-iso,
+    # R = (mid_v, bond).
+    v_iso, right_carry = decomp(right_core, axes=[1, 2], mode='QR', itag=bond_itag + '_v')
+    v0 = v_iso.permute([2, 0, 1])  # (mid_v, link_r, site_r)
+    # Center S0 = left_carry . right_carry contracted over the shared bond
+    # (left_carry axis 1, right_carry axis 1) -> (mid_u, mid_v).
+    s0 = contract(left_carry, right_carry, axes=([1], [1]))
+    return BondSnapshot(U0=u0, V0=v0, S0=s0, bond_itag=bond_itag)
 
 
-def discarded_bug_local_bond_candidate(
-    bond_data: dict[str, Any],
+# ---------------------------------------------------------------------------
+# Discarded-projector augmented isometries
+# ---------------------------------------------------------------------------
+
+def _augmented_left_isometry(u0: Tensor, k1: Tensor) -> Tuple[Tensor, int]:
+    """Grow the left frame by constructing the augmented basis ``[K1 | U0]``.
+
+    This is the rank-adaptive Basis-Update step of the tree/MPS BUG integrator: the
+    augmented left isometry spans both the old frame and the freshly evolved ``K1``,
+
+        ``U_aug = orthonormalize([ colspace(K1) | U0 ])``  (over ``(link_l, site_l)``),
+
+    so a new direction is admitted wherever the time-evolved ``K1`` has left
+    ``span(U0)``. We **construct the augmented basis** (this concatenation + QR) but
+    never the augmented *projectors*: no ``M = U_aug+ U0`` overlap matrix is formed —
+    the augmented core is obtained later by projecting the state directly onto the
+    augmented frames (see :func:`center_sstep`). The leading ``[K1 | U0]`` ordering
+    keeps ``U0`` exactly inside ``U_aug``.
+
+    ``K1`` is QR'd first so its column-space isometry shares the outgoing bond
+    direction of ``U0`` before the direct sum; the final QR over ``(link_l, site_l)``
+    drops dependent columns (so a saturated ``(link_l, site_l)`` space yields no
+    spurious growth) and restores an exact isometry. No augmentation tolerance is
+    applied — the QR's machine-precision rank detection sets the admitted directions,
+    and the only explicit rank control is the post-S-step SVD truncation.
+
+    Parameters
+    ----------
+    u0:
+        Old left isometry with axes ``(link_l, site_l, mid_u)``.
+    k1:
+        Integrated K tensor with axes ``(link_l, site_l, mid_v)``.
+
+    Returns
+    -------
+    Tensor
+        Augmented left isometry ``U_aug`` with axes ``(link_l, site_l, mid_aug)``.
+    int
+        Number of new columns added (``mid_aug - mid_u``).
+    """
+    old_rank = u0.indices[2].dim
+    # colspace(K1): QR over (link_l, site_l) so K1's basis shares U0's bond direction.
+    qk, _ = decomp(k1, axes=[0, 1], mode='QR', itag=u0.itags[2])
+    # Augmented basis [colspace(K1) | U0], re-orthonormalised by a final QR that drops
+    # dependent columns (no growth where (link_l, site_l) is already saturated).
+    u_aug, _ = decomp(oplus(qk, u0, axes=2), axes=[0, 1], mode='QR', itag=u0.itags[2])
+    return u_aug, u_aug.indices[2].dim - old_rank
+
+
+def _augmented_right_isometry(v0: Tensor, l1: Tensor) -> Tuple[Tensor, int]:
+    """Grow the right frame by constructing the augmented basis ``[L1 ; V0]``.
+
+    Mirror of :func:`_augmented_left_isometry` on the right frame: the augmented
+    right isometry spans both the old frame and the evolved ``L1``,
+
+        ``V_aug = orthonormalize([ rowspace(L1) ; V0 ])``  (over ``(link_r, site_r)``),
+
+    constructing the augmented basis (concatenation + QR) but never the augmented
+    overlap matrices. ``L1`` is QR'd over ``(link_r, site_r)`` first so its
+    row-space isometry shares ``V0``'s bond direction; the final QR drops dependent
+    rows (no growth where ``(link_r, site_r)`` is saturated). No augmentation
+    tolerance.
+
+    Parameters
+    ----------
+    v0:
+        Old right isometry with axes ``(mid_v, link_r, site_r)``.
+    l1:
+        Integrated L tensor with axes ``(mid_u, link_r, site_r)``.
+
+    Returns
+    -------
+    Tensor
+        Augmented right isometry ``V_aug`` with axes ``(mid_aug, link_r, site_r)``.
+    int
+        Number of new rows added.
+    """
+    old_rank = v0.indices[0].dim
+    # rowspace(L1): QR over (link_r, site_r) gives Ql as (link_r, site_r, mid_new);
+    # reorder to the right-isometry convention (mid_new, link_r, site_r).
+    ql_iso, _ = decomp(l1, axes=[1, 2], mode='QR', itag=v0.itags[0])
+    ql = ql_iso.permute([2, 0, 1])
+    # Augmented basis [rowspace(L1) ; V0], re-orthonormalised by a final QR that drops
+    # dependent rows (no growth where (link_r, site_r) is already saturated).
+    v_sum = oplus(ql, v0, axes=0)
+    v_aug_iso, _ = decomp(v_sum, axes=[1, 2], mode='QR', itag=v0.itags[0])
+    v_aug = v_aug_iso.permute([2, 0, 1])
+    return v_aug, v_aug.indices[0].dim - old_rank
+
+
+# ---------------------------------------------------------------------------
+# Local update
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LocalUpdate:
+    """Result of one discarded-BUG local update on a bond.
+
+    Attributes
+    ----------
+    left_core:
+        New left core with axes ``(link_l, kept, site_l)`` (left-isometric).
+    right_core:
+        New right core with axes ``(kept, link_r, site_r)`` carrying the singular
+        values (the orthogonality center after a forward step, or the right
+        isometry after a reverse step, depending on the sweep).
+    n_new_left:
+        Number of directions the K-step added to the left frame.
+    n_new_right:
+        Number of directions the L-step added to the right frame.
+    kept:
+        New bond dimension after the SVD truncation.
+    svals:
+        Kept singular values per charge sector (concatenated, descending).
+    """
+
+    left_core: Tensor
+    right_core: Tensor
+    n_new_left: int
+    n_new_right: int
+    kept: int
+    svals: torch.Tensor
+
+
+def _two_site_apply(
+    theta_left_right_phys: Tensor,
+    W_i: Tensor,
+    W_i1: Tensor,
+    E_left: Tensor,
+    E_right: Tensor,
+) -> Tensor:
+    """Apply the two-site effective Hamiltonian, in the local axis order.
+
+    The local update keeps tensors in ``(link, ..., site)`` order, whereas
+    :func:`~alice.algorithm.dmrg.scheme_2s.matvec_2s` expects and returns the
+    DMRG bond order ``(link_l, link_r, site_l, site_r)``. This helper permutes in,
+    applies ``matvec_2s``, and permutes back, so callers can build theta from the
+    snapshot factors without worrying about the DMRG convention.
+
+    Parameters
+    ----------
+    theta_left_right_phys:
+        Bond tensor with axes ``(link_l, site_l, link_r, site_r)``.
+    W_i, W_i1:
+        MPO tensors at sites ``i`` and ``i+1``.
+    E_left, E_right:
+        Left/right MPO environments bracketing the two-site window.
+
+    Returns
+    -------
+    Tensor
+        ``H|theta>`` with axes ``(link_l, site_l, link_r, site_r)``.
+    """
+    from ..dmrg.scheme_2s import matvec_2s
+
+    # (link_l, site_l, link_r, site_r) -> (link_l, link_r, site_l, site_r)
+    theta = theta_left_right_phys.permute([0, 2, 1, 3])
+    out = matvec_2s(theta, W_i, W_i1, E_left, E_right)   # (link_l, link_r, site_l, site_r)
+    return out.permute([0, 2, 1, 3])                     # back to local order
+
+
+def block_local_update(
+    snapshot: BondSnapshot,
+    W_i: Tensor,
+    W_i1: Tensor,
+    E_left: Tensor,
+    E_right: Tensor,
+    tau: complex,
     *,
-    gate,
-    dt: complex,
-    maxdim: int = 200,
-    s_dt: complex | None = None,
-    augment: bool = True,
-    aug_krylov_depth: int = 1,
-    aug_tol: float = 1e-12,
-    trunc_thresh: float | None = None,
-    lanczos_tol: float = 1e-15,
-    lanczos_maxiter: int = 30,
-    **kwargs: Any,
-):
-    """Return the discarded-projector BUG candidate on one bond.
+    maxdim: int,
+    cutoff: float,
+    lanczos_tol: float,
+    lanczos_maxiter: int,
+) -> LocalUpdate:
+    """One discarded-BUG local update on a bond, growing the basis from the evolved block.
 
-    Mirrors the call surface of
-    :func:`alice.algorithm.two_site_bug._kernel._faithful_kls_local_bond_candidate`
-    so the odd/even sweep can swap kernels without any other change.
+    This is the rank-adaptive Basis-Update & Galerkin (BUG) step in its faithful
+    two-site form. The two-site block is evolved **once** under the two-site
+    effective Hamiltonian,
+
+        ``Theta1 = exp(tau * H_2site) . Theta0``     (``H_2site = E_left W_i W_{i+1} E_right``),
+
+    and the augmented frames are read directly off ``Theta1``: the left frame from its
+    ``(link_l, site_l)`` column space and the right frame from its ``(link_r, site_r)``
+    row space, each direct-summed onto the old frame with the **discarded** projector
+    (``U_aug = qr([Theta1_left | U0])`` / ``V_aug = qr([Theta1_right | V0])`` — never an
+    ``M``/``N`` overlap matrix). The Galerkin core is then the projection of the already
+    evolved block, ``S = U_aug+ Theta1 V_aug+``, which is SVD-truncated to set the new
+    bond rank.
+
+    Why grow from the evolved block (and not a frozen-neighbour generator)
+        Acting with ``H`` on the two-site window is what creates the new Schmidt
+        direction: for a domain-wall product state the interface block ``Theta1`` has
+        Schmidt rank 2, so the bond *must* grow ``1 -> 2`` in one step. A K-step that
+        froze the right subsystem at the old single-state frame ``V0`` (i.e. projected
+        ``H Theta0`` onto ``V0 V0+``) would annihilate exactly that direction, because
+        the new right content is orthogonal to ``V0``. Reading the frames off the full
+        ``Theta1`` keeps the physical legs free, so the genuine entanglement growth
+        survives — this is the two-site analogue of the reference leaf basis-update
+        (which keeps the leaf's physical leg open and only projects the *other* subtrees'
+        bonds).
+
+    The update is forward-only: a single block evolution and a single truncation, with
+    **no** backward ``-tau`` substep. The growth and accuracy come entirely from the
+    discarded-projector basis augmentation and the Galerkin core, never from an inverse.
+
+    Parameters
+    ----------
+    snapshot:
+        Canonical ``(U0, S0, V0)`` window from :func:`bond_snapshot`.
+    W_i, W_i1:
+        MPO tensors at sites ``i`` and ``i+1``.
+    E_left, E_right:
+        Left/right MPO environments bracketing the two-site window.
+    tau:
+        Substep generator coefficient (``prefactor * dt``).
+    maxdim, cutoff:
+        SVD truncation controls for the new bond rank.
+    lanczos_tol, lanczos_maxiter:
+        Krylov termination tolerance and maximum dimension for the block evolution.
+
+    Returns
+    -------
+    LocalUpdate
+        New left/right cores (``left`` left-isometric, ``right`` carries the singular
+        values) and rank-adaptivity diagnostics.
     """
-    if aug_krylov_depth != 1:
-        raise ValueError("discarded_bug currently supports aug_krylov_depth == 1 only.")
-    kwargs.pop("substep_method", None)
-    kwargs.pop("matrixfree_sstep", None)
-    if kwargs:
-        unknown = ", ".join(sorted(kwargs))
-        raise TypeError(f"Unknown discarded_bug option(s): {unknown}")
+    u0, v0, s0 = snapshot.U0, snapshot.V0, snapshot.S0
+    theta0 = contract(contract(u0, s0, axes=([2], [0])), v0, axes=([2], [0]))
 
-    frame = LocalBondFrame.from_mapping(bond_data)
-    return _discarded_local_bond_candidate(
-        frame, gate, dt,
-        maxdim=maxdim, s_dt=s_dt, augment=augment, aug_krylov_depth=aug_krylov_depth,
-        aug_tol=aug_tol, trunc_thresh=trunc_thresh,
-        lanczos_tol=lanczos_tol, lanczos_maxiter=lanczos_maxiter,
+    # Evolve the two-site block once under the two-site effective Hamiltonian (Hermitian
+    # -> Lanczos exponential). This is the single forward evolution of the BUG step.
+    def apply_h(theta: Tensor) -> Tensor:
+        return _two_site_apply(theta, W_i, W_i1, E_left, E_right)
+
+    theta1 = tensor_lanczos_expv(apply_h, tau, theta0, maxiter=lanczos_maxiter, tol=lanczos_tol)
+
+    # Augmented LEFT frame from Theta1's (link_l, site_l) column space, discarded-summed
+    # onto U0. The QR isolates the column space; _augmented_left_isometry appends U0.
+    k_left, _ = decomp(theta1, axes=[0, 1], mode='QR', itag=u0.itags[2])
+    u_aug, n_new_left = _augmented_left_isometry(u0, k_left)
+    # Augmented RIGHT frame from Theta1's (link_r, site_r) row space, discarded-summed
+    # onto V0. r_right is (link_r, site_r, new) -> reorder to (new, link_r, site_r).
+    r_right, _ = decomp(theta1, axes=[2, 3], mode='QR', itag=v0.itags[0])
+    v_aug, n_new_right = _augmented_right_isometry(v0, r_right.permute([2, 0, 1]))
+
+    # Galerkin core = projection of the already-evolved block onto the augmented frames
+    # (no separate S-step: the time evolution is in Theta1).
+    s_left = contract(conj(u_aug), theta1, axes=([0, 1], [0, 1]))   # (mid_aug_u, link_r, site_r)
+    s_new = contract(s_left, conj(v_aug), axes=([1, 2], [1, 2]))    # (mid_aug_u, mid_aug_v)
+
+    return _truncate_and_assemble(
+        u_aug, v_aug, s_new, snapshot.bond_itag,
+        maxdim=maxdim, cutoff=cutoff,
+        n_new_left=n_new_left, n_new_right=n_new_right,
     )
+
+
+def _truncate_and_assemble(
+    u_aug: Tensor,
+    v_aug: Tensor,
+    s_new: Tensor,
+    bond_itag: str,
+    *,
+    maxdim: int,
+    cutoff: float,
+    n_new_left: int,
+    n_new_right: int,
+) -> LocalUpdate:
+    """SVD-truncate the evolved core and re-absorb it into the augmented frames.
+
+    The augmented-basis core ``s_new`` is decomposed ``s_new = U_s . S . Vh``,
+    truncated to ``maxdim`` / ``cutoff``, and folded back: ``left = U_aug . U_s``
+    (left-isometric) and ``right = (S Vh) . V_aug`` (carries the singular values).
+    The truncation runs in the symmetry-blocked representation, so the kept rank
+    respects the U(1) sectors.
+
+    Parameters
+    ----------
+    u_aug, v_aug:
+        Augmented left/right isometries from the K/L steps.
+    s_new:
+        Evolved augmented-basis core with axes ``(mid_aug_u, mid_aug_v)``.
+    bond_itag:
+        itag to assign to the truncated internal bond.
+    maxdim:
+        Maximum kept bond dimension.
+    cutoff:
+        Relative singular-value threshold.
+    n_new_left, n_new_right:
+        Rank-adaptivity diagnostics carried through to the result.
+
+    Returns
+    -------
+    LocalUpdate
+        The assembled cores and diagnostics.
+    """
+    trunc = {'nkeep': int(maxdim), 'thresh': max(float(cutoff), 0.0)}
+    u_s, s_diag, vh = decomp(s_new, axes=0, mode='SVD', itag=(bond_itag, bond_itag), trunc=trunc)
+
+    # left = U_aug . U_s  ->  (link_l, site_l, kept)
+    left = contract(u_aug, u_s, axes=([2], [0]))
+    # right = (S . Vh) . V_aug  ->  (kept, link_r, site_r)
+    s_vh = contract(s_diag, vh, axes=([1], [0]))
+    right = contract(s_vh, v_aug, axes=([1], [0]))
+
+    # Re-order to the MPS core convention (link_left, link_right, physical).
+    left = left.permute([0, 2, 1])   # (link_l, kept, site_l)
+    # right is already (kept, link_r, site_r) = (link_left, link_right, physical).
+
+    kept = left.indices[1].dim
+    svals = _singular_values(s_diag)
+    return LocalUpdate(
+        left_core=left,
+        right_core=right,
+        n_new_left=n_new_left,
+        n_new_right=n_new_right,
+        kept=kept,
+        svals=svals,
+    )
+
+
+def _singular_values(s_diag: Tensor) -> torch.Tensor:
+    """Return the singular values held on the diagonal of ``s_diag``, descending."""
+    values = []
+    for block in s_diag.data.values():
+        diag = torch.diagonal(block).abs().to(torch.float64)
+        values.append(diag)
+    if not values:
+        return torch.zeros(0, dtype=torch.float64)
+    return torch.sort(torch.cat(values), descending=True).values
+
+
+# Re-exported for the global forward sweep (:mod:`~alice.algorithm.discarded_bug.sweep`).
+__all__ = [
+    'BondSnapshot',
+    'LocalUpdate',
+    'bond_snapshot',
+    'block_local_update',
+]

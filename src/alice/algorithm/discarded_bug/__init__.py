@@ -19,20 +19,31 @@
 
 """Discarded-projector BUG algorithm package.
 
-A rank-adaptive two-site Basis-Update & Galerkin (BUG) time integrator derived
-from the faithful Ceruti–Kusch–Lubich scheme (arXiv:2304.05660), differing only
-in the local bond update: the discarded (orthogonal-complement) projector is
-applied to the K/L generator *before* the exponential, and the basis is grown by
-a plain direct sum ``[U0 | Qk]`` / ``[V0 ; Ql]`` with no augmented overlap
-matrices. A nearest-neighbour Hamiltonian is evolved by odd/even Trotter sweeps
-of these local updates; the bond grows only as far as the entanglement requires.
+A rank-adaptive **two-site** Basis-Update & Galerkin (BUG) time integrator — the
+MPS specialisation of the tree-tensor-network BUG of Ceruti–Lubich–Walach, with
+two modifications: every local update is two-site (through the two-site effective
+Hamiltonian with the left/right MPO environments), and the basis growth is driven
+by the **discarded** (orthogonal-complement) projector — the augmented frames are
+read directly off the evolved two-site block (``qr([Theta1_left | U0])`` /
+``qr([Theta1_right | V0])``), with **no** augmented overlap matrices and **no**
+backward correction.
 
-This package reuses the faithful kernel, the odd/even sweep machinery, and the
-AutoMPO bond terms of :mod:`alice.algorithm.two_site_bug`; only
-:mod:`alice.algorithm.discarded_bug.candidate` is new. Public API:
+Acting with the Hamiltonian on a two-site window is what creates the new Schmidt
+direction (a domain-wall interface block has Schmidt rank 2), so the bond grows as
+the entanglement front reaches it. Following the Lubich tree BUG (whose tree is built
+by recursive bisection of the 1D modes), a step recursively bisects the chain and
+applies one two-site node update at each bisection bond; because every bond is a tree
+node, the bond dimension grows along the whole chain (the full light cone), matching
+forward two-site TDVP's bond profile. There is no Trotter splitting and no backward
+(negative-time) substep — BUG is inverse-free by design.
 
-- `Options` — run options (shared with two-site BUG; loadable from TOML).
-- `Summary` — output dataclass (shared with two-site BUG).
+This is the Alice port of the reference Julia ``discarded_bug_step!``. It reuses
+Alice's DMRG environment machinery (:mod:`alice.algorithm.dmrg`) and is otherwise
+self-contained — it carries its own symmetry-preserving Krylov exponentials and
+local update, with no dependence on other integrators. Public API:
+
+- `Options` — run options (loadable from TOML).
+- `Summary` — output dataclass.
 - `run`     — top-level entry point.
 """
 
