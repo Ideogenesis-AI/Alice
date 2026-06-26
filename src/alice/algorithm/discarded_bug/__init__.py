@@ -19,23 +19,22 @@
 
 """Discarded-projector BUG algorithm package.
 
-A rank-adaptive **two-site** Basis-Update & Galerkin (BUG) time integrator — the
-MPS specialisation of the tree-tensor-network BUG of Ceruti–Lubich–Walach, with
-two modifications: every local update is two-site (through the two-site effective
-Hamiltonian with the left/right MPO environments), and the basis growth is driven
-by the **discarded** (orthogonal-complement) projector — the augmented frames are
-read directly off the evolved two-site block (``qr([Theta1_left | U0])`` /
-``qr([Theta1_right | V0])``), with **no** augmented overlap matrices and **no**
-backward correction.
+A rank-adaptive Basis-Update & Galerkin (BUG) time integrator — the MPS
+specialisation of the rank-adaptive tree-tensor-network BUG of Ceruti–Lubich–Walach
+/ Sulz (Alg. 5–7). Each step is a single **global sweep**: the basis growth is driven
+by the **discarded** (orthogonal-complement) projector, applied explicitly
+(``P_perp = I - U0 U0+``) and per basis matrix, with **no** augmented overlap matrices
+``M``/``N`` and **no** backward correction.
 
-Acting with the Hamiltonian on a two-site window is what creates the new Schmidt
-direction (a domain-wall interface block has Schmidt rank 2), so the bond grows as
-the entanglement front reaches it. Following the Lubich tree BUG (whose tree is built
-by recursive bisection of the 1D modes), a step recursively bisects the chain and
-applies one two-site node update at each bisection bond; because every bond is a tree
-node, the bond dimension grows along the whole chain (the full light cone), matching
-forward two-site TDVP's bond profile. There is no Trotter splitting and no backward
-(negative-time) substep — BUG is inverse-free by design.
+A step forms the full Hamiltonian image ``phi = H psi`` (as an MPS), then sweeps the
+chain building augmented left/right isometries that keep ``psi`` **exact** and admit
+only the discarded part ``(I - U0 U0+) phi`` (SVD-truncated to the bond budget), so the
+augmented bases span ``range(psi) + range(H psi)`` — the exact rank-adaptive BUG basis.
+A single Galerkin centre connecting tensor is then integrated over the full step under
+the two-site effective Hamiltonian. The bond dimension grows along the chain (the light
+cone) as the wall melts; at full bond dimension the step is **exact** and it is second
+order in ``dt`` (convergent — no forward-only floor). There is no Trotter splitting and
+no backward (negative-time) substep — BUG is inverse-free by design.
 
 This is the Alice port of the reference Julia ``discarded_bug_step!``. It reuses
 Alice's DMRG environment machinery (:mod:`alice.algorithm.dmrg`) and is otherwise

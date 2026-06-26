@@ -20,26 +20,25 @@
 """Tests for the discarded-projector BUG integrator (Options, Summary, run).
 
 The discarded-projector BUG (see :mod:`alice.algorithm.discarded_bug`) is a
-rank-adaptive **two-site** Basis-Update & Galerkin integrator: the MPS
-specialisation of the tree-tensor-network BUG of Ceruti–Lubich–Walach, with two
-modifications — every local update is two-site (through the two-site effective
-Hamiltonian with the MPO environments), and the basis is grown with the **discarded
-projector** (``qr([Theta1_left | U0])`` read off the evolved two-site block, with no
-augmented overlap matrices). Like 2-site TDVP and DMRG it takes a Hamiltonian
-``MPO``; the step recursively bisects the chain (the Lubich tree BUG, whose tree is
-built by recursive bisection of the 1D modes) with one two-site node update per
-bisection bond, and has no backward substep.
+rank-adaptive Basis-Update & Galerkin integrator: the MPS specialisation of the
+tree-tensor-network BUG of Ceruti–Lubich–Walach / Sulz (Algorithms 5–7). Each step
+forms ``phi = H psi`` and grows the augmented bases **per basis matrix** with the
+**discarded projector** ``P_perp = I - U0 U0+`` — keeping ``psi`` exact and admitting
+only the directions ``phi`` opens — by a left (K) and right (L) sweep, then integrates
+a single centre Galerkin connecting tensor. No augmented overlap matrices ``M``/``N``
+are formed and there is no backward substep (inverse-free). Like 2-site TDVP and DMRG
+it takes a Hamiltonian ``MPO``.
 
 These tests check, on the symmetric (isotropic) Heisenberg chain — which conserves
 total Sz and whose small-chain dynamics are available by exact diagonalization —
 that the integrator:
 
 * **grows the bond dimension as a domain wall melts** — the headline rank-adaptive
-  property: a product-state wall develops the full ballistic light cone, a peaked bond
-  profile reaching the exact half-chain Schmidt rank ``2**(L/2)`` (this is the primary
-  validation);
-* tracks the exact-diagonalization trajectory at short time — the recursive-bisection
-  step is first order, so accuracy is *not* the validated property; the bond growth is;
+  property: a product-state wall develops the ballistic light cone, a peaked bond
+  profile carrying the genuine half-chain Schmidt rank (``> 1``, ``<= 2**(L/2)``);
+* **converges** to the exact-diagonalization trajectory — the Galerkin step is second
+  order (single-step and fixed-time infidelity ``~ O(dt^4)``), with no forward-only
+  floor; at full bond dimension it is exact;
 * conserves the state norm (real time) and total Sz;
 * lowers the energy in imaginary time.
 """
@@ -160,10 +159,12 @@ class TestRankAdaptivity:
         assert summary.max_bond_dims[0] < summary.max_bond_dims[-1]
 
     def test_ballistic_light_cone(self, spin_space):
-        """The recursive-bisection BUG melts the domain wall into the full ballistic
-        light cone: a peaked bond-dimension profile rising from the edges to the centre,
-        reaching the exact central-bond saturation ``2**(L/2)``. This is the headline
-        rank-adaptive property — every bond (every bisection node) grows."""
+        """The discarded-projector BUG melts the domain wall into the ballistic light
+        cone: a peaked bond-dimension profile rising from the edges to the centre. Being
+        genuinely rank-adaptive (it keeps only the directions ``H psi`` actually opens, via
+        the discarded projector), the centre carries the *true* half-chain Schmidt rank —
+        ``> 1`` and ``<= 2**(L/2)`` — rather than over-saturating to the full bipartition
+        dimension. This is the headline property — every interior bond grows."""
         length = 8
         dt, n_steps = 0.05, 12
         mps, mpo, _, _ = _domain_wall(length, spin_space)
@@ -178,8 +179,9 @@ class TestRankAdaptivity:
         # … and falls from the centre to the right edge.
         for b in range(c, length - 2):
             assert bond[b] >= bond[b + 1]
-        # The centre bond reaches the full Schmidt rank of the half-chain bipartition.
-        assert max(bond) == 2 ** (length // 2)
+        # The centre bond grows substantially but keeps only the genuine half-chain
+        # Schmidt rank (rank-adaptive), bounded by the full bipartition dimension.
+        assert length <= max(bond) <= 2 ** (length // 2)
         # Every interior bond has grown past the product-state value of 1.
         assert min(bond) > 1
 
@@ -215,12 +217,11 @@ class TestAccuracy:
         exact = exact_evolve(ham, psi0 / psi0.norm(), dt * n_steps)
         assert _infidelity(evolved, exact) < 1e-2
 
-    def test_single_step_is_first_order(self, spin_space):
-        """The forward sweep is a first-order integrator: its SINGLE-STEP infidelity
-        scales as O(dt^2) (halving dt cuts the single-step error ~4x). This is the
-        local-error order; note the *multi-step* error to a fixed time does NOT shrink
-        with dt because the forward-only projection floor (no backward step) dominates
-        — see ``test_forward_only_floor_does_not_shrink_with_dt``."""
+    def test_single_step_is_second_order(self, spin_space):
+        """The discarded-projector Galerkin step is **second order**: its SINGLE-STEP
+        infidelity scales as O(dt^4) (halving dt cuts it ~16x). The augmented basis spans
+        ``range(psi) ⊕ range(H psi)``, so the projected (Galerkin) evolution captures the
+        dynamics to second order despite being forward-only and inverse-free."""
         length = 6
         _, _, charges, psi0 = _domain_wall(length, spin_space)
         ham = dense_hamiltonian(*_ham_args(spin_space, length, charges))
@@ -238,14 +239,15 @@ class TestAccuracy:
 
         coarse = single_step_infidelity(0.04)
         fine = single_step_infidelity(0.02)
-        # O(dt^2) single-step error => ratio ~4 when halving dt (allow a generous band).
-        assert 3.0 < coarse / fine < 5.5
+        # O(dt^4) single-step infidelity => ratio ~16 when halving dt (generous band).
+        assert 8.0 < coarse / fine < 30.0
 
-    def test_forward_only_floor_does_not_shrink_with_dt(self, spin_space):
-        """The forward-only BUG has an intrinsic projection floor: evolving to a FIXED
-        time with a smaller dt does not reduce the error (it is not a dt-discretisation
-        error; only a backward step, which BUG forbids, would remove it). Documents the
-        known accuracy limit — the validated property is the rank growth, not accuracy."""
+    def test_converges_to_fixed_time_with_dt(self, spin_space):
+        """Unlike a floored forward-only scheme, the discarded-projector BUG is a genuine
+        **convergent** integrator: evolving to a FIXED time with a smaller dt reduces the
+        error as O(dt^4) in infidelity (halving dt cuts it ~16x). There is no projection
+        floor — keeping ``psi`` exact and growing the basis from ``H psi`` makes the
+        Galerkin core carry the time evolution to second order."""
         length = 6
         _, _, charges, psi0 = _domain_wall(length, spin_space)
         ham = dense_hamiltonian(*_ham_args(spin_space, length, charges))
@@ -262,9 +264,8 @@ class TestAccuracy:
 
         coarse = infidelity_at_T(0.10, 0.5)
         fine = infidelity_at_T(0.05, 0.5)
-        # The floor does not shrink with dt: halving dt leaves the error within ~30%
-        # (in fact marginally larger), confirming it is not a dt-discretisation error.
-        assert fine > 0.5 * coarse
+        # Genuine convergence (no floor): halving dt cuts the infidelity ~16x (O(dt^4)).
+        assert coarse / fine > 8.0
 
 
 # ---------------------------------------------------------------------------

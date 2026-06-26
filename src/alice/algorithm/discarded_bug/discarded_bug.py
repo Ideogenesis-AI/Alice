@@ -26,17 +26,17 @@ complement) projectors and **without** forming the augmented overlap matrices, a
 **without** a backward correction. This is the Alice port of the reference Julia
 ``discarded_bug_step!`` (``../../../../src/BUG/discarded_bug.jl``).
 
-Like 2-site TDVP (and unlike a bare-gate TEBD BUG), the local update exponentiates
+Like 2-site TDVP (and unlike a bare-gate TEBD BUG), the Galerkin core exponentiates
 the full *effective Hamiltonian* with the left/right MPO environments, so this
 integrator takes a Hamiltonian `MPO` (from `build_hamiltonian`) — exactly like
 `alice.algorithm.dmrg` — and reuses the DMRG environment machinery and the 2-site
-contraction. A step recursively bisects the chain (the Lubich tree BUG, whose tree is
-built by recursive bisection of the 1D modes) and applies one two-site node update at
-each bisection bond — evolving the two-site block once and growing the bond's basis
-with the discarded projector — so the bond dimension grows along the whole chain (the
-full light cone). There is no Trotter splitting and (by design, since BUG is
-inverse-free) no backward substep — the step is first order in `dt`, with the rank
-growth / light-cone spread as its validated property.
+contraction. A step is a single global sweep (:func:`~.sweep.global_step`): form
+`phi = H psi`, build augmented left/right isometries that keep `psi` exact and admit
+only the discarded part `(I - U0 U0+) phi`, then integrate one Galerkin centre tensor
+under the two-site effective Hamiltonian — so the bond dimension grows along the whole
+chain (the light cone). There is no Trotter splitting and (by design, since BUG is
+inverse-free) no backward substep — the step is exact at full bond dimension and second
+order in `dt` (convergent under truncation).
 
 Typical usage::
 
@@ -174,10 +174,9 @@ class Summary(AlgorithmSummary):
 def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     """Evolve an MPS under a Hamiltonian MPO with the discarded-projector BUG.
 
-    Performs ``opts.n_steps`` steps. Each step recursively bisects the chain and
-    applies one two-site discarded node update at every bond
-    (:func:`~.sweep.global_step`): the bond dimension grows along the whole chain as
-    the wall melts, and the state is returned with ``center == 0``.
+    Performs ``opts.n_steps`` steps. Each step is a single global discarded-projector
+    sweep (:func:`~.sweep.global_step`): the bond dimension grows along the whole chain
+    as the wall melts, and the state is returned with ``center == 0``.
 
     Parameters
     ----------
@@ -232,9 +231,10 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
 
     w = len(str(opts.n_steps))
     for step in range(opts.n_steps):
-        # One recursive-bisection step per time step: at every bisection bond evolve
-        # the two-site block and grow its basis with the discarded projector. The bond
-        # dimension grows along the whole chain (the full light cone) as the wall melts.
+        # One global discarded-projector sweep per time step: form phi = H psi, keep
+        # psi exact and admit only the discarded part of phi into the augmented bases,
+        # then integrate one Galerkin centre tensor. The bond dimension grows along the
+        # whole chain (the light cone) as the wall melts.
         kept = global_step(mps, mpo, prefactor * opts.dt,
                            maxdim=maxdim, cutoff=opts.cutoff,
                            lanczos_tol=opts.lanczos_tol, lanczos_maxiter=opts.lanczos_maxiter)

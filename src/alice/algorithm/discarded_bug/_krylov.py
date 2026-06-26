@@ -101,7 +101,14 @@ def tensor_inner(left: Tensor, right: Tensor) -> complex:
     """
     rank = len(left.indices)
     axes = (list(range(rank)), list(range(rank)))
-    return contract(conj(left), right, axes=axes).item()
+    scalar = contract(conj(left), right, axes=axes)
+    # A fully-contracted Nicole tensor is a scalar carried in the empty-key block.
+    # When the two operands have no common charge sector the result has no such block
+    # (an "empty" scalar), in which case the inner product is exactly zero.
+    block = scalar.data.get(())
+    if block is None:
+        return 0.0 + 0.0j
+    return complex(block.reshape(()).item())
 
 
 def tensor_arnoldi_expv(
