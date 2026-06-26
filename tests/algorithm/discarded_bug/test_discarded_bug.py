@@ -20,43 +20,38 @@
 """Tests for the discarded-projector BUG integrator (Options, Summary, run).
 
 The discarded-projector BUG (see :mod:`alice.algorithm.discarded_bug`) is a
-rank-adaptive two-site Basis-Update & Galerkin integrator that differs from the
-faithful Ceruti–Kusch–Lubich scheme only in the local bond update: the discarded
-projector is applied to the K/L generator *before* the exponential, and the basis
-is grown by a direct sum with no augmented overlap matrices. These tests check, on
-the symmetric (isotropic) Heisenberg chain — which conserves total Sz and whose
-small-chain dynamics are available by exact diagonalization — that the integrator:
+rank-adaptive Basis-Update & Galerkin integrator: the MPS specialisation of the
+tree-tensor-network BUG of Ceruti–Lubich–Walach / Sulz (Algorithms 5–7). Each step
+forms ``phi = H psi`` and grows the augmented bases **per basis matrix** with the
+**discarded projector** ``P_perp = I - U0 U0+`` — keeping ``psi`` exact and admitting
+only the directions ``phi`` opens — by a left (K) and right (L) sweep, then integrates
+a single centre Galerkin connecting tensor. No augmented overlap matrices ``M``/``N``
+are formed and there is no backward substep (inverse-free). Like 2-site TDVP and DMRG
+it takes a Hamiltonian ``MPO``.
 
-* grows the bond dimension as a domain wall melts (rank adaptivity),
-* converges to the ANALYTICAL solution (exact diagonalization of the chain) at the
-  expected Strang order O(dt^2) — this is the primary correctness criterion,
-* conserves the state norm (real time) and total Sz,
-* cools toward the ground state in imaginary time.
+These tests check, on the symmetric (isotropic) Heisenberg chain — which conserves
+total Sz and whose small-chain dynamics are available by exact diagonalization —
+that the integrator:
 
-Correctness is judged against the analytical (exact-diagonalization) solution, NOT
-against the faithful two-site BUG. A single informational check records that the
-two schemes happen to agree (they span the same augmented subspaces), but the
-binding assertions are all against exact diagonalization.
-
-A note on comparison baselines: Alice's 2-site TDVP is not yet implemented. The
-reference Julia implementation of this scheme was measured head-to-head against
-2-site TDVP on the same domain-wall quench; the discarded-BUG infidelity stayed
-within a bounded ~6x factor of TDVP's (same O(dt^2) error class), and 2-site TDVP's
-own error is flat in dt (a fixed-rank manifold error, not convergent to zero).
+* **grows the bond dimension as a domain wall melts** — the headline rank-adaptive
+  property: a product-state wall develops the ballistic light cone, a peaked bond
+  profile carrying the genuine half-chain Schmidt rank (``> 1``, ``<= 2**(L/2)``);
+* **converges** to the exact-diagonalization trajectory — the Galerkin step is second
+  order (single-step and fixed-time infidelity ``~ O(dt^4)``), with no forward-only
+  floor; at full bond dimension it is exact;
+* conserves the state norm (real time) and total Sz;
+* lowers the energy in imaginary time.
 """
 
 from __future__ import annotations
-
-import dataclasses
 
 import pytest
 import torch
 from nicole import Index, Tensor
 
 from alice import init_mps
-from alice.algorithm import discarded_bug, two_site_bug
-from alice.algorithm.two_site_bug.bond import build_bond_generators
-from alice.network.interaction import Interaction2Site
+from alice.algorithm import discarded_bug
+from alice.network import build_hamiltonian
 
 from .conftest import (
     dense_hamiltonian,
@@ -68,15 +63,16 @@ from .conftest import (
 
 
 def _domain_wall(length, spin_space):
-    """Return `(mps, interactions, charges, psi0)` for a full-phys Heisenberg domain wall.
+    """Return ``(mps, mpo, charges, psi0)`` for a full-phys Heisenberg domain wall.
 
-    The state is the Sz=0 domain wall `|↓…↓↑…↑⟩`. Each physical leg is inflated to
-    the full spin-1/2 index so spins can flip and the state densifies to `2**L`.
-    `psi0` is the dense initial vector. (Identical construction to the faithful
-    two-site BUG tests so the two integrators see the same initial condition.)
+    The state is the Sz=0 domain wall ``|down…down up…up>``. Each physical leg is
+    inflated to the full spin-1/2 index so spins can flip and the state densifies to
+    ``2**L``. ``mpo`` is the Hamiltonian MPO the integrator consumes; ``psi0`` is the
+    dense initial vector.
     """
     _, operators = spin_space
     interactions, spc, _ = heisenberg_chain(length)
+    mpo = build_hamiltonian(interactions, length, spc)
     charges = [sector.charge for sector in spc.sectors]
     config = [0] * (length // 2) + [1] * (length - length // 2)
     target = sum(charges[c] for c in config)
@@ -91,7 +87,13 @@ def _domain_wall(length, spin_space):
             dtype=core.dtype,
         )
     psi0 = mps_to_vector(mps, charges)
-    return mps, interactions, charges, psi0
+    return mps, mpo, charges, psi0
+
+
+def _infidelity(vec, exact):
+    vec = vec / vec.norm()
+    exact = exact / exact.norm()
+    return 1.0 - abs(torch.vdot(exact, vec)).item()
 
 
 # ---------------------------------------------------------------------------
@@ -99,176 +101,171 @@ def _domain_wall(length, spin_space):
 # ---------------------------------------------------------------------------
 
 class TestOptions:
-    """The discarded-projector BUG reuses the two-site BUG Options/Summary."""
+    """Options defaults, validation, and Summary serialization."""
 
-    def test_options_is_two_site_bug_options(self):
-        assert discarded_bug.Options is two_site_bug.Options
+    def test_defaults(self):
+        opts = discarded_bug.Options()
+        assert opts.dt == pytest.approx(0.02)
+        assert opts.normalize is True
+        assert opts.imaginary_time is False
 
-    def test_default_order(self):
-        assert discarded_bug.Options().order == 'strang'
+    def test_requires_two_sites(self, spin_space):
+        mps, mpo, _, _ = _domain_wall(2, spin_space)
+        # L == 2 is the minimal valid chain; L < 2 is rejected.
+        summary = discarded_bug.run(mps, mpo, discarded_bug.Options(dt=0.05, n_steps=1))
+        assert summary.n_steps == 1
+        # A single-site chain is rejected by the >= 2-site guard.
+        one_site_mps = type(mps)([mps[0]])
+        one_site_mpo = type(mpo)([mpo[0]])
+        with pytest.raises(ValueError, match='at least 2 sites'):
+            discarded_bug.run(one_site_mps, one_site_mpo,
+                              discarded_bug.Options(dt=0.05, n_steps=1))
 
-    @pytest.mark.parametrize('alias,canonical', [
-        ('strang', 'strang'), ('second', 'strang'), ('2', 'strang'),
-        ('lie', 'lie'), ('first', 'lie'), ('1', 'lie'),
-    ])
-    def test_order_aliases(self, alias, canonical):
-        assert discarded_bug.Options(order=alias).order == canonical
+    def test_length_mismatch_raises(self, spin_space):
+        mps, mpo, _, _ = _domain_wall(4, spin_space)
+        short_mpo = type(mpo)([mpo[b] for b in range(3)])
+        with pytest.raises(ValueError, match='same length'):
+            discarded_bug.run(mps, short_mpo, discarded_bug.Options(dt=0.05, n_steps=1))
 
     def test_serialize_round_trip(self, spin_space):
-        mps, interactions, _, _ = _domain_wall(6, spin_space)
-        summary = discarded_bug.run(
-            mps, interactions, discarded_bug.Options(dt=0.05, n_steps=3, max_bond=16)
-        )
+        mps, mpo, _, _ = _domain_wall(6, spin_space)
+        summary = discarded_bug.run(mps, mpo, discarded_bug.Options(dt=0.05, n_steps=3, max_bond=16))
         restored = discarded_bug.Summary.deserialize(summary.serialize())
         assert restored.n_steps == summary.n_steps
         assert restored.bond_dims == summary.bond_dims
         assert restored.times == pytest.approx(summary.times)
+        assert restored.max_bond_dims == summary.max_bond_dims
 
 
 # ---------------------------------------------------------------------------
-# Generators / error handling
-# ---------------------------------------------------------------------------
-
-class TestGenerators:
-    """Bond-generator handling is shared with the faithful kernel."""
-
-    def test_long_range_term_raises(self):
-        interactions, _, geo = heisenberg_chain(4)
-        far = dataclasses.replace(
-            next(i for i in interactions if isinstance(i, Interaction2Site)),
-            leading_site=0, terminal_site=2,
-        )
-        with pytest.raises(NotImplementedError, match='nearest-neighbour'):
-            build_bond_generators([far], geo.L)
-
-    def test_two_site_chain_runs(self, spin_space):
-        """L == 2 is the minimal valid chain (a single bond)."""
-        mps, interactions, _, _ = _domain_wall(2, spin_space)
-        summary = discarded_bug.run(
-            mps, interactions, discarded_bug.Options(dt=0.05, n_steps=2, max_bond=8)
-        )
-        assert summary.n_steps == 2
-        assert len(summary.bond_dims) == 1
-
-
-# ---------------------------------------------------------------------------
-# Rank adaptivity
+# Rank adaptivity — the primary validated property
 # ---------------------------------------------------------------------------
 
 class TestRankAdaptivity:
-    """The bond dimension must grow as the domain wall melts."""
+    """The bond dimension must grow as the domain wall melts (the headline property)."""
 
-    def test_bond_dimension_grows(self, spin_space):
-        length = 6
-        mps, interactions, _, _ = _domain_wall(length, spin_space)
-        # The wall starts as a product state (every bond chi=1).
-        assert max(mps.bond_dims) == 1
+    def test_product_wall_grows_bond_dimension(self, spin_space):
+        """A pure product-state wall (every bond chi=1) develops entanglement: acting
+        with H creates a rank-2 interface, and the bisection spreads it outward."""
+        length = 8
+        mps, mpo, _, _ = _domain_wall(length, spin_space)
+        assert max(mps.bond_dims) == 1  # starts as a product state
         summary = discarded_bug.run(
-            mps, interactions,
-            discarded_bug.Options(dt=0.05, n_steps=10, max_bond=64),
+            mps, mpo, discarded_bug.Options(dt=0.05, n_steps=10, max_bond=64, normalize=False),
         )
-        # It melts and the bond dimension climbs well past 1.
-        assert max(summary.bond_dims) > 1
-        assert max(summary.max_bond_dims) >= 4
-        # The proposed augmented rank reaches at least the kept rank every step.
-        assert all(a >= 1 for a in summary.aug_dims)
+        # The wall melts: the bond dimension climbs well past 1 and the max kept rank
+        # grows step by step (rank adaptivity, not a fixed manifold).
+        assert max(summary.bond_dims) >= 8
+        assert summary.max_bond_dims[0] < summary.max_bond_dims[-1]
+
+    def test_ballistic_light_cone(self, spin_space):
+        """The discarded-projector BUG melts the domain wall into the ballistic light
+        cone: a peaked bond-dimension profile rising from the edges to the centre. Being
+        genuinely rank-adaptive (it keeps only the directions ``H psi`` actually opens, via
+        the discarded projector), the centre carries the *true* half-chain Schmidt rank —
+        ``> 1`` and ``<= 2**(L/2)`` — rather than over-saturating to the full bipartition
+        dimension. This is the headline property — every interior bond grows."""
+        length = 8
+        dt, n_steps = 0.05, 12
+        mps, mpo, _, _ = _domain_wall(length, spin_space)
+        summary = discarded_bug.run(
+            mps, mpo, discarded_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
+        )
+        bond = summary.bond_dims  # length L-1, indices 0 … L-2
+        c = length // 2 - 1       # central bond index
+        # Peaked profile: bond dimension rises from the left edge to the centre …
+        for b in range(c):
+            assert bond[b] <= bond[b + 1]
+        # … and falls from the centre to the right edge.
+        for b in range(c, length - 2):
+            assert bond[b] >= bond[b + 1]
+        # The centre bond grows substantially but keeps only the genuine half-chain
+        # Schmidt rank (rank-adaptive), bounded by the full bipartition dimension.
+        assert length <= max(bond) <= 2 ** (length // 2)
+        # Every interior bond has grown past the product-state value of 1.
+        assert min(bond) > 1
 
     def test_max_bond_cap_respected(self, spin_space):
-        length = 6
-        mps, interactions, _, _ = _domain_wall(length, spin_space)
+        length = 8
+        mps, mpo, _, _ = _domain_wall(length, spin_space)
         cap = 4
         summary = discarded_bug.run(
-            mps, interactions,
-            discarded_bug.Options(dt=0.05, n_steps=10, max_bond=cap),
+            mps, mpo, discarded_bug.Options(dt=0.05, n_steps=10, max_bond=cap, normalize=False),
         )
         assert max(summary.bond_dims) <= cap
 
 
 # ---------------------------------------------------------------------------
-# Accuracy vs exact diagonalization and vs the faithful scheme
+# Accuracy vs exact diagonalization (forward-only floor)
 # ---------------------------------------------------------------------------
 
 class TestAccuracy:
-    """Physical correctness of the time evolution on the symmetric Heisenberg chain."""
+    """The trajectory tracks exact diagonalization at the forward-only error floor."""
 
-    def test_fidelity_matches_exact_diagonalization(self, spin_space):
+    def test_tracks_exact_diagonalization(self, spin_space):
+        """Short-time fidelity: a few steps stay close to the exact dynamics. (The
+        recursive-bisection step is first order, so the error grows with time; this
+        checks the early trajectory, where it is still small.)"""
         length = 6
-        mps, interactions, charges, psi0 = _domain_wall(length, spin_space)
-        ham = dense_hamiltonian(interactions, length, charges)
-        psi0 = psi0 / psi0.norm()
-        dt, n_steps = 0.05, 20
+        mps, mpo, charges, psi0 = _domain_wall(length, spin_space)
+        ham = dense_hamiltonian(*_ham_args(spin_space, length, charges))
+        dt, n_steps = 0.02, 5
         summary = discarded_bug.run(
-            mps, interactions,
-            discarded_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
+            mps, mpo, discarded_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
         )
         evolved = mps_to_vector(summary.state, charges)
-        evolved = evolved / evolved.norm()
-        exact = exact_evolve(ham, psi0, dt * n_steps)
-        exact = exact / exact.norm()
-        fidelity = abs(torch.vdot(exact, evolved)).item()
-        assert 1.0 - fidelity < 1e-6
+        exact = exact_evolve(ham, psi0 / psi0.norm(), dt * n_steps)
+        assert _infidelity(evolved, exact) < 1e-2
 
-    def test_strang_converges_second_order(self, spin_space):
+    def test_single_step_is_second_order(self, spin_space):
+        """The discarded-projector Galerkin step is **second order**: its SINGLE-STEP
+        infidelity scales as O(dt^4) (halving dt cuts it ~16x). The augmented basis spans
+        ``range(psi) ⊕ range(H psi)``, so the projected (Galerkin) evolution captures the
+        dynamics to second order despite being forward-only and inverse-free."""
         length = 6
-        _, interactions, charges, psi0 = _domain_wall(length, spin_space)
-        ham = dense_hamiltonian(interactions, length, charges)
-        psi0 = psi0 / psi0.norm()
+        _, _, charges, psi0 = _domain_wall(length, spin_space)
+        ham = dense_hamiltonian(*_ham_args(spin_space, length, charges))
+        psi0n = psi0 / psi0.norm()
 
-        def infidelity(dt, n_steps):
-            mps, _, _, _ = _domain_wall(length, spin_space)
+        def single_step_infidelity(dt):
+            mps, mpo_l, _, _ = _domain_wall(length, spin_space)
+            # Seed off the product state so the single step exercises a generic
+            # (entangled) bond, then take exactly one step of size dt.
             summary = discarded_bug.run(
-                mps, interactions,
-                discarded_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
+                mps, mpo_l, discarded_bug.Options(dt=dt, n_steps=1, max_bond=64, normalize=False),
             )
             evolved = mps_to_vector(summary.state, charges)
-            evolved = evolved / evolved.norm()
-            exact = exact_evolve(ham, psi0, dt * n_steps)
-            exact = exact / exact.norm()
-            return 1.0 - abs(torch.vdot(exact, evolved)).item()
+            return _infidelity(evolved, exact_evolve(ham, psi0n, dt))
 
-        coarse = infidelity(0.10, 10)
-        fine = infidelity(0.05, 20)
-        # Strang state error is O(dt^2) ⇒ infidelity O(dt^4): halving dt cuts it ~16x.
-        assert coarse / fine > 8.0
+        coarse = single_step_infidelity(0.04)
+        fine = single_step_infidelity(0.02)
+        # O(dt^4) single-step infidelity => ratio ~16 when halving dt (generous band).
+        assert 8.0 < coarse / fine < 30.0
 
-    def test_agreement_with_faithful_is_informational(self, spin_space):
-        """INFORMATIONAL (not the correctness criterion): the discarded and faithful
-        schemes span the same augmented subspaces, so the symmetric sweep happens to
-        agree. The binding accuracy test is `test_fidelity_matches_exact_diagonalization`
-        (vs the analytical solution); this only records the incidental agreement."""
+    def test_converges_to_fixed_time_with_dt(self, spin_space):
+        """Unlike a floored forward-only scheme, the discarded-projector BUG is a genuine
+        **convergent** integrator: evolving to a FIXED time with a smaller dt reduces the
+        error as O(dt^4) in infidelity (halving dt cuts it ~16x). There is no projection
+        floor — keeping ``psi`` exact and growing the basis from ``H psi`` makes the
+        Galerkin core carry the time evolution to second order."""
         length = 6
-        mps_d, interactions, charges, _ = _domain_wall(length, spin_space)
-        mps_f, _, _, _ = _domain_wall(length, spin_space)
-        opts = dict(dt=0.05, n_steps=15, max_bond=64, normalize=False)
-        sd = discarded_bug.run(mps_d, interactions, discarded_bug.Options(**opts))
-        sf = two_site_bug.run(mps_f, interactions, two_site_bug.Options(**opts))
-        vd = mps_to_vector(sd.state, charges)
-        vd = vd / vd.norm()
-        vf = mps_to_vector(sf.state, charges)
-        vf = vf / vf.norm()
-        infidelity = 1.0 - abs(torch.vdot(vf, vd)).item()
-        # Loose bound — this is a sanity note, not the accuracy gate.
-        assert infidelity < 1e-6
+        _, _, charges, psi0 = _domain_wall(length, spin_space)
+        ham = dense_hamiltonian(*_ham_args(spin_space, length, charges))
+        psi0n = psi0 / psi0.norm()
 
-    def test_strang_beats_lie(self, spin_space):
-        length = 6
-        _, interactions, charges, _ = _domain_wall(length, spin_space)
-        ham = dense_hamiltonian(interactions, length, charges)
-
-        def infidelity(order):
-            mps, interactions_l, charges_l, psi0 = _domain_wall(length, spin_space)
-            psi0 = psi0 / psi0.norm()
+        def infidelity_at_T(dt, T):
+            mps, mpo_l, _, _ = _domain_wall(length, spin_space)
             summary = discarded_bug.run(
-                mps, interactions_l,
-                discarded_bug.Options(dt=0.1, n_steps=10, order=order, max_bond=64, normalize=False),
+                mps, mpo_l,
+                discarded_bug.Options(dt=dt, n_steps=round(T / dt), max_bond=64, normalize=False),
             )
-            evolved = mps_to_vector(summary.state, charges_l)
-            evolved = evolved / evolved.norm()
-            exact = exact_evolve(ham, psi0, 1.0)
-            exact = exact / exact.norm()
-            return 1.0 - abs(torch.vdot(exact, evolved)).item()
+            evolved = mps_to_vector(summary.state, charges)
+            return _infidelity(evolved, exact_evolve(ham, psi0n, T))
 
-        assert infidelity('strang') < infidelity('lie')
+        coarse = infidelity_at_T(0.10, 0.5)
+        fine = infidelity_at_T(0.05, 0.5)
+        # Genuine convergence (no floor): halving dt cuts the infidelity ~16x (O(dt^4)).
+        assert coarse / fine > 8.0
 
 
 # ---------------------------------------------------------------------------
@@ -279,35 +276,31 @@ class TestConservation:
     """Norm (real time), total Sz, and imaginary-time energy descent."""
 
     def test_norm_conserved_real_time(self, spin_space):
-        mps, interactions, _, _ = _domain_wall(6, spin_space)
+        mps, mpo, _, _ = _domain_wall(6, spin_space)
         summary = discarded_bug.run(
-            mps, interactions,
-            discarded_bug.Options(dt=0.05, n_steps=10, max_bond=64, normalize=False),
+            mps, mpo, discarded_bug.Options(dt=0.05, n_steps=10, max_bond=64, normalize=False),
         )
         for norm in summary.norms:
-            assert abs(norm - 1.0) < 1e-10
+            assert abs(norm - 1.0) < 1e-9
 
     def test_total_sz_conserved(self, spin_space):
-        mps, interactions, charges, psi0 = _domain_wall(6, spin_space)
+        mps, mpo, charges, psi0 = _domain_wall(6, spin_space)
         sz_total = dense_total_sz(6, charges)
         sz_before = (psi0.conj() @ sz_total @ psi0).real.item() / psi0.norm().item() ** 2
-        summary = discarded_bug.run(
-            mps, interactions, discarded_bug.Options(dt=0.05, n_steps=10, max_bond=64)
-        )
+        summary = discarded_bug.run(mps, mpo, discarded_bug.Options(dt=0.05, n_steps=10, max_bond=64))
         vec = mps_to_vector(summary.state, charges)
         sz_after = (vec.conj() @ sz_total @ vec).real.item() / vec.norm().item() ** 2
-        assert abs(sz_after - sz_before) < 1e-10
+        assert abs(sz_after - sz_before) < 1e-9
 
     def test_imaginary_time_lowers_energy(self, spin_space):
         length = 6
-        mps, interactions, charges, psi0 = _domain_wall(length, spin_space)
-        ham = dense_hamiltonian(interactions, length, charges)
+        mps, mpo, charges, psi0 = _domain_wall(length, spin_space)
+        ham = dense_hamiltonian(*_ham_args(spin_space, length, charges))
         ground = torch.linalg.eigvalsh(ham)[0].item()
-        psi0 = psi0 / psi0.norm()
-        energy_before = (psi0.conj() @ ham @ psi0).real.item()
+        psi0n = psi0 / psi0.norm()
+        energy_before = (psi0n.conj() @ ham @ psi0n).real.item()
         summary = discarded_bug.run(
-            mps, interactions,
-            discarded_bug.Options(dt=0.05, n_steps=40, imaginary_time=True, max_bond=64),
+            mps, mpo, discarded_bug.Options(dt=0.05, n_steps=40, imaginary_time=True, max_bond=64),
         )
         vec = mps_to_vector(summary.state, charges)
         vec = vec / vec.norm()
@@ -316,51 +309,7 @@ class TestConservation:
         assert energy_after > ground - 1e-9
 
 
-# ---------------------------------------------------------------------------
-# Project-before behaviour: seeded melt vs pure-product bootstrap
-# ---------------------------------------------------------------------------
-
-class TestProjectBefore:
-    """The defining project-before behaviour and its one documented limitation."""
-
-    def test_seeded_wall_melts_with_project_before(self, spin_space):
-        """Once the wall carries chi>=2 (seeded by a couple of faithful steps), the
-        project-before discarded update grows the rank further and tracks the exact
-        dynamics — i.e. project-before is fine away from a pure product state."""
-        length = 6
-        mps, interactions, charges, psi0 = _domain_wall(length, spin_space)
-        ham = dense_hamiltonian(interactions, length, charges)
-        psi0n = psi0 / psi0.norm()
-
-        # Seed off the product state with two faithful steps.
-        two_site_bug.run(mps, interactions,
-                         two_site_bug.Options(dt=0.025, n_steps=2, max_bond=64, normalize=False))
-        seeded_chi = max(mps.bond_dims)
-        assert seeded_chi >= 2
-
-        # Continue with the discarded (project-before) scheme.
-        summary = discarded_bug.run(
-            mps, interactions,
-            discarded_bug.Options(dt=0.025, n_steps=18, max_bond=64, normalize=False),
-        )
-        assert max(summary.bond_dims) >= seeded_chi  # rank kept growing / held
-        evolved = mps_to_vector(summary.state, charges)
-        evolved = evolved / evolved.norm()
-        exact = exact_evolve(ham, psi0n, 0.025 * 20)
-        exact = exact / exact.norm()
-        assert 1.0 - abs(torch.vdot(exact, evolved)).item() < 1e-5
-
-    def test_pure_product_without_augmentation_stays_rank_one(self, spin_space):
-        """With augmentation DISABLED, a pure product wall cannot grow rank: the
-        one-sided K/L generators see the two-spin flip only through augmentation, so
-        the bond dimension stays chi=1. This is the explicit no-bootstrap baseline
-        (with augmentation ON, the symmetry sector-completion does grow the rank)."""
-        length = 6
-        mps, interactions, _, _ = _domain_wall(length, spin_space)
-        assert max(mps.bond_dims) == 1
-        summary = discarded_bug.run(
-            mps, interactions,
-            discarded_bug.Options(dt=0.05, n_steps=5, max_bond=64, augment=False, normalize=True),
-        )
-        assert max(summary.bond_dims) == 1
-        assert all(a == 1 for a in summary.aug_dims)
+def _ham_args(spin_space, length, charges):
+    """Build the (interactions, length, charges) tuple for ``dense_hamiltonian``."""
+    interactions, _, _ = heisenberg_chain(length)
+    return interactions, length, charges

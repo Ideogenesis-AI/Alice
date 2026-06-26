@@ -19,161 +19,236 @@
 
 """Top-level discarded-projector BUG driver: options, summary, and entry point.
 
-The discarded-projector BUG is a rank-adaptive Basis-Update & Galerkin integrator
-derived from the faithful Ceruti–Kusch–Lubich scheme (arXiv:2304.05660), but with
-the basis growth driven by the *discarded* (orthogonal-complement) projectors and
-*without* the augmented overlap matrices M, N. Concretely, against the faithful
-two-site BUG it changes only the local bond update (see
-:mod:`alice.algorithm.discarded_bug.candidate`):
+Discarded-projector basis-update-and-Galerkin (BUG) integrator on an `MPS`: a
+rank-adaptive two-site time integrator derived from the Ceruti–Kusch–Lubich BUG
+scheme, but with the basis growth driven by the **discarded** (orthogonal
+complement) projectors and **without** forming the augmented overlap matrices, and
+**without** a backward correction. This is the Alice port of the reference Julia
+``discarded_bug_step!`` (``../../../../src/BUG/discarded_bug.jl``).
 
-- the discarded projector ``P⊥`` is applied to the K/L *generator* before the
-  exponential (``project-before``), and
-- the augmented frame is the direct sum ``[U0 | Qk]`` / ``[V0 ; Ql]`` (no overlap
-  matrix), with the S-step projecting ``Θ0`` straight onto the augmented bases.
-
-Everything else — the odd/even Trotter sweep, the AutoMPO bond Hamiltonians, the
-Krylov ``expv`` substeps, and the Alice `MPS` plumbing — is shared with
-:mod:`alice.algorithm.two_site_bug`, so `Options` and `Summary` are reused as-is.
+Like 2-site TDVP (and unlike a bare-gate TEBD BUG), the Galerkin core exponentiates
+the full *effective Hamiltonian* with the left/right MPO environments, so this
+integrator takes a Hamiltonian `MPO` (from `build_hamiltonian`) — exactly like
+`alice.algorithm.dmrg` — and reuses the DMRG environment machinery and the 2-site
+contraction. A step is a single global sweep (:func:`~.sweep.global_step`): form
+`phi = H psi`, build augmented left/right isometries that keep `psi` exact and admit
+only the discarded part `(I - U0 U0+) phi`, then integrate one Galerkin centre tensor
+under the two-site effective Hamiltonian — so the bond dimension grows along the whole
+chain (the light cone). There is no Trotter splitting and (by design, since BUG is
+inverse-free) no backward substep — the step is exact at full bond dimension and second
+order in `dt` (convergent under truncation).
 
 Typical usage::
 
-    from alice import build_interaction, init_mps
+    from alice import build_interaction, build_hamiltonian, init_mps
     from alice.algorithm import discarded_bug
 
     interactions, spc, geo = build_interaction(cfg)
+    mpo = build_hamiltonian(interactions, geo.L, spc)
     mps = init_mps(geo.L, spc, Op, config=[0, 1] * (geo.L // 2), target_qn=0)
-    opts = discarded_bug.Options(dt=0.05, n_steps=20, order='strang', max_bond=64)
-    summary = discarded_bug.run(mps, interactions, opts)
-    print(summary.bond_dims)
+    opts = discarded_bug.Options(dt=0.02, n_steps=25, max_bond=64)
+    summary = discarded_bug.run(mps, mpo, opts)
 """
 
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
-from alice.network import MPS
-from alice.network.interaction import Interaction
+from alice.network import MPS, MPO
+from alice.network.network import Network
 
-# Reuse the faithful driver's Options/Summary verbatim — the discarded variant has
-# the same controls and the same output record.
-from ..two_site_bug._kernel import with_expv_backend, with_time_prefactor
-from ..two_site_bug.bond import build_bond_generators, kernel_gate, to_complex
-from ..two_site_bug.two_site_bug import Options, Summary, _UNLIMITED_BOND
-from .scheme import parity_sweep
+from ..interface import AlgorithmOptions, AlgorithmSummary
+from ._krylov import to_complex
+from .sweep import global_step
 
 logger = logging.getLogger(__name__)
 
-__all__ = ['Options', 'Summary', 'run']
+
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Options(AlgorithmOptions):
+    """Discarded-projector BUG run options.
+
+    Parameters
+    ----------
+    dt:
+        Time step. Real time (``exp(-i dt H)``) unless ``imaginary_time`` is set.
+    n_steps:
+        Number of time steps to perform.
+    max_bond:
+        Maximum bond dimension kept by the per-bond SVD truncation. ``None`` means
+        no explicit cap (the bond grows up to the local capacity).
+    cutoff:
+        Relative singular-value threshold of the per-bond SVD truncation. This is
+        the only rank-control knob; the K/L augmentation carries no tolerance.
+    lanczos_tol:
+        Termination tolerance of the local Krylov ``expv`` solves.
+    lanczos_maxiter:
+        Maximum Krylov dimension per local substep.
+    imaginary_time:
+        If ``True``, evolve with ``exp(-dt H)`` (imaginary time) instead of
+        ``exp(-i dt H)``. Combined with ``normalize`` this cools toward the ground
+        state.
+    normalize:
+        If ``True`` (default), renormalise the state after every step.
+    """
+
+    dt: float = 0.02
+    n_steps: int = 10
+    max_bond: Optional[int] = None
+    cutoff: float = 1e-12
+    lanczos_tol: float = 1e-14
+    lanczos_maxiter: int = 40
+    imaginary_time: bool = False
+    normalize: bool = True
 
 
-def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = None) -> Summary:
-    """Evolve an MPS under a nearest-neighbour Hamiltonian with the discarded-projector BUG.
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
 
-    Builds the per-bond Hamiltonian terms once from the AutoMPO interaction list,
-    then applies `opts.n_steps` odd/even Trotter steps of the discarded-projector
-    K/L/S local update. The state is canonicalised to `center = 0` before the
-    first step and returned with `center = 0`.
+@dataclass
+class Summary(AlgorithmSummary):
+    """Discarded-projector BUG output.
+
+    Attributes
+    ----------
+    state:
+        Evolved MPS after all steps (orthogonality center at site 0).
+    n_steps:
+        Number of steps performed.
+    times:
+        Cumulative evolution time after each step (length ``n_steps``).
+    norms:
+        State norm after each step *before* renormalisation (length ``n_steps``).
+    bond_dims:
+        Bond dimensions of ``state`` after the final step (length ``L - 1``).
+    max_bond_dims:
+        Maximum kept bond dimension after each step (length ``n_steps``).
+    """
+
+    state: MPS
+    n_steps: int = 0
+    times: List[float] = field(default_factory=list)
+    norms: List[float] = field(default_factory=list)
+    bond_dims: List[int] = field(default_factory=list)
+    max_bond_dims: List[int] = field(default_factory=list)
+
+    def serialize(self) -> Dict:
+        """Serialize the summary to a plain dict compatible with ``torch.save``."""
+        return {
+            'version': 1,
+            'n_steps': self.n_steps,
+            'times': self.times,
+            'norms': self.norms,
+            'bond_dims': self.bond_dims,
+            'max_bond_dims': self.max_bond_dims,
+            'state': self.state.serialize(),
+        }
+
+    @classmethod
+    def deserialize(cls, data: Dict, device: str = 'cpu') -> Summary:
+        """Reconstruct a `Summary` from a dict produced by `serialize`."""
+        version = data.get('version', 1)
+        if version != 1:
+            raise ValueError(f"Unsupported Summary serialization version: {version!r}")
+        return cls(
+            state=Network.deserialize(data['state'], device=device),
+            n_steps=data['n_steps'],
+            times=data['times'],
+            norms=data['norms'],
+            bond_dims=data['bond_dims'],
+            max_bond_dims=data.get('max_bond_dims', []),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Top-level entry point
+# ---------------------------------------------------------------------------
+
+def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
+    """Evolve an MPS under a Hamiltonian MPO with the discarded-projector BUG.
+
+    Performs ``opts.n_steps`` steps. Each step is a single global discarded-projector
+    sweep (:func:`~.sweep.global_step`): the bond dimension grows along the whole chain
+    as the wall melts, and the state is returned with ``center == 0``.
 
     Parameters
     ----------
     mps:
-        Initial MPS state. Promoted to `complex128` and canonicalised in-place to
-        `center = 0` first. Start from a low-rank state to exercise the
-        rank-adaptive growth.
-    interactions:
-        Interaction list from `build_interaction`. Every active term must be a
-        nearest-neighbour `Interaction2Site`.
+        Initial MPS state. Promoted to ``complex128`` and canonicalised in-place.
+    mpo:
+        Hamiltonian MPO of the same length as ``mps``.
     opts:
-        Run options. Defaults to `Options()` if `None`.
+        Run options. Defaults to ``Options()`` if ``None``.
 
     Returns
     -------
     Summary
-        Evolved state, time/norm/bond-dimension history, and step count.
+        Evolved state and time/norm/bond-dimension history.
 
     Raises
     ------
     ValueError
-        If `mps` has fewer than two sites.
+        If ``mps`` has fewer than two sites or ``mps`` and ``mpo`` differ in length.
     """
     if opts is None:
         opts = Options()
     if mps.L < 2:
-        raise ValueError(f"discarded-projector BUG evolution requires at least 2 sites, got L={mps.L}")
+        raise ValueError(f"discarded BUG evolution requires at least 2 sites, got L={mps.L}")
+    if mps.L != mpo.L:
+        raise ValueError(f"mps and mpo must have the same length, got {mps.L} and {mpo.L}")
 
-    maxdim = opts.max_bond if opts.max_bond is not None else _UNLIMITED_BOND
+    maxdim = opts.max_bond if opts.max_bond is not None else 1_000_000_000
     prefactor: complex = -1.0 if opts.imaginary_time else -1j
 
+    # Promote both state and Hamiltonian to complex128 so every effective-H
+    # contraction and local exponential shares the backend dtype.
     for site in range(mps.L):
         mps[site] = to_complex(mps[site])
+    mpo = MPO([to_complex(mpo[b]) for b in range(mpo.L)])
     mps.canonical(0)
-
-    generators = build_bond_generators(interactions, mps.L)
-    gates = [
-        None if h is None else kernel_gate(h, mps[b].itags[2], mps[b + 1].itags[2])
-        for b, h in enumerate(generators)
-    ]
-
-    def sweep(parity: str, tau: float):
-        return parity_sweep(
-            mps, gates, parity, tau, maxdim,
-            opts.augment, opts.aug_krylov_depth, opts.trunc_thresh,
-            opts.lanczos_tol, opts.lanczos_maxiter,
-        )
 
     times: List[float] = []
     norms: List[float] = []
     max_bond_dims: List[int] = []
-    aug_dims: List[int] = []
-    disc_weights: List[float] = []
 
-    n_active = sum(1 for h in generators if h is not None)
     logger.info("─" * 60)
     logger.info("Commencing: Discarded-Projector BUG Time Evolution".center(60))
     logger.info("─" * 60)
     logger.info("")
-    logger.info("  order             : %s", opts.order)
     logger.info("  chain length      : %d", mps.L)
-    logger.info("  active bonds      : %d / %d", n_active, mps.L - 1)
     logger.info("  time step         : %g", opts.dt)
     logger.info("  steps             : %d", opts.n_steps)
     logger.info("  evolution         : %s", "imaginary" if opts.imaginary_time else "real")
     logger.info("  max bond dim      : %s", opts.max_bond if opts.max_bond is not None else 'unlimited')
-    logger.info("  augment           : %s", opts.augment)
     logger.info("")
 
     w = len(str(opts.n_steps))
-    with with_time_prefactor(prefactor), with_expv_backend('native_hermitian_lanczos'):
-        for step in range(opts.n_steps):
-            if opts.order == 'strang':
-                results = [
-                    sweep('even', 0.5 * opts.dt),
-                    sweep('odd', opts.dt),
-                    sweep('even', 0.5 * opts.dt),
-                ]
-            else:
-                results = [
-                    sweep('even', opts.dt),
-                    sweep('odd', opts.dt),
-                ]
-            augmented = max(aug for aug, _ in results)
-            discarded = max(disc for _, disc in results)
+    for step in range(opts.n_steps):
+        # One global discarded-projector sweep per time step: form phi = H psi, keep
+        # psi exact and admit only the discarded part of phi into the augmented bases,
+        # then integrate one Galerkin centre tensor. The bond dimension grows along the
+        # whole chain (the light cone) as the wall melts.
+        kept = global_step(mps, mpo, prefactor * opts.dt,
+                           maxdim=maxdim, cutoff=opts.cutoff,
+                           lanczos_tol=opts.lanczos_tol, lanczos_maxiter=opts.lanczos_maxiter)
 
-            norm = mps.norm()
-            if opts.normalize:
-                mps.normalize()
+        norm = mps.norm()
+        if opts.normalize:
+            mps.normalize()
 
-            times.append((step + 1) * opts.dt)
-            norms.append(norm)
-            max_bond_dims.append(max(mps.bond_dims) if mps.bond_dims else 1)
-            aug_dims.append(augmented)
-            disc_weights.append(discarded)
+        times.append((step + 1) * opts.dt)
+        norms.append(norm)
+        max_bond_dims.append(kept)
 
-            logger.info(
-                "step %*d / %d: t = %g, norm = %.10f, kept bond = %d, augmented = %d, disc = %.2e",
-                w, step + 1, opts.n_steps, times[-1], norm, max_bond_dims[-1], augmented, discarded,
-            )
+        logger.info("step %*d / %d: t = %g, norm = %.10f, kept bond = %d",
+                    w, step + 1, opts.n_steps, times[-1], norm, kept)
 
     if mps.center != 0:
         mps.canonical(0)
@@ -187,6 +262,4 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
         norms=norms,
         bond_dims=list(mps.bond_dims),
         max_bond_dims=max_bond_dims,
-        aug_dims=aug_dims,
-        disc_weights=disc_weights,
     )

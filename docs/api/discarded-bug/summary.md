@@ -1,6 +1,6 @@
 # Summary
 
-Discarded-projector BUG output. Shared with the [two-site BUG](../two-site-bug/summary.md).
+Discarded-projector BUG output.
 
 ::: alice.algorithm.discarded_bug.Summary
     options:

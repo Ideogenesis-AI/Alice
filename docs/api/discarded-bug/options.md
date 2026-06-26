@@ -1,6 +1,6 @@
 # Options
 
-Discarded-projector BUG run options. Shared with the [two-site BUG](../two-site-bug/options.md): the discarded variant has the same controls and the same output record.
+Discarded-projector BUG run options.
 
 ::: alice.algorithm.discarded_bug.Options
     options:
@@ -26,10 +26,10 @@ Example TOML block:
 [heisenberg.algorithm]
 dt              = 0.05
 n_steps         = 40
-order           = "strang"
 max_bond        = 128
-trunc_thresh    = 1e-12
+cutoff          = 1e-12
 imaginary_time  = false
+normalize       = true
 ```
 
 ## See Also

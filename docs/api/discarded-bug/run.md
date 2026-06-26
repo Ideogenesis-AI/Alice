@@ -1,6 +1,6 @@
 # Launch
 
-Evolve an MPS under a nearest-neighbour Hamiltonian with the discarded-projector BUG integrator.
+Evolve an MPS under a Hamiltonian **MPO** with the discarded-projector BUG integrator.
 
 ::: alice.algorithm.discarded_bug.run
     options:
@@ -10,5 +10,4 @@ Evolve an MPS under a nearest-neighbour Hamiltonian with the discarded-projector
 
 - [Options](options.md) — configure the run.
 - [Summary](summary.md) — interpret the output.
-- [Two-Site BUG](../two-site-bug/index.md) — the faithful CKL variant this is derived from.
-- [build_interaction](../interaction/build-interaction.md) — create the `interactions` argument.
+- [build_hamiltonian](../hamiltonian/build-hamiltonian.md) — create the `mpo` argument.
