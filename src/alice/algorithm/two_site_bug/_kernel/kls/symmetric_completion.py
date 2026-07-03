@@ -39,6 +39,56 @@ from .augment import (
 )
 
 
+def _kl_truncated_left(U0_sub, K1_sub, kl_cutoff: float, max_rank):
+    """Augmented left block ``[U0 | SVD-weight-truncated discarded complement of K1]``.
+
+    Instead of completing ``U0`` to the full local capacity (``d*r``), keep ``U0``
+    EXACTLY and admit only the discarded directions ``(I - U0 U0+) K1`` whose singular
+    value clears ``kl_cutoff`` (relative to the top one) — the per-bond analogue of the
+    global discarded_bug's SVD-truncated complement. This caps the augmented rank
+    between ``r`` and ``d*r`` instead of always ``d*r``. Returns ``(Q, overlap, n_new)``
+    with ``Q = [U0 | Q_new]`` orthonormal (``Q_new`` is orthogonal to ``U0`` by
+    construction). ``overlap`` (the M-hat block) is computed for signature parity but is
+    unused by the discarded variant, which seeds the S-step from ``Û† Θ0 V̂†`` directly.
+    """
+    r = U0_sub.shape[1]
+    eye = U0_sub.conj().transpose(0, 1) @ U0_sub
+    if K1_sub.numel() == 0 or K1_sub.shape[1] == 0:
+        return U0_sub, eye, 0
+    k_perp = K1_sub - U0_sub @ (U0_sub.conj().transpose(0, 1) @ K1_sub)
+    u_k, s_k, _ = torch.linalg.svd(k_perp, full_matrices=False)
+    if s_k.numel() == 0 or float(s_k[0]) == 0.0:
+        return U0_sub, eye, 0
+    keep = int((s_k > kl_cutoff * float(s_k[0])).sum().item())
+    if max_rank is not math.inf:
+        keep = min(keep, max(0, int(max_rank) - r))
+    if keep <= 0:
+        return U0_sub, eye, 0
+    Q = torch.cat([U0_sub, u_k[:, :keep]], dim=1)
+    overlap = Q.conj().transpose(0, 1) @ U0_sub
+    return Q, overlap, keep
+
+
+def _kl_truncated_right(V0_sub, L1_sub, kl_cutoff: float, max_rank):
+    """Augmented right block ``[V0 ; SVD-weight-truncated discarded complement of L1]`` (row-wise mirror)."""
+    r = V0_sub.shape[0]
+    eye = V0_sub @ V0_sub.conj().transpose(0, 1)
+    if L1_sub.numel() == 0 or L1_sub.shape[0] == 0:
+        return V0_sub, eye, 0
+    l_perp = L1_sub - (L1_sub @ V0_sub.conj().transpose(0, 1)) @ V0_sub
+    _, s_l, vh_l = torch.linalg.svd(l_perp, full_matrices=False)
+    if s_l.numel() == 0 or float(s_l[0]) == 0.0:
+        return V0_sub, eye, 0
+    keep = int((s_l > kl_cutoff * float(s_l[0])).sum().item())
+    if max_rank is not math.inf:
+        keep = min(keep, max(0, int(max_rank) - r))
+    if keep <= 0:
+        return V0_sub, eye, 0
+    B = torch.cat([V0_sub, vh_l[:keep, :]], dim=0)
+    overlap = V0_sub @ B.conj().transpose(0, 1)
+    return B, overlap, keep
+
+
 def _symmetric_augmented_left_isometry_from_k(
     U0_tens,
     K1_tens,
@@ -50,6 +100,7 @@ def _symmetric_augmented_left_isometry_from_k(
     augment: bool = True,
     max_rank: int | float = math.inf,
     aug_tol: float = 1e-12,
+    kl_cutoff: float | None = None,
     **kwargs: Any,
 ):
     if args:
@@ -109,11 +160,16 @@ def _symmetric_augmented_left_isometry_from_k(
         k_slice = k_offsets.get(k_charge)
         U0_sub = U0_mat[rows, old_slice[0] : old_slice[0] + old_slice[1]] if old_slice else torch.zeros((len(rows), 0), dtype=dtype, device=device)
         K1_sub = K1_mat[rows, k_slice[0] : k_slice[0] + k_slice[1]] if k_slice else torch.zeros((len(rows), 0), dtype=dtype, device=device)
-        Q_block, overlap_block, n_new = _pick_left_update(U0_sub, K1_sub, augment=augment, max_rank=max_rank, aug_tol=aug_tol)
-        if augment:
-            Q_block = complete_column_basis(Q_block)
-            overlap_block = Q_block.conj().transpose(0, 1) @ U0_sub
-            n_new = Q_block.shape[1] - U0_sub.shape[1]
+        if kl_cutoff is not None and augment:
+            # Efficient path: keep U0 exact, admit only the SVD-weight-significant
+            # discarded directions of K1 (no full d*r completion).
+            Q_block, overlap_block, n_new = _kl_truncated_left(U0_sub, K1_sub, kl_cutoff, max_rank)
+        else:
+            Q_block, overlap_block, n_new = _pick_left_update(U0_sub, K1_sub, augment=augment, max_rank=max_rank, aug_tol=aug_tol)
+            if augment:
+                Q_block = complete_column_basis(Q_block)
+                overlap_block = Q_block.conj().transpose(0, 1) @ U0_sub
+                n_new = Q_block.shape[1] - U0_sub.shape[1]
         if Q_block.shape[1] == 0:
             continue
         pieces.append((old_charge, rows, Q_block, overlap_block))
@@ -159,6 +215,7 @@ def _symmetric_augmented_right_isometry_from_l(
     augment: bool = True,
     max_rank: int | float = math.inf,
     aug_tol: float = 1e-12,
+    kl_cutoff: float | None = None,
     **kwargs: Any,
 ):
     if args:
@@ -218,11 +275,14 @@ def _symmetric_augmented_right_isometry_from_l(
         l_slice = l_offsets.get(l_charge)
         V0_sub = V0_mat[old_slice[0] : old_slice[0] + old_slice[1], cols] if old_slice else torch.zeros((0, len(cols)), dtype=dtype, device=device)
         L1_sub = L1_mat[l_slice[0] : l_slice[0] + l_slice[1], cols] if l_slice else torch.zeros((0, len(cols)), dtype=dtype, device=device)
-        B_block, overlap_block, n_new = _pick_right_update(V0_sub, L1_sub, augment=augment, max_rank=max_rank, aug_tol=aug_tol)
-        if augment:
-            B_block = complete_row_basis(B_block)
-            overlap_block = V0_sub @ B_block.conj().transpose(0, 1)
-            n_new = B_block.shape[0] - V0_sub.shape[0]
+        if kl_cutoff is not None and augment:
+            B_block, overlap_block, n_new = _kl_truncated_right(V0_sub, L1_sub, kl_cutoff, max_rank)
+        else:
+            B_block, overlap_block, n_new = _pick_right_update(V0_sub, L1_sub, augment=augment, max_rank=max_rank, aug_tol=aug_tol)
+            if augment:
+                B_block = complete_row_basis(B_block)
+                overlap_block = V0_sub @ B_block.conj().transpose(0, 1)
+                n_new = B_block.shape[0] - V0_sub.shape[0]
         if B_block.shape[0] == 0:
             continue
         pieces.append((old_charge, cols, B_block, overlap_block))

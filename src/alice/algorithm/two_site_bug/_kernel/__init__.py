@@ -37,7 +37,7 @@ odd/even Strang sweep on an Alice `MPS` through this kernel.
 
 from .indices import Ix, fresh_itag
 from .krylov import with_expv_backend, with_time_prefactor
-from .kls import _faithful_kls_local_bond_candidate
+from .kls import _discarded_kls_local_bond_candidate, _faithful_kls_local_bond_candidate
 from .linalg import lq, qr
 from .nicole_helpers import dag, make_tensor, tcontract, to_dense
 
@@ -46,6 +46,7 @@ __all__ = [
     'fresh_itag',
     'with_expv_backend',
     'with_time_prefactor',
+    '_discarded_kls_local_bond_candidate',
     '_faithful_kls_local_bond_candidate',
     'lq',
     'qr',

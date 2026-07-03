@@ -39,6 +39,7 @@ from .candidate import (
     _faithful_reverse_kls_local_bond_candidate,
     _symmetric_local_bond_candidate,
 )
+from .discarded_candidate import _discarded_kls_local_bond_candidate
 from .symmetric_completion import (
     _symmetric_augmented_left_isometry_from_k,
     _symmetric_augmented_right_isometry_from_l,
@@ -49,6 +50,7 @@ __all__ = [
     "LocalBondFrame",
     "_augmented_left_isometry_from_k",
     "_augmented_right_isometry_from_l",
+    "_discarded_kls_local_bond_candidate",
     "_faithful_kls_local_bond_candidate",
     "_faithful_reverse_kls_local_bond_candidate",
     "_pick_left_update",

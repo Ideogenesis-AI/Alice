@@ -95,10 +95,17 @@ def to_complex(tensor: Tensor) -> Tensor:
     Tensor
         Tensor with identical indices and itags but ``complex128`` block data.
     """
+    new_intw = None
+    if tensor.intw is not None:
+        new_intw = {
+            key: bridge.to(tensor.device, dtype=torch.complex128)
+            for key, bridge in tensor.intw.items()
+        }
     return Tensor(
         indices=tensor.indices,
         itags=tensor.itags,
         data={key: block.to(torch.complex128) for key, block in tensor.data.items()},
+        intw=new_intw,
         dtype=torch.complex128,
     )
 
@@ -157,6 +164,28 @@ def _tridiagonal_exp_first_column(
     return evecs_c @ weights
 
 
+# Opt-in Krylov-depth instrumentation (off by default => zero overhead). When
+# enabled, every tensor_lanczos_expv call appends its Krylov dimension (number of
+# matrix-free H applications) to KRYLOV_LOG, for the N_Krylov diagnostic.
+KRYLOV_LOG: list[int] = []
+_KRYLOV_RECORD = False
+
+
+def enable_krylov_log() -> None:
+    global _KRYLOV_RECORD
+    _KRYLOV_RECORD = True
+    KRYLOV_LOG.clear()
+
+
+def disable_krylov_log() -> None:
+    global _KRYLOV_RECORD
+    _KRYLOV_RECORD = False
+
+
+def get_krylov_log() -> list[int]:
+    return list(KRYLOV_LOG)
+
+
 def tensor_lanczos_expv(
     apply: Callable[[Tensor], Tensor],
     dt: complex,
@@ -195,6 +224,8 @@ def tensor_lanczos_expv(
     """
     beta0 = x.norm()
     if float(abs(beta0)) == 0.0:
+        if _KRYLOV_RECORD:
+            KRYLOV_LOG.append(0)
         return x
 
     v = (1.0 / beta0) * x
@@ -219,6 +250,8 @@ def tensor_lanczos_expv(
         alpha.append(a)
         w = w + (-a) * v + (-b) * basis[-2]
 
+    if _KRYLOV_RECORD:
+        KRYLOV_LOG.append(len(alpha))
     coeff = _tridiagonal_exp_first_column(alpha, betas, dt) * beta0
     evolved = coeff[0] * basis[0]
     for idx in range(1, len(alpha)):

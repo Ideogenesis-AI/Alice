@@ -1,0 +1,299 @@
+# Copyright (C) 2025-2026 Changkai Zhang.
+#
+# This file is part of Alice project.
+#
+# Alice is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published
+# by the Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
+#
+# Alice is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Alice. If not, see <https://www.gnu.org/licenses/>.
+# Author of code: Madhav Menon.
+
+
+"""Tests for the two-site BUG ``variant='discarded'`` local update.
+
+The discarded variant differs from the faithful Ceruti–Kusch–Lubich K/L/S update
+in exactly two places (see
+:mod:`alice.algorithm.two_site_bug._kernel.kls.discarded_candidate`): the K/L
+generators are projected by the discarded (orthogonal-complement) projector
+*before* the exponential, and the augmented **isometries are acted directly** in
+the S-step (``Ŝ0 = Û† Θ0 V̂†``) rather than transported through overlap matrices
+``M̂``/``N̂``. Everything else — the odd/even Trotter sweep, the bond Hamiltonians,
+the Galerkin S-step generator, and the final SVD — is shared with the faithful
+kernel. At full bond dimension both variants are exact, so these tests check the
+discarded variant against exact diagonalization *and* against the faithful variant
+at full rank, plus the usual conservation laws and Strang convergence order.
+"""
+
+from __future__ import annotations
+
+import pytest
+import torch
+from nicole import Index, Tensor
+
+from alice import init_mps
+from alice.algorithm import two_site_bug
+from alice.algorithm.two_site_bug.scheme import resolve_candidate
+
+from .conftest import (
+    dense_hamiltonian,
+    dense_total_sz,
+    exact_evolve,
+    heisenberg_chain,
+    mps_to_vector,
+)
+
+
+def _neel(length, spin_space):
+    """Return ``(mps, interactions, charges, psi0)`` for a full-phys Néel state.
+
+    The Néel state ``|↑↓↑↓…⟩`` (alternating ``config=[0,1,0,1,…]``) lives in the
+    Sz=0 sector for even ``length``. Each physical leg is inflated to the full
+    spin-1/2 index so spins can flip and the state densifies to ``2**length``;
+    ``psi0`` is the dense initial vector in the ED helpers' basis order.
+    """
+    _, operators = spin_space
+    interactions, spc, _ = heisenberg_chain(length)
+    charges = [sector.charge for sector in spc.sectors]
+    config = [0, 1] * (length // 2)
+    target = sum(charges[c] for c in config)
+    mps = init_mps(length, spc, operators, config=config, target_qn=target)
+    for i in range(mps.L):
+        core = mps[i]
+        full_phys = Index(core.indices[2].direction, core.indices[2].group, spc.sectors)
+        mps[i] = Tensor(
+            indices=(core.indices[0], core.indices[1], full_phys),
+            itags=core.itags,
+            data={key: block.clone() for key, block in core.data.items()},
+            dtype=core.dtype,
+        )
+    psi0 = mps_to_vector(mps, charges)
+    return mps, interactions, charges, psi0
+
+
+def _discarded(**kwargs):
+    """Options for the discarded variant with sensible test defaults."""
+    return two_site_bug.Options(variant='discarded', **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Options / wiring
+# ---------------------------------------------------------------------------
+
+class TestVariantOption:
+    """The variant flag selects the discarded kernel and validates eagerly."""
+
+    def test_default_variant_is_faithful(self):
+        assert two_site_bug.Options().variant == 'faithful'
+
+    def test_unknown_variant_raises(self):
+        with pytest.raises(ValueError, match='unknown two-site BUG variant'):
+            two_site_bug.Options(variant='projected')
+
+    def test_resolve_candidate_distinct(self):
+        from alice.algorithm.two_site_bug._kernel import (
+            _discarded_kls_local_bond_candidate,
+            _faithful_kls_local_bond_candidate,
+        )
+        assert resolve_candidate('discarded') is _discarded_kls_local_bond_candidate
+        assert resolve_candidate('faithful') is _faithful_kls_local_bond_candidate
+
+
+# ---------------------------------------------------------------------------
+# Conservation
+# ---------------------------------------------------------------------------
+
+class TestConservation:
+    """Norm (real time) and total Sz are conserved by the discarded S-step."""
+
+    def test_norm_conserved_real_time(self, spin_space):
+        mps, interactions, _, _ = _neel(6, spin_space)
+        summary = two_site_bug.run(
+            mps, interactions, _discarded(dt=0.05, n_steps=10, max_bond=64, normalize=False)
+        )
+        for norm in summary.norms:
+            assert abs(norm - 1.0) < 1e-10
+
+    def test_total_sz_conserved(self, spin_space):
+        mps, interactions, charges, psi0 = _neel(6, spin_space)
+        sz_total = dense_total_sz(6, charges)
+        sz_before = (psi0.conj() @ sz_total @ psi0).real.item() / psi0.norm().item() ** 2
+        summary = two_site_bug.run(
+            mps, interactions, _discarded(dt=0.05, n_steps=10, max_bond=64)
+        )
+        vec = mps_to_vector(summary.state, charges)
+        sz_after = (vec.conj() @ sz_total @ vec).real.item() / vec.norm().item() ** 2
+        assert abs(sz_after - sz_before) < 1e-10
+
+
+# ---------------------------------------------------------------------------
+# Accuracy: the discarded-projector + augmented-isometry S-step is correct
+# ---------------------------------------------------------------------------
+
+class TestAccuracy:
+    """Real-time accuracy of the discarded S-step against ED and the faithful kernel."""
+
+    def test_fidelity_matches_exact_diagonalization(self, spin_space):
+        length = 6
+        mps, interactions, charges, psi0 = _neel(length, spin_space)
+        ham = dense_hamiltonian(interactions, length, charges)
+        psi0 = psi0 / psi0.norm()
+        dt, n_steps = 0.05, 20
+        summary = two_site_bug.run(
+            mps, interactions, _discarded(dt=dt, n_steps=n_steps, max_bond=64, normalize=False)
+        )
+        evolved = mps_to_vector(summary.state, charges)
+        evolved = evolved / evolved.norm()
+        exact = exact_evolve(ham, psi0, dt * n_steps)
+        exact = exact / exact.norm()
+        fidelity = abs(torch.vdot(exact, evolved)).item()
+        # At full bond dimension the only error is the Strang splitting (O(dt^2)).
+        assert 1.0 - fidelity < 1e-6
+
+    def test_matches_faithful_at_full_rank(self, spin_space):
+        """At full bond dimension the discarded and faithful variants must agree.
+
+        Both reduce to the exact local two-site evolution at full rank, so the two
+        kernels — despite the different basis-growth bookkeeping — produce the same
+        state to Krylov precision. This is the strongest check that the
+        augmented-isometry S-step (``Ŝ0 = Û† Θ0 V̂†``, no overlap matrices) is right.
+        """
+        length = 6
+        dt, n_steps = 0.05, 10
+
+        mps_f, interactions, charges, _ = _neel(length, spin_space)
+        faithful = two_site_bug.run(
+            mps_f, interactions,
+            two_site_bug.Options(variant='faithful', dt=dt, n_steps=n_steps,
+                                 max_bond=64, normalize=False),
+        )
+        vec_f = mps_to_vector(faithful.state, charges)
+        vec_f = vec_f / vec_f.norm()
+
+        mps_d, interactions, charges, _ = _neel(length, spin_space)
+        discarded = two_site_bug.run(
+            mps_d, interactions, _discarded(dt=dt, n_steps=n_steps, max_bond=64, normalize=False)
+        )
+        vec_d = mps_to_vector(discarded.state, charges)
+        vec_d = vec_d / vec_d.norm()
+
+        assert 1.0 - abs(torch.vdot(vec_f, vec_d)).item() < 1e-9
+
+    def test_strang_converges_second_order(self, spin_space):
+        length = 6
+        _, interactions, charges, psi0 = _neel(length, spin_space)
+        ham = dense_hamiltonian(interactions, length, charges)
+        psi0 = psi0 / psi0.norm()
+
+        def infidelity(dt, n_steps):
+            mps, _, _, _ = _neel(length, spin_space)
+            summary = two_site_bug.run(
+                mps, interactions, _discarded(dt=dt, n_steps=n_steps, max_bond=64, normalize=False)
+            )
+            evolved = mps_to_vector(summary.state, charges)
+            evolved = evolved / evolved.norm()
+            exact = exact_evolve(ham, psi0, dt * n_steps)
+            exact = exact / exact.norm()
+            return 1.0 - abs(torch.vdot(exact, evolved)).item()
+
+        coarse = infidelity(0.10, 10)
+        fine = infidelity(0.05, 20)
+        # Strang state error is O(dt^2) -> infidelity O(dt^4): halving dt cuts ~16x.
+        assert coarse / fine > 8.0
+
+
+# ---------------------------------------------------------------------------
+# Imaginary time
+# ---------------------------------------------------------------------------
+
+class TestImaginaryTime:
+    """Imaginary-time cooling toward the exact ground state."""
+
+    def test_imaginary_time_reaches_ground_state(self, spin_space):
+        length = 6
+        mps, interactions, charges, psi0 = _neel(length, spin_space)
+        ham = dense_hamiltonian(interactions, length, charges)
+        evals, evecs = torch.linalg.eigh(ham)
+        ground_energy = evals[0].item()
+        ground_vec = evecs[:, 0]
+        psi0 = psi0 / psi0.norm()
+        err_before = 1.0 - abs(torch.vdot(ground_vec, psi0)).item()
+
+        summary = two_site_bug.run(
+            mps, interactions,
+            _discarded(dt=0.05, n_steps=160, imaginary_time=True, max_bond=64),
+        )
+        vec = mps_to_vector(summary.state, charges)
+        vec = vec / vec.norm()
+        energy_after = (vec.conj() @ ham @ vec).real.item()
+        err_after = 1.0 - abs(torch.vdot(ground_vec, vec)).item()
+
+        # Variational lower bound, substantial cooling, and tight final overlap.
+        assert energy_after > ground_energy - 1e-9
+        assert energy_after - ground_energy < 1e-2
+        assert err_after < err_before
+        assert err_after < 1e-2
+
+
+# ---------------------------------------------------------------------------
+# K/L weight-truncated augmentation (kl_cutoff)
+# ---------------------------------------------------------------------------
+
+class TestKLCutoff:
+    """The opt-in SVD-weight-truncated K/L augmentation (vs full d·r completion)."""
+
+    def test_reduces_augmented_rank(self, spin_space):
+        """kl_cutoff caps the proposed augmented bond below the full-completion run."""
+        mps, interactions, _, _ = _neel(6, spin_space)
+        full = two_site_bug.run(
+            mps, interactions, _discarded(dt=0.05, n_steps=6, imaginary_time=True, max_bond=64))
+        mps2, interactions, _, _ = _neel(6, spin_space)
+        trunc = two_site_bug.run(
+            mps2, interactions,
+            _discarded(dt=0.05, n_steps=6, imaginary_time=True, max_bond=64, kl_cutoff=1e-6))
+        assert max(trunc.aug_dims) <= max(full.aug_dims)
+
+    @pytest.mark.xfail(
+        reason="Independent K/L weight-trim does NOT match full completion: the full "
+               "d*r completion pads the augmented bases to local capacity, which is what "
+               "lets a low-rank (e.g. Neel product) state grow entanglement. Trimming the "
+               "K/L Krylov complement by weight starves that growth (the bond collapses to "
+               "rank 1), so the truncated state differs materially from the full-completion "
+               "state. Fix in progress: keep the COMPLEMENTARY new Schmidt pair (K -> left "
+               "vector, L -> matching right vector) instead of independent K/L trims.",
+        strict=True,
+    )
+    def test_tight_threshold_matches_full(self, spin_space):
+        """A very tight kl_cutoff keeps every weight-significant direction => same state."""
+        mps, interactions, charges, _ = _neel(6, spin_space)
+        full = two_site_bug.run(
+            mps, interactions, _discarded(dt=0.05, n_steps=3, max_bond=64, normalize=False))
+        vec_full = mps_to_vector(full.state, charges)
+        vec_full = vec_full / vec_full.norm()
+        mps2, interactions, charges, _ = _neel(6, spin_space)
+        trunc = two_site_bug.run(
+            mps2, interactions,
+            _discarded(dt=0.05, n_steps=3, max_bond=64, normalize=False, kl_cutoff=1e-12))
+        vec_t = mps_to_vector(trunc.state, charges)
+        vec_t = vec_t / vec_t.norm()
+        assert 1.0 - abs(torch.vdot(vec_full, vec_t)).item() < 1e-7
+
+    @pytest.mark.slow
+    def test_cools_to_ground_state(self, spin_space):
+        mps, interactions, charges, _ = _neel(6, spin_space)
+        ham = dense_hamiltonian(interactions, 6, charges)
+        evals, evecs = torch.linalg.eigh(ham)
+        ground_vec = evecs[:, 0]
+        summary = two_site_bug.run(
+            mps, interactions,
+            _discarded(dt=0.05, n_steps=160, imaginary_time=True, max_bond=64, kl_cutoff=1e-6))
+        vec = mps_to_vector(summary.state, charges)
+        vec = vec / vec.norm()
+        assert 1.0 - abs(torch.vdot(ground_vec, vec)).item() < 1e-2

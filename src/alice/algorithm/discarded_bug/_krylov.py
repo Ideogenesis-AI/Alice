@@ -69,10 +69,17 @@ def to_complex(tensor: Tensor) -> Tensor:
     Tensor
         Tensor with identical indices and itags but ``complex128`` block data.
     """
+    new_intw = None
+    if tensor.intw is not None:
+        new_intw = {
+            key: bridge.to(tensor.device, dtype=torch.complex128)
+            for key, bridge in tensor.intw.items()
+        }
     return Tensor(
         indices=tensor.indices,
         itags=tensor.itags,
         data={key: block.to(torch.complex128) for key, block in tensor.data.items()},
+        intw=new_intw,
         dtype=torch.complex128,
     )
 

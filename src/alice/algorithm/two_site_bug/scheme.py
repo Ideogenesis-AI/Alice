@@ -36,14 +36,41 @@ the snapshot and writeback transpose between the two.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 from nicole import Tensor, permute
 
 from alice.network import MPS
 
-from ._kernel import Ix, _faithful_kls_local_bond_candidate, lq, qr, tcontract, to_dense
+from ._kernel import (
+    Ix,
+    _discarded_kls_local_bond_candidate,
+    _faithful_kls_local_bond_candidate,
+    lq,
+    qr,
+    tcontract,
+    to_dense,
+)
+
+# Local-bond candidate kernels selectable by ``two_site_bug.Options.variant``.
+# ``'faithful'`` is the Ceruti–Kusch–Lubich K/L/S update (overlap matrices M̂/N̂);
+# ``'discarded'`` is the project-before discarded-projector update that acts the
+# augmented isometries directly (no overlap matrices) — see
+# :mod:`._kernel.kls.discarded_candidate`.
+_CANDIDATE_KERNELS: Dict[str, Callable] = {
+    'faithful': _faithful_kls_local_bond_candidate,
+    'discarded': _discarded_kls_local_bond_candidate,
+}
+
+
+def resolve_candidate(variant: str) -> Callable:
+    """Return the local-bond candidate function for a ``variant`` name."""
+    try:
+        return _CANDIDATE_KERNELS[variant]
+    except KeyError:
+        known = ', '.join(sorted(_CANDIDATE_KERNELS))
+        raise ValueError(f"unknown two-site BUG variant {variant!r}; recognised values are: {known}")
 
 
 def _discarded_weight(s_new: Tensor, keep: int) -> float:
@@ -141,7 +168,12 @@ def kls_bond(
     trunc_thresh: float,
     lanczos_tol: float,
     lanczos_maxiter: int,
-) -> Tuple[int, float]:
+    candidate_fn: Callable = _faithful_kls_local_bond_candidate,
+    solver: str = 'krylov',
+    solver_substeps: int = 1,
+    kl_cutoff: float | None = None,
+    kl_cutoff_min_bond: int = 4,
+) -> Tuple[int, int, float]:
     """Apply one faithful-KLS update to sites *(i, i+1)* of `mps`, in place.
 
     Moves the orthogonality center onto site *i* (truncation-free), snapshots the
@@ -174,8 +206,10 @@ def kls_bond(
     Returns
     -------
     int
-        Proposed augmented bond dimension at this bond (old rank + new K/L
-        directions), before the truncated split.
+        Proposed augmented **K** bond dimension (old rank + new K directions) at
+        this bond, before the truncated split.
+    int
+        Proposed augmented **L** bond dimension (old rank + new L directions).
     float
         Relative weight discarded by this bond's S-step truncation.
     """
@@ -183,7 +217,14 @@ def kls_bond(
     bond_data = bond_snapshot(mps, i)
     old_rank = int(bond_data['link_mid'].dim)
 
-    candidate = _faithful_kls_local_bond_candidate(
+    # Adaptive-delay gate: only weight-trim the K/L augmentation once this bond has
+    # grown past `kl_cutoff_min_bond`. Below it, fall back to full d·r completion so a
+    # low-rank (product) state can grow its entanglement instead of collapsing.
+    effective_kl = kl_cutoff
+    if kl_cutoff is not None and old_rank < kl_cutoff_min_bond:
+        effective_kl = None
+
+    candidate = candidate_fn(
         bond_data,
         gate=gate,
         dt=tau,
@@ -193,15 +234,19 @@ def kls_bond(
         trunc_thresh=trunc_thresh,
         lanczos_tol=lanczos_tol,
         lanczos_maxiter=lanczos_maxiter,
+        solver=solver,
+        solver_substeps=solver_substeps,
+        kl_cutoff=effective_kl,
     )
 
     mps[i] = _to_mps_layout(candidate['left_core'])
     mps[i + 1] = _to_mps_layout(candidate['right_core'])
     mps._center = i + 1
 
-    augmented = old_rank + max(int(candidate['n_new_k']), int(candidate['n_new_l']))
+    aug_k = old_rank + int(candidate['n_new_k'])
+    aug_l = old_rank + int(candidate['n_new_l'])
     discarded = _discarded_weight(candidate['S_new'], int(candidate['keep']))
-    return augmented, discarded
+    return aug_k, aug_l, discarded
 
 
 def parity_bonds(length: int, parity: str) -> List[int]:
@@ -243,7 +288,12 @@ def parity_sweep(
     trunc_thresh: float,
     lanczos_tol: float,
     lanczos_maxiter: int,
-) -> Tuple[int, float]:
+    candidate_fn: Callable = _faithful_kls_local_bond_candidate,
+    solver: str = 'krylov',
+    solver_substeps: int = 1,
+    kl_cutoff: float | None = None,
+    kl_cutoff_min_bond: int = 4,
+) -> Tuple[int, int, float]:
     """Apply every bond gate of one commuting group to `mps`, in place.
 
     Bonds of the chosen parity act on disjoint site pairs, so the group is an
@@ -271,12 +321,15 @@ def parity_sweep(
     float
         Largest relative discarded weight over the bonds of this group.
     """
-    augmented = 0
+    aug_k = aug_l = 0
     discarded = 0.0
     for i in parity_bonds(mps.L, parity):
         if gates[i] is not None:
-            aug, disc = kls_bond(mps, i, gates[i], tau, maxdim, augment,
-                                 aug_krylov_depth, trunc_thresh, lanczos_tol, lanczos_maxiter)
-            augmented = max(augmented, aug)
+            ak, al, disc = kls_bond(mps, i, gates[i], tau, maxdim, augment,
+                                    aug_krylov_depth, trunc_thresh, lanczos_tol, lanczos_maxiter,
+                                    candidate_fn, solver, solver_substeps, kl_cutoff,
+                                    kl_cutoff_min_bond)
+            aug_k = max(aug_k, ak)
+            aug_l = max(aug_l, al)
             discarded = max(discarded, disc)
-    return augmented, discarded
+    return aug_k, aug_l, discarded

@@ -464,6 +464,28 @@ def tensor_inner(a: Tensor, b: Tensor) -> complex:
     return _neinsum(f"{equation},{equation}->", _nconj(a), b).item()
 
 
+# Opt-in Krylov-depth instrumentation (off by default => zero overhead). When
+# enabled, every tensor_lanczos_expv call appends its Krylov dimension (number of
+# matrix-free H applications) to KRYLOV_LOG, for the N_Krylov diagnostic.
+KRYLOV_LOG: list[int] = []
+_KRYLOV_RECORD = False
+
+
+def enable_krylov_log() -> None:
+    global _KRYLOV_RECORD
+    _KRYLOV_RECORD = True
+    KRYLOV_LOG.clear()
+
+
+def disable_krylov_log() -> None:
+    global _KRYLOV_RECORD
+    _KRYLOV_RECORD = False
+
+
+def get_krylov_log() -> list[int]:
+    return list(KRYLOV_LOG)
+
+
 def tensor_lanczos_expv(
     apply: Callable[[Tensor], Tensor],
     dt: complex,
@@ -487,6 +509,8 @@ def tensor_lanczos_expv(
     options = _coerce_lanczos_options(options, **kwargs)
     beta0 = x.norm()
     if beta0 == 0:
+        if _KRYLOV_RECORD:
+            KRYLOV_LOG.append(0)
         return x
 
     v = (1.0 / beta0) * x
@@ -513,6 +537,8 @@ def tensor_lanczos_expv(
         alpha.append(a)
         w = w + (-a) * v + (-b) * basis[-2]
 
+    if _KRYLOV_RECORD:
+        KRYLOV_LOG.append(len(alpha))
     coeff = hermitian_tridiagonal_exp_coeffs(alpha, betas, dt) * beta0
     out = coeff[0] * basis[0]
     for idx in range(1, len(alpha)):

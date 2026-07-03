@@ -54,8 +54,9 @@ from alice.network.network import Network
 
 from ..interface import AlgorithmOptions, AlgorithmSummary
 from ._kernel import with_expv_backend, with_time_prefactor
+from ._kernel.local_solvers import LOCAL_SOLVERS
 from .bond import build_bond_generators, kernel_gate, to_complex
-from .scheme import parity_sweep
+from .scheme import parity_sweep, resolve_candidate
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,40 @@ class Options(AlgorithmOptions):
         - `'strang'` / `'second'` / `'2'`: symmetric second-order step
           `U_even(dt/2) · U_odd(dt) · U_even(dt/2)`.
         - `'lie'` / `'first'` / `'1'`: first-order step `U_even(dt) · U_odd(dt)`.
+    variant:
+        Local bond update kernel:
+
+        - `'faithful'` (default): the Ceruti–Kusch–Lubich K/L/S update — augments
+          through the overlap matrices `M̂`/`N̂` (`Ŝ0 = M̂ S0 N̂`).
+        - `'discarded'`: the discarded-projector update — applies the discarded
+          (orthogonal-complement) projector to the K/L generator *before* the
+          exponential and acts the augmented isometries directly in the S-step
+          (`Ŝ0 = Û† Θ0 V̂†`), forming **no** overlap matrices.
+    solver:
+        Local (imaginary-time) integrator for the `'discarded'` variant's K/L/S
+        substeps — `'krylov'` (exact, default), `'midpoint'` (explicit RK2),
+        `'rk4'`, or `'trapezoid'` (A-stable Crank–Nicolson). Ignored by the unitary
+        `'faithful'` variant, which always uses the exact Krylov exponential. See
+        :mod:`alice.algorithm.two_site_bug._kernel.local_solvers`.
+    solver_substeps:
+        Number of internal substeps for `'midpoint'`/`'rk4'`/`'trapezoid'` (local
+        error `O((dt/solver_substeps)^p)`; ignored by `'krylov'`).
+    kl_cutoff:
+        Discarded-weight threshold for the K/L augmentation (`'discarded'` variant
+        only). `None` (default) keeps the standard behaviour — the augmented frame
+        is completed to full local capacity (`d·r`) and all truncation happens at
+        the post-S-step SVD. When set, each frame keeps `U0`/`V0` exactly and admits
+        only the discarded K/L directions whose relative singular value exceeds
+        `kl_cutoff`, capping the augmented rank between `r` and `d·r` (cheaper S-step
+        and controlled bond growth). The post-S-step `trunc_thresh` still applies.
+    kl_cutoff_min_bond:
+        Adaptive-delay gate for `kl_cutoff` (`'discarded'` variant only). The K/L
+        augmentation is only weight-trimmed once a bond's current rank reaches this
+        value; below it the bond uses the full `d·r` completion so a low-rank state
+        (e.g. the Néel product start) can grow its entanglement freely. Trimming the
+        augmentation too early starves that growth and collapses the bond to rank 1.
+        Default `4`; set to `1` to trim from the first step (the un-gated behaviour).
+        Ignored when `kl_cutoff is None`.
     max_bond:
         Maximum bond dimension kept by the post-S-step SVD truncation. `None`
         means no explicit cap (rank adapts up to the local capacity).
@@ -160,6 +195,11 @@ class Options(AlgorithmOptions):
     dt: float = 0.05
     n_steps: int = 10
     order: str = 'strang'
+    variant: str = 'faithful'
+    solver: str = 'krylov'
+    solver_substeps: int = 1
+    kl_cutoff: Optional[float] = None
+    kl_cutoff_min_bond: int = 4
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-12
     augment: bool = True
@@ -171,6 +211,12 @@ class Options(AlgorithmOptions):
 
     def __post_init__(self) -> None:
         self.order = _resolve_order(self.order)
+        # Validate eagerly so a bad variant/solver name fails at construction.
+        resolve_candidate(self.variant)
+        if self.solver not in LOCAL_SOLVERS:
+            raise ValueError(
+                f"unknown local solver {self.solver!r}; recognised values are: "
+                f"{', '.join(LOCAL_SOLVERS)}")
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +261,8 @@ class Summary(AlgorithmSummary):
     bond_dims: List[int] = field(default_factory=list)
     max_bond_dims: List[int] = field(default_factory=list)
     aug_dims: List[int] = field(default_factory=list)
+    aug_k_dims: List[int] = field(default_factory=list)
+    aug_l_dims: List[int] = field(default_factory=list)
     disc_weights: List[float] = field(default_factory=list)
 
     def serialize(self) -> Dict:
@@ -235,6 +283,8 @@ class Summary(AlgorithmSummary):
             'bond_dims': self.bond_dims,
             'max_bond_dims': self.max_bond_dims,
             'aug_dims': self.aug_dims,
+            'aug_k_dims': self.aug_k_dims,
+            'aug_l_dims': self.aug_l_dims,
             'disc_weights': self.disc_weights,
             'state': self.state.serialize(),
         }
@@ -271,6 +321,8 @@ class Summary(AlgorithmSummary):
             bond_dims=data['bond_dims'],
             max_bond_dims=data['max_bond_dims'],
             aug_dims=data.get('aug_dims', []),
+            aug_k_dims=data.get('aug_k_dims', []),
+            aug_l_dims=data.get('aug_l_dims', []),
             disc_weights=data.get('disc_weights', []),
         )
 
@@ -334,17 +386,23 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
         for b, h in enumerate(generators)
     ]
 
+    candidate_fn = resolve_candidate(opts.variant)
+
     def sweep(parity: str, tau: float):
         return parity_sweep(
             mps, gates, parity, tau, maxdim,
             opts.augment, opts.aug_krylov_depth, opts.trunc_thresh,
             opts.lanczos_tol, opts.lanczos_maxiter,
+            candidate_fn, opts.solver, opts.solver_substeps, opts.kl_cutoff,
+            opts.kl_cutoff_min_bond,
         )
 
     times: List[float] = []
     norms: List[float] = []
     max_bond_dims: List[int] = []
     aug_dims: List[int] = []
+    aug_k_dims: List[int] = []
+    aug_l_dims: List[int] = []
     disc_weights: List[float] = []
 
     n_active = sum(1 for h in generators if h is not None)
@@ -353,6 +411,10 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
     logger.info("─" * 60)
     logger.info("")
     logger.info("  order             : %s", opts.order)
+    logger.info("  variant           : %s", opts.variant)
+    if opts.variant != 'faithful':
+        logger.info("  local solver      : %s (substeps %d)", opts.solver, opts.solver_substeps)
+        logger.info("  kl_cutoff         : %s", opts.kl_cutoff if opts.kl_cutoff is not None else 'off (full d·r)')
     logger.info("  chain length      : %d", mps.L)
     logger.info("  active bonds      : %d / %d", n_active, mps.L - 1)
     logger.info("  time step         : %g", opts.dt)
@@ -378,8 +440,10 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
                     sweep('even', opts.dt),
                     sweep('odd', opts.dt),
                 ]
-            augmented = max(aug for aug, _ in results)
-            discarded = max(disc for _, disc in results)
+            aug_k = max(ak for ak, _, _ in results)
+            aug_l = max(al for _, al, _ in results)
+            augmented = max(aug_k, aug_l)
+            discarded = max(disc for _, _, disc in results)
 
             norm = mps.norm()
             if opts.normalize:
@@ -389,11 +453,13 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
             norms.append(norm)
             max_bond_dims.append(max(mps.bond_dims) if mps.bond_dims else 1)
             aug_dims.append(augmented)
+            aug_k_dims.append(aug_k)
+            aug_l_dims.append(aug_l)
             disc_weights.append(discarded)
 
             logger.info(
-                "step %*d / %d: t = %g, norm = %.10f, kept bond = %d, augmented = %d, disc = %.2e",
-                w, step + 1, opts.n_steps, times[-1], norm, max_bond_dims[-1], augmented, discarded,
+                "step %*d / %d: t = %g, norm = %.10f, kept bond = %d, aug(K,L) = (%d,%d), disc = %.2e",
+                w, step + 1, opts.n_steps, times[-1], norm, max_bond_dims[-1], aug_k, aug_l, discarded,
             )
 
     # Ensure the returned state has the center at site 0 for a well-defined norm.
@@ -410,5 +476,7 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
         bond_dims=list(mps.bond_dims),
         max_bond_dims=max_bond_dims,
         aug_dims=aug_dims,
+        aug_k_dims=aug_k_dims,
+        aug_l_dims=aug_l_dims,
         disc_weights=disc_weights,
     )

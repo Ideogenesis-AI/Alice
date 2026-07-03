@@ -84,8 +84,14 @@ class Options(AlgorithmOptions):
         Maximum bond dimension kept by the per-bond SVD truncation. ``None`` means
         no explicit cap (the bond grows up to the local capacity).
     cutoff:
-        Relative singular-value threshold of the per-bond SVD truncation. This is
-        the only rank-control knob; the K/L augmentation carries no tolerance.
+        Relative singular-value threshold of the per-bond SVD truncation (the final
+        centre-core truncation, the discarded-weight knob shared with TDVP).
+    aug_cutoff:
+        Optional separate threshold for *admitting* the discarded complement in the
+        K/L augmentation sweeps. ``None`` (default) reuses ``cutoff`` (original
+        behaviour). A looser value admits fewer new directions, capping the
+        augmented bond growth — the global analogue of the two-site BUG
+        ``kl_cutoff``.
     lanczos_tol:
         Termination tolerance of the local Krylov ``expv`` solves.
     lanczos_maxiter:
@@ -102,10 +108,20 @@ class Options(AlgorithmOptions):
     n_steps: int = 10
     max_bond: Optional[int] = None
     cutoff: float = 1e-12
+    aug_cutoff: Optional[float] = None
     lanczos_tol: float = 1e-14
     lanczos_maxiter: int = 40
     imaginary_time: bool = False
     normalize: bool = True
+    solver: str = 'krylov'
+    solver_substeps: int = 1
+
+    def __post_init__(self) -> None:
+        from ..two_site_bug._kernel.local_solvers import LOCAL_SOLVERS
+        if self.solver not in LOCAL_SOLVERS:
+            raise ValueError(
+                f"unknown local solver {self.solver!r}; recognised values are: "
+                f"{', '.join(LOCAL_SOLVERS)}")
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +146,14 @@ class Summary(AlgorithmSummary):
         Bond dimensions of ``state`` after the final step (length ``L - 1``).
     max_bond_dims:
         Maximum kept bond dimension after each step (length ``n_steps``).
+    aug_dims:
+        Maximum *proposed* augmented central-window bond dimension (``max`` of the
+        K and L sides) before the final SVD truncation, after each step
+        (length ``n_steps``). Comparing it with ``max_bond_dims`` shows how much
+        rank the truncation discards.
+    aug_k_dims, aug_l_dims:
+        The K-side (``mid_u``) and L-side (``mid_v``) proposed augmented central
+        bonds separately, after each step.
     """
 
     state: MPS
@@ -138,6 +162,10 @@ class Summary(AlgorithmSummary):
     norms: List[float] = field(default_factory=list)
     bond_dims: List[int] = field(default_factory=list)
     max_bond_dims: List[int] = field(default_factory=list)
+    aug_dims: List[int] = field(default_factory=list)
+    aug_k_dims: List[int] = field(default_factory=list)
+    aug_l_dims: List[int] = field(default_factory=list)
+    disc_weights: List[float] = field(default_factory=list)
 
     def serialize(self) -> Dict:
         """Serialize the summary to a plain dict compatible with ``torch.save``."""
@@ -148,6 +176,10 @@ class Summary(AlgorithmSummary):
             'norms': self.norms,
             'bond_dims': self.bond_dims,
             'max_bond_dims': self.max_bond_dims,
+            'aug_dims': self.aug_dims,
+            'aug_k_dims': self.aug_k_dims,
+            'aug_l_dims': self.aug_l_dims,
+            'disc_weights': self.disc_weights,
             'state': self.state.serialize(),
         }
 
@@ -164,6 +196,10 @@ class Summary(AlgorithmSummary):
             norms=data['norms'],
             bond_dims=data['bond_dims'],
             max_bond_dims=data.get('max_bond_dims', []),
+            aug_dims=data.get('aug_dims', []),
+            aug_k_dims=data.get('aug_k_dims', []),
+            aug_l_dims=data.get('aug_l_dims', []),
+            disc_weights=data.get('disc_weights', []),
         )
 
 
@@ -217,6 +253,10 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     times: List[float] = []
     norms: List[float] = []
     max_bond_dims: List[int] = []
+    aug_dims: List[int] = []
+    aug_k_dims: List[int] = []
+    aug_l_dims: List[int] = []
+    disc_weights: List[float] = []
 
     logger.info("─" * 60)
     logger.info("Commencing: Discarded-Projector BUG Time Evolution".center(60))
@@ -225,6 +265,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     logger.info("  chain length      : %d", mps.L)
     logger.info("  time step         : %g", opts.dt)
     logger.info("  steps             : %d", opts.n_steps)
+    logger.info("  local solver      : %s (substeps %d)", opts.solver, opts.solver_substeps)
     logger.info("  evolution         : %s", "imaginary" if opts.imaginary_time else "real")
     logger.info("  max bond dim      : %s", opts.max_bond if opts.max_bond is not None else 'unlimited')
     logger.info("")
@@ -235,9 +276,10 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         # psi exact and admit only the discarded part of phi into the augmented bases,
         # then integrate one Galerkin centre tensor. The bond dimension grows along the
         # whole chain (the light cone) as the wall melts.
-        kept = global_step(mps, mpo, prefactor * opts.dt,
-                           maxdim=maxdim, cutoff=opts.cutoff,
-                           lanczos_tol=opts.lanczos_tol, lanczos_maxiter=opts.lanczos_maxiter)
+        kept, disc, aug_k, aug_l = global_step(mps, mpo, prefactor * opts.dt,
+                                      maxdim=maxdim, cutoff=opts.cutoff, aug_cutoff=opts.aug_cutoff,
+                                      lanczos_tol=opts.lanczos_tol, lanczos_maxiter=opts.lanczos_maxiter,
+                                      solver=opts.solver, solver_substeps=opts.solver_substeps)
 
         norm = mps.norm()
         if opts.normalize:
@@ -246,9 +288,13 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         times.append((step + 1) * opts.dt)
         norms.append(norm)
         max_bond_dims.append(kept)
+        aug_k_dims.append(aug_k)
+        aug_l_dims.append(aug_l)
+        aug_dims.append(max(aug_k, aug_l))
+        disc_weights.append(disc)
 
-        logger.info("step %*d / %d: t = %g, norm = %.10f, kept bond = %d",
-                    w, step + 1, opts.n_steps, times[-1], norm, kept)
+        logger.info("step %*d / %d: t = %g, norm = %.10f, kept bond = %d, aug(K,L) = (%d,%d), disc = %.2e",
+                    w, step + 1, opts.n_steps, times[-1], norm, kept, aug_k, aug_l, disc)
 
     if mps.center != 0:
         mps.canonical(0)
@@ -262,4 +308,8 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         norms=norms,
         bond_dims=list(mps.bond_dims),
         max_bond_dims=max_bond_dims,
+        aug_dims=aug_dims,
+        aug_k_dims=aug_k_dims,
+        aug_l_dims=aug_l_dims,
+        disc_weights=disc_weights,
     )

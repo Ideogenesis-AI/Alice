@@ -73,7 +73,8 @@ from ..dmrg.environ import (
     step_left_env,
     step_right_env,
 )
-from ._krylov import tensor_lanczos_expv, to_complex
+from ..two_site_bug._kernel.local_solvers import local_expv
+from ._krylov import to_complex
 
 
 def mpo_times_mps(mpo: MPO, mps: MPS) -> MPS:
@@ -255,8 +256,24 @@ def _singular_values(s_diag: Tensor) -> torch.Tensor:
     return torch.sort(torch.cat(values), descending=True).values
 
 
+def _discarded_weight(s_new: Tensor, bond_itag: str, kept: int) -> float:
+    """Relative Frobenius weight discarded when the centre core is cut to ``kept``.
+
+    Full (untruncated) SVD spectrum of the evolved centre ``s_new`` vs the kept
+    leading ``kept`` values: ``sqrt(sum_{i>=kept} sigma_i^2 / sum_i sigma_i^2)`` — the
+    standard MPS discarded-weight diagnostic for this step's truncation.
+    """
+    _, s_full, _ = decomp(s_new, axes=0, mode='SVD', itag=(bond_itag, bond_itag))
+    sv = _singular_values(s_full)
+    total = float((sv ** 2).sum())
+    if total == 0.0 or kept >= sv.numel():
+        return 0.0
+    tail = float((sv[kept:] ** 2).sum())
+    return (tail / total) ** 0.5
+
+
 def k_sweep(
-    psi: MPS, phi: MPS, c: int, maxdim: int, cutoff: float,
+    psi: MPS, phi: MPS, c: int, maxdim: int, cutoff: float, aug_cutoff: float | None = None,
 ) -> Tuple[List[Tensor], Tensor, Tensor]:
     """Build the augmented **left** isometries ``W_0 … W_c`` (discarded-projector, per matrix).
 
@@ -269,10 +286,17 @@ def k_sweep(
     part of ``phi`` is admitted, SVD-truncated to the remaining budget ``maxdim - rank(U0)``.
     No augmented overlap matrix is formed.
 
+    ``aug_cutoff`` (when not ``None``) sets the singular-value threshold for *admitting*
+    the discarded complement, decoupled from the final centre-truncation ``cutoff``: a
+    looser ``aug_cutoff`` admits fewer new directions and so caps the augmented bond
+    growth (the global analogue of the two-site BUG ``kl_cutoff``). When ``None`` the
+    augmentation reuses ``cutoff`` (original behaviour).
+
     Returns the list ``[W_0 … W_c]`` (MPS-core order ``(link_l, link_r, phys)``) and the
     final carries ``aps = ⟨W | psi⟩`` and ``aph = ⟨W | phi⟩`` at bond ``c`` (shape
     ``(aug_c, psi_bond_c)`` / ``(aug_c, phi_bond_c)``).
     """
+    aug_thresh = cutoff if aug_cutoff is None else aug_cutoff
     frames: List[Tensor] = []
     aps = aph = None
     for i in range(0, c + 1):
@@ -291,7 +315,7 @@ def k_sweep(
         budget = maxdim - rpsi
         if budget > 0:
             q, _, _ = decomp(phi_perp, axes=[0, 1], mode='SVD', itag=(bt, bt),
-                             trunc=_trunc(budget, cutoff))
+                             trunc=_trunc(budget, aug_thresh))
             if q.indices[2].dim > 0:
                 w, _ = decomp(oplus(u0, q, axes=2), axes=[0, 1], mode='QR', itag=bt)
         aps = contract(conj(w), psit, axes=([0, 1], [0, 1]))       # (aug_i, psi_bond_i)
@@ -301,15 +325,17 @@ def k_sweep(
 
 
 def l_sweep(
-    psi: MPS, phi: MPS, c: int, maxdim: int, cutoff: float,
+    psi: MPS, phi: MPS, c: int, maxdim: int, cutoff: float, aug_cutoff: float | None = None,
 ) -> Tuple[Dict[int, Tensor], Tensor, Tensor]:
     """Build the augmented **right** isometries ``Z_{c+1} … Z_{L-1}`` (mirror of :func:`k_sweep`).
 
     Sweeping right→left with carries ``bps``/``bph`` (shape ``(psi_bond, aug)`` /
     ``(phi_bond, aug)``), each augmented right core keeps ``psi``'s right frame exactly and
-    admits only the discarded part of ``phi``. Returns ``{i: Z_i}`` (MPS-core order
-    ``(link_l, link_r, phys)``) and the final carries at bond ``c+1``.
+    admits only the discarded part of ``phi``. ``aug_cutoff`` decouples the admission
+    threshold from the final ``cutoff`` (see :func:`k_sweep`). Returns ``{i: Z_i}``
+    (MPS-core order ``(link_l, link_r, phys)``) and the final carries at bond ``c+1``.
     """
+    aug_thresh = cutoff if aug_cutoff is None else aug_cutoff
     L = psi.L
     frames: Dict[int, Tensor] = {}
     bps = bph = None
@@ -329,7 +355,7 @@ def l_sweep(
         budget = maxdim - rpsi
         if budget > 0:
             q, _, _ = decomp(phi_perp, axes=[1, 2], mode='SVD', itag=(bt, bt),
-                             trunc=_trunc(budget, cutoff))         # (phys, aug_next, rphi)
+                             trunc=_trunc(budget, aug_thresh))     # (phys, aug_next, rphi)
             if q.indices[2].dim > 0:
                 v, _ = decomp(oplus(v0, q, axes=2), axes=[0, 1], mode='QR', itag=bt)
         bps = contract(psit, conj(v), axes=([1, 2], [0, 1]))       # (psi_bond_l, aug_i)
@@ -347,6 +373,9 @@ def global_step(
     cutoff: float,
     lanczos_tol: float,
     lanczos_maxiter: int,
+    solver: str = 'krylov',
+    solver_substeps: int = 1,
+    aug_cutoff: float | None = None,
 ) -> int:
     """Advance ``mps`` by one rank-adaptive discarded-projector BUG step (Sulz Alg. 5–7).
 
@@ -369,28 +398,41 @@ def global_step(
     maxdim:
         Maximum bond dimension kept by the per-bond SVD truncation.
     cutoff:
-        Relative singular-value threshold of the SVD truncations.
+        Relative singular-value threshold of the final centre-core SVD truncation.
+    aug_cutoff:
+        Optional separate threshold for admitting the discarded complement in the
+        K/L sweeps; ``None`` reuses ``cutoff``. Decouples augmentation growth from
+        the final truncation (the global analogue of two-site ``kl_cutoff``).
     lanczos_tol, lanczos_maxiter:
         Krylov termination tolerance and maximum dimension for the Galerkin core solve.
 
     Returns
     -------
-    int
-        The maximum kept bond dimension after the step.
+    tuple[int, float, int, int]
+        The maximum kept bond dimension after the step, the relative discarded
+        weight of the centre-core SVD truncation (the standard rank-adaptation
+        diagnostic), and the proposed augmented **K** (``mid_u``) and **L**
+        (``mid_v``) central-window bond dimensions before the final SVD truncates
+        the centre core back to ``kept`` — the global analogue of the two-site BUG
+        ``aug_k_dims`` / ``aug_l_dims``.
     """
     L = mps.L
     c = L // 2 - 1
     mps.canonical(0, trunc=None)
     phi = mpo_times_mps(mpo, mps)
 
-    W, aps_c, _ = k_sweep(mps, phi, c, maxdim, cutoff)
-    Z, bps_c1, _ = l_sweep(mps, phi, c, maxdim, cutoff)
+    W, aps_c, _ = k_sweep(mps, phi, c, maxdim, cutoff, aug_cutoff)
+    Z, bps_c1, _ = l_sweep(mps, phi, c, maxdim, cutoff, aug_cutoff)
 
     # Two-site Galerkin window at the central bond: u0 = W_c, v0 = Z_{c+1}.
     u0 = W[c].permute([0, 2, 1])     # (link_l, site_l, mid_u)
     v0 = Z[c + 1]                    # (mid_v, link_r, site_r)
     # Seed S(t0) = <W, Z | psi> from the sweep carries (no M/N overlap matrices).
     s_start = contract(aps_c, bps_c1, axes=([1], [0]))   # (mid_u, mid_v)
+    # Proposed augmented K (left/mid_u) and L (right/mid_v) central bonds before
+    # the final SVD truncates the centre core back to `kept`.
+    aug_k = int(u0.indices[2].dim)
+    aug_l = int(v0.indices[0].dim)
 
     # MPO environments in the augmented basis (left from W, right from Z).
     e_left = to_complex(left_env_boundary(mps, mpo))
@@ -406,10 +448,14 @@ def global_step(
         s_l = contract(conj(u0), h_theta, axes=([0, 1], [0, 1]))
         return contract(s_l, conj(v0), axes=([1, 2], [1, 2]))
 
-    s_new = tensor_lanczos_expv(apply_s, tau, s_start,
-                                maxiter=lanczos_maxiter, tol=lanczos_tol)
+    # Central Galerkin core: the effective Hamiltonian is Hermitian, so 'krylov'
+    # uses tensor Lanczos. In imaginary time the flow is a contraction, so the
+    # substepped midpoint/rk4/trapezoid integrators are valid alternatives.
+    s_new = local_expv(apply_s, tau, s_start, solver=solver, substeps=solver_substeps,
+                       hermitian=True, krylov_maxiter=lanczos_maxiter, krylov_tol=lanczos_tol)
     upd = _truncate_and_assemble(u0, v0, s_new, mps._bond_itag(c + 1),
                                  maxdim=maxdim, cutoff=cutoff, n_new_left=0, n_new_right=0)
+    disc_weight = _discarded_weight(s_new, mps._bond_itag(c + 1), upd.kept)
 
     cores = [W[k] for k in range(c)] + [upd.left_core, upd.right_core] \
         + [Z[k] for k in range(c + 2, L)]
@@ -418,4 +464,4 @@ def global_step(
     mps._tensors = cores
     mps._center = None
     mps.canonical(0, trunc=None)
-    return max(mps.bond_dims)
+    return max(mps.bond_dims), disc_weight, aug_k, aug_l

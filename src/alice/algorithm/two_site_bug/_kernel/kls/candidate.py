@@ -234,6 +234,12 @@ def _faithful_kls_local_bond_candidate(
     # Accept and ignore legacy bug compatibility keywords
     kwargs.pop("substep_method", None)
     kwargs.pop("matrixfree_sstep", None)
+    # The faithful (unitary) update always uses the exact Krylov exponential; the
+    # pluggable local solver applies only to the non-unitary discarded variant, so
+    # accept and ignore the solver controls when the shared sweep forwards them.
+    kwargs.pop("solver", None)
+    kwargs.pop("solver_substeps", None)
+    kwargs.pop("kl_cutoff", None)
     if kwargs:
         unknown = ", ".join(sorted(kwargs))
         raise TypeError(f"Unknown KLS option(s): {unknown}")
