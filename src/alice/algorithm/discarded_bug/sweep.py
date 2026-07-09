@@ -312,7 +312,11 @@ def k_sweep(
         proj = contract(conj(u0), phit, axes=([0, 1], [0, 1]))     # U0+ phi
         phi_perp = phit - contract(u0, proj, axes=([2], [0]))      # (I - U0 U0+) phi
         w = u0
-        budget = maxdim - rpsi
+        # Augment to 2r (budget = rpsi, Sulz Alg. 5): admit r extra discarded phi
+        # directions so the propose bases can span new (incl. high-|charge|) sectors.
+        # Capping off-central frames at maxdim-rpsi instead RE-STARVES the augmentation
+        # and wrecks cooling (measured L=10 7.7e-2, L=20 1.26 vs 1.47e-3 here).
+        budget = rpsi
         if budget > 0:
             q, _, _ = decomp(phi_perp, axes=[0, 1], mode='SVD', itag=(bt, bt),
                              trunc=_trunc(budget, aug_thresh))
@@ -352,7 +356,8 @@ def l_sweep(
         proj = contract(phit, conj(v0), axes=([1, 2], [0, 1]))     # phi V0+
         phi_perp = phit - contract(proj, v0, axes=([1], [2]))      # phi (I - V0+ V0)
         v = v0
-        budget = maxdim - rpsi
+        # Mirror of k_sweep: augment to 2r (budget = rpsi). See note there.
+        budget = rpsi
         if budget > 0:
             q, _, _ = decomp(phi_perp, axes=[1, 2], mode='SVD', itag=(bt, bt),
                              trunc=_trunc(budget, aug_thresh))     # (phys, aug_next, rphi)
@@ -461,7 +466,25 @@ def global_step(
         + [Z[k] for k in range(c + 2, L)]
     # Re-gauge from scratch: the per-matrix augmentation re-sorts bond charge sectors, so a
     # full canonical(0) (center cleared) is needed for a globally consistent gauge.
+    #
+    # maxdim is applied ONLY at the central S-step SVD (_truncate_and_assemble); this
+    # re-gauge must NOT truncate (trunc=None). The K/L sweeps augment every bond to 2r as
+    # scaffolding that carries the discarded-phi complement into the central Galerkin core.
+    # Off-central those complement directions carry SMALL singular values (they are where
+    # H.psi points, not where psi has weight yet) and have not been evolved by any local
+    # Galerkin update, so a plain SVD truncation there would (i) drop exactly the admitted
+    # complement, undoing the augmentation, and (ii) break the center<->frame consistency
+    # the central core was built against -- measured to WRECK the imaginary-time cooling at
+    # L=10 (E-E0 stuck ~1.5-2.2, non-monotonic) versus a clean monotonic convergence to
+    # ~2e-3 with trunc=None. The off-central bonds therefore leave the step at (up to) 2r.
     mps._tensors = cores
     mps._center = None
+    # TWO-WAY re-gauge (investigation 2026-07-08): a single right-canonical sweep
+    # (canonical(0)) leaves the RIGHT frames -- already right-canonical from l_sweep and
+    # never truncated -- at their full augmented rank, while only the LEFT frames get
+    # compressed against the central bottleneck. That asymmetry let the right half blow up
+    # to full Hilbert rank at L>=20. A lossless L->R then R->L pass yields the true minimal
+    # Schmidt rank at every cut (symmetric), without discarding any weight.
+    mps.canonical(L - 1, trunc=None)
     mps.canonical(0, trunc=None)
     return max(mps.bond_dims), disc_weight, aug_k, aug_l
