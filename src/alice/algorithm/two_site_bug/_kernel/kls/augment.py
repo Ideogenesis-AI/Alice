@@ -151,8 +151,12 @@ def _pick_left_update(
         overlap = identity_overlap_matrix(U0_mat.dtype, U0_mat.shape[1], device=U0_mat.device)
         return U0_mat, overlap, 0
 
-    Kf = _filter_left_aug_columns(U0_mat, K1_mat, aug_tol)
-    Qk, _ = qr_column_basis(Kf)
+    # Sulz augmented BUG: no pre-filter against U0. Orthonormalise K1 (rank-revealed
+    # at machine eps by qr_column_basis), stack with U0, and take the rank-revealing
+    # QR range basis of [U0 | K1] (rank <= 2r). Redundant/near-dependent directions are
+    # removed by the QR's own non-zero-R-norm rank count; final rank control happens at
+    # the post-S-step SVD truncation (no aug_tol heuristic discard).
+    Qk, _ = qr_column_basis(K1_mat)
     cand = torch.cat([U0_mat, Qk], dim=1) if Qk.numel() else U0_mat
     Q, _ = qr_column_basis(cand)
     if max_rank is not math.inf:
@@ -186,8 +190,8 @@ def _pick_right_update(
         overlap = identity_overlap_matrix(V0_mat.dtype, V0_mat.shape[0], device=V0_mat.device)
         return V0_mat, overlap, 0
 
-    Lf = _filter_right_aug_rows(V0_mat, L1_mat, aug_tol)
-    Ql, _ = qr_row_basis(Lf)
+    # Sulz augmented BUG (row mirror of _pick_left_update): no pre-filter against V0.
+    Ql, _ = qr_row_basis(L1_mat)
     cand = torch.cat([V0_mat, Ql], dim=0) if Ql.numel() else V0_mat
     Q, _ = qr_row_basis(cand)
     if max_rank is not math.inf:

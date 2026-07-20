@@ -125,6 +125,18 @@ def dense_total_sz(length: int, charges: List[int]) -> torch.Tensor:
     return sum(_embed(sz, i, length) for i in range(length))
 
 
+def dense_sz_profile(vec: torch.Tensor, length: int, charges: List[int]) -> List[float]:
+    """Per-site `<S_z^j>` of a dense state vector, in Alice's spin basis.
+
+    Built from the same `_spin_matrices`/`_embed` machinery as `dense_total_sz`, so
+    it is convention-exact against `mps_to_vector`'s basis ordering rather than
+    relying on a hand-written site embedding.
+    """
+    sz, _, _ = _spin_matrices(charges)
+    return [torch.vdot(vec, _embed(sz, i, length) @ vec).real.item()
+            for i in range(length)]
+
+
 def dense_hamiltonian(interactions, length: int, charges: List[int]) -> torch.Tensor:
     """Assemble the full `d**L` dense Hamiltonian from Alice's own bond terms.
 

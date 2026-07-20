@@ -116,6 +116,7 @@ def _discarded_local_bond_candidate(
     mid_k = _tensor_ix(K0_tens, 2)
 
     def apply_gk(x_tens: Tensor) -> Tensor:
+        #get discarded projector
         theta = tcontract(x_tens, frame.V0_tens)
         evolved = _apply_gate_named(gate, theta, frame.site_l.itag, frame.site_r.itag)
         HK = tcontract(evolved, dag(frame.V0_tens))          # H_K x on (link_l, site_l, mid_k)

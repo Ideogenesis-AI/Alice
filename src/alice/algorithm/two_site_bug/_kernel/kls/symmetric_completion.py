@@ -26,7 +26,6 @@ import torch
 from nicole import Sector
 
 from ..indices import Ix, fresh_itag, resolved_sectors
-from ..linalg import complete_column_basis, complete_row_basis
 from ..nicole_helpers import make_tensor, reshape_fortran
 from .augment import (
     _left_row_indices_by_flux,
@@ -37,6 +36,24 @@ from .augment import (
     _right_tensor_matrix,
     _sector_offsets,
 )
+
+
+def _random_orthonormal_columns(m: int, n: int, dtype, device, generator) -> torch.Tensor:
+    """``m x n`` random complex orthonormal block (``n`` capped at ``m``).
+
+    Used by the missing-quantum-number fill: a reachable charge sector that neither
+    ``U0`` nor ``K1`` populate is opened with a minimal random orthonormal seed so the
+    Galerkin S-step can rotate physical weight into it. The seed is drawn from a
+    fixed-seed generator so a run is reproducible; the S-step and the post-S SVD make
+    the result independent of the seed's orientation (an unpopulated sector is pruned).
+    """
+    n = min(int(n), int(m))
+    if n <= 0:
+        return torch.zeros((m, 0), dtype=dtype, device=device)
+    real = torch.randn((m, n), dtype=torch.float64, device=device, generator=generator)
+    imag = torch.randn((m, n), dtype=torch.float64, device=device, generator=generator)
+    q, _ = torch.linalg.qr(torch.complex(real, imag).to(dtype), mode="reduced")
+    return q[:, :n]
 
 
 def _kl_truncated_left(U0_sub, K1_sub, kl_cutoff: float, max_rank):
@@ -100,6 +117,7 @@ def _symmetric_augmented_left_isometry_from_k(
     augment: bool = True,
     max_rank: int | float = math.inf,
     aug_tol: float = 1e-12,
+    aug_missing_fill: int = 1,
     kl_cutoff: float | None = None,
     **kwargs: Any,
 ):
@@ -146,6 +164,8 @@ def _symmetric_augmented_left_isometry_from_k(
         if flux not in fluxes:
             fluxes.append(flux)
 
+    rng = torch.Generator(device=device)
+    rng.manual_seed(0x5EED)
     pieces: list[tuple[object, list[int], torch.Tensor, torch.Tensor]] = []
     total_dim = 0
     n_new_total = 0
@@ -165,11 +185,22 @@ def _symmetric_augmented_left_isometry_from_k(
             # discarded directions of K1 (no full d*r completion).
             Q_block, overlap_block, n_new = _kl_truncated_left(U0_sub, K1_sub, kl_cutoff, max_rank)
         else:
+            # Sulz augmented basis of this sector: orth([U0 | K1]) at rank <= 2r (no
+            # complete_column_basis padding to the full d*r local dimension).
             Q_block, overlap_block, n_new = _pick_left_update(U0_sub, K1_sub, augment=augment, max_rank=max_rank, aug_tol=aug_tol)
-            if augment:
-                Q_block = complete_column_basis(Q_block)
+            if augment and Q_block.shape[1] == 0 and len(rows) > 0:
+                # Missing-quantum-number fill (replaces complete_column_basis). This
+                # locally reachable charge sector is populated by neither U0 nor K1 --
+                # U(1) charge conservation with the frozen right frame keeps K1 in U0's
+                # sector, so orth([U0|K1]) can never OPEN a new sector the way the dense
+                # Sulz BUG's K1 does. Seed a minimal random orthonormal block; the S-step
+                # rotates physical weight into it and the post-S SVD prunes it if the
+                # dynamics leaves it empty. (complete_column_basis instead filled the
+                # sector to its FULL local dim -> the d*r augmented-rank blow-up.)
+                n_seed = min(len(rows), max(1, int(aug_missing_fill)))
+                Q_block = _random_orthonormal_columns(len(rows), n_seed, dtype, device, rng)
                 overlap_block = Q_block.conj().transpose(0, 1) @ U0_sub
-                n_new = Q_block.shape[1] - U0_sub.shape[1]
+                n_new = int(Q_block.shape[1])
         if Q_block.shape[1] == 0:
             continue
         pieces.append((old_charge, rows, Q_block, overlap_block))
@@ -215,6 +246,7 @@ def _symmetric_augmented_right_isometry_from_l(
     augment: bool = True,
     max_rank: int | float = math.inf,
     aug_tol: float = 1e-12,
+    aug_missing_fill: int = 1,
     kl_cutoff: float | None = None,
     **kwargs: Any,
 ):
@@ -261,6 +293,8 @@ def _symmetric_augmented_right_isometry_from_l(
         if flux not in fluxes:
             fluxes.append(flux)
 
+    rng = torch.Generator(device=device)
+    rng.manual_seed(0x5EED)
     pieces: list[tuple[object, list[int], torch.Tensor, torch.Tensor]] = []
     total_dim = 0
     n_new_total = 0
@@ -278,11 +312,17 @@ def _symmetric_augmented_right_isometry_from_l(
         if kl_cutoff is not None and augment:
             B_block, overlap_block, n_new = _kl_truncated_right(V0_sub, L1_sub, kl_cutoff, max_rank)
         else:
+            # Sulz augmented basis of this sector: orth([V0 ; L1]) at rank <= 2r (no
+            # complete_row_basis padding to the full d*r local dimension).
             B_block, overlap_block, n_new = _pick_right_update(V0_sub, L1_sub, augment=augment, max_rank=max_rank, aug_tol=aug_tol)
-            if augment:
-                B_block = complete_row_basis(B_block)
+            if augment and B_block.shape[0] == 0 and len(cols) > 0:
+                # Missing-quantum-number fill (row mirror of the K-step; replaces
+                # complete_row_basis): seed a minimal random row-orthonormal block so the
+                # S-step can open this reachable-but-empty charge sector.
+                n_seed = min(len(cols), max(1, int(aug_missing_fill)))
+                B_block = _random_orthonormal_columns(len(cols), n_seed, dtype, device, rng).transpose(0, 1)
                 overlap_block = V0_sub @ B_block.conj().transpose(0, 1)
-                n_new = B_block.shape[0] - V0_sub.shape[0]
+                n_new = int(B_block.shape[0])
         if B_block.shape[0] == 0:
             continue
         pieces.append((old_charge, cols, B_block, overlap_block))

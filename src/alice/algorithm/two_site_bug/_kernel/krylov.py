@@ -461,7 +461,14 @@ def tensor_inner(a: Tensor, b: Tensor) -> complex:
         The complex scalar inner product.
     """
     equation = "".join(chr(97 + axis) for axis in range(len(a.itags)))
-    return _neinsum(f"{equation},{equation}->", _nconj(a), b).item()
+    result = _neinsum(f"{equation},{equation}->", _nconj(a), b)
+    # A structurally-zero inner product (no matching charge blocks) is a scalar
+    # tensor with no block; nicole's .item() rejects that. It IS exactly zero --
+    # e.g. <v|H|v> for a purely off-diagonal (pure XX flip-flop) H on an Sz-basis
+    # product state. Return 0 rather than requiring a diagonal regularizer.
+    if not getattr(result, "data", None):
+        return 0.0 + 0.0j
+    return result.item()
 
 
 # Opt-in Krylov-depth instrumentation (off by default => zero overhead). When
