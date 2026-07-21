@@ -28,8 +28,6 @@ from nicole import Sector, Tensor, decomp, einsum
 from ..indices import Ix, fresh_itag, resolved_sectors
 from ..krylov import active_time_prefactor, linear_substep, tensor_lanczos_expv
 from ..linalg import (
-    complete_column_basis,
-    complete_row_basis,
     identity_overlap_matrix,
     qr_column_basis,
     qr_row_basis,
@@ -105,26 +103,6 @@ def _collect_tensor_krylov_directions(
         next_direction = apply(next_direction)
         directions.append(next_direction)
     return directions
-
-
-def _filter_left_aug_columns(U0_mat: torch.Tensor, K1_mat: torch.Tensor, aug_tol: float) -> torch.Tensor:
-    """Keep only K-update columns that add directions beyond span(U0)."""
-    if K1_mat.numel() == 0 or K1_mat.shape[1] == 0:
-        return K1_mat[:, :0]
-    proj = U0_mat @ (U0_mat.conj().transpose(0, 1) @ K1_mat)
-    resid = K1_mat - proj
-    keep = torch.linalg.norm(resid, dim=0) > aug_tol
-    return resid[:, keep]
-
-
-def _filter_right_aug_rows(V0_mat: torch.Tensor, L1_mat: torch.Tensor, aug_tol: float) -> torch.Tensor:
-    """Keep only L-update rows that add directions beyond span(V0)."""
-    if L1_mat.numel() == 0 or L1_mat.shape[0] == 0:
-        return L1_mat[:0, :]
-    proj = (L1_mat @ V0_mat.conj().transpose(0, 1)) @ V0_mat
-    resid = L1_mat - proj
-    keep = torch.linalg.norm(resid, dim=1) > aug_tol
-    return resid[keep, :]
 
 
 def _pick_left_update(

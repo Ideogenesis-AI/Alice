@@ -38,8 +38,6 @@ from .nicole_helpers import tcontract
 
 __all__ = [
     "SVDOptions",
-    "complete_column_basis",
-    "complete_row_basis",
     "identity_overlap_matrix",
     "lq",
     "qr",
@@ -391,41 +389,6 @@ def identity_overlap_matrix(dtype: torch.dtype, n: int, *, device: torch.device 
         An identity matrix.
     """
     return torch.eye(n, dtype=dtype, device=device)
-
-
-def complete_column_basis(q: torch.Tensor) -> torch.Tensor:
-    """Complete a column-orthonormal basis to the full ambient dimension.
-
-    Args:
-        q: Matrix with orthonormal columns.
-
-    Returns:
-        A full square/unitary completion of ``q``.
-    """
-    m, r = q.shape
-    if r == m:
-        return q
-    if r == 0:
-        return torch.eye(m, dtype=q.dtype, device=q.device)
-    q_full, _ = torch.linalg.qr(q, mode="complete")
-    return q_full
-
-
-def complete_row_basis(qrows: torch.Tensor) -> torch.Tensor:
-    """Complete a row-orthonormal basis to the full ambient dimension.
-
-    Args:
-        qrows: Matrix with orthonormal rows.
-
-    Returns:
-        A row-orthonormal completion of ``qrows``.
-    """
-    r, n = qrows.shape
-    if r == n:
-        return qrows
-    if r == 0:
-        return torch.eye(n, dtype=qrows.dtype, device=qrows.device)
-    return complete_column_basis(qrows.transpose(-2, -1)).transpose(-2, -1)
 
 
 def reconstruct_from_svd(U: Tensor, S: Tensor, V: Tensor) -> Tensor:

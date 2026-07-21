@@ -91,8 +91,11 @@ def _discarded(**kwargs):
 class TestVariantOption:
     """The variant flag selects the discarded kernel and validates eagerly."""
 
-    def test_default_variant_is_faithful(self):
-        assert two_site_bug.Options().variant == 'faithful'
+    def test_default_variant_is_discarded(self):
+        # 'discarded' is now the default: it is the canonical kernel, the one
+        # BUG-Julia's bond_update_bug! mirrors. 'faithful' stays available.
+        assert two_site_bug.Options().variant == 'discarded'
+        assert two_site_bug.Options(variant='faithful').variant == 'faithful'
 
     def test_unknown_variant_raises(self):
         with pytest.raises(ValueError, match='unknown two-site BUG variant'):
@@ -273,58 +276,3 @@ class TestImaginaryTime:
         assert err_after < 1e-2
 
 
-# ---------------------------------------------------------------------------
-# K/L weight-truncated augmentation (kl_cutoff)
-# ---------------------------------------------------------------------------
-
-class TestKLCutoff:
-    """The opt-in SVD-weight-truncated K/L augmentation (vs full d·r completion)."""
-
-    def test_reduces_augmented_rank(self, spin_space):
-        """kl_cutoff caps the proposed augmented bond below the full-completion run."""
-        mps, interactions, _, _ = _neel(6, spin_space)
-        full = two_site_bug.run(
-            mps, interactions, _discarded(dt=0.05, n_steps=6, imaginary_time=True, max_bond=64))
-        mps2, interactions, _, _ = _neel(6, spin_space)
-        trunc = two_site_bug.run(
-            mps2, interactions,
-            _discarded(dt=0.05, n_steps=6, imaginary_time=True, max_bond=64, kl_cutoff=1e-6))
-        assert max(trunc.aug_dims) <= max(full.aug_dims)
-
-    @pytest.mark.xfail(
-        reason="Independent K/L weight-trim does NOT match full completion: the full "
-               "d*r completion pads the augmented bases to local capacity, which is what "
-               "lets a low-rank (e.g. Neel product) state grow entanglement. Trimming the "
-               "K/L Krylov complement by weight starves that growth (the bond collapses to "
-               "rank 1), so the truncated state differs materially from the full-completion "
-               "state. Fix in progress: keep the COMPLEMENTARY new Schmidt pair (K -> left "
-               "vector, L -> matching right vector) instead of independent K/L trims.",
-        strict=True,
-    )
-    def test_tight_threshold_matches_full(self, spin_space):
-        """A very tight kl_cutoff keeps every weight-significant direction => same state."""
-        mps, interactions, charges, _ = _neel(6, spin_space)
-        full = two_site_bug.run(
-            mps, interactions, _discarded(dt=0.05, n_steps=3, max_bond=64, normalize=False))
-        vec_full = mps_to_vector(full.state, charges)
-        vec_full = vec_full / vec_full.norm()
-        mps2, interactions, charges, _ = _neel(6, spin_space)
-        trunc = two_site_bug.run(
-            mps2, interactions,
-            _discarded(dt=0.05, n_steps=3, max_bond=64, normalize=False, kl_cutoff=1e-12))
-        vec_t = mps_to_vector(trunc.state, charges)
-        vec_t = vec_t / vec_t.norm()
-        assert 1.0 - abs(torch.vdot(vec_full, vec_t)).item() < 1e-7
-
-    @pytest.mark.slow
-    def test_cools_to_ground_state(self, spin_space):
-        mps, interactions, charges, _ = _neel(6, spin_space)
-        ham = dense_hamiltonian(interactions, 6, charges)
-        evals, evecs = torch.linalg.eigh(ham)
-        ground_vec = evecs[:, 0]
-        summary = two_site_bug.run(
-            mps, interactions,
-            _discarded(dt=0.05, n_steps=160, imaginary_time=True, max_bond=64, kl_cutoff=1e-6))
-        vec = mps_to_vector(summary.state, charges)
-        vec = vec / vec.norm()
-        assert 1.0 - abs(torch.vdot(ground_vec, vec)).item() < 1e-2

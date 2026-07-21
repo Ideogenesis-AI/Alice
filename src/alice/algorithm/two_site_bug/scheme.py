@@ -171,8 +171,6 @@ def kls_bond(
     candidate_fn: Callable = _faithful_kls_local_bond_candidate,
     solver: str = 'krylov',
     solver_substeps: int = 1,
-    kl_cutoff: float | None = None,
-    kl_cutoff_min_bond: int = 4,
 ) -> Tuple[int, int, float]:
     """Apply one faithful-KLS update to sites *(i, i+1)* of `mps`, in place.
 
@@ -217,13 +215,6 @@ def kls_bond(
     bond_data = bond_snapshot(mps, i)
     old_rank = int(bond_data['link_mid'].dim)
 
-    # Adaptive-delay gate: only weight-trim the K/L augmentation once this bond has
-    # grown past `kl_cutoff_min_bond`. Below it, fall back to full d·r completion so a
-    # low-rank (product) state can grow its entanglement instead of collapsing.
-    effective_kl = kl_cutoff
-    if kl_cutoff is not None and old_rank < kl_cutoff_min_bond:
-        effective_kl = None
-
     candidate = candidate_fn(
         bond_data,
         gate=gate,
@@ -236,7 +227,6 @@ def kls_bond(
         lanczos_maxiter=lanczos_maxiter,
         solver=solver,
         solver_substeps=solver_substeps,
-        kl_cutoff=effective_kl,
     )
 
     mps[i] = _to_mps_layout(candidate['left_core'])
@@ -291,8 +281,6 @@ def parity_sweep(
     candidate_fn: Callable = _faithful_kls_local_bond_candidate,
     solver: str = 'krylov',
     solver_substeps: int = 1,
-    kl_cutoff: float | None = None,
-    kl_cutoff_min_bond: int = 4,
 ) -> Tuple[int, int, float]:
     """Apply every bond gate of one commuting group to `mps`, in place.
 
@@ -327,8 +315,7 @@ def parity_sweep(
         if gates[i] is not None:
             ak, al, disc = kls_bond(mps, i, gates[i], tau, maxdim, augment,
                                     aug_krylov_depth, trunc_thresh, lanczos_tol, lanczos_maxiter,
-                                    candidate_fn, solver, solver_substeps, kl_cutoff,
-                                    kl_cutoff_min_bond)
+                                    candidate_fn, solver, solver_substeps)
             aug_k = max(aug_k, ak)
             aug_l = max(aug_l, al)
             discarded = max(discarded, disc)

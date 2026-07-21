@@ -138,6 +138,11 @@ class Options(AlgorithmOptions):
           (orthogonal-complement) projector to the K/L generator *before* the
           exponential and acts the augmented isometries directly in the S-step
           (`Ŝ0 = Û† Θ0 V̂†`), forming **no** overlap matrices.
+        Defaults to `'discarded'`: that is the canonical kernel, the one
+        mirrored by `bond_update_bug!` in BUG-Julia (verified to 4.27e-11 on
+        the L=6 Heisenberg Sz profile). `'faithful'` is retained because it is
+        the variant the XX/Heisenberg writeup validated -- deleting it would
+        orphan those published numbers.
     solver:
         Local (imaginary-time) integrator for the `'discarded'` variant's K/L/S
         substeps — `'krylov'` (exact, default), `'midpoint'` (explicit RK2),
@@ -147,22 +152,6 @@ class Options(AlgorithmOptions):
     solver_substeps:
         Number of internal substeps for `'midpoint'`/`'rk4'`/`'trapezoid'` (local
         error `O((dt/solver_substeps)^p)`; ignored by `'krylov'`).
-    kl_cutoff:
-        Discarded-weight threshold for the K/L augmentation (`'discarded'` variant
-        only). `None` (default) keeps the standard behaviour — the augmented frame
-        is completed to full local capacity (`d·r`) and all truncation happens at
-        the post-S-step SVD. When set, each frame keeps `U0`/`V0` exactly and admits
-        only the discarded K/L directions whose relative singular value exceeds
-        `kl_cutoff`, capping the augmented rank between `r` and `d·r` (cheaper S-step
-        and controlled bond growth). The post-S-step `trunc_thresh` still applies.
-    kl_cutoff_min_bond:
-        Adaptive-delay gate for `kl_cutoff` (`'discarded'` variant only). The K/L
-        augmentation is only weight-trimmed once a bond's current rank reaches this
-        value; below it the bond uses the full `d·r` completion so a low-rank state
-        (e.g. the Néel product start) can grow its entanglement freely. Trimming the
-        augmentation too early starves that growth and collapses the bond to rank 1.
-        Default `4`; set to `1` to trim from the first step (the un-gated behaviour).
-        Ignored when `kl_cutoff is None`.
     max_bond:
         Maximum bond dimension kept by the post-S-step SVD truncation. `None`
         means no explicit cap (rank adapts up to the local capacity).
@@ -195,11 +184,9 @@ class Options(AlgorithmOptions):
     dt: float = 0.05
     n_steps: int = 10
     order: str = 'strang'
-    variant: str = 'faithful'
+    variant: str = 'discarded'
     solver: str = 'krylov'
     solver_substeps: int = 1
-    kl_cutoff: Optional[float] = None
-    kl_cutoff_min_bond: int = 4
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-12
     augment: bool = True
@@ -393,8 +380,7 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
             mps, gates, parity, tau, maxdim,
             opts.augment, opts.aug_krylov_depth, opts.trunc_thresh,
             opts.lanczos_tol, opts.lanczos_maxiter,
-            candidate_fn, opts.solver, opts.solver_substeps, opts.kl_cutoff,
-            opts.kl_cutoff_min_bond,
+            candidate_fn, opts.solver, opts.solver_substeps,
         )
 
     times: List[float] = []
@@ -414,7 +400,6 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
     logger.info("  variant           : %s", opts.variant)
     if opts.variant != 'faithful':
         logger.info("  local solver      : %s (substeps %d)", opts.solver, opts.solver_substeps)
-        logger.info("  kl_cutoff         : %s", opts.kl_cutoff if opts.kl_cutoff is not None else 'off (full d·r)')
     logger.info("  chain length      : %d", mps.L)
     logger.info("  active bonds      : %d / %d", n_active, mps.L - 1)
     logger.info("  time step         : %g", opts.dt)

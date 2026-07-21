@@ -22,7 +22,7 @@
 In imaginary time the local update ``y = exp(tau A) x`` is the exact flow of a
 linear ODE, so it may be computed by any stable integrator instead of the exact
 Krylov exponential. Both the two-site BUG (``variant='discarded'``) and the global
-``discarded_bug`` expose ``solver`` / ``solver_substeps`` for this. These tests
+``two_site_bug`` exposes ``solver`` / ``solver_substeps`` for this. These tests
 check, end-to-end through the real symmetry-blocked tensor machinery, that:
 
 * the substepped integrators (``midpoint``/``rk4``/``trapezoid``) reproduce the exact
@@ -39,7 +39,7 @@ import torch
 from nicole import Index, Tensor, load_space
 
 from alice import build_hamiltonian, build_interaction, init_mps
-from alice.algorithm import discarded_bug, two_site_bug
+from alice.algorithm import two_site_bug
 from alice.algorithm.two_site_bug._kernel.local_solvers import LOCAL_SOLVERS
 
 from tests.algorithm.two_site_bug.conftest import (
@@ -92,17 +92,6 @@ def _two_site_state(spin_space, *, solver, substeps, n_steps=4, dt=0.05):
     return vec / vec.norm()
 
 
-def _global_state(spin_space, *, solver, substeps, n_steps=4, dt=0.05):
-    mps, _, mpo, charges = _neel(_LENGTH, spin_space)
-    state = discarded_bug.run(
-        mps, mpo,
-        discarded_bug.Options(solver=solver, solver_substeps=substeps,
-                              dt=dt, n_steps=n_steps, imaginary_time=True, max_bond=64),
-    ).state
-    vec = mps_to_vector(state, charges)
-    return vec / vec.norm()
-
-
 def _overlap_err(a, b):
     # Clamp at 0: when two states agree to machine precision, |<a|b>| can round to
     # just above 1 and give a tiny negative "error".
@@ -120,9 +109,8 @@ class TestSolverOptions:
 
     def test_default_is_krylov(self):
         assert two_site_bug.Options().solver == 'krylov'
-        assert discarded_bug.Options().solver == 'krylov'
 
-    @pytest.mark.parametrize('factory', [two_site_bug.Options, discarded_bug.Options])
+    @pytest.mark.parametrize('factory', [two_site_bug.Options])
     def test_unknown_solver_raises(self, factory):
         with pytest.raises(ValueError, match='unknown local solver'):
             factory(solver='euler')
@@ -146,23 +134,6 @@ class TestTwoSiteSolvers:
         # hits machine precision at n=2, so allow equality at the FP floor), and tight.
         assert err_fine <= err_coarse + 1e-12
         assert err_fine < 1e-4, f"{solver}: err_fine {err_fine:.2e}"
-
-
-# ---------------------------------------------------------------------------
-# Global discarded_bug: central Galerkin core solve
-# ---------------------------------------------------------------------------
-
-class TestGlobalSolvers:
-
-    @pytest.mark.parametrize('solver', ['midpoint', 'rk4', 'trapezoid'])
-    def test_converges_to_krylov_with_substeps(self, solver, spin_space):
-        ref = _global_state(spin_space, solver='krylov', substeps=1, n_steps=3)
-        coarse = _global_state(spin_space, solver=solver, substeps=2, n_steps=3)
-        fine = _global_state(spin_space, solver=solver, substeps=10, n_steps=3)
-        err_coarse = _overlap_err(ref, coarse)
-        err_fine = _overlap_err(ref, fine)
-        assert err_fine <= err_coarse + 1e-12
-        assert err_fine < 1e-4, f"{solver}: not tight at n=10"
 
 
 # ---------------------------------------------------------------------------

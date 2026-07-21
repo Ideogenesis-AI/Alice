@@ -16,16 +16,20 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Algorithm module: tensor network algorithms built on the network layer."""
+"""Algorithm module: tensor network algorithms built on the network layer.
+
+`discarded_bug` -- the global-sweep BUG -- was moved to `exploratory/global_sweep`
+and is no longer importable from here. The supported discarded-projector kernel is
+`two_site_bug` with `variant='discarded'`, which is the one mirrored by
+`bond_update_bug!` in BUG-Julia.
+"""
 
 from . import two_site_bug
-from . import discarded_bug
 from . import dmrg
 from . import tdvp2
 
 __all__ = [
     'two_site_bug',
-    'discarded_bug',
     'dmrg',
     'tdvp2',
 ]
