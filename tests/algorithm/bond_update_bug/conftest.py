@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Pytest fixtures and exact-diagonalization helpers for two-site BUG tests.
+"""Pytest fixtures and exact-diagonalization helpers for bond_update_bug tests.
 
 The helpers build a dense Heisenberg Hamiltonian, dense product states, and a
 dense vector from an MPS — all in the same physical basis ordering as Nicole's
@@ -160,8 +160,8 @@ def dense_hamiltonian(interactions, length: int, charges: List[int]) -> torch.Te
     torch.Tensor
         Dense `(d**L, d**L)` Hamiltonian, `d = len(charges)`.
     """
-    from alice.algorithm.two_site_bug._kernel import to_dense
-    from alice.algorithm.two_site_bug.bond import build_bond_generators
+    from alice.algorithm.bond_update_bug._kernel import to_dense
+    from alice.algorithm.bond_update_bug.bond import build_bond_generators
 
     generators = build_bond_generators(interactions, length)
     d = len(charges)

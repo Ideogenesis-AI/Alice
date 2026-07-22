@@ -21,8 +21,8 @@
 
 In imaginary time the local update ``y = exp(tau A) x`` is the exact flow of a
 linear ODE, so it may be computed by any stable integrator instead of the exact
-Krylov exponential. Both the two-site BUG (``variant='discarded'``) and the global
-``two_site_bug`` exposes ``solver`` / ``solver_substeps`` for this. These tests
+Krylov exponential. Both the bond_update_bug and the global
+``bond_update_bug`` exposes ``solver`` / ``solver_substeps`` for this. These tests
 check, end-to-end through the real symmetry-blocked tensor machinery, that:
 
 * the substepped integrators (``midpoint``/``rk4``/``trapezoid``) reproduce the exact
@@ -39,10 +39,10 @@ import torch
 from nicole import Index, Tensor, load_space
 
 from alice import build_hamiltonian, build_interaction, init_mps
-from alice.algorithm import two_site_bug
-from alice.algorithm.two_site_bug._kernel.local_solvers import LOCAL_SOLVERS
+from alice.algorithm import bond_update_bug
+from alice.algorithm.bond_update_bug._kernel.local_solvers import LOCAL_SOLVERS
 
-from tests.algorithm.two_site_bug.conftest import (
+from tests.algorithm.bond_update_bug.conftest import (
     dense_hamiltonian,
     heisenberg_chain,
     mps_to_vector,
@@ -83,9 +83,9 @@ def _neel(length, spin_space):
 
 def _two_site_state(spin_space, *, solver, substeps, n_steps=4, dt=0.05):
     mps, interactions, _, charges = _neel(_LENGTH, spin_space)
-    state = two_site_bug.run(
+    state = bond_update_bug.run(
         mps, interactions,
-        two_site_bug.Options(variant='discarded', solver=solver, solver_substeps=substeps,
+        bond_update_bug.Options(solver=solver, solver_substeps=substeps,
                              dt=dt, n_steps=n_steps, imaginary_time=True, max_bond=64),
     ).state
     vec = mps_to_vector(state, charges)
@@ -108,16 +108,16 @@ class TestSolverOptions:
         assert set(LOCAL_SOLVERS) == {'krylov', 'midpoint', 'rk4', 'trapezoid'}
 
     def test_default_is_krylov(self):
-        assert two_site_bug.Options().solver == 'krylov'
+        assert bond_update_bug.Options().solver == 'krylov'
 
-    @pytest.mark.parametrize('factory', [two_site_bug.Options])
+    @pytest.mark.parametrize('factory', [bond_update_bug.Options])
     def test_unknown_solver_raises(self, factory):
         with pytest.raises(ValueError, match='unknown local solver'):
             factory(solver='euler')
 
 
 # ---------------------------------------------------------------------------
-# Two-site BUG (variant='discarded'): K/L/S solves
+# bond_update_bug: K/L/S solves
 # ---------------------------------------------------------------------------
 
 class TestTwoSiteSolvers:

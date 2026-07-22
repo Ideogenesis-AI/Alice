@@ -67,25 +67,16 @@ Ground-state DMRG algorithm.
 | [Summary](dmrg/summary.md) | DMRG output dataclass |
 | [run](dmrg/run.md) | Top-level DMRG entry point |
 
-## Two-Site BUG
+## bond_update_bug
 
-Rank-adaptive two-site Basis-Update & Galerkin time integrator (real and imaginary time).
-
-| Symbol | Description |
-|--------|-------------|
-| [Options](two-site-bug/options.md) | BUG run options |
-| [Summary](two-site-bug/summary.md) | BUG output dataclass |
-| [run](two-site-bug/run.md) | Top-level BUG entry point |
-
-## Discarded-Projector BUG
-
-Variant of the two-site BUG with project-before generators and direct-sum basis growth.
+Rank-adaptive Basis-Update & Galerkin time integrator (the discarded-projector
+K/L/S sweep; real and imaginary time).
 
 | Symbol | Description |
 |--------|-------------|
-| [Options](discarded-bug/options.md) | Discarded-projector BUG run options |
-| [Summary](discarded-bug/summary.md) | Discarded-projector BUG output dataclass |
-| [run](discarded-bug/run.md) | Top-level discarded-projector BUG entry point |
+| [Options](bond-update-bug/options.md) | bond_update_bug run options |
+| [Summary](bond-update-bug/summary.md) | bond_update_bug output dataclass |
+| [run](bond-update-bug/run.md) | Top-level bond_update_bug entry point |
 
 ## Two-Site TDVP
 

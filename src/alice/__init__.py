@@ -28,7 +28,7 @@ from .network import (
     init_mps,
     observe,
 )
-from .algorithm import dmrg, tdvp2, two_site_bug
+from .algorithm import dmrg, tdvp2, bond_update_bug
 from .logging import configure_logging
 
 __version__ = version('alice-net')
@@ -52,7 +52,7 @@ __all__ = [
     # algorithms (as submodules)
     'dmrg',
     'tdvp2',
-    'two_site_bug',
+    'bond_update_bug',
     # logging
     'configure_logging',
 ]

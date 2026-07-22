@@ -16,9 +16,9 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Two-site BUG algorithm package.
+"""bond_update_bug algorithm package.
 
-Implements the faithful two-site BUG (Basis-Update & Galerkin) time integrator
+Implements the bond_update_bug (Basis-Update & Galerkin) time integrator
 of Ceruti, Kusch & Lubich (arXiv:2304.05660): a nearest-neighbour Hamiltonian is
 evolved by odd/even Trotter sweeps of local K/L/S bond updates. Each update
 augments the left/right frames from the evolved K/L factors, evolves the small
@@ -29,12 +29,12 @@ full rank, rank-adaptive otherwise. The public API includes:
 - `Summary` — output dataclass.
 - `run`     — top-level entry point.
 
-The faithful-KLS local kernel lives in the vendored, Nicole-native `_kernel`
+The KLS local kernel lives in the vendored, Nicole-native `_kernel`
 subpackage; this package wires it to Alice's `MPS` and AutoMPO bond terms.
 """
 
-from .two_site_bug import Options, Summary
-from .two_site_bug import run
+from .bond_update_bug import Options, Summary
+from .bond_update_bug import run
 
 __all__ = [
     'Options',

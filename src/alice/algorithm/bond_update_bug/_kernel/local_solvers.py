@@ -22,12 +22,12 @@
 Every BUG local substep computes ``y = exp(tau * A) x`` for a matrix-free tensor
 action ``A`` (``apply``) and a (generally complex) local timestep ``tau``. In
 **unitary** real-time evolution this must be an *exact* exponential, so the
-faithful kernel uses a Krylov ``expv``. In **imaginary time** (cooling toward the
+kernel uses a Krylov ``expv``. In **imaginary time** (cooling toward the
 ground state) the evolution is no longer unitary, and ``y = exp(tau A) x`` is just
 the exact flow of the linear ODE ``x'(s) = A x(s)`` over ``s in [0, tau]`` — *any*
 stable integrator of that ODE may be used. This module provides a family of them
 behind one uniform ``(apply, tau, x)`` call surface so the discarded-projector BUG
-and the two-site BUG (``variant='discarded'``) can swap the local solver:
+and the bond_update_bug (``variant='discarded'``) can swap the local solver:
 
   * ``'krylov'``    : Lanczos (Hermitian) / Arnoldi (general) exponential — ``≈`` exact.
   * ``'midpoint'``  : explicit midpoint (RK2), ``substeps`` internal steps — 2nd order,
@@ -74,7 +74,7 @@ def tensor_arnoldi_expv(apply, tau: complex, x: Tensor, *, maxiter: int = 30, to
     orthonormal Krylov basis of Nicole tensors and a small dense upper-Hessenberg
     matrix ``H``, then forms ``y = beta * V * exp(tau H) e1``. Stays in the
     symmetry-blocked representation throughout (the non-Hermitian counterpart of
-    :func:`alice.algorithm.two_site_bug._kernel.krylov.tensor_lanczos_expv`).
+    :func:`alice.algorithm.bond_update_bug._kernel.krylov.tensor_lanczos_expv`).
     """
     beta0 = _norm(x)
     if beta0 == 0.0:

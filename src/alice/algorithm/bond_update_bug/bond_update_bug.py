@@ -16,16 +16,16 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Top-level two-site BUG driver: options, summary, and entry-point function.
+"""Top-level bond_update_bug driver: options, summary, and entry-point function.
 
-The faithful Basis-Update & Galerkin (BUG) integrator (Ceruti, Kusch & Lubich,
+The Basis-Update & Galerkin (BUG) integrator (Ceruti, Kusch & Lubich,
 arXiv:2304.05660) evolves an `MPS` under a nearest-neighbour Hamiltonian by
 odd/even Trotter sweeps of *local* two-site updates. Each bond update is the
 rank-adaptive K/L/S step: it augments the left frame from the evolved K factor,
 augments the right frame from the evolved L factor, evolves the small core S in
 the augmented bases (Galerkin), and truncates with an SVD. The local substeps
 exponentiate the *projected* effective Hamiltonian internally (Krylov `expv`) —
-no pre-formed gate is applied — so the step is the faithful KLS update, exact at
+no pre-formed gate is applied — so the step is the KLS update, exact at
 full rank. Bond Hamiltonians are reused directly from the AutoMPO interaction
 list, so any nearest-neighbour model and symmetry that `build_interaction`
 supports works unchanged.
@@ -33,12 +33,12 @@ supports works unchanged.
 Typical usage:
 
     from alice import build_interaction, init_mps
-    from alice.algorithm import two_site_bug
+    from alice.algorithm import bond_update_bug
 
     interactions, spc, geo = build_interaction(cfg)
     mps = init_mps(geo.L, spc, Op, config=[0, 1] * (geo.L // 2), target_qn=0)
-    opts = two_site_bug.Options(dt=0.05, n_steps=20, order='strang', max_bond=64)
-    summary = two_site_bug.run(mps, interactions, opts)
+    opts = bond_update_bug.Options(dt=0.05, n_steps=20, order='strang', max_bond=64)
+    summary = bond_update_bug.run(mps, interactions, opts)
     print(summary.bond_dims)
 """
 
@@ -56,7 +56,7 @@ from ..interface import AlgorithmOptions, AlgorithmSummary
 from ._kernel import with_expv_backend, with_time_prefactor
 from ._kernel.local_solvers import LOCAL_SOLVERS
 from .bond import build_bond_generators, kernel_gate, to_complex
-from .scheme import parity_sweep, resolve_candidate
+from .scheme import parity_sweep
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ def _resolve_order(alias: str) -> str:
 
 @dataclass
 class Options(AlgorithmOptions):
-    """Two-site BUG run options.
+    """bond_update_bug run options.
 
     All fields have sensible defaults so `Options()` is a valid minimal
     configuration. Use `Options.from_toml` to load from an `[algorithm]` TOML
@@ -129,26 +129,11 @@ class Options(AlgorithmOptions):
         - `'strang'` / `'second'` / `'2'`: symmetric second-order step
           `U_even(dt/2) · U_odd(dt) · U_even(dt/2)`.
         - `'lie'` / `'first'` / `'1'`: first-order step `U_even(dt) · U_odd(dt)`.
-    variant:
-        Local bond update kernel:
-
-        - `'faithful'` (default): the Ceruti–Kusch–Lubich K/L/S update — augments
-          through the overlap matrices `M̂`/`N̂` (`Ŝ0 = M̂ S0 N̂`).
-        - `'discarded'`: the discarded-projector update — applies the discarded
-          (orthogonal-complement) projector to the K/L generator *before* the
-          exponential and acts the augmented isometries directly in the S-step
-          (`Ŝ0 = Û† Θ0 V̂†`), forming **no** overlap matrices.
-        Defaults to `'discarded'`: that is the canonical kernel, the one
-        mirrored by `bond_update_bug!` in BUG-Julia (verified to 4.27e-11 on
-        the L=6 Heisenberg Sz profile). `'faithful'` is retained because it is
-        the variant the XX/Heisenberg writeup validated -- deleting it would
-        orphan those published numbers.
     solver:
-        Local (imaginary-time) integrator for the `'discarded'` variant's K/L/S
-        substeps — `'krylov'` (exact, default), `'midpoint'` (explicit RK2),
-        `'rk4'`, or `'trapezoid'` (A-stable Crank–Nicolson). Ignored by the unitary
-        `'faithful'` variant, which always uses the exact Krylov exponential. See
-        :mod:`alice.algorithm.two_site_bug._kernel.local_solvers`.
+        Local integrator for the K/L/S substeps — `'krylov'` (exact, default),
+        `'midpoint'` (explicit RK2), `'rk4'`, or `'trapezoid'` (A-stable
+        Crank–Nicolson). See
+        :mod:`alice.algorithm.bond_update_bug._kernel.local_solvers`.
     solver_substeps:
         Number of internal substeps for `'midpoint'`/`'rk4'`/`'trapezoid'` (local
         error `O((dt/solver_substeps)^p)`; ignored by `'krylov'`).
@@ -184,7 +169,6 @@ class Options(AlgorithmOptions):
     dt: float = 0.05
     n_steps: int = 10
     order: str = 'strang'
-    variant: str = 'discarded'
     solver: str = 'krylov'
     solver_substeps: int = 1
     max_bond: Optional[int] = None
@@ -198,8 +182,7 @@ class Options(AlgorithmOptions):
 
     def __post_init__(self) -> None:
         self.order = _resolve_order(self.order)
-        # Validate eagerly so a bad variant/solver name fails at construction.
-        resolve_candidate(self.variant)
+        # Validate eagerly so a bad solver name fails at construction.
         if self.solver not in LOCAL_SOLVERS:
             raise ValueError(
                 f"unknown local solver {self.solver!r}; recognised values are: "
@@ -212,7 +195,7 @@ class Options(AlgorithmOptions):
 
 @dataclass
 class Summary(AlgorithmSummary):
-    """Two-site BUG output.
+    """bond_update_bug output.
 
     Attributes
     ----------
@@ -319,10 +302,10 @@ class Summary(AlgorithmSummary):
 # ---------------------------------------------------------------------------
 
 def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = None) -> Summary:
-    """Evolve an MPS under a nearest-neighbour Hamiltonian with the two-site BUG integrator.
+    """Evolve an MPS under a nearest-neighbour Hamiltonian with the bond_update_bug integrator.
 
     Builds the per-bond Hamiltonian terms once from the AutoMPO interaction list,
-    then applies `opts.n_steps` odd/even Trotter steps of the faithful K/L/S local
+    then applies `opts.n_steps` odd/even Trotter steps of the K/L/S local
     update. The state is canonicalised to `center = 0` before the first step and
     returned with `center = 0`.
 
@@ -334,7 +317,7 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
     interactions:
         Interaction list from `build_interaction`. Every active term must be a
         nearest-neighbour `Interaction2Site` (see
-        :func:`alice.algorithm.two_site_bug.bond.build_bond_generators`).
+        :func:`alice.algorithm.bond_update_bug.bond.build_bond_generators`).
     opts:
         Run options. Defaults to `Options()` if `None`.
 
@@ -351,7 +334,7 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
     if opts is None:
         opts = Options()
     if mps.L < 2:
-        raise ValueError(f"two-site BUG evolution requires at least 2 sites, got L={mps.L}")
+        raise ValueError(f"bond_update_bug evolution requires at least 2 sites, got L={mps.L}")
 
     maxdim = opts.max_bond if opts.max_bond is not None else _UNLIMITED_BOND
     # Real-time evolution uses exp(-i dt H); imaginary time uses exp(-dt H). The
@@ -373,14 +356,12 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
         for b, h in enumerate(generators)
     ]
 
-    candidate_fn = resolve_candidate(opts.variant)
-
     def sweep(parity: str, tau: float):
         return parity_sweep(
             mps, gates, parity, tau, maxdim,
             opts.augment, opts.aug_krylov_depth, opts.trunc_thresh,
             opts.lanczos_tol, opts.lanczos_maxiter,
-            candidate_fn, opts.solver, opts.solver_substeps,
+            solver=opts.solver, solver_substeps=opts.solver_substeps,
         )
 
     times: List[float] = []
@@ -393,13 +374,11 @@ def run(mps: MPS, interactions: List[Interaction], opts: Optional[Options] = Non
 
     n_active = sum(1 for h in generators if h is not None)
     logger.info("─" * 60)
-    logger.info("Commencing: Two-Site BUG Time Evolution".center(60))
+    logger.info("Commencing: bond_update_bug Time Evolution".center(60))
     logger.info("─" * 60)
     logger.info("")
     logger.info("  order             : %s", opts.order)
-    logger.info("  variant           : %s", opts.variant)
-    if opts.variant != 'faithful':
-        logger.info("  local solver      : %s (substeps %d)", opts.solver, opts.solver_substeps)
+    logger.info("  local solver      : %s (substeps %d)", opts.solver, opts.solver_substeps)
     logger.info("  chain length      : %d", mps.L)
     logger.info("  active bonds      : %d / %d", n_active, mps.L - 1)
     logger.info("  time step         : %g", opts.dt)

@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Odd/even parity sweeps driving the faithful-KLS local bond update.
+"""Odd/even parity sweeps driving the KLS local bond update.
 
 The chain Hamiltonian splits into two commuting groups — bonds with an even
 left-site index (0, 2, 4, …) and bonds with an odd left-site index (1, 3, 5, …).
@@ -26,7 +26,7 @@ between the two groups. This is the odd/even BUG sweep used for the domain-wall
 XX chain.
 
 Each bond update is the Ceruti–Kusch–Lubich K/L/S step from
-:mod:`alice.algorithm.two_site_bug._kernel` (faithful Basis-Update & Galerkin).
+:mod:`alice.algorithm.bond_update_bug._kernel` (Basis-Update & Galerkin).
 This module is the thin Alice adapter: it brings the orthogonality center onto
 the active bond, takes a canonical two-site snapshot of the Alice `MPS`, calls
 the vendored kernel, and writes the updated cores back. The kernel works in the
@@ -45,32 +45,12 @@ from alice.network import MPS
 
 from ._kernel import (
     Ix,
-    _discarded_kls_local_bond_candidate,
-    _faithful_kls_local_bond_candidate,
+    _kls_local_bond_candidate,
     lq,
     qr,
     tcontract,
     to_dense,
 )
-
-# Local-bond candidate kernels selectable by ``two_site_bug.Options.variant``.
-# ``'faithful'`` is the Ceruti–Kusch–Lubich K/L/S update (overlap matrices M̂/N̂);
-# ``'discarded'`` is the project-before discarded-projector update that acts the
-# augmented isometries directly (no overlap matrices) — see
-# :mod:`._kernel.kls.discarded_candidate`.
-_CANDIDATE_KERNELS: Dict[str, Callable] = {
-    'faithful': _faithful_kls_local_bond_candidate,
-    'discarded': _discarded_kls_local_bond_candidate,
-}
-
-
-def resolve_candidate(variant: str) -> Callable:
-    """Return the local-bond candidate function for a ``variant`` name."""
-    try:
-        return _CANDIDATE_KERNELS[variant]
-    except KeyError:
-        known = ', '.join(sorted(_CANDIDATE_KERNELS))
-        raise ValueError(f"unknown two-site BUG variant {variant!r}; recognised values are: {known}")
 
 
 def _discarded_weight(s_new: Tensor, keep: int) -> float:
@@ -168,11 +148,11 @@ def kls_bond(
     trunc_thresh: float,
     lanczos_tol: float,
     lanczos_maxiter: int,
-    candidate_fn: Callable = _faithful_kls_local_bond_candidate,
+    candidate_fn: Callable = _kls_local_bond_candidate,
     solver: str = 'krylov',
     solver_substeps: int = 1,
 ) -> Tuple[int, int, float]:
-    """Apply one faithful-KLS update to sites *(i, i+1)* of `mps`, in place.
+    """Apply one KLS update to sites *(i, i+1)* of `mps`, in place.
 
     Moves the orthogonality center onto site *i* (truncation-free), snapshots the
     bond, runs the vendored K/L/S local update for time `tau` (the active
@@ -188,7 +168,7 @@ def kls_bond(
         Left site of the bond.
     gate:
         Bare two-site bond Hamiltonian in the kernel convention (see
-        :func:`alice.algorithm.two_site_bug.bond.kernel_gate`).
+        :func:`alice.algorithm.bond_update_bug.bond.kernel_gate`).
     tau:
         Real time advanced by this local step.
     maxdim:
@@ -278,7 +258,7 @@ def parity_sweep(
     trunc_thresh: float,
     lanczos_tol: float,
     lanczos_maxiter: int,
-    candidate_fn: Callable = _faithful_kls_local_bond_candidate,
+    candidate_fn: Callable = _kls_local_bond_candidate,
     solver: str = 'krylov',
     solver_substeps: int = 1,
 ) -> Tuple[int, int, float]:

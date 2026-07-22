@@ -25,9 +25,8 @@ a small Heisenberg chain where the ground state is available by exact
 diagonalization, that *every* integrator under comparison cools a Néel product
 state toward that exact ground state:
 
-* faithful two-site BUG               (``two_site_bug``, ``variant='faithful'``),
-* discarded-projector two-site BUG    (``two_site_bug``, ``variant='discarded'``),
-* two-site TDVP                       (``tdvp2``).
+* bond_update_bug   (``bond_update_bug``),
+* two-site TDVP     (``tdvp2``).
 
 For each method the final state must have a small overlap error with the exact
 ground state, a near-degenerate energy, and clear cooling relative to the Néel
@@ -42,9 +41,9 @@ import torch
 from nicole import Index, Tensor, load_space
 
 from alice import build_hamiltonian, init_mps
-from alice.algorithm import tdvp2, two_site_bug
+from alice.algorithm import tdvp2, bond_update_bug
 
-from tests.algorithm.two_site_bug.conftest import (
+from tests.algorithm.bond_update_bug.conftest import (
     dense_hamiltonian,
     heisenberg_chain,
     mps_to_vector,
@@ -63,7 +62,7 @@ _LENGTH = 6
 # phenomenon the study figure exhibits — so it is driven by the study harness and
 # its own test module, and is deliberately not asserted as a convergence invariant
 # here.
-_BUG_METHODS = ['bug_faithful', 'bug_discarded']
+_BUG_METHODS = ['bug']
 
 
 @pytest.fixture(autouse=True)
@@ -100,17 +99,11 @@ def _neel(length, spin_space):
 
 def _cool(method, mps, interactions, mpo):
     """Run one method in imaginary time and return its evolved MPS state."""
-    if method == 'bug_faithful':
-        return two_site_bug.run(
+    if method == 'bug':
+        return bond_update_bug.run(
             mps, interactions,
-            two_site_bug.Options(variant='faithful', dt=_DT, n_steps=_N_STEPS,
-                                 imaginary_time=True, max_bond=64),
-        ).state
-    if method == 'bug_discarded':
-        return two_site_bug.run(
-            mps, interactions,
-            two_site_bug.Options(variant='discarded', dt=_DT, n_steps=_N_STEPS,
-                                 imaginary_time=True, max_bond=64),
+            bond_update_bug.Options(dt=_DT, n_steps=_N_STEPS,
+                                    imaginary_time=True, max_bond=64),
         ).state
     if method == 'tdvp2':
         return tdvp2.run(

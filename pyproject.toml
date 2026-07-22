@@ -81,10 +81,10 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint.per-file-ignores]
-# Vendored, Nicole-native faithful-KLS kernel — kept close to its upstream form.
+# Vendored, Nicole-native bond_update_bug kernel — kept close to its upstream form.
 # Several modules re-export helpers consumed by sibling kernel modules, so the
 # unused-import rule would force churn that breaks those re-exports.
-"src/alice/algorithm/two_site_bug/_kernel/**" = ["F401"]
+"src/alice/algorithm/bond_update_bug/_kernel/**" = ["F401"]
 
 [tool.mypy]
 python_version = "3.11"

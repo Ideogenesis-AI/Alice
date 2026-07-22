@@ -1,8 +1,8 @@
 # Summary
 
-Two-site BUG output.
+bond_update_bug output.
 
-::: alice.algorithm.two_site_bug.Summary
+::: alice.algorithm.bond_update_bug.Summary
     options:
       heading_level: 2
 

@@ -1,8 +1,8 @@
 # Options
 
-Two-site BUG run options.
+bond_update_bug run options.
 
-::: alice.algorithm.two_site_bug.Options
+::: alice.algorithm.bond_update_bug.Options
     options:
       heading_level: 2
 
@@ -12,12 +12,12 @@ Two-site BUG run options.
 
 ```python
 import tomllib
-from alice.algorithm import two_site_bug
+from alice.algorithm import bond_update_bug
 
 with open("config.toml", "rb") as f:
     cfg = tomllib.load(f)
 
-opts = two_site_bug.Options.from_toml(cfg["heisenberg"]["algorithm"])
+opts = bond_update_bug.Options.from_toml(cfg["heisenberg"]["algorithm"])
 ```
 
 Example TOML block:

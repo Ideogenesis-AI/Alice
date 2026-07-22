@@ -16,28 +16,29 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Vendored faithful-KLS (Lübich BUG) local-bond kernel.
+"""Vendored bond_update_bug local-bond kernel.
 
-This subpackage is the Nicole-native faithful Basis-Update & Galerkin (BUG)
-local kernel — the Ceruti–Kusch–Lubich K/L/S two-site update (arXiv:2304.05660),
-ported from the reference Julia implementation. It is symmetry-aware (works with
-the U(1) charge sectors of an Alice `MPS`) and depends only on `nicole` + torch:
+This subpackage is the Nicole-native Basis-Update & Galerkin (BUG) local kernel —
+the discarded-projector K/L/S two-site update (Ceruti–Kusch–Lubich,
+arXiv:2304.05660), ported from the reference Julia `bond_update_bug!`. It is
+symmetry-aware (works with the U(1) charge sectors of an Alice `MPS`) and depends
+only on `nicole` + torch:
 
-- `_faithful_kls_local_bond_candidate` — one K/L/S local bond update.
+- `_kls_local_bond_candidate` — one K/L/S local bond update.
 - `Ix` / `fresh_itag` — lightweight Nicole-index handles used by the kernel.
 - `qr` / `lq` — Nicole-backed decompositions returning `Ix` metadata.
 - `dag` / `tcontract` / `make_tensor` / `to_dense` — Nicole tensor helpers.
 - `with_time_prefactor` / `with_expv_backend` — evolution-prefactor and Krylov
   backend context managers used to drive the local `expv` substeps.
 
-It is private to `alice.algorithm.two_site_bug`; the Alice-facing driver in
-`two_site_bug.py` builds the bond Hamiltonians from AutoMPO and runs the
+It is private to `alice.algorithm.bond_update_bug`; the Alice-facing driver in
+`bond_update_bug.py` builds the bond Hamiltonians from AutoMPO and runs the
 odd/even Strang sweep on an Alice `MPS` through this kernel.
 """
 
 from .indices import Ix, fresh_itag
 from .krylov import with_expv_backend, with_time_prefactor
-from .kls import _discarded_kls_local_bond_candidate, _faithful_kls_local_bond_candidate
+from .kls import _kls_local_bond_candidate
 from .linalg import lq, qr
 from .nicole_helpers import dag, make_tensor, tcontract, to_dense
 
@@ -46,8 +47,7 @@ __all__ = [
     'fresh_itag',
     'with_expv_backend',
     'with_time_prefactor',
-    '_discarded_kls_local_bond_candidate',
-    '_faithful_kls_local_bond_candidate',
+    '_kls_local_bond_candidate',
     'lq',
     'qr',
     'dag',

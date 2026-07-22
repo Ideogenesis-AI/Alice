@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for the faithful-KLS two-site BUG integrator (Options, Summary, run)."""
+"""Tests for the bond_update_bug integrator (Options, Summary, run)."""
 
 from __future__ import annotations
 
@@ -27,8 +27,8 @@ import torch
 from nicole import Index, Tensor
 
 from alice import init_mps
-from alice.algorithm import two_site_bug
-from alice.algorithm.two_site_bug.bond import build_bond_generators
+from alice.algorithm import bond_update_bug
+from alice.algorithm.bond_update_bug.bond import build_bond_generators
 from alice.network.interaction import Interaction2Site
 
 from .conftest import (
@@ -79,21 +79,21 @@ class TestOptions:
     """Tests for the Options dataclass."""
 
     def test_default_order(self):
-        assert two_site_bug.Options().order == 'strang'
+        assert bond_update_bug.Options().order == 'strang'
 
     @pytest.mark.parametrize('alias,canonical', [
         ('strang', 'strang'), ('second', 'strang'), ('2', 'strang'),
         ('lie', 'lie'), ('first', 'lie'), ('1', 'lie'),
     ])
     def test_order_aliases(self, alias, canonical):
-        assert two_site_bug.Options(order=alias).order == canonical
+        assert bond_update_bug.Options(order=alias).order == canonical
 
     def test_unknown_order_raises(self):
         with pytest.raises(ValueError, match='unknown Trotter order'):
-            two_site_bug.Options(order='leapfrog')
+            bond_update_bug.Options(order='leapfrog')
 
     def test_from_toml(self):
-        opts = two_site_bug.Options.from_toml(
+        opts = bond_update_bug.Options.from_toml(
             {'dt': 0.02, 'n_steps': 50, 'order': 'second', 'max_bond': 32}
         )
         assert opts.dt == 0.02
@@ -102,10 +102,10 @@ class TestOptions:
         assert opts.max_bond == 32
 
     def test_to_toml_round_trip(self, tmp_path):
-        original = two_site_bug.Options(dt=0.01, n_steps=7, order='lie', max_bond=16)
+        original = bond_update_bug.Options(dt=0.01, n_steps=7, order='lie', max_bond=16)
         path = tmp_path / 'opts.toml'
         original.to_toml(path)
-        loaded = two_site_bug.Options.load_toml(path)
+        loaded = bond_update_bug.Options.load_toml(path)
         assert loaded.dt == 0.01
         assert loaded.n_steps == 7
         assert loaded.order == 'lie'
@@ -121,10 +121,10 @@ class TestSummary:
 
     def test_serialize_round_trip(self, spin_space):
         mps, interactions, _, _ = _domain_wall(6, spin_space)
-        summary = two_site_bug.run(
-            mps, interactions, two_site_bug.Options(dt=0.05, n_steps=3, max_bond=16)
+        summary = bond_update_bug.run(
+            mps, interactions, bond_update_bug.Options(dt=0.05, n_steps=3, max_bond=16)
         )
-        restored = two_site_bug.Summary.deserialize(summary.serialize())
+        restored = bond_update_bug.Summary.deserialize(summary.serialize())
         assert restored.n_steps == summary.n_steps
         assert restored.bond_dims == summary.bond_dims
         assert restored.times == pytest.approx(summary.times)
@@ -164,9 +164,9 @@ class TestDynamics:
 
     def test_norm_conserved_real_time(self, spin_space):
         mps, interactions, _, _ = _domain_wall(6, spin_space)
-        summary = two_site_bug.run(
+        summary = bond_update_bug.run(
             mps, interactions,
-            two_site_bug.Options(dt=0.05, n_steps=10, max_bond=64, normalize=False),
+            bond_update_bug.Options(dt=0.05, n_steps=10, max_bond=64, normalize=False),
         )
         for norm in summary.norms:
             assert abs(norm - 1.0) < 1e-10
@@ -175,8 +175,8 @@ class TestDynamics:
         mps, interactions, charges, psi0 = _domain_wall(6, spin_space)
         sz_total = dense_total_sz(6, charges)
         sz_before = (psi0.conj() @ sz_total @ psi0).real.item() / psi0.norm().item() ** 2
-        summary = two_site_bug.run(
-            mps, interactions, two_site_bug.Options(dt=0.05, n_steps=10, max_bond=64)
+        summary = bond_update_bug.run(
+            mps, interactions, bond_update_bug.Options(dt=0.05, n_steps=10, max_bond=64)
         )
         vec = mps_to_vector(summary.state, charges)
         sz_after = (vec.conj() @ sz_total @ vec).real.item() / vec.norm().item() ** 2
@@ -188,9 +188,9 @@ class TestDynamics:
         ham = dense_hamiltonian(interactions, length, charges)
         psi0 = psi0 / psi0.norm()
         dt, n_steps = 0.05, 20
-        summary = two_site_bug.run(
+        summary = bond_update_bug.run(
             mps, interactions,
-            two_site_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
+            bond_update_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
         )
         evolved = mps_to_vector(summary.state, charges)
         evolved = evolved / evolved.norm()
@@ -207,9 +207,9 @@ class TestDynamics:
 
         def infidelity(dt, n_steps):
             mps, _, _, _ = _domain_wall(length, spin_space)
-            summary = two_site_bug.run(
+            summary = bond_update_bug.run(
                 mps, interactions,
-                two_site_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
+                bond_update_bug.Options(dt=dt, n_steps=n_steps, max_bond=64, normalize=False),
             )
             evolved = mps_to_vector(summary.state, charges)
             evolved = evolved / evolved.norm()
@@ -231,9 +231,9 @@ class TestDynamics:
         def infidelity(order):
             mps, interactions, charges, psi0 = _domain_wall(length, spin_space)
             psi0 = psi0 / psi0.norm()
-            summary = two_site_bug.run(
+            summary = bond_update_bug.run(
                 mps, interactions,
-                two_site_bug.Options(dt=0.1, n_steps=10, order=order, max_bond=64, normalize=False),
+                bond_update_bug.Options(dt=0.1, n_steps=10, order=order, max_bond=64, normalize=False),
             )
             evolved = mps_to_vector(summary.state, charges)
             evolved = evolved / evolved.norm()
@@ -250,9 +250,9 @@ class TestDynamics:
         ground = torch.linalg.eigvalsh(ham)[0].item()
         psi0 = psi0 / psi0.norm()
         energy_before = (psi0.conj() @ ham @ psi0).real.item()
-        summary = two_site_bug.run(
+        summary = bond_update_bug.run(
             mps, interactions,
-            two_site_bug.Options(dt=0.05, n_steps=40, imaginary_time=True, max_bond=64),
+            bond_update_bug.Options(dt=0.05, n_steps=40, imaginary_time=True, max_bond=64),
         )
         vec = mps_to_vector(summary.state, charges)
         vec = vec / vec.norm()

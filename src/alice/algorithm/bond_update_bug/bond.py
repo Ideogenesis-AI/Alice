@@ -17,13 +17,13 @@
 # Author of code: Madhav Menon.
 
 
-"""Nearest-neighbour bond Hamiltonians for the two-site BUG integrator.
+"""Nearest-neighbour bond Hamiltonians for the bond_update_bug integrator.
 
-The faithful Basis-Update & Galerkin (BUG) integrator (Ceruti, Kusch & Lubich,
+The Basis-Update & Galerkin (BUG) integrator (Ceruti, Kusch & Lubich,
 *BIT* 2022; arXiv:2304.05660) evolves an `MPS` under a nearest-neighbour
 Hamiltonian split into commuting odd/even bond groups. Each bond carries the
 *bare* two-site Hamiltonian term `h_{i,i+1}` — not a pre-exponentiated gate. The
-KLS local update (see :mod:`alice.algorithm.two_site_bug.kls`) exponentiates the
+KLS local update (see :mod:`alice.algorithm.bond_update_bug.kls`) exponentiates the
 *projected* effective Hamiltonian internally; this module only supplies the bond
 terms.
 
@@ -151,7 +151,7 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
     ------
     NotImplementedError
         If a non-nearest-neighbour two-site term or a one-site term with a
-        non-zero coupling is present (the two-site BUG integrator targets
+        non-zero coupling is present (the bond_update_bug integrator targets
         nearest-neighbour Hamiltonians).
     """
     generators: List[Optional[Tensor]] = [None] * (length - 1)
@@ -159,7 +159,7 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
         if isinstance(intr, Interaction1Site):
             if intr.cpl != 0.0:
                 raise NotImplementedError(
-                    "two-site BUG currently supports nearest-neighbour two-site "
+                    "bond_update_bug currently supports nearest-neighbour two-site "
                     f"Hamiltonians only; found a one-site term on site {intr.site}"
                 )
             continue
@@ -168,7 +168,7 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
                 continue
             if intr.terminal_site != intr.leading_site + 1:
                 raise NotImplementedError(
-                    "two-site BUG supports nearest-neighbour terms only; found a "
+                    "bond_update_bug supports nearest-neighbour terms only; found a "
                     f"term coupling sites {intr.leading_site} and {intr.terminal_site}"
                 )
             bond = intr.leading_site
@@ -180,7 +180,7 @@ def build_bond_generators(interactions: List[Interaction], length: int) -> List[
 def kernel_gate(h: Tensor, site_l_itag: str, site_r_itag: str) -> Tensor:
     """Relabel a bond Hamiltonian into the local-KLS kernel's gate convention.
 
-    The faithful-KLS kernel applies a bare two-site term `g` to a two-site block
+    The KLS kernel applies a bare two-site term `g` to a two-site block
     `theta` with `einsum('LRlr,aLRb->alrb', g, theta)`, then strips the trailing
     ``*`` from the output physical itags. It therefore expects `g` with axes
     `(ket_i, ket_j, bra_i, bra_j)`: the *ket* legs (`L`, `R`) carry the two site

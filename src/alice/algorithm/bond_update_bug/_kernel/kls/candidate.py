@@ -17,22 +17,10 @@
 # Author of code: Madhav Menon.
 
 
-"""Discarded-projector BUG local bond candidate (two-site BUG ``variant='discarded'``).
+"""The `bond_update_bug` local K/L/S bond candidate.
 
-This is the *only* file that differs from the faithful Ceruti–Kusch–Lubich K/L/S
-update in :mod:`alice.algorithm.two_site_bug._kernel.kls.candidate`. Everything
-else — the Nicole tensor helpers, the Krylov ``expv`` substeps, the QR/SVD linear
-algebra, the augmented-isometry construction, and the gate-application convention
-— is reused unchanged from that kernel, so the odd/even Trotter sweep can swap
-between the faithful and discarded local updates by selecting the candidate
-function alone (see :data:`alice.algorithm.two_site_bug.scheme.parity_sweep`).
-
-Discarded-projector BUG vs faithful BUG (state ``Θ0 = U0 · S0 · V0``)
----------------------------------------------------------------------
-The faithful update grows the left frame by evolving ``K0 = U0·S0`` under the
-right-projected generator ``H_K = V0† H V0`` and orthonormalising ``[U0 | K1]``
-*through an overlap matrix* ``M̂`` that transports the core (``Ŝ0 = M̂ S0 N̂``).
-The discarded variant changes exactly two things, and nothing else:
+The discarded-projector Basis-Update & Galerkin update for one bond, on the state
+``Θ0 = U0 · S0 · V0``. Two features define it:
 
 1. **Project-before.** The discarded (orthogonal-complement) projector is applied
    to the K/L *generator* before the exponential, not to the integrated factor.
@@ -44,14 +32,15 @@ The discarded variant changes exactly two things, and nothing else:
 
 2. **Act the augmented isometries, no overlap matrices.** The new directions are
    isolated by the discarded projector and stacked onto the old isometry to form
-   ``Û = [U0 | Qk]`` / ``V̂ = [V0 ; Ql]`` — no ``M̂``/``N̂`` is formed. The S-step
-   then projects the *current* two-site tensor directly onto the augmented bases,
-   ``Ŝ0 = Û† Θ0 V̂†``, evolves it in the augmented basis (the Hermitian Galerkin
-   generator), and truncates with an SVD.
+   ``Û = [U0 | Qk]`` / ``V̂ = [V0 ; Ql]``. The S-step then projects the *current*
+   two-site tensor directly onto the augmented bases, ``Ŝ0 = Û† Θ0 V̂†``, evolves
+   it in the augmented basis (the Hermitian Galerkin generator), and truncates
+   with an SVD.
 
-The S-step generator, the augmented-basis Galerkin evolution, and the final SVD
-truncation are identical to the faithful kernel. This is the Alice realisation of
-the reference Julia ``discarded_bug_step!`` per-bond candidate.
+This is the Alice realisation of the reference Julia ``bond_update_bug!`` per-bond
+candidate. The Nicole tensor helpers, the Krylov ``expv`` substeps, the QR/SVD
+linear algebra, and the augmented-isometry construction are all shared with the
+rest of the ``_kernel`` subpackage.
 """
 
 from __future__ import annotations
@@ -97,7 +86,7 @@ def _discarded_local_bond_candidate(
     """Run one discarded-projector K/L/S local update (see module docstring).
 
     The K/L/S local exponentials are computed by the selected ``solver`` (see
-    :mod:`alice.algorithm.two_site_bug._kernel.local_solvers`): ``'krylov'`` is the
+    :mod:`alice.algorithm.bond_update_bug._kernel.local_solvers`): ``'krylov'`` is the
     exact reference, ``'midpoint'``/``'rk4'`` are explicit RK with ``solver_substeps``
     internal steps, and ``'trapezoid'`` is the A-stable Crank–Nicolson rule. In
     imaginary time the evolution is non-unitary so any stable integrator is valid.
@@ -165,14 +154,14 @@ def _discarded_local_bond_candidate(
         projected = tcontract(dag(U_aug_tens), evolved)
         return tcontract(projected, dag(V_aug_tens))
 
-    # S-step generator is Hermitian (the faithful Galerkin generator on the
+    # S-step generator is Hermitian (the Galerkin generator on the
     # augmented bases); imaginary time makes the flow a contraction either way.
     S_new_tens = local_expv(apply_s_tensor, prefactor * s_dt_eff, S_start_tens,
                             solver=solver, substeps=solver_substeps, hermitian=True,
                             krylov_maxiter=lanczos_maxiter, krylov_tol=lanczos_tol)
 
     # ---- truncate: SVD sets the new (rank-adaptive) bond dimension ----
-    # Done in the symmetry-blocked Nicole representation (mirrors the faithful
+    # Done in the symmetry-blocked Nicole representation (mirrors the
     # kernel's S-step split), so the kept rank respects the U(1) sectors.
     final_left_tag = fresh_itag(frame.link_mid.itag)
     final_right_tag = fresh_itag(frame.link_mid.itag)
@@ -210,7 +199,7 @@ def _discarded_local_bond_candidate(
     }
 
 
-def _discarded_kls_local_bond_candidate(
+def _kls_local_bond_candidate(
     bond_data: dict[str, Any],
     *,
     gate,
@@ -231,10 +220,10 @@ def _discarded_kls_local_bond_candidate(
     """Return the discarded-projector BUG candidate on one bond.
 
     Mirrors the call surface of
-    :func:`alice.algorithm.two_site_bug._kernel.kls.candidate._faithful_kls_local_bond_candidate`
+    :func:`alice.algorithm.bond_update_bug._kernel.kls.candidate._kls_local_bond_candidate`
     so the odd/even sweep can swap kernels without any other change. ``solver`` and
     ``solver_substeps`` select the local (imaginary-time) integrator for the K/L/S
-    substeps (see :mod:`alice.algorithm.two_site_bug._kernel.local_solvers`).
+    substeps (see :mod:`alice.algorithm.bond_update_bug._kernel.local_solvers`).
     """
     if aug_krylov_depth != 1:
         raise ValueError("discarded variant currently supports aug_krylov_depth == 1 only.")

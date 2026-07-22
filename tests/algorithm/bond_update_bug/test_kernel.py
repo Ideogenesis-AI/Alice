@@ -17,19 +17,14 @@
 # Author of code: Madhav Menon.
 
 
-"""Tests for the two-site BUG ``variant='discarded'`` local update.
+"""Tests for the `bond_update_bug` local K/L/S bond update.
 
-The discarded variant differs from the faithful Ceruti–Kusch–Lubich K/L/S update
-in exactly two places (see
-:mod:`alice.algorithm.two_site_bug._kernel.kls.discarded_candidate`): the K/L
-generators are projected by the discarded (orthogonal-complement) projector
-*before* the exponential, and the augmented **isometries are acted directly** in
-the S-step (``Ŝ0 = Û† Θ0 V̂†``) rather than transported through overlap matrices
-``M̂``/``N̂``. Everything else — the odd/even Trotter sweep, the bond Hamiltonians,
-the Galerkin S-step generator, and the final SVD — is shared with the faithful
-kernel. At full bond dimension both variants are exact, so these tests check the
-discarded variant against exact diagonalization *and* against the faithful variant
-at full rank, plus the usual conservation laws and Strang convergence order.
+The update (see :mod:`alice.algorithm.bond_update_bug._kernel.kls.candidate`)
+projects the K/L generators by the discarded (orthogonal-complement) projector
+*before* the exponential and acts the augmented **isometries directly** in the
+S-step (``Ŝ0 = Û† Θ0 V̂†``), forming no overlap matrices. These tests check it
+against exact diagonalization, the conservation laws (norm and total Sz), the
+second-order Strang convergence, and imaginary-time cooling to the ground state.
 """
 
 from __future__ import annotations
@@ -39,8 +34,7 @@ import torch
 from nicole import Index, Tensor
 
 from alice import init_mps
-from alice.algorithm import two_site_bug
-from alice.algorithm.two_site_bug.scheme import resolve_candidate
+from alice.algorithm import bond_update_bug
 
 from .conftest import (
     dense_hamiltonian,
@@ -79,35 +73,9 @@ def _neel(length, spin_space):
     return mps, interactions, charges, psi0
 
 
-def _discarded(**kwargs):
-    """Options for the discarded variant with sensible test defaults."""
-    return two_site_bug.Options(variant='discarded', **kwargs)
-
-
-# ---------------------------------------------------------------------------
-# Options / wiring
-# ---------------------------------------------------------------------------
-
-class TestVariantOption:
-    """The variant flag selects the discarded kernel and validates eagerly."""
-
-    def test_default_variant_is_discarded(self):
-        # 'discarded' is now the default: it is the canonical kernel, the one
-        # BUG-Julia's bond_update_bug! mirrors. 'faithful' stays available.
-        assert two_site_bug.Options().variant == 'discarded'
-        assert two_site_bug.Options(variant='faithful').variant == 'faithful'
-
-    def test_unknown_variant_raises(self):
-        with pytest.raises(ValueError, match='unknown two-site BUG variant'):
-            two_site_bug.Options(variant='projected')
-
-    def test_resolve_candidate_distinct(self):
-        from alice.algorithm.two_site_bug._kernel import (
-            _discarded_kls_local_bond_candidate,
-            _faithful_kls_local_bond_candidate,
-        )
-        assert resolve_candidate('discarded') is _discarded_kls_local_bond_candidate
-        assert resolve_candidate('faithful') is _faithful_kls_local_bond_candidate
+def _opts(**kwargs):
+    """`bond_update_bug` options with sensible test defaults."""
+    return bond_update_bug.Options(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +87,8 @@ class TestConservation:
 
     def test_norm_conserved_real_time(self, spin_space):
         mps, interactions, _, _ = _neel(6, spin_space)
-        summary = two_site_bug.run(
-            mps, interactions, _discarded(dt=0.05, n_steps=10, max_bond=64, normalize=False)
+        summary = bond_update_bug.run(
+            mps, interactions, _opts(dt=0.05, n_steps=10, max_bond=64, normalize=False)
         )
         for norm in summary.norms:
             assert abs(norm - 1.0) < 1e-10
@@ -129,8 +97,8 @@ class TestConservation:
         mps, interactions, charges, psi0 = _neel(6, spin_space)
         sz_total = dense_total_sz(6, charges)
         sz_before = (psi0.conj() @ sz_total @ psi0).real.item() / psi0.norm().item() ** 2
-        summary = two_site_bug.run(
-            mps, interactions, _discarded(dt=0.05, n_steps=10, max_bond=64)
+        summary = bond_update_bug.run(
+            mps, interactions, _opts(dt=0.05, n_steps=10, max_bond=64)
         )
         vec = mps_to_vector(summary.state, charges)
         sz_after = (vec.conj() @ sz_total @ vec).real.item() / vec.norm().item() ** 2
@@ -142,7 +110,7 @@ class TestConservation:
 # ---------------------------------------------------------------------------
 
 class TestAccuracy:
-    """Real-time accuracy of the discarded S-step against ED and the faithful kernel."""
+    """Real-time accuracy of the discarded S-step against ED and the kernel."""
 
     def test_fidelity_matches_exact_diagonalization(self, spin_space):
         length = 6
@@ -150,8 +118,8 @@ class TestAccuracy:
         ham = dense_hamiltonian(interactions, length, charges)
         psi0 = psi0 / psi0.norm()
         dt, n_steps = 0.05, 20
-        summary = two_site_bug.run(
-            mps, interactions, _discarded(dt=dt, n_steps=n_steps, max_bond=64, normalize=False)
+        summary = bond_update_bug.run(
+            mps, interactions, _opts(dt=dt, n_steps=n_steps, max_bond=64, normalize=False)
         )
         evolved = mps_to_vector(summary.state, charges)
         evolved = evolved / evolved.norm()
@@ -160,55 +128,6 @@ class TestAccuracy:
         fidelity = abs(torch.vdot(exact, evolved)).item()
         # At full bond dimension the only error is the Strang splitting (O(dt^2)).
         assert 1.0 - fidelity < 1e-6
-
-    def test_agrees_with_faithful_at_full_rank(self, spin_space):
-        """The discarded and faithful variants agree closely — but NOT exactly.
-
-        They span different Galerkin spaces by design, so exact agreement is not
-        the bar. Faithful completes each charge sector to its full local dimension;
-        discarded uses the Sulz range basis ``orth([U0 | K1])`` at rank <= 2r and
-        deliberately does NOT pad, because padding every sector to ``d*r`` does not
-        scale. The residual gap (~2e-9 here) is that difference, not a defect.
-
-        Judged two ways: the dense fidelity, and the per-site <Sz_j> profile. The
-        profile is the physically meaningful check — a vec()-based fidelity has been
-        misleading before — so a regression that preserves fidelity while corrupting
-        the local magnetisation still fails here.
-        """
-        length = 6
-        dt, n_steps = 0.05, 10
-
-        mps_f, interactions, charges, _ = _neel(length, spin_space)
-        faithful = two_site_bug.run(
-            mps_f, interactions,
-            two_site_bug.Options(variant='faithful', dt=dt, n_steps=n_steps,
-                                 max_bond=64, normalize=False),
-        )
-        vec_f = mps_to_vector(faithful.state, charges)
-        vec_f = vec_f / vec_f.norm()
-
-        mps_d, interactions, charges, _ = _neel(length, spin_space)
-        discarded = two_site_bug.run(
-            mps_d, interactions, _discarded(dt=dt, n_steps=n_steps, max_bond=64, normalize=False)
-        )
-        vec_d = mps_to_vector(discarded.state, charges)
-        vec_d = vec_d / vec_d.norm()
-
-        infidelity = 1.0 - abs(torch.vdot(vec_f, vec_d)).item()
-        assert infidelity < 1e-8
-
-        # The profile tolerance is DERIVED from the fidelity one, not picked: a
-        # linear observable is first order in the state error while infidelity is
-        # second order (infidelity ~ ||dpsi||^2 / 2), so ||dpsi|| ~ sqrt(2*infid)
-        # and |<Sz>_f - <Sz>_d| <~ 2*||Sz||*||dpsi|| with ||Sz|| = 1/2. Asserting
-        # the profile at the *infidelity* tolerance would be dimensionally wrong
-        # and fails on a perfectly healthy run (observed gap 4.1e-6 at infid
-        # 1.8e-9). This bound still catches any gross regression -- a wrong charge
-        # sector moves the profile by O(0.1), four orders above it.
-        sz_tol = 2 * 0.5 * (2 * 1e-8) ** 0.5      # ~1.4e-4
-        sz_f = dense_sz_profile(vec_f, length, charges)
-        sz_d = dense_sz_profile(vec_d, length, charges)
-        assert max(abs(a - b) for a, b in zip(sz_f, sz_d)) < sz_tol
 
     def test_strang_converges_second_order(self, spin_space):
         """Strang state error is O(dt^2) -> infidelity O(dt^4): halving dt cuts ~16x.
@@ -229,8 +148,8 @@ class TestAccuracy:
 
         def infidelity(dt, n_steps):
             mps, _, _, _ = _neel(length, spin_space)
-            summary = two_site_bug.run(
-                mps, interactions, _discarded(dt=dt, n_steps=n_steps, max_bond=64, normalize=False)
+            summary = bond_update_bug.run(
+                mps, interactions, _opts(dt=dt, n_steps=n_steps, max_bond=64, normalize=False)
             )
             evolved = mps_to_vector(summary.state, charges)
             evolved = evolved / evolved.norm()
@@ -260,9 +179,9 @@ class TestImaginaryTime:
         psi0 = psi0 / psi0.norm()
         err_before = 1.0 - abs(torch.vdot(ground_vec, psi0)).item()
 
-        summary = two_site_bug.run(
+        summary = bond_update_bug.run(
             mps, interactions,
-            _discarded(dt=0.05, n_steps=160, imaginary_time=True, max_bond=64),
+            _opts(dt=0.05, n_steps=160, imaginary_time=True, max_bond=64),
         )
         vec = mps_to_vector(summary.state, charges)
         vec = vec / vec.norm()

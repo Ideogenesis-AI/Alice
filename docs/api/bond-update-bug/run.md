@@ -1,8 +1,8 @@
 # Launch
 
-Evolve an MPS under a nearest-neighbour Hamiltonian with the two-site BUG integrator.
+Evolve an MPS under a nearest-neighbour Hamiltonian with the bond_update_bug integrator.
 
-::: alice.algorithm.two_site_bug.run
+::: alice.algorithm.bond_update_bug.run
     options:
       heading_level: 2
 

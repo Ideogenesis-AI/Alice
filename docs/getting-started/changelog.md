@@ -4,15 +4,15 @@
 
 **Two-Site BUG Time Integrator**
 
-Adds `alice.algorithm.two_site_bug`, the rank-adaptive two-site BUG
+Adds `alice.algorithm.bond_update_bug`, the rank-adaptive bond_update_bug
 (Basis-Update & Galerkin) integrator of Ceruti, Kusch & Lubich
 ([arXiv:2304.05660](https://arxiv.org/abs/2304.05660)) for real- and
 imaginary-time evolution of an MPS under a nearest-neighbour Hamiltonian. The
 Alice-facing driver is built on the existing Alice/Nicole stack — `MPS`, the
-AutoMPO interaction list, and the PyTorch backend; the symmetry-aware faithful-KLS
+AutoMPO interaction list, and the PyTorch backend; the symmetry-aware KLS
 local kernel is vendored, Nicole-native, in a private `_kernel` subpackage.
 
-### `alice.algorithm.two_site_bug`
+### `alice.algorithm.bond_update_bug`
 
 - **`run(mps, interactions, opts)`** evolves the state with commuting even/odd
   Trotter sweeps of *local* K/L/S bond updates: each update augments the left and

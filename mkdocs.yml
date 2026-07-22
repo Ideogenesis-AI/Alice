@@ -103,16 +103,11 @@ nav:
       - Options: api/dmrg/options.md
       - Summary: api/dmrg/summary.md
       - Launch: api/dmrg/run.md
-    - Two-Site BUG:
-      - Overview: api/two-site-bug/index.md
-      - Options: api/two-site-bug/options.md
-      - Summary: api/two-site-bug/summary.md
-      - Launch: api/two-site-bug/run.md
-    - Discarded-Projector BUG:
-      - Overview: api/discarded-bug/index.md
-      - Options: api/discarded-bug/options.md
-      - Summary: api/discarded-bug/summary.md
-      - Launch: api/discarded-bug/run.md
+    - bond_update_bug:
+      - Overview: api/bond-update-bug/index.md
+      - Options: api/bond-update-bug/options.md
+      - Summary: api/bond-update-bug/summary.md
+      - Launch: api/bond-update-bug/run.md
     - Two-Site TDVP:
       - Overview: api/tdvp2/index.md
       - Options: api/tdvp2/options.md

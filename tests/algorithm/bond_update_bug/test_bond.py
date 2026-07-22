@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-from alice.algorithm.two_site_bug.bond import bond_hamiltonian, build_bond_generators, kernel_gate
+from alice.algorithm.bond_update_bug.bond import bond_hamiltonian, build_bond_generators, kernel_gate
 
 from .conftest import heisenberg_chain
 

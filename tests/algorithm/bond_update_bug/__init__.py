@@ -16,4 +16,4 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for alice.algorithm.two_site_bug: gate-based two-site BUG integrator."""
+"""Tests for alice.algorithm.bond_update_bug: gate-based two-site BUG integrator."""
