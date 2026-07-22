@@ -16,19 +16,4 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Algorithm module: tensor network algorithms built on the network layer.
-
-`bond_update_bug` is the single Basis-Update & Galerkin time integrator (the
-discarded-projector K/L/S sweep, mirrored by `bond_update_bug!` in BUG-Julia);
-`dmrg` and `tdvp2` are the ground-state and TDVP algorithms.
-"""
-
-from . import bond_update_bug
-from . import dmrg
-from . import tdvp2
-
-__all__ = [
-    'bond_update_bug',
-    'dmrg',
-    'tdvp2',
-]
+"""Tests for alice.algorithm.bond_update_bug: gate-based two-site BUG integrator."""

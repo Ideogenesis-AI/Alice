@@ -1,5 +1,105 @@
 # Changelog
 
+## [Unreleased]
+
+**Two-Site BUG Time Integrator**
+
+Adds `alice.algorithm.bond_update_bug`, the rank-adaptive bond_update_bug
+(Basis-Update & Galerkin) integrator of Ceruti, Kusch & Lubich
+([arXiv:2304.05660](https://arxiv.org/abs/2304.05660)) for real- and
+imaginary-time evolution of an MPS under a nearest-neighbour Hamiltonian. The
+Alice-facing driver is built on the existing Alice/Nicole stack — `MPS`, the
+AutoMPO interaction list, and the PyTorch backend; the symmetry-aware KLS
+local kernel is vendored, Nicole-native, in a private `_kernel` subpackage.
+
+### `alice.algorithm.bond_update_bug`
+
+- **`run(mps, interactions, opts)`** evolves the state with commuting even/odd
+  Trotter sweeps of *local* K/L/S bond updates: each update augments the left and
+  right frames from the evolved K and L factors, evolves the small core in the
+  augmented bases (Galerkin), and truncates with an SVD so the bond dimension
+  adapts (the basis augmentation). The local substeps exponentiate the projected
+  effective Hamiltonian internally (Krylov `expv`) — exact at full rank. Supports
+  first-order (`'lie'`) and symmetric second-order (`'strang'`) steps and
+  imaginary-time cooling.
+- **Bond Hamiltonians** are reused from the AutoMPO interaction list: the leading
+  and terminal MPO tensors of each nearest-neighbour `Interaction2Site` are
+  contracted over their operator channel to form the bare two-site term fed to the
+  KLS kernel. The kernel is symmetry-aware (works with the U(1) charge sectors of
+  the MPS).
+- **`Options`** (TOML-loadable) and **`Summary`** mirror the DMRG interface. The
+  summary records, per step, the kept bond dimension and the *proposed* augmented
+  dimension, so the rank growth and the discarded augmentation are both visible.
+- Validated against exact diagonalization (state fidelity, exact norm
+  conservation, U(1) charge conservation, and second-order Trotter convergence).
+
+**Discarded-Projector BUG Variant**
+
+Adds `alice.algorithm.discarded_bug`, the MPS specialisation of the Lubich
+tree-tensor-network BUG (Ceruti–Lubich–Walach,
+[arXiv:2304.05660](https://arxiv.org/abs/2304.05660)). Like two-site TDVP and DMRG
+it takes a Hamiltonian **MPO** and exponentiates the two-site effective Hamiltonian
+with the left/right MPO environments, reusing the DMRG environment machinery; it is
+inverse-free (no backward substep, no overlap-matrix inverse).
+
+### `alice.algorithm.discarded_bug`
+
+- **`run(mps, mpo, opts)`** evolves the state by **recursive bisection** of the
+  chain — the MPS realisation of the reference's balanced-binary-tree `Step` (whose
+  tree is built by recursive bisection of the 1D modes). Each step updates the
+  central bisection bond, then recurses into the two half-chains, until every bond —
+  every tree node — has had its two-site node update. Because every bond is a node,
+  the bond dimension grows along the whole chain (the full ballistic light cone) as
+  a domain wall melts, matching the bond growth of forward two-site TDVP.
+- **Node update.** At each bisection bond the two-site block is evolved once,
+  `Θ1 = exp(τ H₂) Θ0` (Hermitian → tensor Lanczos); the K-step and L-step grow the
+  left/right frames with the **discarded** projector — `qr([Θ1_left | U0])` /
+  `qr([Θ1_right ; V0])`, the direct sum of the old frame with the evolved block's
+  column/row space — with **no** augmented overlap matrices; the Galerkin core is
+  the projection `Û† Θ1 V̂†` of the already-evolved block, SVD-truncated to set the
+  rank. The frames are read off the *evolved* block so a product-state interface
+  grows its genuine rank-2 entanglement (a frozen-neighbour generator would project
+  it out). Everything stays in the U(1) block-sparse Nicole representation, so the
+  kept bond dimension respects the charge sectors.
+- The step is first order in `dt` (no backward substep); the validated property is
+  the rank growth / light-cone spread. A second-order symmetric composition is left
+  to future work.
+- **`Options`** (TOML-loadable) and **`Summary`** mirror the DMRG interface; the
+  summary records the kept bond dimension per step and the final bond dimensions
+  (the light cone).
+- Validated against exact diagonalization (full light-cone growth tracking forward
+  two-site TDVP, first-order single-step convergence, exact norm and U(1) charge
+  conservation, imaginary-time energy descent).
+
+**Two-Site TDVP Time Integrator**
+
+Adds `alice.algorithm.tdvp2`, a rank-adaptive two-site Time-Dependent Variational
+Principle integrator (Haegeman et al., [arXiv:1408.5056](https://arxiv.org/abs/1408.5056))
+for real- and imaginary-time evolution of an MPS under a Hamiltonian MPO. It is
+built on the shared MPS/MPO core and reuses the DMRG environment machinery and
+effective-Hamiltonian contractions, so it depends only on `alice.network` and
+`alice.algorithm.dmrg`.
+
+### `alice.algorithm.tdvp2`
+
+- **`run(mps, mpo, opts)`** evolves the state with symmetric (Strang) steps: a
+  forward half-sweep evolves each two-site block forward in time and the carried
+  one-site tensor backward in time (the inverse-free backward correction that
+  removes the shared-bond double counting), and a reverse half-sweep mirrors it.
+  The local substeps exponentiate the *effective Hamiltonian* — the MPS tensor
+  bracketed by the left/right MPO environments — with a Hermitian Krylov `expv`.
+  The per-bond SVD truncation makes the bond dimension adapt; real and imaginary
+  time (ground-state cooling) are both supported.
+- Takes a Hamiltonian **MPO** (from `build_hamiltonian`), like DMRG, and reuses
+  the DMRG `Environment` blocks, transfer-matrix steps, and the 1-/2-site
+  effective-Hamiltonian contractions. The local Krylov exponential and the
+  evolution-prefactor handling are self-contained in the package.
+- **`Options`** (TOML-loadable) and **`Summary`** mirror the DMRG interface; the
+  summary records the kept bond dimension and the norm per step.
+- Validated against exact diagonalization on the Heisenberg chain (state fidelity,
+  exact norm conservation, U(1) total-Sz conservation, imaginary-time cooling
+  toward the ground state, and bond-dimension growth as a domain wall melts).
+
 ## [0.1.6] - 2026-06-10
 
 **MPS Initialization for Odd Chains**
