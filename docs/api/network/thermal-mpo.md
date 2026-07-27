@@ -13,7 +13,7 @@ Approximate the thermal density matrix \(\rho(\beta) = e^{-\beta H}\) as a `Norm
 
 \[\rho(\beta) = \sum_{n=0}^{N} \frac{(-\beta)^n}{n!} H^n\]
 
-is accumulated iteratively. At each step the running sum `rho` and the current power `H^n` are compacted — bond dimension is truncated and the norm is folded into `_scale` — preventing exponential growth of virtual bonds.
+is accumulated iteratively. At each step the running sum `rho` and the current power `H^n` are compacted — bond dimension is truncated and the norm is folded into the tracked `log_scale` — preventing exponential growth of virtual bonds.
 
 **Convergence.** The expansion converges when \(|\beta \lambda_{\max}| \ll N\), where \(\lambda_{\max}\) is the spectral radius of \(H\). In practice `order=20`–`25` is sufficient for \(\beta \|H\| \lesssim 4\).
 
@@ -23,6 +23,6 @@ is accumulated iteratively. At each step the running sum `rho` and the current p
 
 ## See Also
 
-- [NormalMPO](normal-mpo.md) — the return type; tracks `_scale` separately from unit-normed tensors.
+- [NormalMPO](normal-mpo.md) — the return type; tracks `log_scale` separately from unit-normed tensors (sign lives in the tensor data).
 - [observe](observe.md) — compute `Tr[ρ O] / Tr[ρ]` from the returned `NormalMPO`.
 - [build_hamiltonian](../hamiltonian/build-hamiltonian.md) — construct the input Hamiltonian MPO.
