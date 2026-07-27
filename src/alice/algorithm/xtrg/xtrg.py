@@ -185,7 +185,9 @@ class Summary(AlgorithmSummary):
     betas:
         List of β values at each cooling step: [τ₀, 2τ₀, …, 2^n_steps τ₀].
     log_z:
-        `log Z(β_n)` at each step, computed via `NormalMPO.trace()`.
+        `log Z(β_n)` at each step, computed via `NormalMPO.log_trace()`
+        (rather than `log(NormalMPO.trace())`) so that it remains finite
+        even when `Z(β_n)` itself is far outside float64 range.
     free_energies:
         Free energy per site: f(β_n) = −log Z(β_n) / (β_n L).
     energies:
@@ -220,7 +222,7 @@ class Summary(AlgorithmSummary):
         """Serialize the summary to a plain dict compatible with `torch.save`.
 
         The density matrix is serialized via `Network.serialize` (tensors)
-        plus the separately stored `_scale` factor.
+        plus the separately stored `log_scale` magnitude.
 
         Returns
         -------
@@ -231,7 +233,7 @@ class Summary(AlgorithmSummary):
         return {
             'version': 1,
             'rho': rho_data,
-            'rho_scale': self.rho._scale,
+            'rho_log_scale': self.rho.log_scale,
             'betas': self.betas,
             'log_z': self.log_z,
             'free_energies': self.free_energies,
@@ -272,7 +274,7 @@ class Summary(AlgorithmSummary):
         tensors = [_deserialize_tensor(t) for t in rho_data['tensors']]
         rho = NormalMPO(
             tensors,
-            scale=float(data['rho_scale']),
+            log_scale=float(data['rho_log_scale']),
             bc=rho_data['bc'],
             center=rho_data['center'],
         )
@@ -328,7 +330,7 @@ def _save_checkpoint(
     rho_data = rho.serialize()
     payload = {
         'rho': rho_data,
-        'rho_scale': rho._scale,
+        'rho_log_scale': rho.log_scale,
         'betas': list(betas),
         'log_z': list(log_z),
         'discarded_weights': list(discarded_weights),
@@ -423,14 +425,21 @@ def _fit_mpo(
         env_right.shutdown()
 
     # Normalize: compact() extracts the Frobenius norm of the compressed
-    # internal tensors into _scale and leaves the internal tensors at unit norm.
+    # internal tensors into log_scale and leaves the internal tensors at
+    # unit norm.
     mpo_c.compact(trunc)
 
-    # The sweeps operate entirely on the unit-norm internal tensors of mpo_a and
-    # mpo_b, so the physical scale factors (_scale_a and _scale_b) are absent
-    # from mpo_c._scale after compact().  Multiply them in now so that
-    # mpo_c represents the correct physical product A_phys @ B_phys.
-    mpo_c._scale *= mpo_a._scale * mpo_b._scale
+    # The sweeps operate entirely on the unit-norm internal tensors of mpo_a
+    # and mpo_b, so the physical scale magnitudes of mpo_a and mpo_b are
+    # absent from mpo_c's scale after compact(). Fold them in now (via
+    # scale_by, which combines log-scales additively) so that mpo_c
+    # represents the correct physical product A_phys @ B_phys. This is done
+    # in log-space rather than by materializing mpo_a.scale * mpo_b.scale,
+    # since the physical scale can be far outside float64 range deep into
+    # an XTRG run. The sweeps fit mpo_c directly to mpo_a's and mpo_b's
+    # tensor data, so any sign the two operands carry propagates through
+    # to mpo_c automatically.
+    mpo_c.scale_by(mpo_a.log_scale + mpo_b.log_scale)
 
     return mpo_c, dw
 
@@ -503,6 +512,42 @@ def _compute_observables(
     ]
 
     return free_energies, energies, specific_heats, entropies
+
+
+# ---------------------------------------------------------------------------
+# Trace sign guard
+# ---------------------------------------------------------------------------
+
+def _ensure_positive_trace(sign: float, beta: float) -> None:
+    """Raise if `Tr[ρ(β)]`'s sign is not strictly positive.
+
+    A physical thermal density matrix ρ = e^{-βH} always has a strictly
+    positive trace (it is a sum of positive Boltzmann weights). This is a
+    defensive check, not expected control flow: a non-positive sign here
+    means the compressed density matrix has drifted into an unphysical
+    regime (e.g. from accumulated truncation error), which should be
+    surfaced immediately rather than silently propagated into a
+    nonsensical `log_z` entry.
+
+    Parameters
+    ----------
+    sign:
+        Sign returned by `NormalMPO.log_trace()`, one of `+1.0`, `-1.0`,
+        or `0.0`.
+    beta:
+        Inverse temperature at which the trace was computed (for the error
+        message).
+
+    Raises
+    ------
+    RuntimeError
+        If `sign` is not `+1.0`.
+    """
+    if sign != 1.0:
+        raise RuntimeError(
+            f"Tr[ρ(β={beta:.6g})] is not positive (sign={sign:+.0f}); "
+            "the density matrix has become numerically unphysical"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -585,7 +630,11 @@ def run(
     rho = thermal_mpo(H, opts.tau_0, opts.taylor_order, spc)
 
     betas: List[float] = [opts.tau_0]
-    log_z: List[float] = [math.log(rho.trace())]
+    # log_trace() (rather than log(rho.trace())) keeps log_z finite even
+    # when Z(beta) itself would overflow float64 deep into the cooling run.
+    log_abs_z, sign_z = rho.log_trace()
+    _ensure_positive_trace(sign_z, betas[-1])
+    log_z: List[float] = [log_abs_z]
     discarded_weights: List[float] = []
 
     logger.info("  β = %.6g,  log Z = %+.8g", betas[-1], log_z[-1])
@@ -598,7 +647,8 @@ def run(
         rho, dw = _fit_mpo(rho, rho, opts)
         discarded_weights.append(dw)
         betas.append(betas[-1] * 2)
-        lz = math.log(rho.trace())
+        lz, sign_z = rho.log_trace()
+        _ensure_positive_trace(sign_z, betas[-1])
         log_z.append(lz)
 
         logger.info("  β = %.6g,  log Z = %+.8g,  dw = %.4e",
