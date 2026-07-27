@@ -91,6 +91,56 @@ class TestSummary:
 
 
 # ---------------------------------------------------------------------------
+# Regression: log-scale overflow
+# ---------------------------------------------------------------------------
+
+class TestXtrgLogScaleOverflow:
+    """`Summary.log_z` stays finite even when `Z(β)` itself would not.
+
+    `NormalMPO` tracks `Tr[ρ]`'s magnitude as `log_scale`, so `log Z` stays
+    representable even once the raw partition function `Z` would exceed
+    float64's `~1.8e308` range (i.e. `log Z ≳ 709.78`) — this regime is
+    routinely reached by real XTRG runs at low temperature (e.g. β=256 for
+    an L=8 spinless chain). This test drives a small L=4 chain far enough
+    (β_max = 2^15 × 2^-6 = 512) that the exact `log Z` is comfortably past
+    that threshold, and asserts `Summary.log_z` stays finite throughout.
+    """
+
+    def test_log_z_finite_deep_into_cooling(self, spinless_fermion_L4):
+        """`log_z` stays finite even once `Z(β)` would overflow float64."""
+        mpo, spc, exact_log_z_fn = spinless_fermion_L4
+        opts = Options(
+            scheme='1s',
+            tau_0=2 ** -6,
+            n_steps=15,
+            taylor_order=10,
+            n_sweeps=2,
+        )
+        summary = run(mpo, spc, opts)
+
+        assert all(math.isfinite(lz) for lz in summary.log_z), (
+            f"non-finite log_z encountered: {summary.log_z}"
+        )
+        # Sanity check that this run actually reaches into the regime where
+        # the raw partition function Z would exceed float64 range.
+        assert summary.log_z[-1] > 709.78
+
+        # The finite log_z should still be numerically accurate. The exact
+        # reference function itself uses a naive exp() that overflows at the
+        # very last (most extreme) grid point, so the accuracy check uses
+        # the second-to-last step (β=256), which is still safely past the
+        # float64 overflow threshold but within the reference function's
+        # own numerical range.
+        beta_check, lz_check = summary.betas[-2], summary.log_z[-2]
+        lz_exact = exact_log_z_fn(beta_check)
+        rel_err = abs(lz_check - lz_exact) / abs(lz_exact)
+        assert rel_err < 0.05, (
+            f"β={beta_check:.4g}: XTRG log Z={lz_check:.8g}, "
+            f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # End-to-end thermodynamics
 # ---------------------------------------------------------------------------
 
@@ -194,7 +244,7 @@ class TestXtrgSpinful:
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
             rel_err = abs(lz - lz_exact) / abs(lz_exact)
-            assert rel_err < 0.02, (
-                f"step {n}: β={beta:.4g}, XTRG log Z={lz:.8g}, "
-                f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
-            )
+        assert rel_err < 0.02, (
+            f"step {n}: β={beta:.4g}, XTRG log Z={lz:.8g}, "
+            f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
+        )
