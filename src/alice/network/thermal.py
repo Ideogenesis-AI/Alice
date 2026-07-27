@@ -20,8 +20,11 @@
 
 This module provides `NormalMPO`, an `MPO` subclass that maintains its
 internal tensors at unit Frobenius norm while tracking the true physical
-scale as `_scale`, and `thermal_mpo`, which approximates
-`ρ(β) = exp(−βH)` via a truncated Taylor series.
+magnitude in log form as `log_scale`, keeping it representable far outside
+float64 range. Any sign the physical operator carries lives directly in
+the tensor data (e.g. folded into site 0 by `__mul__`) — see the
+`NormalMPO` class docstring. `thermal_mpo` approximates `ρ(β) = exp(−βH)`
+via a truncated Taylor series.
 
 The one-directional import chain is: `thermal.py` → `network.py`. No
 circular dependency is introduced.
@@ -31,7 +34,7 @@ from __future__ import annotations
 
 import math
 from math import factorial
-from typing import List, Optional
+from typing import List, Tuple, Optional
 
 from nicole import Direction, Index, Tensor
 from nicole import capcup, einsum, identity, merge_axes, oplus, trace
@@ -86,25 +89,79 @@ def _identity_mpo(spc: Index, L: int) -> MPO:
 
 
 # ---------------------------------------------------------------------------
+# Scale decomposition helper
+# ---------------------------------------------------------------------------
+
+def _decompose_scale(x: float) -> Tuple[float, float]:
+    """Decompose a raw magnitude into `(log(|x|), sign(x))`.
+
+    `x == 0.0` maps to the sentinel `(-inf, 0.0)`, since `log(0)` is
+    undefined. Used internally by `NormalMPO.__mul__` (to split a scalar
+    factor into a log-magnitude and a sign to fold into site 0) and by
+    `NormalMPO.log_trace()` (to split the raw contracted trace value into
+    the same form).
+
+    Parameters
+    ----------
+    x:
+        Raw magnitude, positive, negative, or zero.
+
+    Returns
+    -------
+    float
+        `log(|x|)`, or `-inf` if `x == 0.0`.
+    float
+        `sign(x)` as `+1.0`/`-1.0`, or `0.0` if `x == 0.0`.
+    """
+    if x == 0.0:
+        return -math.inf, 0.0
+    return math.log(abs(x)), math.copysign(1.0, x)
+
+
+# ---------------------------------------------------------------------------
 # NormalMPO
 # ---------------------------------------------------------------------------
 
 class NormalMPO(MPO):
-    """MPO with a separately tracked overall scale factor.
+    """MPO with a separately tracked overall scale magnitude.
 
-    Represents the physical operator as `_scale × mpo`, where the internal
-    MPO satisfies `mpo.norm() ≈ 1` after `compact()` or `from_mpo()`. All
-    arithmetic operations (`+`, `@`, `*`) preserve this representation,
-    updating `_scale` analytically without altering the unit-norm convention
-    until `compact()` is called explicitly.
+    Represents the physical operator as `exp(log_scale) × mpo`, where the
+    internal MPO satisfies `mpo.norm() ≈ 1` after `compact()` or
+    `from_mpo()`. Tracking the magnitude in log form (rather than as a raw
+    float) keeps it representable even when it is far outside float64
+    range — this matters for XTRG, where `Tr[ρ]` is repeatedly squared and
+    can reach `~10^500` or beyond at low temperature.
+
+    The *sign* of the physical operator lives directly in the internal
+    MPO's tensor data. This works because `mpo.norm() ≈ 1` does not pin
+    down a sign (`-X` and `X` have the same Frobenius norm), and because
+    canonicalization (`compact()`, `canonical()`) is an exact gauge
+    transform that cannot change the value of any fully-contracted
+    quantity such as `Tr[ρ]` — so whatever sign is baked into the tensors
+    survives compaction unchanged. Whenever an operation needs to apply a
+    sign flip (e.g. `__mul__` by a negative scalar, or the alternating
+    `(-β)^n` terms in `thermal_mpo`'s Taylor accumulation), it is folded
+    into site 0's tensor by multiplying it by `-1.0`. Site 0 is used by
+    convention because, in an OBC chain, its left bond is the trivial
+    boundary dimension, making it generically the cheapest tensor to
+    touch. Because tensor contraction and addition are linear, sign flips
+    baked into the operands' tensors propagate correctly through
+    `__matmul__`/`__add__` — see those methods' docstrings.
+
+    All arithmetic operations (`+`, `@`, `*`) preserve this representation,
+    updating `log_scale` analytically (by addition, never by exponentiating
+    a possibly-astronomical magnitude) without altering the unit-norm
+    convention until `compact()` is called explicitly.
 
     Parameters
     ----------
     tensors:
         Non-empty list of site tensors, each with 4 axes
         `(left_bond, right_bond, phys_in, phys_out)`.
-    scale:
-        Overall scale factor. Defaults to `1.0`.
+    log_scale:
+        `log(scale)`, where `scale = ||exp(log_scale) * mpo||_F` is the
+        (always non-negative) Frobenius-norm magnitude of the physical
+        operator. Defaults to `0.0` (i.e. `scale = 1.0`).
     bc:
         Boundary condition: `'OBC'` (default) or `'PBC'`.
     center:
@@ -114,12 +171,12 @@ class NormalMPO(MPO):
     def __init__(
         self,
         tensors: List[Tensor],
-        scale: float = 1.0,
+        log_scale: float = 0.0,
         bc: str = 'OBC',
         center: Optional[int] = None,
     ) -> None:
         super().__init__(tensors, bc=bc, center=center)
-        self._scale: float = float(scale)
+        self._log_scale: float = float(log_scale)
 
     # ------------------------------------------------------------------
     # Factory
@@ -155,28 +212,65 @@ class NormalMPO(MPO):
         if math.isclose(n, 0.0, abs_tol=1e-15):
             raise ValueError("cannot create NormalMPO from a zero-norm MPO")
         copy.normalize()
-        return cls(copy._tensors, scale=n, bc=mpo.bc, center=0)
+        return cls(copy._tensors, log_scale=math.log(n), bc=mpo.bc, center=0)
 
     # ------------------------------------------------------------------
     # Properties
     # ------------------------------------------------------------------
 
     @property
+    def log_scale(self) -> float:
+        """`log(scale)` (read-only). The primary, overflow-safe representation."""
+        return self._log_scale
+
+    @property
     def scale(self) -> float:
-        """Overall scale factor (read-only)."""
-        return self._scale
+        """Overall scale magnitude as a raw, non-negative float (read-only).
+
+        Reconstructs `exp(log_scale)`. For magnitudes too large to
+        represent in float64, `math.exp` raises `OverflowError`; this is
+        caught here and `inf` is returned instead, since a getter should
+        never crash. Callers needing to represent genuinely astronomical
+        magnitudes should use `log_scale` directly instead of this
+        property.
+        """
+        try:
+            return math.exp(self._log_scale)
+        except OverflowError:
+            return math.inf
+
+    # ------------------------------------------------------------------
+    # In-place scale update
+    # ------------------------------------------------------------------
+
+    def scale_by(self, log_scale_delta: float) -> None:
+        """Multiply the tracked scale magnitude in-place by `exp(log_scale_delta)`.
+
+        This is the safe, in-place counterpart to `__init__`: it combines
+        two log-magnitudes by addition rather than ever exponentiating
+        either one, so it cannot overflow even when the combined scale
+        would be far outside float64 range. Used by XTRG's `_fit_mpo` to
+        fold pre-computed physical scale magnitudes into an
+        already-compacted `NormalMPO`.
+
+        Parameters
+        ----------
+        log_scale_delta:
+            `log(factor)` of the multiplicative magnitude to apply.
+        """
+        self._log_scale += log_scale_delta
 
     # ------------------------------------------------------------------
     # Compression
     # ------------------------------------------------------------------
 
     def compact(self, trunc: Optional[dict] = None) -> None:
-        """Compress bond dimensions in-place, keeping `_scale` consistent.
+        """Compress bond dimensions in-place, keeping the scale consistent.
 
         Performs the same two-sweep canonicalization as `MPO.compact()`, but
-        folds the extracted norm into `_scale` instead of redistributing it
-        across the site tensors. After the call, the internal MPO is
-        approximately unit-normed and `_scale` absorbs the physical
+        folds the extracted norm into `log_scale` instead of redistributing
+        it across the site tensors. After the call, the internal MPO is
+        approximately unit-normed and `log_scale` absorbs the physical
         magnitude.
 
         Bond arrows may be reoriented by the QR/SVD sweeps; this method
@@ -205,8 +299,10 @@ class NormalMPO(MPO):
         # Right sweep — SVD truncation; center → 0.
         self.canonical(0, trunc=trunc)
 
-        # Fold the extracted norm into _scale; tensors remain unit-normed.
-        self._scale *= n
+        # Fold the extracted norm into log_scale; tensors remain unit-normed.
+        # n is a Frobenius norm (always >= 0); guard n == 0 explicitly since
+        # math.log(0.0) raises rather than giving -inf.
+        self._log_scale += math.log(n) if n != 0.0 else -math.inf
 
         # Restore the standard IN/OUT bond arrow convention. Canonical sweeps
         # (QR/LQ) may reorient bond arrows; capcup undoes this so that
@@ -221,8 +317,8 @@ class NormalMPO(MPO):
     # Trace
     # ------------------------------------------------------------------
 
-    def trace(self) -> float:
-        r"""Compute the MPO trace \(\operatorname{Tr}[\rho]\).
+    def log_trace(self) -> Tuple[float, float]:
+        r"""Compute \(\log|\operatorname{Tr}[\rho]|\) and its sign.
 
         Performs a left-to-right transfer-matrix sweep. At each site the
         physical indices (phys_in and phys_out, sharing itag `s{i:02d}`
@@ -230,10 +326,20 @@ class NormalMPO(MPO):
         yielding a 2-leg bond tensor. Adjacent bond tensors are chained with
         `einsum`.
 
+        This is the overflow-safe counterpart to `trace()`: it never forms
+        `Tr[ρ]` itself, so it remains finite even when the physical trace
+        would be far outside float64 range (as happens for XTRG runs at low
+        temperature, where `Tr[ρ]` can reach `~10^500`).
+
         Returns
         -------
         float
-            `_scale × Tr[internal_mpo]`.
+            `log|Tr[ρ]|`, or `-inf` if the trace is exactly zero (sentinel,
+            see `_decompose_scale`).
+        float
+            `sign(Tr[ρ])`: `+1.0`, `-1.0`, or `0.0` if the trace is exactly
+            zero. Computed directly from the contracted tensor data (see
+            the class docstring for where sign lives).
         """
         L = self.L
         # Site 0: partial trace over physical axes → 2-leg bond tensor.
@@ -249,7 +355,33 @@ class NormalMPO(MPO):
         # in non-Abelian groups.
         key, val = next(iter(env.data.items()))
         weight = 1.0 if env.intw is None else float(env.intw[key].weights[0, 0])
-        return float(val.item().real) * weight * self._scale
+        raw = float(val.item().real) * weight
+
+        log_raw, sign_raw = _decompose_scale(raw)
+        if sign_raw == 0.0:
+            return -math.inf, 0.0
+        return self._log_scale + log_raw, sign_raw
+
+    def trace(self) -> float:
+        r"""Compute the MPO trace \(\operatorname{Tr}[\rho]\).
+
+        Thin wrapper over `log_trace()` that exponentiates back to a raw
+        magnitude. For magnitudes too large to represent in float64, `±inf`
+        is returned instead of raising (see `scale`). Prefer `log_trace()`
+        directly when the trace magnitude may be extreme.
+
+        Returns
+        -------
+        float
+            `Tr[ρ]`, or `±inf` if it overflows float64.
+        """
+        log_abs, sign = self.log_trace()
+        if sign == 0.0:
+            return 0.0
+        try:
+            return sign * math.exp(log_abs)
+        except OverflowError:
+            return math.copysign(math.inf, sign)
 
     # ------------------------------------------------------------------
     # MPO-MPO product
@@ -285,7 +417,9 @@ class NormalMPO(MPO):
         Returns
         -------
         NormalMPO
-            Raw product MPO with `scale = self._scale * other._scale`.
+            Raw product MPO with `log_scale = self.log_scale + other.log_scale`
+            (combined additively so the product's scale cannot overflow
+            even if the raw magnitude would).
         """
         L = self.L
         ndigits = max(2, len(str(L)))
@@ -322,7 +456,11 @@ class NormalMPO(MPO):
             )
             sites.append(C)
 
-        return NormalMPO(sites, scale=self._scale * other._scale, bc=self.bc)
+        return NormalMPO(
+            sites,
+            log_scale=self._log_scale + other._log_scale,
+            bc=self.bc,
+        )
 
     # ------------------------------------------------------------------
     # MPO-MPO sum
@@ -331,7 +469,7 @@ class NormalMPO(MPO):
     def __add__(self, other: NormalMPO) -> NormalMPO:
         """Return the MPO sum `self + other` without canonicalization.
 
-        Distributes the relative weight `alpha = other._scale / self._scale`
+        Distributes the relative magnitude `alpha = other.scale / self.scale`
         uniformly across sites as `alpha^(1/L)` per site of `other`,
         then combines site tensors via `oplus` following the same bond-axis
         convention as `build_hamiltonian`:
@@ -351,7 +489,8 @@ class NormalMPO(MPO):
         Returns
         -------
         NormalMPO
-            Raw sum MPO with `scale = self._scale`.
+            Raw sum MPO with `log_scale = self.log_scale` (the result is
+            expressed relative to `self`'s scale).
 
         Raises
         ------
@@ -362,19 +501,17 @@ class NormalMPO(MPO):
         if L < 2:
             raise ValueError("NormalMPO.__add__ requires L >= 2")
 
-        alpha = other._scale / self._scale
-        # Distribute |alpha|^(1/L) uniformly across all sites; apply the
-        # sign of alpha to the first site to avoid complex fractional powers
-        # when alpha < 0.
-        abs_alpha = abs(alpha)
-        per_site = abs_alpha ** (1.0 / L)
+        # log(alpha) = log|other| - log|self|, computed via subtraction so
+        # it cannot overflow/underflow even when self and other differ by
+        # many orders of magnitude in physical scale.
+        log_alpha = other._log_scale - self._log_scale
+        # Distribute alpha^(1/L) uniformly across all sites. alpha is a pure
+        # magnitude here, so no fractional power of a negative number arises.
+        per_site = math.exp(log_alpha / L)
 
         sites: List[Tensor] = []
         for i in range(L):
-            # Site 0 absorbs the sign of alpha so the product over all L sites
-            # equals alpha (not |alpha|).
-            factor = math.copysign(per_site, alpha) if i == 0 else per_site
-            scaled_other = other._tensors[i] * factor
+            scaled_other = other._tensors[i] * per_site
 
             if i == 0:
                 # Leading site: fuse right bond (axis 1).
@@ -387,7 +524,7 @@ class NormalMPO(MPO):
                 C = oplus(self._tensors[i], scaled_other, axes=[0, 1])
             sites.append(C)
 
-        return NormalMPO(sites, scale=self._scale, bc=self.bc)
+        return NormalMPO(sites, log_scale=self._log_scale, bc=self.bc)
 
     # ------------------------------------------------------------------
     # Scalar multiplication
@@ -396,7 +533,10 @@ class NormalMPO(MPO):
     def __mul__(self, scalar: float) -> NormalMPO:
         """Return a copy scaled by `scalar`.
 
-        Only `_scale` is updated; the internal tensors are not modified.
+        `log_scale` absorbs `log(|scalar|)`. If `scalar < 0`, the sign is
+        folded into site 0's tensor by negating it (exact, lossless — see
+        the class docstring for why site 0 is used). All other tensors are
+        left untouched (cloned only).
 
         Parameters
         ----------
@@ -408,9 +548,13 @@ class NormalMPO(MPO):
         NormalMPO
             Scaled copy.
         """
+        log_c, sign_c = _decompose_scale(float(scalar))
+        tensors = [t.clone() for t in self._tensors]
+        if sign_c < 0.0:
+            tensors[0] = tensors[0] * -1.0
         return NormalMPO(
-            [t.clone() for t in self._tensors],
-            scale=self._scale * float(scalar),
+            tensors,
+            log_scale=self._log_scale + log_c,
             bc=self.bc,
             center=self._center,
         )
@@ -472,9 +616,9 @@ def thermal_mpo(
     Returns
     -------
     NormalMPO
-        Approximation of \(e^{-\beta H}\) with physical scale stored
-        in `_scale` (which equals \(Z = \operatorname{Tr}[\rho]\)
-        up to the MPO norm).
+        Approximation of \(e^{-\beta H}\) with physical magnitude stored
+        in `log_scale` (which equals \(Z = \operatorname{Tr}[\rho]\) up to
+        the MPO norm and sign, the latter living in the tensor data).
 
     Notes
     -----
