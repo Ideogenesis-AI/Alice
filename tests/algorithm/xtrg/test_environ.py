@@ -269,13 +269,17 @@ class TestBuildFitEnvs:
         L = rho.L
 
         # Build left envs from left-canonical C.
-        rho_l = NormalMPO([t.clone() for t in rho], scale=rho._scale, bc=rho.bc)
+        rho_l = NormalMPO(
+            [t.clone() for t in rho], log_scale=rho.log_scale, bc=rho.bc
+        )
         rho_l.canonical(L - 1)
         env_left = Environment(L)
         build_left_envs(rho_l, rho_l, rho_l, env_left)
 
         # Build right envs from right-canonical C.
-        rho_r = NormalMPO([t.clone() for t in rho], scale=rho._scale, bc=rho.bc)
+        rho_r = NormalMPO(
+            [t.clone() for t in rho], log_scale=rho.log_scale, bc=rho.bc
+        )
         rho_r.canonical(0)
         env_right = Environment(L)
         build_right_envs(rho_r, rho_r, rho_r, env_right)
