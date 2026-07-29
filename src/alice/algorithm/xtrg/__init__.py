@@ -16,12 +16,8 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Algorithm module: tensor network algorithms built on the network layer."""
+"""eXponential Tensor Renormalization Group (XTRG) algorithm package."""
 
-from . import dmrg
-from . import xtrg
+from .xtrg import Options, Summary, run
 
-__all__ = [
-    'dmrg',
-    'xtrg',
-]
+__all__ = ['Options', 'Summary', 'run']
