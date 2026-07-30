@@ -68,9 +68,12 @@ _SCHEME_ALIASES: Dict[str, str] = {
     '2s': '2s',
     '2-site': '2s',
     'two-site': '2s',
+    '1sp': '1sp',
+    '1-site-plus': '1sp',
+    'one-site-plus': '1sp',
 }
 
-_IMPLEMENTED_SCHEMES = {'1s', '2s'}
+_IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 
 def _resolve_scheme(alias: str) -> str:
@@ -84,7 +87,7 @@ def _resolve_scheme(alias: str) -> str:
     Returns
     -------
     str
-        Canonical scheme name (`'1s'` or `'2s'`).
+        Canonical scheme name (`'1s'`, `'2s'`, or `'1sp'`).
 
     Raises
     ------
@@ -119,6 +122,7 @@ class Options(AlgorithmOptions):
 
         - `'1s'` / `'1-site'` / `'one-site'`: 1-site direct contraction.
         - `'2s'` / `'2-site'` / `'two-site'`: 2-site SVD with truncation.
+        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: 1-site-plus / CBE.
     tau_0:
         Initial inverse temperature ≈ 2⁻¹² ≈ 2.44 × 10⁻⁴. Should be small
         enough that the Taylor expansion converges, and is doubled at each
@@ -149,6 +153,16 @@ class Options(AlgorithmOptions):
     env_window:
         Number of environment blocks to keep in memory at once when disk
         caching is enabled.
+    expand_k:
+        Maximum number of complement vectors added to each bond end per CBE
+        step. Only used when `scheme = '1sp'`. Larger values give a richer
+        expanded space at higher cost; `4` is a typical starting point.
+    expand_alpha:
+        Internal connector-bond dimension used by the cheap per-operand SVD
+        compression inside the CBE expansion (Eq. 13 of arXiv:2510.25022).
+        Only used when `scheme = '1sp'`. `None` skips compression (uses the
+        exact factor-MPO tensors, at the cost of a full 2-site-scale join).
+        The paper recommends `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     checkpoint_dir:
         Directory for per-step checkpoints of the density matrix. `None`
         disables checkpointing.
@@ -164,6 +178,8 @@ class Options(AlgorithmOptions):
     env_cache_dir: Optional[str] = None
     env_async_io: bool = True
     env_window: int = 2
+    expand_k: int = 4
+    expand_alpha: Optional[int] = None
     checkpoint_dir: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -622,6 +638,10 @@ def run(
     logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
     logger.info("  sweeps / step     : %d", opts.n_sweeps)
     logger.info("  taylor order      : %d", opts.taylor_order)
+    if opts.scheme == '1sp':
+        alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'no compression'
+        logger.info("  expand k          : %d", opts.expand_k)
+        logger.info("  expand alpha      : %s", alpha_str)
     logger.info("")
 
     # Step 0: initialise ρ(τ₀) via Taylor expansion.
