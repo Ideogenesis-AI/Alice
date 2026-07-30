@@ -54,6 +54,55 @@ from nicole import Tensor, decomp, einsum, merge_axes
 from nicole.decomp import svd
 
 
+def left_partial(E_left: Tensor, A_i: Tensor, B_i: Tensor) -> Tensor:
+    """Compute the left partial contraction of the 2-site update.
+
+    `E_left(c,a,b) × A_i(a,p,r,x) × B_i(b,q,x,s) → L(c,p,q,r,s)`.
+    Decomposed into two 2-tensor einsums to avoid itag-matching ambiguity
+    when A, B, C share the same bond itag family.
+
+    Parameters
+    ----------
+    E_left:
+        Left environment at boundary i with axes `(c, a, b)`.
+    A_i:
+        Factor MPO A at site i with axes `(a, p, r, x)`.
+    B_i:
+        Factor MPO B at site i with axes `(b, q, x, s)`.
+
+    Returns
+    -------
+    Tensor
+        Left partial `L` with axes `(c, p, q, r, s)`.
+    """
+    t1 = einsum('cab,aprx->cbprx', E_left, A_i)         # contract 'a'
+    return einsum('cbprx,bqxs->cpqrs', t1, B_i)          # contract 'b','x'
+
+
+def right_partial(E_right: Tensor, A_j: Tensor, B_j: Tensor) -> Tensor:
+    """Compute the right partial contraction of the 2-site update.
+
+    `E_right(d,e,f) × A_j(p,e,u,y) × B_j(q,f,y,v) → R(d,p,q,u,v)`.
+    Decomposed into two 2-tensor einsums to avoid itag-matching ambiguity.
+
+    Parameters
+    ----------
+    E_right:
+        Right environment at boundary i+2 with axes `(d, e, f)`.
+    A_j:
+        Factor MPO A at site j=i+1 with axes `(p, e, u, y)`.
+    B_j:
+        Factor MPO B at site j=i+1 with axes `(q, f, y, v)`.
+
+    Returns
+    -------
+    Tensor
+        Right partial `R` with axes `(d, p, q, u, v)`.
+    """
+    t2 = einsum('def,peuy->dfpuy', E_right, A_j)          # contract 'e'
+    return einsum('dfpuy,qfyv->dpquv', t2, B_j)            # contract 'f','y'
+
+
 def local_update_2s(
     E_left: Tensor,
     A_i: Tensor,
@@ -65,12 +114,12 @@ def local_update_2s(
     """Compute the optimal 2-site bond tensor Θ for sites (i, i+1).
 
     Builds the 2-site right-hand side of the Frobenius-norm optimisation via
-    two partial contractions followed by a join, which avoids intermediate
-    tensors of size O(χ⁵):
+    two partial contractions (`left_partial`, `right_partial`) followed by a
+    join, which avoids intermediate tensors of size O(χ⁵):
 
-        L = einsum('cab, aprx, bqxs -> cpqrs', E_left, A_i, B_i)
-        R = einsum('def, peuy, qfyv -> dpquv', E_right, A_j, B_j)
-        Θ = einsum('cpqrs, dpquv -> cdrsuv', L, R)
+        L = left_partial(E_left, A_i, B_i)    # O(χ³ d³)
+        R = right_partial(E_right, A_j, B_j)  # O(χ³ d³)
+        Θ = einsum('cpqrs, dpquv -> cdrsuv', L, R)  # O(χ⁴ d⁴), bottleneck
 
     Parameters
     ----------
@@ -92,15 +141,8 @@ def local_update_2s(
     Tensor
         Bond tensor Θ with axes `(c, d, r, s, u, v)`.
     """
-    # Left partial: E_left(c,a,b) × A_i(a,p,r,x) × B_i(b,q,x,s) → L(c,p,q,r,s).
-    # Decomposed into two 2-tensor einsums to avoid itag-matching ambiguity.
-    t1 = einsum('cab,aprx->cbprx', E_left, A_i)         # contract 'a'
-    L = einsum('cbprx,bqxs->cpqrs', t1, B_i)             # contract 'b','x'
-
-    # Right partial: E_right(d,e,f) × A_j(p,e,u,y) × B_j(q,f,y,v) → R(d,p,q,u,v).
-    t2 = einsum('def,peuy->dfpuy', E_right, A_j)          # contract 'e'
-    R = einsum('dfpuy,qfyv->dpquv', t2, B_j)              # contract 'f','y'
-
+    L = left_partial(E_left, A_i, B_i)
+    R = right_partial(E_right, A_j, B_j)
     # Join: contract L(c,p,q,r,s) × R(d,p,q,u,v) over 'p','q' → Θ(c,d,r,s,u,v).
     return einsum('cpqrs,dpquv->cdrsuv', L, R)
 
@@ -182,6 +224,33 @@ def split_backward(
     # Permute L: (c, r, s, new_bond) → (c, new_bond, r, s) = MPO convention.
     L.permute([0, 3, 1, 2], in_place=True)
     return L, V
+
+
+def build_bulk(C_i: Tensor, C_j: Tensor) -> Tensor:
+    """Contract two adjacent tensors of the compressed MPO C into a bond tensor Θ.
+
+    Used to measure the discarded weight at the center bond during a 1s+
+    backward half-sweep, mirroring `local_update_2s`'s Θ but built directly
+    from the already-optimised `(C_i, C_j)` pair rather than from the factor
+    operands A, B.
+
+    Parameters
+    ----------
+    C_i:
+        Compressed MPO tensor at site i, axes `(left, right, phys_in, phys_out)`.
+    C_j:
+        Compressed MPO tensor at site j=i+1, axes
+        `(left, right, phys_in, phys_out)`. Its left bond must share the
+        itag of `C_i`'s right bond.
+
+    Returns
+    -------
+    Tensor
+        Bond tensor Θ with axes `(c, e, r, s, u, v)`, matching the layout
+        produced by `local_update_2s` (with `e` in place of `d`, since the
+        internal `C_i`-`C_j` bond is contracted away here).
+    """
+    return einsum('cdrs,deuv->cersuv', C_i, C_j)
 
 
 def discarded_weight(theta: Tensor, trunc: Optional[dict]) -> float:
