@@ -49,6 +49,14 @@ class TestOptions:
             assert Options(scheme=alias).scheme == '1s'
         for alias in ('2s', '2-site', 'two-site'):
             assert Options(scheme=alias).scheme == '2s'
+        for alias in ('1sp', '1-site-plus', 'one-site-plus'):
+            assert Options(scheme=alias).scheme == '1sp'
+
+    def test_expand_defaults(self):
+        """expand_k/expand_alpha have the documented default values."""
+        opts = Options()
+        assert opts.expand_k == 4
+        assert opts.expand_alpha is None
 
     def test_unknown_scheme_raises(self):
         """Unknown scheme raises ValueError."""
@@ -65,6 +73,16 @@ class TestOptions:
         assert math.isclose(opts2.tau_0, 0.01)
         assert opts2.n_steps == 5
         assert opts2.max_bond == 10
+
+    def test_toml_roundtrip_1sp_expand_fields(self, tmp_path):
+        """expand_k/expand_alpha survive a TOML round-trip under scheme='1sp'."""
+        opts = Options(scheme='1sp', expand_k=6, expand_alpha=3)
+        path = tmp_path / 'opts.toml'
+        opts.to_toml(path, section='xtrg')
+        opts2 = Options.load_toml(path, section='xtrg')
+        assert opts2.scheme == '1sp'
+        assert opts2.expand_k == 6
+        assert opts2.expand_alpha == 3
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +242,67 @@ class TestXtrg2s:
             assert dw >= 0.0
 
 
+class TestXtrg1sp:
+    """End-to-end XTRG tests with the 1-site-plus (CBE) scheme."""
+
+    def test_log_z_matches_exact_spinless(self, spinless_fermion_L4):
+        """XTRG (1sp) log Z matches exact grand-canonical log Z for free fermions."""
+        mpo, spc, exact_log_z_fn = spinless_fermion_L4
+        opts = Options(
+            scheme='1sp',
+            tau_0=2 ** -6,
+            n_steps=6,
+            taylor_order=10,
+            max_bond=None,
+            n_sweeps=4,
+            expand_k=4,
+            expand_alpha=4,
+        )
+        summary = run(mpo, spc, opts)
+
+        for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
+            lz_exact = exact_log_z_fn(beta)
+            rel_err = abs(lz - lz_exact) / abs(lz_exact)
+            assert rel_err < 0.01, (
+                f"step {n}: β={beta:.4g}, XTRG log Z={lz:.8g}, "
+                f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
+            )
+
+    def test_discarded_weights_nonnegative(self, spinless_fermion_L4):
+        """All discarded weights should be ≥ 0."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1sp', tau_0=2 ** -6, n_steps=4, max_bond=4, n_sweeps=2,
+            expand_k=2, expand_alpha=2,
+        )
+        summary = run(mpo, spc, opts)
+        for dw in summary.discarded_weights:
+            assert dw >= 0.0
+
+    def test_expand_alpha_none_falls_back_to_exact(self, spinless_fermion_L4):
+        """expand_alpha=None (skip cheap compression) still gives accurate log Z."""
+        mpo, spc, exact_log_z_fn = spinless_fermion_L4
+        opts = Options(
+            scheme='1sp',
+            tau_0=2 ** -6,
+            n_steps=4,
+            taylor_order=10,
+            max_bond=None,
+            n_sweeps=4,
+            expand_k=4,
+            expand_alpha=None,
+        )
+        summary = run(mpo, spc, opts)
+
+        beta, lz = summary.betas[-1], summary.log_z[-1]
+        lz_exact = exact_log_z_fn(beta)
+        rel_err = abs(lz - lz_exact) / abs(lz_exact)
+        assert rel_err < 0.01, (
+            f"β={beta:.4g}, XTRG log Z={lz:.8g}, exact={lz_exact:.8g}, "
+            f"rel err={rel_err:.2e}"
+        )
+
+
 class TestXtrgSpinful:
     """End-to-end XTRG test with the spinful (U=0 Hubbard) model."""
 
@@ -247,4 +326,28 @@ class TestXtrgSpinful:
         assert rel_err < 0.02, (
             f"step {n}: β={beta:.4g}, XTRG log Z={lz:.8g}, "
             f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
+        )
+
+    @pytest.mark.slow
+    def test_log_z_matches_exact_1sp(self, spinful_fermion_L4):
+        """XTRG (1sp) log Z matches the exact grand-canonical log Z for U=0 Hubbard."""
+        mpo, spc, exact_log_z_fn = spinful_fermion_L4
+        opts = Options(
+            scheme='1sp',
+            tau_0=2 ** -6,
+            n_steps=4,
+            taylor_order=8,
+            max_bond=None,
+            n_sweeps=4,
+            expand_k=4,
+            expand_alpha=4,
+        )
+        summary = run(mpo, spc, opts)
+
+        beta, lz = summary.betas[-1], summary.log_z[-1]
+        lz_exact = exact_log_z_fn(beta)
+        rel_err = abs(lz - lz_exact) / abs(lz_exact)
+        assert rel_err < 0.02, (
+            f"β={beta:.4g}: XTRG log Z={lz:.8g}, exact={lz_exact:.8g}, "
+            f"rel err={rel_err:.2e}"
         )

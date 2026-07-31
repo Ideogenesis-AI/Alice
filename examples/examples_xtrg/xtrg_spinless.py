@@ -38,6 +38,8 @@ Run from the repository root:
 
     uv run python examples/examples_xtrg/xtrg_spinless.py
     uv run python examples/examples_xtrg/xtrg_spinless.py --scheme 1s
+    uv run python examples/examples_xtrg/xtrg_spinless.py --scheme 1sp
+    uv run python examples/examples_xtrg/xtrg_spinless.py --scheme 1sp --expand-k 8
     uv run python examples/examples_xtrg/xtrg_spinless.py --steps 14
     uv run python examples/examples_xtrg/xtrg_spinless.py --symmetry Z2 --max-bond 32
     uv run python examples/examples_xtrg/xtrg_spinless.py --mu 0.5
@@ -99,6 +101,8 @@ def xtrg_spinless(
     max_bond: Optional[int] = None,
     sweeps: int = 4,
     trunc_thresh: float = 1e-15,
+    expand_k: int = 4,
+    expand_alpha: Optional[int] = None,
     env_cache_dir: Optional[str] = None,
     env_async_io: bool = True,
     env_window: int = 2,
@@ -119,8 +123,11 @@ def xtrg_spinless(
         Symmetry exploited: `'U1'` (conserve particle number, default) or
         `'Z2'` (fermion parity only).
     scheme:
-        XTRG update scheme per squaring step: `'1s'` (1-site) or `'2s'`
-        (2-site, default).
+        XTRG update scheme per squaring step: `'1s'` (1-site), `'2s'`
+        (2-site, default), or `'1sp'` (1-site-plus / controlled bond
+        expansion). The 1-site-plus scheme grows the bond dimension cheaply
+        via a complement isometry before each 1-site update, targeting
+        near-2-site accuracy at closer-to-1-site cost.
     tau0:
         Initial inverse temperature τ₀. Should be small enough that the
         Taylor expansion of `e^{-τ₀ H}` converges; doubled at each cooling
@@ -137,6 +144,13 @@ def xtrg_spinless(
         Number of full variational sweeps per cooling step.
     trunc_thresh:
         SVD truncation threshold (default: `1e-15`).
+    expand_k:
+        Maximum number of complement vectors added per bond end in the
+        `'1sp'` scheme (default: 4). Ignored for `'1s'` and `'2s'`.
+    expand_alpha:
+        Truncated internal bond dimension used to cheaply compress each
+        factor-MPO's connector bond in the `'1sp'` complement computation.
+        `None` (default) keeps the full bond. Ignored for `'1s'` and `'2s'`.
     env_cache_dir:
         Directory for environment block cache files. `None` (default) keeps
         all blocks in memory.
@@ -184,6 +198,10 @@ def xtrg_spinless(
         print(f"Hopping t      : {t}")
         print(f"Chemical pot μ : {mu}")
         print(f"Scheme         : {scheme}")
+        if scheme in ('1sp', '1-site-plus', 'one-site-plus'):
+            alpha_str = str(expand_alpha) if expand_alpha is not None else 'full'
+            print(f"  expand_k     : {expand_k}")
+            print(f"  expand_alpha : {alpha_str}")
         print(f"MPO bond dims  : {H.bond_dims}")
         print(f"tau_0          : {tau0:.6g}   taylor_order = {taylor_order}")
         print(f"Cooling steps  : {steps}   beta_max = {tau0 * 2 ** steps:.6g}")
@@ -206,6 +224,8 @@ def xtrg_spinless(
         max_bond=max_bond,
         trunc_thresh=trunc_thresh,
         n_sweeps=sweeps,
+        expand_k=expand_k,
+        expand_alpha=expand_alpha,
         env_cache_dir=env_cache_dir,
         env_async_io=env_async_io,
         env_window=env_window,
@@ -258,6 +278,8 @@ def _parse_args():
             "Examples:\n"
             "  uv run python examples/examples_xtrg/xtrg_spinless.py\n"
             "  uv run python examples/examples_xtrg/xtrg_spinless.py --scheme 1s\n"
+            "  uv run python examples/examples_xtrg/xtrg_spinless.py --scheme 1sp\n"
+            "  uv run python examples/examples_xtrg/xtrg_spinless.py --scheme 1sp --expand-k 8\n"
             "  uv run python examples/examples_xtrg/xtrg_spinless.py --steps 14\n"
             "  uv run python examples/examples_xtrg/xtrg_spinless.py --symmetry Z2 --max-bond 32\n"
             "  uv run python examples/examples_xtrg/xtrg_spinless.py --mu 0.5\n"
@@ -283,8 +305,8 @@ def _parse_args():
         help='symmetry group exploited (default: U1)',
     )
     p.add_argument(
-        '--scheme', choices=['1s', '2s'], default='2s',
-        help='XTRG update scheme: 1s (1-site) or 2s (2-site, default)',
+        '--scheme', choices=['1s', '2s', '1sp'], default='2s',
+        help='XTRG update scheme: 1s (1-site), 2s (2-site, default), or 1sp (1-site-plus / CBE)',
     )
     p.add_argument(
         '--tau0', type=float, default=2 ** -12, metavar='TAU',
@@ -309,6 +331,17 @@ def _parse_args():
     p.add_argument(
         '--trunc-thresh', type=float, default=1e-15, metavar='THR',
         help='SVD truncation threshold (default: 1e-15)',
+    )
+    p.add_argument(
+        '--expand-k', type=int, default=4, metavar='K',
+        help='complement vectors per bond end for the 1sp scheme (default: 4)',
+    )
+    p.add_argument(
+        '--expand-alpha', type=int, default=None, metavar='A',
+        help=(
+            'truncated connector-bond dimension for the 1sp complement '
+            'computation; None (default) keeps the full bond'
+        ),
     )
     p.add_argument(
         '--env-cache-dir', default=None, metavar='PATH',
@@ -353,6 +386,8 @@ if __name__ == '__main__':
         max_bond=args.max_bond,
         sweeps=args.sweeps,
         trunc_thresh=args.trunc_thresh,
+        expand_k=args.expand_k,
+        expand_alpha=args.expand_alpha,
         env_cache_dir=args.env_cache_dir,
         env_async_io=not args.no_env_async_io,
         env_window=args.env_window,
