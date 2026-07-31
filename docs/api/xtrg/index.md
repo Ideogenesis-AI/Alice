@@ -35,6 +35,7 @@ for beta, f in zip(summary.betas, summary.free_energies):
 |------|-------|-------------|
 | `'1s'` | `'1-site'`, `'one-site'` | 1-site direct contraction; preserves bond dimension |
 | `'2s'` | `'2-site'`, `'two-site'` | 2-site SVD with truncation; drives bond growth |
+| `'1sp'` | `'1-site-plus'`, `'one-site-plus'` | 1-site cost with 2-site-like bond flexibility |
 
 ## Temperature Grid
 
