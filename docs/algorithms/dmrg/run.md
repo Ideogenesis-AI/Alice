@@ -10,5 +10,5 @@ Run DMRG to find the ground state of a Hamiltonian MPO.
 
 - [Options](options.md) — configure the run.
 - [Summary](summary.md) — interpret the output.
-- [build_hamiltonian](../hamiltonian/build-hamiltonian.md) — create the `mpo` argument.
+- [build_hamiltonian](../../api/hamiltonian/build-hamiltonian.md) — create the `mpo` argument.
 - [DMRG examples](../../examples/dmrg/heisenberg.md)
