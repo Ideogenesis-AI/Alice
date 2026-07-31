@@ -94,6 +94,6 @@ summary_u4 = xtrg.run(hamiltonian, spc, opts)
 ## See Also
 
 - [Free fermion](free-fermion.md)
-- [xtrg.Options API](../../api/xtrg/options.md)
+- [xtrg.Options API](../../algorithms/xtrg/options.md)
 - [build_hubbard API](../../api/hamiltonian/build-hubbard.md)
 - [build_conductor API](../../api/local-space/build-conductor.md)

@@ -77,6 +77,6 @@ compression.
 ## See Also
 
 - [Hubbard model](hubbard.md)
-- [xtrg.Options API](../../api/xtrg/options.md)
+- [xtrg.Options API](../../algorithms/xtrg/options.md)
 - [build_free_fermion API](../../api/hamiltonian/build-free-fermion.md)
 - [NormalMPO](../../api/network/normal-mpo.md), [thermal_mpo](../../api/network/thermal-mpo.md)
