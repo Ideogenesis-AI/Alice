@@ -45,7 +45,8 @@ from alice.network.thermal import NormalMPO
 from .complement import expand_backward, expand_forward
 from .environ import Environment, step_left_env, step_right_env
 from .scheme_1s import local_update_1s
-from .scheme_2s import build_bulk, discarded_weight, local_update_2s, split_backward, split_forward
+from .scheme_2s import build_bulk, discarded_weight
+from .scheme_2s import local_update_2s, split_backward, split_forward
 
 logger = logging.getLogger(__name__)
 
