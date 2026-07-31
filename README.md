@@ -23,11 +23,14 @@ With the assistance of various AI coding agents, Alice pairs a physicist-friendl
 
 Ground-state search and optimization via alternating sweep optimization of MPS tensors. Three complementary update schemes are available — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — each with a Davidson eigensolver and energy-based convergence criterion.
 
+### XTRG (eXponential Tensor Renormalization Group)
+
+Finite-temperature thermodynamics via exponential cooling of the thermal density matrix. Three update schemes drive the underlying variational MPO-MPO compression — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — solving a linear least-squares minimization at each step.
+
 ### Upcoming
 
 The following algorithms are planned for future releases. Contributions toward any of them are warmly welcomed — see the [Contributing](#contributing) section to get involved.
 
-- **XTRG** (eXponential Tensor Renormalization Group): finite-temperature simulations with exponential cooling, reaching very low temperatures efficiently
 - **tanTRG** (tangent-space Tensor Renormalization Group): finite-temperature simulations with linear cooling steps, offering high speed at moderate to high temperatures
 - **TDVP** (Time-Dependent Variational Principle): real-time evolution of quantum states within the MPS manifold, conserving energy and norm during time integration
 - **TaSK** (Tangent Space Krylov): dynamical properties and real-frequency spectral functions, computed by a Lanczos scheme projected onto the tangent space of the ground-state MPS
@@ -38,7 +41,7 @@ The following algorithms are planned for future releases. Contributions toward a
 - **Symmetry-Aware MPS/MPO**: block-sparse matrix product states and operators supporting any symmetry group or product group that Nicole supports, leveraging its exact block-sparse engine
 - **AutoMPO Construction**: TOML-configured Hamiltonian builder with built-in model presets (Heisenberg, free-fermion, Hubbard) and full support for custom models via user-defined model functions
 - **Flexible Geometries**: built-in 1D and quasi-1D lattice geometries with custom geometry extensions supported via user-defined geometry functions
-- **Environment Caching**: optional disk-spilling of environment blocks with a sliding in-memory window and asynchronous I/O, enabling DMRG on long chains with limited RAM
+- **Environment Caching**: optional disk-spilling of environment blocks with a sliding in-memory window and asynchronous I/O, enabling 1D algorithms on long chains with limited RAM
 - **Systematic Logging**: comprehensive sweep-by-sweep diagnostics via Python's `logging` module, configurable with `alice.configure_logging()`
 - **PyTorch Backend**: all dense block operations run on PyTorch via Nicole, with optional GPU (CUDA/MPS), Ascend NPU acceleration, and on-demand autograd support
 
