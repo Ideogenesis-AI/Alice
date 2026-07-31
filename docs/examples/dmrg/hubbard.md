@@ -90,4 +90,4 @@ The `env_cache_dir` directory is created automatically. Each block is stored as 
 - [Heisenberg chain](heisenberg.md), [Free fermion](free-fermion.md)
 - [build_hubbard API](../../api/hamiltonian/build-hubbard.md)
 - [build_conductor API](../../api/local-space/build-conductor.md)
-- [dmrg.Options](../../api/dmrg/options.md)
+- [dmrg.Options](../../algorithms/dmrg/options.md)
