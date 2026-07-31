@@ -84,6 +84,15 @@ class TestForwardSweep:
         forward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
         assert mpo_c.center == mpo_c.L - 1
 
+    def test_center_moves_to_rightmost_site_1sp(self, spinless_fermion_L4):
+        """After a 1sp forward sweep, mpo_c.center == L-1."""
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _setup_compression(mpo, spc)
+        opts = Options(scheme='1sp', max_bond=8, expand_k=2, expand_alpha=2)
+        env_left, env_right = _make_envs(rho, mpo_c, scheme='1sp')
+        forward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
+        assert mpo_c.center == mpo_c.L - 1
+
     def test_mpo_c_tensors_updated(self, spinless_fermion_L4):
         """forward_sweep updates at least one site tensor of mpo_c."""
         mpo, spc, _ = spinless_fermion_L4
@@ -151,6 +160,58 @@ class TestBackwardSweep:
         dw = backward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
         assert dw == 0.0
 
+    def test_center_moves_to_site0_1sp(self, spinless_fermion_L4):
+        """After a 1sp backward sweep, mpo_c.center == 0."""
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _setup_compression(mpo, spc)
+        opts = Options(scheme='1sp', max_bond=8, expand_k=2, expand_alpha=2)
+        env_left, env_right = _make_envs(rho, mpo_c, scheme='1sp')
+        forward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
+        backward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
+        assert mpo_c.center == 0
+
+    def test_backward_returns_dw_for_1sp(self, spinless_fermion_L4):
+        """backward_sweep returns a non-negative discarded weight for 1sp."""
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _setup_compression(mpo, spc)
+        opts = Options(
+            scheme='1sp', max_bond=2, trunc_thresh=1e-15, expand_k=2, expand_alpha=2,
+        )
+        env_left, env_right = _make_envs(rho, mpo_c, scheme='1sp')
+        forward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
+        dw = backward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
+        assert dw >= 0.0
+
+    def test_1sp_matches_2s_accuracy_after_one_sweep(self, spinless_fermion_L4):
+        """1sp and 2s traces after one full sweep agree closely (no bond truncation).
+
+        With `max_bond=None` (no truncation), the 1s+ CBE expansion and the
+        exact 2-site update should both recover essentially the same trace,
+        since both explore the full 2-site variational space.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c_1sp = _setup_compression(mpo, spc)
+        mpo_c_2s = NormalMPO.from_mpo(rho)
+        mpo_c_2s.canonical(0)
+
+        opts_1sp = Options(scheme='1sp', max_bond=None, expand_k=4, expand_alpha=4)
+        env_left, env_right = _make_envs(rho, mpo_c_1sp, scheme='1sp')
+        forward_sweep(rho, rho, mpo_c_1sp, env_left, env_right, opts_1sp)
+        backward_sweep(rho, rho, mpo_c_1sp, env_left, env_right, opts_1sp)
+
+        opts_2s = Options(scheme='2s', max_bond=None)
+        env_left, env_right = _make_envs(rho, mpo_c_2s, scheme='2s')
+        forward_sweep(rho, rho, mpo_c_2s, env_left, env_right, opts_2s)
+        backward_sweep(rho, rho, mpo_c_2s, env_left, env_right, opts_2s)
+
+        trace_1sp = mpo_c_1sp.trace()
+        trace_2s = mpo_c_2s.trace()
+        rel_err = abs(trace_1sp - trace_2s) / abs(trace_2s)
+        assert rel_err < 1e-6, (
+            f"1sp trace={trace_1sp:.10g} vs. 2s trace={trace_2s:.10g}, "
+            f"rel err={rel_err:.2e}"
+        )
+
 
 class TestFullFit:
     """Integration tests for the full variational compression."""
@@ -196,5 +257,28 @@ class TestFullFit:
         rel_err = abs(log_z_xtrg - log_z_exact) / abs(log_z_exact)
         assert rel_err < 1e-3, (
             f"XTRG 2s log Z = {log_z_xtrg:.8g}, exact = {log_z_exact:.8g}, "
+            f"rel err = {rel_err:.2e}"
+        )
+
+    def test_fit_mpo_1sp_trace_close_to_exact(self, spinless_fermion_L4):
+        """_fit_mpo with 1sp scheme gives correct log Z after 1 doubling step."""
+        mpo, spc, exact_log_z_fn = spinless_fermion_L4
+        import math
+        tau_0 = 2 ** -6
+        opts = Options(
+            scheme='1sp', tau_0=tau_0, n_sweeps=4, max_bond=None,
+            expand_k=4, expand_alpha=4,
+        )
+
+        rho = thermal_mpo(mpo, tau_0, opts.taylor_order, spc)
+        rho_sq, dw = _fit_mpo(rho, rho, opts)
+
+        beta = 2 * tau_0
+        log_z_xtrg = math.log(rho_sq.trace())
+        log_z_exact = exact_log_z_fn(beta)
+
+        rel_err = abs(log_z_xtrg - log_z_exact) / abs(log_z_exact)
+        assert rel_err < 1e-3, (
+            f"XTRG 1sp log Z = {log_z_xtrg:.8g}, exact = {log_z_exact:.8g}, "
             f"rel err = {rel_err:.2e}"
         )
