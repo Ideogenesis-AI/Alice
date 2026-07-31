@@ -114,6 +114,9 @@ nav:
       - Heisenberg chain: examples/dmrg/heisenberg.md
       - Free fermion: examples/dmrg/free-fermion.md
       - Hubbard model: examples/dmrg/hubbard.md
+    - XTRG:
+      - Free fermion: examples/xtrg/free-fermion.md
+      - Hubbard model: examples/xtrg/hubbard.md
     - AutoMPO from TOML: examples/autompo-toml.md
     - Extensions:
       - Custom geometry: examples/extensions/custom-geometry.md
