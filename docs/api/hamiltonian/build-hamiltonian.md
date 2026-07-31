@@ -10,4 +10,4 @@ Build a Hamiltonian MPO from a list of `Interaction` objects.
 
 - [build_interaction](../interaction/build-interaction.md) — produces the `interactions` list.
 - [MPO](../network/mpo.md) — returned type.
-- [dmrg.run](../dmrg/run.md) — passes this MPO to the DMRG solver.
+- [dmrg.run](../../algorithms/dmrg/run.md) — passes this MPO to the DMRG solver.

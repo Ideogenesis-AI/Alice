@@ -43,4 +43,4 @@ index (`None` if not set); `norm` is `‖ψ‖`.
 - [Network](network.md) — base class providing `canonical()`, `norm()`, `serialize()`, and more.
 - [MPO](mpo.md) — matrix product operator.
 - [observe](observe.md) — compute ⟨ψ\|O\|ψ⟩ for an MPS state.
-- [dmrg.run](../dmrg/run.md) — optimize an MPS with DMRG.
+- [dmrg.run](../../algorithms/dmrg/run.md) — optimize an MPS with DMRG.
