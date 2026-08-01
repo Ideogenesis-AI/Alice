@@ -1,5 +1,76 @@
 # Changelog
 
+## [0.2.0] - 2026-08-01
+
+**XTRG: Finite-Temperature Thermodynamics**
+
+Introduces XTRG (eXponential Tensor Renormalization Group), Alice's second algorithm
+alongside DMRG: a finite-temperature solver that computes `ρ(β) = e^{-βH}` by repeated
+squaring, sharing the `1s`/`2s`/`1sp` update schemes with DMRG. `NormalMPO` is upgraded to
+track its physical magnitude in log form, and `observe` computes thermal expectation-value
+ratios in log-space, keeping both stable arbitrarily deep into a cooling run. One breaking
+change to `NormalMPO.__init__`.
+
+### XTRG Algorithm
+
+- New `alice.algorithm.xtrg` package exporting `Options`, `Summary`, and `run`, mirroring
+  the `alice.algorithm.dmrg` interface.
+- `xtrg.run(H, spc, opts)` initializes `ρ(τ₀)` via `thermal_mpo`, then repeatedly squares
+  it — `ρ(2β) ≈ compress(ρ(β) ⊗ ρ(β))` — to reach `β_max = 2^n_steps × τ₀`, sampling an
+  exponentially spaced β grid.
+- Three update schemes for the inner variational MPO-MPO compression `C ≈ A · B`:
+  **1-site** (`1s`), **2-site** (`2s`) with SVD truncation, and **1-site-plus** (`1sp`)
+  controlled bond expansion (CBE), adapted from DMRG's `'1sp'` scheme to the linear
+  (non-eigenvalue) fitting problem.
+- `Summary` reports `betas`, `log_z`, `free_energies`, `energies`, `specific_heats`, and
+  `entropies` per cooling step; `u`, `c_V`, and `S` are derived from `log_z` via log-β
+  finite differences for uniform accuracy across the exponential grid.
+- `Options.checkpoint_dir` atomically checkpoints `ρ` and thermodynamic history after
+  every cooling step, matching DMRG's checkpoint pattern.
+
+### `NormalMPO`: Log-Scale Representation
+
+- **Breaking:** `NormalMPO.__init__` keyword argument renamed from `scale` to
+  `log_scale` (`log_scale = log(scale)`).
+- New `log_trace()` method returns `(log|Tr[ρ]|, sign)` without ever materializing the
+  raw trace, which can reach `~10^500` deep into an XTRG run; `trace()` is now a thin
+  wrapper over it. New `scale_by(log_scale_delta)` for in-place log-magnitude updates.
+- `__matmul__`, `__add__`, and `__mul__` combine `log_scale` by addition/subtraction
+  instead of multiplying raw floats; the sign of the physical operator is folded into
+  site 0's tensor data instead.
+
+### `observe`: Log-Space Thermal Ratios
+
+- `_observe_thermal` now computes `Tr[ρ O] / Tr[ρ]` via `log_trace()` on both numerator
+  and denominator, combined as `(sign_num · sign_den) × exp(log_num − log_den)`, so the
+  well-behaved O(1) ratio remains correct even when either trace overflows float64.
+
+### Documentation
+
+- New `docs/algorithms/` section (replacing algorithm pages formerly under `docs/api/`)
+  with per-algorithm subdirectories (`algorithms/dmrg/`, `algorithms/xtrg/`).
+- New `docs/examples/xtrg/` pages for free-fermion and Hubbard worked examples, validated
+  against exact grand-canonical solutions.
+- README's **Algorithms** section gains an XTRG subsection alongside the existing DMRG
+  one, plus a new **Upcoming** list (tanTRG, TDVP, TaSK).
+
+### Statistics
+
+- **916 tests** across 29 test modules (up from 814 / 23 modules in v0.1.6).
+- **66 commits** since v0.1.6.
+- **49 files changed**, 6,172 insertions, 92 deletions.
+- **28 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** `NormalMPO.__init__` keyword argument renamed from `scale` to
+  `log_scale`; `NormalMPO.from_mpo()`, `thermal_mpo()`, and the `scale` read-only
+  property are unaffected.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.1.6] - 2026-06-10
 
 **MPS Initialization for Odd Chains**
@@ -442,6 +513,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.0
 [0.1.6]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.6
 [0.1.5]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.5
 [0.1.4]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.4
