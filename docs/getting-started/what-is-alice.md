@@ -14,19 +14,28 @@ Tensor network methods are among the most powerful tools for studying strongly-c
 
 ### DMRG — Density Matrix Renormalization Group
 
-Ground-state search and optimization via alternating sweep optimization of MPS tensors. Three complementary update schemes are available:
+Ground-state search via alternating sweep optimization of MPS tensors: at each step, a local effective Hamiltonian `H_eff` is formed by projecting `H` onto the current site's variational subspace, and its lowest eigenpair `H_eff |ψ⟩ = E |ψ⟩` is found and written back into the MPS, monotonically lowering the global energy `E` sweep after sweep. Three complementary update schemes are available:
 
 - **1-site** (`1s`): single-tensor update; preserves bond dimension exactly, suitable for post-optimization refinement.
 - **2-site** (`2s`): two-tensor update with SVD truncation; drives automatic bond growth toward a target dimension.
 - **1-site-plus** (`1sp`): controlled bond expansion (CBE) combining the stability of 1-site with the bond-dimension flexibility of 2-site.
 
-All three schemes share a Davidson eigensolver and energy-based convergence criterion.
+All three schemes share a Davidson eigensolver and energy-based convergence criterion. Once converged, the ground-state MPS supports expectation values `⟨ψ|O|ψ⟩` via `observe`, giving access to correlation functions, order parameters, and entanglement entropy from the Schmidt spectrum at each bond.
+
+### XTRG — eXponential Tensor Renormalization Group
+
+Finite-temperature thermodynamics via exponential cooling: the thermal density matrix `ρ(β) = e^{-βH}` is built at a small `τ₀` and repeatedly squared, `ρ(2β) ≈ compress(ρ(β) ⊗ ρ(β))`, doubling `β` at each step. Three update schemes drive the underlying variational MPO-MPO compression:
+
+- **1-site** (`1s`): direct 1-site contraction; preserves bond dimension exactly.
+- **2-site** (`2s`): 2-site SVD with truncation; drives bond growth.
+- **1-site-plus** (`1sp`): controlled bond expansion (CBE) adapted to XTRG's linear least-squares fitting problem — targets near-2-site accuracy at closer-to-1-site cost.
+
+Each XTRG update solves a linear least-squares fit; thermodynamic observables (`log Z`, free energy, internal energy, specific heat, entropy) can be derived from log-β finite differences across the exponentially spaced temperature grid.
 
 ### Upcoming
 
 The following algorithms are planned for future releases. Contributions toward any of them are warmly welcomed — see the [Contributing](contributing.md) page.
 
-- **XTRG** (eXponential Tensor Renormalization Group): finite-temperature simulations with exponential cooling.
 - **tanTRG** (tangent-space TRG): finite-temperature simulations with linear cooling steps.
 - **TDVP** (Time-Dependent Variational Principle): real-time evolution within the MPS manifold.
 - **TaSK** (Tangent Space Krylov): dynamical spectral functions via a Lanczos scheme on the ground-state tangent space.
@@ -36,13 +45,13 @@ The following algorithms are planned for future releases. Contributions toward a
 - **Symmetry-aware MPS/MPO**: block-sparse matrix product states and operators supporting any symmetry group or product group that Nicole supports.
 - **AutoMPO construction**: TOML-configured Hamiltonian builder with built-in model presets (Heisenberg, free-fermion, Hubbard) and full support for custom models.
 - **Flexible geometries**: built-in 1D chain, 2D square, and 2D Kagome lattice geometries with configurable traversal orders; custom geometry extensions supported via user-defined functions.
-- **Environment caching**: optional disk-spilling with a sliding in-memory window and asynchronous I/O, enabling DMRG on long chains with limited RAM.
+- **Environment caching**: optional disk-spilling with a sliding in-memory window and asynchronous I/O, enabling DMRG and XTRG on long chains with limited RAM.
 - **Systematic logging**: comprehensive sweep-by-sweep diagnostics via Python's `logging` module.
 - **PyTorch backend**: all dense block operations run on PyTorch via Nicole, with optional GPU (CUDA/MPS), Ascend NPU acceleration, and on-demand autograd support.
 
 ## Relationship to Nicole
 
-Alice is built entirely on top of [Nicole](https://ideogenesis-ai.github.io/Nicole/). Nicole provides the `Tensor`, `Index`, and symmetry group machinery; Alice adds the MPS/MPO chain structures, the AutoMPO pipeline, the physics model library, and the DMRG algorithm. Users familiar with Nicole will find that Alice follows the same vocabulary and index conventions (see [Core Concepts](core-concepts.md)).
+Alice is built entirely on top of [Nicole](https://ideogenesis-ai.github.io/Nicole/). Nicole provides the `Tensor`, `Index`, and symmetry group machinery; Alice adds the MPS/MPO chain structures, the AutoMPO pipeline, the physics model library, and various tensor network algorithms. Users familiar with Nicole will find that Alice follows the same vocabulary and index conventions (see [Core Concepts](core-concepts.md)).
 
 If you encounter a Nicole concept in the Alice API — such as an `Index`, a symmetry string like `'U1'` or `'SU2'`, or a `load_space` call — the [Nicole documentation](https://ideogenesis-ai.github.io/Nicole/) is the authoritative reference.
 

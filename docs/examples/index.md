@@ -18,6 +18,13 @@ Complete ground-state calculations with the three update schemes.
 - [Free fermion](dmrg/free-fermion.md) — spinless tight-binding chain.
 - [Hubbard model](dmrg/hubbard.md) — spinful Hubbard chain with U(1)×SU(2) symmetry.
 
+### XTRG
+
+Finite-temperature thermodynamics via exponential cooling, with the three update schemes.
+
+- [Free fermion](xtrg/free-fermion.md) — spinless tight-binding chain, exact `log Z` comparison.
+- [Hubbard model](xtrg/hubbard.md) — spinful Hubbard chain with Z(2)×SU(2) symmetry.
+
 ### AutoMPO from TOML
 
 - [AutoMPO from TOML](autompo-toml.md) — loading TOML configs and calling `build_interaction`; multiple model variants.

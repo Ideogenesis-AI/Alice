@@ -1,6 +1,6 @@
 # API Reference
 
-Welcome to the Alice API Reference. All public classes and functions are documented here, organized by conceptual topic.
+Welcome to the Alice API Reference. All public classes and functions are documented here, organized by conceptual topic. For specific 1D algorithms, see the [Algorithms](../algorithms/index.md) tab.
 
 ## Network
 
@@ -57,16 +57,6 @@ MPO Hamiltonian assembly and built-in physics models.
 | [build_free_fermion](hamiltonian/build-free-fermion.md) | Spinless free-fermion (tight-binding) model |
 | [build_hubbard](hamiltonian/build-hubbard.md) | Hubbard model |
 
-## DMRG
-
-Ground-state DMRG algorithm.
-
-| Symbol | Description |
-|--------|-------------|
-| [Options](dmrg/options.md) | DMRG run options |
-| [Summary](dmrg/summary.md) | DMRG output dataclass |
-| [run](dmrg/run.md) | Top-level DMRG entry point |
-
 ## Logging
 
 | Symbol | Description |
@@ -80,7 +70,10 @@ Ground-state DMRG algorithm.
 ### I want to...
 
 **Run DMRG on a spin chain**
-→ [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [dmrg.run](dmrg/run.md)
+→ [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [dmrg.run](../algorithms/dmrg/run.md)
+
+**Run XTRG at finite temperature**
+→ [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [xtrg.run](../algorithms/xtrg/run.md)
 
 **Define a model from a TOML file**
 → [build_interaction](interaction/build-interaction.md) — see [AutoMPO from TOML](../examples/autompo-toml.md)
@@ -98,7 +91,7 @@ Ground-state DMRG algorithm.
 → [observe](network/observe.md)
 
 **Save and reload a result**
-→ [Network.serialize / deserialize](network/network.md), [dmrg.Summary](dmrg/summary.md)
+→ [Network.serialize / deserialize](network/network.md), [dmrg.Summary](../algorithms/dmrg/summary.md), [xtrg.Summary](../algorithms/xtrg/summary.md)
 
 **Configure logging and diagnostics**
 → [configure_logging](logging.md)

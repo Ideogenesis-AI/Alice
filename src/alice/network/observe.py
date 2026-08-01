@@ -90,6 +90,13 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     Forms the MPO product ``ρ · O``, compresses it with `compact()`, and
     returns the ratio of its trace to ``Tr[ρ]``.
 
+    The ratio is computed via `log_trace()` on both the numerator and the
+    denominator and combined in log-space (subtracting logs, then
+    exponentiating once at the end), rather than via `trace() / trace()`.
+    This avoids materializing either trace as a raw float, which would
+    overflow for very cold thermal states (e.g. deep into an XTRG run)
+    even though the ratio itself is a well-behaved O(1) number.
+
     Parameters
     ----------
     rho:
@@ -101,6 +108,11 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     -------
     float
         The thermal expectation value ``Tr[ρ O] / Tr[ρ]``.
+
+    Raises
+    ------
+    ZeroDivisionError
+        If ``Tr[ρ]`` is exactly zero.
     """
     from .thermal import NormalMPO
 
@@ -110,10 +122,14 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     O_norm = NormalMPO.from_mpo(observable)
     product = rho @ O_norm
     product.compact()
-    denominator = rho.trace()
-    if math.isclose(denominator, 0.0, abs_tol=1e-15):
+
+    log_den, sign_den = rho.log_trace()
+    if sign_den == 0.0:
         raise ZeroDivisionError("Tr[ρ] is numerically zero; cannot compute expectation value")
-    return product.trace() / denominator
+    log_num, sign_num = product.log_trace()
+    if sign_num == 0.0:
+        return 0.0
+    return (sign_num * sign_den) * math.exp(log_num - log_den)
 
 
 def _observe_mps(

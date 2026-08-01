@@ -140,5 +140,5 @@ print(f"Reloaded energy: {summary.energy:.10f}")
 ## See Also
 
 - [Free fermion](free-fermion.md), [Hubbard model](hubbard.md)
-- [dmrg.Options API](../../api/dmrg/options.md)
+- [dmrg.Options API](../../algorithms/dmrg/options.md)
 - [build_heisenberg API](../../api/hamiltonian/build-heisenberg.md)

@@ -16,12 +16,4 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Algorithm module: tensor network algorithms built on the network layer."""
-
-from . import dmrg
-from . import xtrg
-
-__all__ = [
-    'dmrg',
-    'xtrg',
-]
+"""Tests for alice.algorithm.xtrg: Options, Summary, and run()."""

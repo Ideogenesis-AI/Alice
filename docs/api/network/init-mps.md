@@ -145,4 +145,4 @@ unreachable and raises `ValueError`.
   [build_fermionic](../local-space/build-fermionic.md),
   [build_conductor](../local-space/build-conductor.md) — wrappers around
   Nicole's `load_space` that return `(Spc, Op)`.
-- [dmrg.run](../dmrg/run.md) — optimize the initialized MPS.
+- [dmrg.run](../../algorithms/dmrg/run.md) — optimize the initialized MPS.

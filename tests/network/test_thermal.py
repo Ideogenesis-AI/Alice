@@ -194,6 +194,73 @@ class TestNormalMPOConstruction:
 
 
 # ---------------------------------------------------------------------------
+# Tests: log-scale representation (log_scale, scale_by, sign-in-tensor)
+# ---------------------------------------------------------------------------
+
+class TestNormalMPOLogScale:
+    """Tests for `log_scale`, `scale_by`, sign-folded-into-tensor, and overflow safety."""
+
+    def test_log_scale_consistent_with_scale(self, product_h_L2):
+        """`exp(log_scale)` reconstructs `scale` at moderate magnitude."""
+        H_mpo, Spc = product_h_L2
+        H_n = NormalMPO.from_mpo(H_mpo)
+        assert math.isclose(math.exp(H_n.log_scale), H_n.scale, rel_tol=1e-12)
+
+    def test_scale_by_matches_manual_multiplication(self, product_h_L2):
+        """`scale_by` gives the same result as multiplying the raw magnitude."""
+        H_mpo, Spc = product_h_L2
+        H_n = NormalMPO.from_mpo(H_mpo)
+        original_scale = H_n.scale
+        H_n.scale_by(math.log(2.5))
+        assert math.isclose(H_n.scale, original_scale * 2.5, rel_tol=1e-12)
+
+    def test_mul_negative_scalar_folds_sign_into_tensor(self, product_h_L2):
+        """`c * H` for `c < 0` flips the sign observed via `trace()`.
+
+        `.scale` stays a non-negative magnitude, since sign lives in the
+        tensor data and only shows up once it is actually contracted, e.g.
+        via `trace()`.
+        """
+        H_mpo, Spc = product_h_L2
+        H_n = NormalMPO.from_mpo(H_mpo)
+        c = -2.0
+        scaled = c * H_n
+        assert scaled.scale >= 0.0
+        assert math.isclose(scaled.scale, abs(c) * H_n.scale, rel_tol=1e-14)
+        assert math.isclose(scaled.trace(), c * H_n.trace(), rel_tol=1e-10)
+
+    def test_double_negative_mul_restores_sign(self, product_h_L2):
+        """`(-1) * ((-1) * H)` has the same trace as `H` (sign flips cancel)."""
+        H_mpo, Spc = product_h_L2
+        H_n = NormalMPO.from_mpo(H_mpo)
+        twice_negated = -1.0 * (-1.0 * H_n)
+        assert math.isclose(twice_negated.trace(), H_n.trace(), rel_tol=1e-10)
+
+    def test_repeated_squaring_overflows_scale_but_not_log_scale(self, product_h_L2):
+        """Driving `.scale` to `inf` via repeated squaring keeps `log_scale` finite.
+
+        Reproduces, at unit-test speed, the class of bug behind XTRG's
+        β=256 overflow: repeated squaring (`@` + `compact()`) eventually
+        pushes the raw magnitude past float64 range, but `log_scale` (and
+        `log_trace()`) must remain finite and internally consistent
+        throughout.
+        """
+        H_mpo, Spc = product_h_L2
+        rho = NormalMPO.from_mpo(H_mpo)
+        # Even starting from an O(1) magnitude, ~40 squarings (roughly
+        # doubling log_scale each time) is far more than enough to exceed
+        # float64's ~1.8e308 range.
+        for _ in range(40):
+            rho = rho @ rho
+            rho.compact()
+        assert math.isinf(rho.scale)
+        assert math.isfinite(rho.log_scale)
+        log_abs, sign = rho.log_trace()
+        assert math.isfinite(log_abs)
+        assert sign in (1.0, -1.0, 0.0)
+
+
+# ---------------------------------------------------------------------------
 # Tests: trace()
 # ---------------------------------------------------------------------------
 

@@ -61,6 +61,18 @@ nav:
       - Contributing: getting-started/contributing.md
       - Git Control: getting-started/git-control.md
       - Changelog: getting-started/changelog.md
+  - Algorithms:
+    - Overview: algorithms/index.md
+    - DMRG:
+      - Overview: algorithms/dmrg/index.md
+      - Options: algorithms/dmrg/options.md
+      - Summary: algorithms/dmrg/summary.md
+      - Launch: algorithms/dmrg/run.md
+    - XTRG:
+      - Overview: algorithms/xtrg/index.md
+      - Options: algorithms/xtrg/options.md
+      - Summary: algorithms/xtrg/summary.md
+      - Launch: algorithms/xtrg/run.md
   - API Reference:
     - Overview: api/index.md
     - Logging: api/logging.md
@@ -98,17 +110,15 @@ nav:
       - build_heisenberg: api/hamiltonian/build-heisenberg.md
       - build_free_fermion: api/hamiltonian/build-free-fermion.md
       - build_hubbard: api/hamiltonian/build-hubbard.md
-    - DMRG:
-      - Overview: api/dmrg/index.md
-      - Options: api/dmrg/options.md
-      - Summary: api/dmrg/summary.md
-      - Launch: api/dmrg/run.md
   - Examples:
     - Overview: examples/index.md
     - DMRG:
       - Heisenberg chain: examples/dmrg/heisenberg.md
       - Free fermion: examples/dmrg/free-fermion.md
       - Hubbard model: examples/dmrg/hubbard.md
+    - XTRG:
+      - Free fermion: examples/xtrg/free-fermion.md
+      - Hubbard model: examples/xtrg/hubbard.md
     - AutoMPO from TOML: examples/autompo-toml.md
     - Extensions:
       - Custom geometry: examples/extensions/custom-geometry.md
@@ -217,5 +227,4 @@ extra_css:
   - stylesheets/extra.css
 
 extra_javascript:
-  - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
