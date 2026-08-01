@@ -24,4 +24,4 @@ summary = Summary.load("xtrg_result.ckpt")
 
 - [Options](options.md) — configuration for the run that produced this summary.
 - [run](run.md) — returns a `Summary`.
-- [NormalMPO](../network/normal-mpo.md) — type of `summary.rho`.
+- [NormalMPO](../../api/network/normal-mpo.md) — type of `summary.rho`.

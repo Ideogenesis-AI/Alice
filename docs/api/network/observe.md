@@ -14,4 +14,4 @@ Compute the expectation value of an observable for a given state.
 
 - [MPS](mps.md), [MPO](mpo.md) — input types.
 - [build_hamiltonian](../hamiltonian/build-hamiltonian.md) — create the MPO to pass here.
-- [dmrg.run](../dmrg/run.md) — uses `observe` internally for energy evaluation.
+- [dmrg.run](../../algorithms/dmrg/run.md) — uses `observe` internally for energy evaluation.
