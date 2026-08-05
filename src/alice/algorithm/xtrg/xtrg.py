@@ -36,7 +36,6 @@ across the exponentially spaced temperature grid.
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 import math
 from dataclasses import dataclass, field
@@ -45,7 +44,6 @@ from typing import Dict, List, Optional, Tuple
 
 from nicole import Index
 from nicole import deserialize as _deserialize_tensor
-from nicole import serialize as _serialize_tensor
 
 from alice.network import MPO
 from alice.network.thermal import NormalMPO, thermal_mpo
@@ -164,15 +162,24 @@ class Options(AlgorithmOptions):
         exact factor-MPO tensors, at the cost of a full 2-site-scale join).
         The paper recommends `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     checkpoint_dir:
-        Directory to write checkpoint files into. An `xtrg.ckpt` file
-        (PyTorch format, loadable via `xtrg.Summary.load`) is written after
-        every cooling step using an atomic write: the data is first serialised
-        to `xtrg_lock.ckpt` in the same directory, then renamed to
-        `xtrg.ckpt` on success, so a failed write cannot corrupt the
-        previous checkpoint. `None` (default) resolves to `Path.cwd()` at
-        the time `run()` is called, mirroring `.logging`. Pass an explicit
-        path string to write elsewhere. Stored as `str` for TOML
-        compatibility.
+        Directory for checkpoint and artifact files. After every cooling
+        step a `thermal.ckpt` file (PyTorch format, loadable via
+        `xtrg.Summary.load`) is written using an atomic write
+        (`thermal_lock.ckpt` → rename). Mid-run progress is stored as
+        `progress.ckpt` (an `Artifact`) and removed when `run()` finishes
+        successfully. When `save_artifacts` is `True`, per-step density
+        matrices are also archived under `artifacts/step_XX.ckpt`.
+        `None` (default) resolves to `Path.cwd()` at the time `run()` is
+        called, mirroring `.logging`. Pass an explicit path string to write
+        elsewhere. Stored as `str` for TOML compatibility.
+    save_artifacts:
+        If `True` (default), write per-step `Artifact` files under
+        `artifacts/` in the checkpoint directory for every step with index
+        `>= save_artifacts_since`. Step `0` is after Taylor init (`ρ(τ₀)`);
+        step `k` (`1 … n_steps`) is after the `k`-th squaring.
+    save_artifacts_since:
+        First step index (inclusive) at which `artifacts/step_XX.ckpt` files
+        are written when `save_artifacts` is `True`. Must be `>= 0`.
     """
 
     scheme: str = '2s'
@@ -188,9 +195,15 @@ class Options(AlgorithmOptions):
     expand_k: int = 4
     expand_alpha: Optional[int] = None
     checkpoint_dir: Optional[str] = None
+    save_artifacts: bool = True
+    save_artifacts_since: int = 0
 
     def __post_init__(self) -> None:
         self.scheme = _resolve_scheme(self.scheme)
+        if self.save_artifacts_since < 0:
+            raise ValueError(
+                f"save_artifacts_since must be >= 0, got {self.save_artifacts_since}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -199,12 +212,13 @@ class Options(AlgorithmOptions):
 
 @dataclass
 class Summary(AlgorithmSummary):
-    """XTRG output summary.
+    """XTRG thermodynamic summary (no density matrix).
+
+    Density matrices are returned separately as `Artifact` (and optionally
+    archived under `artifacts/` when `Options.save_artifacts` is enabled).
 
     Parameters
     ----------
-    rho:
-        Final density matrix ρ(β_max) as a `NormalMPO`.
     betas:
         List of β values at each cooling step: [τ₀, 2τ₀, …, 2^n_steps τ₀].
     log_z:
@@ -223,14 +237,15 @@ class Summary(AlgorithmSummary):
         Entropy per site: S(β_n) = β_n (u(β_n) − f(β_n)).
     discarded_weights:
         Per-step discarded weight from the variational compression (2-site
-        only; `0.0` entries for 1-site).
+        only; `0.0` entries for 1-site). Length equals the number of
+        squaring steps (`n_steps`), not the length of `betas`.
     converged:
-        Always `True` for XTRG (fixed number of cooling steps).
+        Always `True` for a finished XTRG run (fixed number of cooling
+        steps). Mid-run `thermal.ckpt` files use `False`.
     n_steps:
-        Number of cooling steps actually performed.
+        Number of cooling (squaring) steps reflected in this summary.
     """
 
-    rho: NormalMPO
     betas: List[float] = field(default_factory=list)
     log_z: List[float] = field(default_factory=list)
     free_energies: List[float] = field(default_factory=list)
@@ -244,19 +259,13 @@ class Summary(AlgorithmSummary):
     def serialize(self) -> Dict:
         """Serialize the summary to a plain dict compatible with `torch.save`.
 
-        The density matrix is serialized via `Network.serialize` (tensors)
-        plus the separately stored `log_scale` magnitude.
-
         Returns
         -------
         Dict
-            Serialized summary.
+            Serialized summary (version 2; no density matrix).
         """
-        rho_data = self.rho.serialize()
         return {
-            'version': 1,
-            'rho': rho_data,
-            'rho_log_scale': self.rho.log_scale,
+            'version': 2,
             'betas': self.betas,
             'log_z': self.log_z,
             'free_energies': self.free_energies,
@@ -277,32 +286,25 @@ class Summary(AlgorithmSummary):
         data:
             Dict previously returned by `serialize`.
         device:
-            Device to place all tensor blocks on. Defaults to `'cpu'`.
+            Unused for version-2 summaries (no tensors). Accepted for API
+            compatibility with `AlgorithmSummary.load`.
 
         Returns
         -------
         Summary
-            Reconstructed summary with the density matrix on `device`.
+            Reconstructed thermodynamic summary.
 
         Raises
         ------
         ValueError
-            If `data["version"]` is not `1`.
+            If `data["version"]` is not `2`.
         """
+        del device  # no tensors in version 2
         version = data.get('version', 1)
-        if version != 1:
+        if version != 2:
             raise ValueError(f"Unsupported Summary serialization version: {version!r}")
 
-        rho_data = data['rho']
-        tensors = [_deserialize_tensor(t) for t in rho_data['tensors']]
-        rho = NormalMPO(
-            tensors,
-            log_scale=float(data['rho_log_scale']),
-            bc=rho_data['bc'],
-            center=rho_data['center'],
-        )
         return cls(
-            rho=rho,
             betas=list(data['betas']),
             log_z=list(data['log_z']),
             free_energies=list(data['free_energies']),
@@ -316,47 +318,113 @@ class Summary(AlgorithmSummary):
 
 
 # ---------------------------------------------------------------------------
-# Checkpoint helper
+# Artifact
 # ---------------------------------------------------------------------------
 
-def _save_checkpoint(
-    rho: NormalMPO,
-    betas: List[float],
-    log_z: List[float],
-    discarded_weights: List[float],
-    step: int,
-    ckpt_dir: Path,
-) -> None:
-    """Write an atomic checkpoint of the current XTRG state.
-
-    Builds a mid-run `Summary` (observables recomputed from the partial
-    β / log Z grid) and serialises it to `xtrg_lock.ckpt` in `ckpt_dir`,
-    then renames it to `xtrg.ckpt`. The rename is atomic on POSIX systems,
-    so a crash during serialisation cannot corrupt the previously written
-    checkpoint.
+@dataclass
+class Artifact(AlgorithmSummary):
+    """Density-matrix snapshot at one XTRG cooling step.
 
     Parameters
     ----------
     rho:
-        Current density matrix.
-    betas:
-        β grid up to and including the current step.
-    log_z:
-        log Z history up to and including the current step.
-    discarded_weights:
-        Discarded-weight history up to and including the current step.
+        Thermal density matrix `ρ(β)` as a `NormalMPO`.
+    beta:
+        Inverse temperature of this snapshot.
     step:
-        Number of cooling steps completed so far.
-    ckpt_dir:
-        Directory in which `xtrg.ckpt` and `xtrg_lock.ckpt` are written.
+        Step index: `0` after Taylor init; `k` after the `k`-th squaring.
     """
+
+    rho: NormalMPO
+    beta: float
+    step: int
+
+    def serialize(self) -> Dict:
+        """Serialize the artifact to a plain dict compatible with `torch.save`.
+
+        Returns
+        -------
+        Dict
+            Serialized artifact.
+        """
+        return {
+            'version': 1,
+            'step': self.step,
+            'beta': self.beta,
+            'rho': self.rho.serialize(),
+            'rho_log_scale': self.rho.log_scale,
+        }
+
+    @classmethod
+    def deserialize(cls, data: Dict, device: str = 'cpu') -> 'Artifact':
+        """Reconstruct an `Artifact` from a dict produced by `serialize`.
+
+        Parameters
+        ----------
+        data:
+            Dict previously returned by `serialize`.
+        device:
+            Device to place all tensor blocks on. Defaults to `'cpu'`.
+
+        Returns
+        -------
+        Artifact
+            Reconstructed artifact with the density matrix on `device`.
+
+        Raises
+        ------
+        ValueError
+            If `data["version"]` is not `1`.
+        """
+        version = data.get('version', 1)
+        if version != 1:
+            raise ValueError(f"Unsupported Artifact serialization version: {version!r}")
+
+        rho_data = data['rho']
+        tensors = [_deserialize_tensor(t) for t in rho_data['tensors']]
+        rho = NormalMPO(
+            tensors,
+            log_scale=float(data['rho_log_scale']),
+            bc=rho_data['bc'],
+            center=rho_data['center'],
+        )
+        del device  # tensors currently stay on the device used at save time
+        return cls(
+            rho=rho,
+            beta=float(data['beta']),
+            step=int(data['step']),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint / artifact helpers
+# ---------------------------------------------------------------------------
+
+def _atomic_torch_save(payload: Dict, path: Path) -> None:
+    """Atomically write `payload` via a sibling `*_lock` file then rename."""
     import torch
 
+    lock_path = path.with_name(path.stem + '_lock' + path.suffix)
+    torch.save(payload, lock_path)
+    # Atomic rename: on POSIX this is guaranteed to be atomic; on Windows it
+    # is best-effort (Path.replace uses MoveFileExW which is not atomic but
+    # still avoids leaving a half-written target on disk).
+    lock_path.replace(path)
+
+
+def _build_summary(
+    betas: List[float],
+    log_z: List[float],
+    discarded_weights: List[float],
+    L: int,
+    step: int,
+    converged: bool,
+) -> Summary:
+    """Build a rho-free `Summary` from the current thermodynamic history."""
     free_energies, energies, specific_heats, entropies = _compute_observables(
-        betas, log_z, rho.L,
+        betas, log_z, L,
     )
-    summary = Summary(
-        rho=rho,
+    return Summary(
         betas=list(betas),
         log_z=list(log_z),
         free_energies=free_energies,
@@ -364,18 +432,35 @@ def _save_checkpoint(
         specific_heats=specific_heats,
         entropies=entropies,
         discarded_weights=list(discarded_weights),
-        converged=False,
+        converged=converged,
         n_steps=step,
     )
 
-    lock_path = ckpt_dir / 'xtrg_lock.ckpt'
-    ckpt_path = ckpt_dir / 'xtrg.ckpt'
 
-    torch.save(summary.serialize(), lock_path)
-    # Atomic rename: on POSIX this is guaranteed to be atomic; on Windows it
-    # is best-effort (Path.replace uses MoveFileExW which is not atomic but
-    # still avoids leaving a half-written xtrg.ckpt on disk).
-    lock_path.replace(ckpt_path)
+def _save_thermal(summary: Summary, ckpt_dir: Path) -> None:
+    """Write `thermal.ckpt` atomically in `ckpt_dir`."""
+    _atomic_torch_save(summary.serialize(), ckpt_dir / 'thermal.ckpt')
+
+
+def _save_progress(artifact: Artifact, ckpt_dir: Path) -> None:
+    """Write `progress.ckpt` atomically in `ckpt_dir`."""
+    _atomic_torch_save(artifact.serialize(), ckpt_dir / 'progress.ckpt')
+
+
+def _save_artifact_file(artifact: Artifact, artifacts_dir: Path) -> None:
+    """Write `artifacts/step_XX.ckpt` atomically for `artifact.step`."""
+    path = artifacts_dir / f'step_{artifact.step:02d}.ckpt'
+    _atomic_torch_save(artifact.serialize(), path)
+
+
+def _archive_artifact(
+    artifact: Artifact,
+    opts: Options,
+    artifacts_dir: Path,
+) -> None:
+    """Archive `artifact` under `artifacts/` when options request it."""
+    if opts.save_artifacts and artifact.step >= opts.save_artifacts_since:
+        _save_artifact_file(artifact, artifacts_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -594,7 +679,7 @@ def run(
     H: MPO,
     spc: Index,
     opts: Optional[Options] = None,
-) -> Summary:
+) -> Tuple[Summary, Artifact]:
     """Run XTRG to compute finite-temperature properties of a Hamiltonian MPO.
 
     Initialises the thermal density matrix via a Taylor expansion
@@ -618,8 +703,10 @@ def run(
     Returns
     -------
     Summary
-        Final density matrix, β grid, log Z history, and derived
-        thermodynamic observables.
+        Thermodynamic history (β grid, log Z, derived observables). Written
+        to `thermal.ckpt` under the checkpoint directory.
+    Artifact
+        Final density matrix `ρ(β_max)` with its `beta` and `step`.
 
     Raises
     ------
@@ -642,6 +729,9 @@ def run(
     # mirroring the convention used by configure_logging / DMRG.
     _ckpt: Path = Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else Path.cwd()
     _ckpt.mkdir(parents=True, exist_ok=True)
+    _artifacts: Path = _ckpt / 'artifacts'
+    if opts.save_artifacts:
+        _artifacts.mkdir(parents=True, exist_ok=True)
 
     max_bond_str = str(opts.max_bond) if opts.max_bond is not None else 'unlimited'
     logger.info("─" * 60)
@@ -663,6 +753,8 @@ def run(
         logger.info("  expand alpha      : %s", alpha_str)
     if opts.checkpoint_dir is not None:
         logger.info("  checkpoint dir    : %s", _ckpt)
+    if opts.save_artifacts:
+        logger.info("  save artifacts    : True (since step %d)", opts.save_artifacts_since)
     logger.info("")
 
     # Step 0: initialise ρ(τ₀) via Taylor expansion.
@@ -680,6 +772,10 @@ def run(
 
     logger.info("  β = %.6g,  log Z = %+.8g", betas[-1], log_z[-1])
 
+    artifact = Artifact(rho=rho, beta=betas[-1], step=0)
+    _save_progress(artifact, _ckpt)
+    _archive_artifact(artifact, opts, _artifacts)
+
     w = len(str(opts.n_steps))
     for step in range(opts.n_steps):
         logger.info("step %*d / %d: squaring ρ(β=%.6g) → ρ(β=%.6g)",
@@ -695,23 +791,26 @@ def run(
         logger.info("  β = %.6g,  log Z = %+.8g,  dw = %.4e",
                     betas[-1], lz, dw)
 
-        _save_checkpoint(rho, betas, log_z, discarded_weights, step + 1, _ckpt)
+        k = step + 1
+        mid_summary = _build_summary(
+            betas, log_z, discarded_weights, L, step=k, converged=False,
+        )
+        _save_thermal(mid_summary, _ckpt)
+
+        artifact = Artifact(rho=rho, beta=betas[-1], step=k)
+        _save_progress(artifact, _ckpt)
+        _archive_artifact(artifact, opts, _artifacts)
 
     logger.info("")
 
-    free_energies, energies, specific_heats, entropies = _compute_observables(
-        betas, log_z, L
+    summary = _build_summary(
+        betas, log_z, discarded_weights, L, step=opts.n_steps, converged=True,
     )
+    _save_thermal(summary, _ckpt)
 
-    return Summary(
-        rho=rho,
-        betas=betas,
-        log_z=log_z,
-        free_energies=free_energies,
-        energies=energies,
-        specific_heats=specific_heats,
-        entropies=entropies,
-        discarded_weights=discarded_weights,
-        converged=True,
-        n_steps=opts.n_steps,
-    )
+    # Success path only: drop mid-run progress so a finished job does not
+    # leave a stale progress.ckpt behind. A crash earlier leaves it on disk.
+    (_ckpt / 'progress.ckpt').unlink(missing_ok=True)
+    (_ckpt / 'progress_lock.ckpt').unlink(missing_ok=True)
+
+    return summary, artifact
