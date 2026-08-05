@@ -18,6 +18,6 @@
 
 """eXponential Tensor Renormalization Group (XTRG) algorithm package."""
 
-from .xtrg import Options, Summary, run
+from .xtrg import Artifact, Options, Summary, run
 
-__all__ = ['Options', 'Summary', 'run']
+__all__ = ['Artifact', 'Options', 'Summary', 'run']
