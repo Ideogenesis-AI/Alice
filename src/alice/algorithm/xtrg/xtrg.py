@@ -164,8 +164,15 @@ class Options(AlgorithmOptions):
         exact factor-MPO tensors, at the cost of a full 2-site-scale join).
         The paper recommends `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     checkpoint_dir:
-        Directory for per-step checkpoints of the density matrix. `None`
-        disables checkpointing.
+        Directory to write checkpoint files into. An `xtrg.ckpt` file
+        (PyTorch format, loadable via `xtrg.Summary.load`) is written after
+        every cooling step using an atomic write: the data is first serialised
+        to `xtrg_lock.ckpt` in the same directory, then renamed to
+        `xtrg.ckpt` on success, so a failed write cannot corrupt the
+        previous checkpoint. `None` (default) resolves to `Path.cwd()` at
+        the time `run()` is called, mirroring `.logging`. Pass an explicit
+        path string to write elsewhere. Stored as `str` for TOML
+        compatibility.
     """
 
     scheme: str = '2s'
@@ -322,9 +329,11 @@ def _save_checkpoint(
 ) -> None:
     """Write an atomic checkpoint of the current XTRG state.
 
-    Serialises the current density matrix and thermodynamic history to
-    `xtrg_lock.ckpt` in `ckpt_dir`, then renames it to `xtrg.ckpt`. The
-    rename is atomic on POSIX systems.
+    Builds a mid-run `Summary` (observables recomputed from the partial
+    β / log Z grid) and serialises it to `xtrg_lock.ckpt` in `ckpt_dir`,
+    then renames it to `xtrg.ckpt`. The rename is atomic on POSIX systems,
+    so a crash during serialisation cannot corrupt the previously written
+    checkpoint.
 
     Parameters
     ----------
@@ -343,18 +352,29 @@ def _save_checkpoint(
     """
     import torch
 
-    rho_data = rho.serialize()
-    payload = {
-        'rho': rho_data,
-        'rho_log_scale': rho.log_scale,
-        'betas': list(betas),
-        'log_z': list(log_z),
-        'discarded_weights': list(discarded_weights),
-        'step': step,
-    }
+    free_energies, energies, specific_heats, entropies = _compute_observables(
+        betas, log_z, rho.L,
+    )
+    summary = Summary(
+        rho=rho,
+        betas=list(betas),
+        log_z=list(log_z),
+        free_energies=free_energies,
+        energies=energies,
+        specific_heats=specific_heats,
+        entropies=entropies,
+        discarded_weights=list(discarded_weights),
+        converged=False,
+        n_steps=step,
+    )
+
     lock_path = ckpt_dir / 'xtrg_lock.ckpt'
     ckpt_path = ckpt_dir / 'xtrg.ckpt'
-    torch.save(payload, lock_path)
+
+    torch.save(summary.serialize(), lock_path)
+    # Atomic rename: on POSIX this is guaranteed to be atomic; on Windows it
+    # is best-effort (Path.replace uses MoveFileExW which is not atomic but
+    # still avoids leaving a half-written xtrg.ckpt on disk).
     lock_path.replace(ckpt_path)
 
 
@@ -618,11 +638,10 @@ def run(
         )
 
     L = H.L
-    _ckpt: Optional[Path] = (
-        Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else None
-    )
-    if _ckpt is not None:
-        _ckpt.mkdir(parents=True, exist_ok=True)
+    # Resolve the checkpoint directory; default to Path.cwd() when unset,
+    # mirroring the convention used by configure_logging / DMRG.
+    _ckpt: Path = Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else Path.cwd()
+    _ckpt.mkdir(parents=True, exist_ok=True)
 
     max_bond_str = str(opts.max_bond) if opts.max_bond is not None else 'unlimited'
     logger.info("─" * 60)
@@ -642,6 +661,8 @@ def run(
         alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'no compression'
         logger.info("  expand k          : %d", opts.expand_k)
         logger.info("  expand alpha      : %s", alpha_str)
+    if opts.checkpoint_dir is not None:
+        logger.info("  checkpoint dir    : %s", _ckpt)
     logger.info("")
 
     # Step 0: initialise ρ(τ₀) via Taylor expansion.
@@ -674,8 +695,7 @@ def run(
         logger.info("  β = %.6g,  log Z = %+.8g,  dw = %.4e",
                     betas[-1], lz, dw)
 
-        if _ckpt is not None:
-            _save_checkpoint(rho, betas, log_z, discarded_weights, step + 1, _ckpt)
+        _save_checkpoint(rho, betas, log_z, discarded_weights, step + 1, _ckpt)
 
     logger.info("")
 
