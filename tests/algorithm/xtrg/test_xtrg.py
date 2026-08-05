@@ -109,6 +109,73 @@ class TestSummary:
 
 
 # ---------------------------------------------------------------------------
+# Checkpoint
+# ---------------------------------------------------------------------------
+
+class TestCheckpoint:
+    """Tests for the per-step checkpoint writing logic."""
+
+    def test_checkpoint_file_created(self, spinless_fermion_L4, tmp_path):
+        """xtrg.ckpt is written to checkpoint_dir after run()."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
+            checkpoint_dir=str(tmp_path),
+        )
+        run(mpo, spc, opts)
+        assert (tmp_path / 'xtrg.ckpt').exists()
+
+    def test_lock_file_not_present(self, spinless_fermion_L4, tmp_path):
+        """xtrg_lock.ckpt is renamed away on success and must not exist afterwards."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
+            checkpoint_dir=str(tmp_path),
+        )
+        run(mpo, spc, opts)
+        assert not (tmp_path / 'xtrg_lock.ckpt').exists()
+
+    def test_checkpoint_loadable(self, spinless_fermion_L4, tmp_path):
+        """Checkpoint loads via Summary.load and matches the run summary."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
+            checkpoint_dir=str(tmp_path),
+        )
+        summary = run(mpo, spc, opts)
+        loaded = Summary.load(tmp_path / 'xtrg.ckpt')
+        assert loaded.n_steps == summary.n_steps
+        assert math.isclose(loaded.betas[-1], summary.betas[-1])
+        assert math.isclose(loaded.log_z[-1], summary.log_z[-1], rel_tol=1e-10)
+
+    def test_checkpoint_written_to_cwd_by_default(self, spinless_fermion_L4, tmp_path):
+        """With checkpoint_dir=None, xtrg.ckpt is written to Path.cwd()."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1)
+        run(mpo, spc, opts)
+        assert (tmp_path / 'xtrg.ckpt').exists()
+
+    def test_checkpoint_written_each_step(self, spinless_fermion_L4, tmp_path):
+        """Checkpoint reflects the step count of the last cooling step performed."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=3, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        summary = run(mpo, spc, opts)
+        loaded = Summary.load(tmp_path / 'xtrg.ckpt')
+        assert loaded.n_steps == summary.n_steps
+
+    def test_checkpoint_dir_toml_round_trip(self, tmp_path):
+        """checkpoint_dir survives a to_toml / load_toml round trip."""
+        original = Options(checkpoint_dir='/tmp/ckpt')
+        path = tmp_path / 'opts.toml'
+        original.to_toml(path)
+        loaded = Options.load_toml(path)
+        assert loaded.checkpoint_dir == '/tmp/ckpt'
+
+
+# ---------------------------------------------------------------------------
 # Regression: log-scale overflow
 # ---------------------------------------------------------------------------
 
