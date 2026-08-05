@@ -160,8 +160,8 @@ def xtrg_spinful(
         Sliding-window size for in-memory environment blocks (default `2`).
         Has no effect when `env_cache_dir` is `None`.
     checkpoint_dir:
-        Directory for per-step checkpoints of the density matrix. `None`
-        (default) disables checkpointing.
+        Directory for per-step `xtrg.ckpt` files (full `Summary` format).
+        `None` (default) writes to the current working directory.
     verbose:
         Print configuration and the β-by-β thermodynamics table when `True`.
 
@@ -393,7 +393,7 @@ def _parse_args():
     )
     p.add_argument(
         '--checkpoint-dir', default=None, metavar='PATH',
-        help='directory for per-step density-matrix checkpoints (default: disabled)',
+        help='directory for per-step Summary checkpoints (default: cwd)',
     )
     p.add_argument(
         '--quiet', action='store_true',
