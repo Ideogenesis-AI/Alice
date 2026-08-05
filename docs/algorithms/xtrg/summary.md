@@ -20,6 +20,10 @@ from alice.algorithm.xtrg import Summary
 summary = Summary.load("xtrg_result.ckpt")
 ```
 
+Mid-run checkpoints written by `run()` (`xtrg.ckpt` under `Options.checkpoint_dir`,
+or the current working directory when that option is unset) use the same
+`Summary` format and are loadable the same way.
+
 ## See Also
 
 - [Options](options.md) — configuration for the run that produced this summary.
