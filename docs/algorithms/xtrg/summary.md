@@ -1,7 +1,8 @@
 # Summary
 
-XTRG output summary containing the final density matrix and thermodynamic
-observables at each cooling step.
+XTRG thermodynamic summary: β grid, log Z, and derived observables at each
+cooling step. Density matrices are returned separately as
+[`Artifact`](artifact.md).
 
 ::: alice.algorithm.xtrg.Summary
     options:
@@ -13,19 +14,19 @@ observables at each cooling step.
 
 ```python
 # Save after a run.
-summary.save("xtrg_result.ckpt")
+summary.save("thermal_result.ckpt")
 
 # Load later.
 from alice.algorithm.xtrg import Summary
-summary = Summary.load("xtrg_result.ckpt")
+summary = Summary.load("thermal_result.ckpt")
 ```
 
-Mid-run checkpoints written by `run()` (`xtrg.ckpt` under `Options.checkpoint_dir`,
-or the current working directory when that option is unset) use the same
-`Summary` format and are loadable the same way.
+During `run()`, the latest summary is written to `thermal.ckpt` under
+`Options.checkpoint_dir` (or the current working directory when that option
+is unset). Serialization version is `2` (no density matrix in the payload).
 
 ## See Also
 
+- [Artifact](artifact.md) — density-matrix snapshot at one cooling step.
 - [Options](options.md) — configuration for the run that produced this summary.
-- [run](run.md) — returns a `Summary`.
-- [NormalMPO](../../api/network/normal-mpo.md) — type of `summary.rho`.
+- [run](run.md) — returns `(Summary, Artifact)`.
