@@ -34,5 +34,6 @@ n_sweeps     = 4
 
 ## See Also
 
-- [Summary](summary.md) — output dataclass.
+- [Summary](summary.md) — thermodynamic history.
+- [Artifact](artifact.md) — density-matrix snapshots.
 - [run](run.md) — pass `Options` here.

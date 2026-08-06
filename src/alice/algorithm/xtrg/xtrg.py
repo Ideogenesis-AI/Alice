@@ -117,7 +117,6 @@ class Options(AlgorithmOptions):
     ----------
     scheme:
         Update scheme per squaring step. Canonical values and aliases:
-
         - `'1s'` / `'1-site'` / `'one-site'`: 1-site direct contraction.
         - `'2s'` / `'2-site'` / `'two-site'`: 2-site SVD with truncation.
         - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: 1-site-plus / CBE.
