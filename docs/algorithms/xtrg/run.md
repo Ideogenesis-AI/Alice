@@ -9,4 +9,5 @@ Top-level XTRG entry point.
 ## See Also
 
 - [Options](options.md) — configure the run.
-- [Summary](summary.md) — inspect the output.
+- [Summary](summary.md) — thermodynamic history.
+- [Artifact](artifact.md) — final density matrix.
