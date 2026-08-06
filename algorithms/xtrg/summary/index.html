@@ -18,7 +18,7 @@
         <link rel="prev" href="../options/">
       
       
-        <link rel="next" href="../run/">
+        <link rel="next" href="../artifact/">
       
       
         
@@ -987,6 +987,8 @@
       
         
       
+        
+      
     
     
     
@@ -1192,6 +1194,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../artifact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Artifact
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -3145,8 +3175,9 @@
 
 
 <h1 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h1>
-<p>XTRG output summary containing the final density matrix and thermodynamic
-observables at each cooling step.</p>
+<p>XTRG thermodynamic summary: β grid, log Z, and derived observables at each
+cooling step. Density matrices are returned separately as
+<a href="../artifact/"><code>Artifact</code></a>.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -3163,17 +3194,16 @@ observables at each cooling step.</p>
 
 <a href="#alice.algorithm.xtrg.Summary" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">Summary</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">rho</span><span class="p">:</span> <span class="n">NormalMPO</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">betas</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">log_z</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">free_energies</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">energies</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">specific_heats</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">entropies</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">discarded_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">converged</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">n_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">betas</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">log_z</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">free_energies</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">energies</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">specific_heats</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">entropies</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">discarded_weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(),</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">converged</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">n_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3182,7 +3212,9 @@ observables at each cooling step.</p>
 
 
 
-        <p>XTRG output summary.</p>
+        <p>XTRG thermodynamic summary (no density matrix).</p>
+<p>Density matrices are returned separately as <code>Artifact</code> (and optionally
+archived under <code>artifacts/</code> when <code>Options.save_artifacts</code> is enabled).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3196,22 +3228,6 @@ observables at each cooling step.</p>
         </tr>
       </thead>
       <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>rho</code>
-            </td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="            NormalMPO (alice.network.thermal.NormalMPO)" href="../../../api/network/normal-mpo/#alice.network.NormalMPO">NormalMPO</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Final density matrix ρ(β_max) as a <code>NormalMPO</code>.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
           <tr class="doc-section-item">
             <td>
                 <code>betas</code>
@@ -3322,7 +3338,8 @@ differences.</p>
             <td>
               <div class="doc-md-description">
                 <p>Per-step discarded weight from the variational compression (2-site
-only; <code>0.0</code> entries for 1-site).</p>
+only; <code>0.0</code> entries for 1-site). Length equals the number of
+squaring steps (<code>n_steps</code>), not the length of <code>betas</code>.</p>
               </div>
             </td>
             <td>
@@ -3338,7 +3355,8 @@ only; <code>0.0</code> entries for 1-site).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Always <code>True</code> for XTRG (fixed number of cooling steps).</p>
+                <p>Always <code>True</code> for a finished XTRG run (fixed number of cooling
+steps). Mid-run <code>thermal.ckpt</code> files use <code>False</code>.</p>
               </div>
             </td>
             <td>
@@ -3354,7 +3372,7 @@ only; <code>0.0</code> entries for 1-site).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of cooling steps actually performed.</p>
+                <p>Number of cooling (squaring) steps reflected in this summary.</p>
               </div>
             </td>
             <td>
@@ -3399,8 +3417,6 @@ only; <code>0.0</code> entries for 1-site).</p>
     <div class="doc doc-contents ">
 
         <p>Serialize the summary to a plain dict compatible with <code>torch.save</code>.</p>
-<p>The density matrix is serialized via <code>Network.serialize</code> (tensors)
-plus the separately stored <code>log_scale</code> magnitude.</p>
 
 
     <p><span class="doc-section-title">Returns:</span></p>
@@ -3418,7 +3434,7 @@ plus the separately stored <code>log_scale</code> magnitude.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Serialized summary.</p>
+                <p>Serialized summary (version 2; no density matrix).</p>
               </div>
             </td>
           </tr>
@@ -3486,7 +3502,8 @@ plus the separately stored <code>log_scale</code> magnitude.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Device to place all tensor blocks on. Defaults to <code>'cpu'</code>.</p>
+                <p>Unused for version-2 summaries (no tensors). Accepted for API
+compatibility with <code>AlgorithmSummary.load</code>.</p>
               </div>
             </td>
             <td>
@@ -3517,7 +3534,7 @@ plus the separately stored <code>log_scale</code> magnitude.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Reconstructed summary with the density matrix on <code>device</code>.</p>
+                <p>Reconstructed thermodynamic summary.</p>
               </div>
             </td>
           </tr>
@@ -3540,7 +3557,7 @@ plus the separately stored <code>log_scale</code> magnitude.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>data["version"]</code> is not <code>1</code>.</p>
+                <p>If <code>data["version"]</code> is not <code>2</code>.</p>
               </div>
             </td>
           </tr>
@@ -3561,17 +3578,20 @@ plus the separately stored <code>log_scale</code> magnitude.</p>
 </div><h2 id="serialization">Serialization<a class="headerlink" href="#serialization" title="Permanent link">&para;</a></h2>
 <p><code>Summary</code> supports save/load via <code>torch.save</code> / <code>torch.load</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Save after a run.</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">summary</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;xtrg_result.ckpt&quot;</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">summary</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;thermal_result.ckpt&quot;</span><span class="p">)</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Load later.</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice.algorithm.xtrg</span><span class="w"> </span><span class="kn">import</span> <span class="n">Summary</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">Summary</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;xtrg_result.ckpt&quot;</span><span class="p">)</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">Summary</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;thermal_result.ckpt&quot;</span><span class="p">)</span>
 </span></code></pre></div>
+<p>During <code>run()</code>, the latest summary is written to <code>thermal.ckpt</code> under
+<code>Options.checkpoint_dir</code> (or the current working directory when that option
+is unset). Serialization version is <code>2</code> (no density matrix in the payload).</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
+<li><a href="../artifact/">Artifact</a> — density-matrix snapshot at one cooling step.</li>
 <li><a href="../options/">Options</a> — configuration for the run that produced this summary.</li>
-<li><a href="../run/">run</a> — returns a <code>Summary</code>.</li>
-<li><a href="../../../api/network/normal-mpo/">NormalMPO</a> — type of <code>summary.rho</code>.</li>
+<li><a href="../run/">run</a> — returns <code>(Summary, Artifact)</code>.</li>
 </ul>
 
 
@@ -3595,7 +3615,7 @@ plus the separately stored <code>log_scale</code> magnitude.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="July 31, 2026 16:05:21 UTC"><span class="timeago" datetime="2026-07-31T16:05:21+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 31, 2026 16:05:21 UTC">2026-07-31</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="August 6, 2026 03:20:04 UTC"><span class="timeago" datetime="2026-08-06T03:20:04+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 6, 2026 03:20:04 UTC">2026-08-06</span>
   </span>
 
     

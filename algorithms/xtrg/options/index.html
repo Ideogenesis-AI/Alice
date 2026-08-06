@@ -987,6 +987,8 @@
       
         
       
+        
+      
     
     
     
@@ -1167,6 +1169,34 @@
     
   
     Summary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../artifact/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Artifact
   
 
     
@@ -3141,7 +3171,9 @@
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">expand_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">expand_alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">save_artifacts</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">save_artifacts_since</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3174,16 +3206,7 @@ configuration. Use <code>Options.from_toml</code> to load from a TOML section, o
             <td>
                   <code><span title="str">str</span></code>
             </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Update scheme per squaring step. Canonical values and aliases:</p>
-<ul>
-<li><code>'1s'</code> / <code>'1-site'</code> / <code>'one-site'</code>: 1-site direct contraction.</li>
-<li><code>'2s'</code> / <code>'2-site'</code> / <code>'two-site'</code>: 2-site SVD with truncation.</li>
-<li><code>'1sp'</code> / <code>'1-site-plus'</code> / <code>'one-site-plus'</code>: 1-site-plus / CBE.</li>
-</ul>
-              </div>
-            </td>
+            <td><ul><div class="doc-md-description"><p>Update scheme per squaring step. Canonical values and aliases:<li><code>'1s'</code> / <code>'1-site'</code> / <code>'one-site'</code>: 1-site direct contraction.</li><li><code>'2s'</code> / <code>'2-site'</code> / <code>'two-site'</code>: 2-site SVD with truncation.</li><li><code>'1sp'</code> / <code>'1-site-plus'</code> / <code>'one-site-plus'</code>: 1-site-plus / CBE.</p></li></div></ul></td>
             <td>
                   <code>&#39;2s&#39;</code>
             </td>
@@ -3391,12 +3414,56 @@ The paper recommends <code>expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))</
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Directory for per-step checkpoints of the density matrix. <code>None</code>
-disables checkpointing.</p>
+                <p>Directory for checkpoint and artifact files. After every cooling
+step a <code>thermal.ckpt</code> file (PyTorch format, loadable via
+<code>xtrg.Summary.load</code>) is written using an atomic write
+(<code>thermal_lock.ckpt</code> → rename). Mid-run progress is stored as
+<code>progress.ckpt</code> (an <code>Artifact</code>) and removed when <code>run()</code> finishes
+successfully. When <code>save_artifacts</code> is <code>True</code>, per-step density
+matrices are also archived under <code>artifacts/step_XX.ckpt</code>.
+<code>None</code> (default) resolves to <code>Path.cwd()</code> at the time <code>run()</code> is
+called, mirroring <code>.logging</code>. Pass an explicit path string to write
+elsewhere. Stored as <code>str</code> for TOML compatibility.</p>
               </div>
             </td>
             <td>
                   <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>save_artifacts</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>True</code> (default), write per-step <code>Artifact</code> files under
+<code>artifacts/</code> in the checkpoint directory for every step with index
+<code>&gt;= save_artifacts_since</code>. Step <code>0</code> is after Taylor init (<code>ρ(τ₀)</code>);
+step <code>k</code> (<code>1 … n_steps</code>) is after the <code>k</code>-th squaring.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>save_artifacts_since</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>First step index (inclusive) at which <code>artifacts/step_XX.ckpt</code> files
+are written when <code>save_artifacts</code> is <code>True</code>. Must be <code>&gt;= 0</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
             </td>
           </tr>
       </tbody>
@@ -3450,7 +3517,8 @@ disables checkpointing.</p>
 </span></code></pre></div>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../summary/">Summary</a> — output dataclass.</li>
+<li><a href="../summary/">Summary</a> — thermodynamic history.</li>
+<li><a href="../artifact/">Artifact</a> — density-matrix snapshots.</li>
 <li><a href="../run/">run</a> — pass <code>Options</code> here.</li>
 </ul>
 
@@ -3475,7 +3543,7 @@ disables checkpointing.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="July 31, 2026 16:05:21 UTC"><span class="timeago" datetime="2026-07-31T16:05:21+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="July 31, 2026 16:05:21 UTC">2026-07-31</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="August 6, 2026 03:19:35 UTC"><span class="timeago" datetime="2026-08-06T03:19:35+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="August 6, 2026 03:19:35 UTC">2026-08-06</span>
   </span>
 
     
