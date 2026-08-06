@@ -9,8 +9,9 @@ sweep-based variational MPO-MPO compression kernel.
 
 | Symbol | Description |
 |--------|-------------|
-| [Options](options.md) | Run options: scheme, τ₀, cooling steps, bond dimension, caching |
-| [Summary](summary.md) | Output: density matrix, log Z, free energy, internal energy, specific heat, entropy |
+| [Options](options.md) | Run options: scheme, τ₀, cooling steps, bond dimension, caching, artifacts |
+| [Summary](summary.md) | Thermodynamic history: log Z, free energy, internal energy, specific heat, entropy |
+| [Artifact](artifact.md) | Density-matrix snapshot `ρ(β)` at one cooling step |
 | [run](run.md) | Top-level entry point |
 
 ## Usage Pattern
@@ -23,7 +24,7 @@ interactions, spc, geo = build_interaction(cfg)
 H = build_hamiltonian(interactions, geo.L, spc)
 
 opts = xtrg.Options(scheme='2s', n_steps=20, max_bond=64)
-summary = xtrg.run(H, spc, opts)
+summary, artifact = xtrg.run(H, spc, opts)
 
 for beta, f in zip(summary.betas, summary.free_energies):
     print(f"β = {beta:.4f},  f = {f:.6f}")
