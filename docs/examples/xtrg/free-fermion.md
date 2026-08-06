@@ -51,7 +51,7 @@ opts = xtrg.Options(
     n_sweeps     = 4,
 )
 
-summary = xtrg.run(hamiltonian, spc, opts)
+summary, artifact = xtrg.run(hamiltonian, spc, opts)
 ```
 
 ## 4. Compare with the exact solution
