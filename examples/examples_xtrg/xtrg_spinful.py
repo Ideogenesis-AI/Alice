@@ -52,7 +52,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import math
-from typing import Optional
+from typing import Tuple, Optional
 
 import alice
 from alice.network import build_hamiltonian, build_interaction
@@ -97,8 +97,10 @@ def xtrg_spinful(
     env_async_io: bool = True,
     env_window: int = 2,
     checkpoint_dir: Optional[str] = None,
+    save_artifacts: bool = True,
+    save_artifacts_since: int = 0,
     verbose: bool = True,
-) -> xtrg.Summary:
+) -> Tuple[xtrg.Summary, xtrg.Artifact]:
     """Run XTRG for the 1D Hubbard chain.
 
     Parameters
@@ -160,16 +162,24 @@ def xtrg_spinful(
         Sliding-window size for in-memory environment blocks (default `2`).
         Has no effect when `env_cache_dir` is `None`.
     checkpoint_dir:
-        Directory for per-step checkpoints of the density matrix. `None`
-        (default) disables checkpointing.
+        Directory for `thermal.ckpt`, mid-run `progress.ckpt`, and optional
+        `artifacts/` archives. `None` (default) writes to the current
+        working directory.
+    save_artifacts:
+        If `True` (default), archive per-step density matrices under
+        `artifacts/step_XX.ckpt`.
+    save_artifacts_since:
+        First step index (inclusive) to archive when `save_artifacts` is
+        `True` (default: `0`, after Taylor init).
     verbose:
         Print configuration and the β-by-β thermodynamics table when `True`.
 
     Returns
     -------
     Summary
-        XTRG output: final density matrix, log Z, free energy, energy,
-        entropy, and discarded weight at each cooling step.
+        Thermodynamic history at each cooling step.
+    Artifact
+        Final density matrix `ρ(β_max)`.
     """
     _VALID_SYMMETRIES = ('U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2')
     if symmetry not in _VALID_SYMMETRIES:
@@ -215,6 +225,8 @@ def xtrg_spinful(
             print(f"Env cache dir  : {env_cache_dir}  (window={env_window}, async={env_async_io})")
         if checkpoint_dir is not None:
             print(f"Checkpoint dir : {checkpoint_dir}")
+        if save_artifacts:
+            print(f"Artifacts      : since step {save_artifacts_since}")
         print()
 
     # -----------------------------------------------------------------------
@@ -234,8 +246,10 @@ def xtrg_spinful(
         env_async_io=env_async_io,
         env_window=env_window,
         checkpoint_dir=checkpoint_dir,
+        save_artifacts=save_artifacts,
+        save_artifacts_since=save_artifacts_since,
     )
-    summary = xtrg.run(H, spc, opts)
+    summary, artifact = xtrg.run(H, spc, opts)
 
     # -----------------------------------------------------------------------
     # Print thermodynamics table
@@ -288,7 +302,7 @@ def xtrg_spinful(
         print()
         print(f"Final β = {summary.betas[-1]:.4g}  (T = {1 / summary.betas[-1]:.4g})")
 
-    return summary
+    return summary, artifact
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +407,15 @@ def _parse_args():
     )
     p.add_argument(
         '--checkpoint-dir', default=None, metavar='PATH',
-        help='directory for per-step density-matrix checkpoints (default: disabled)',
+        help='directory for thermal.ckpt / progress.ckpt / artifacts (default: cwd)',
+    )
+    p.add_argument(
+        '--no-save-artifacts', action='store_true',
+        help='disable per-step Artifact archives under artifacts/',
+    )
+    p.add_argument(
+        '--save-artifacts-since', type=int, default=0, metavar='K',
+        help='first step index to archive when saving artifacts (default: 0)',
     )
     p.add_argument(
         '--quiet', action='store_true',
@@ -425,5 +447,7 @@ if __name__ == '__main__':
         env_async_io=not args.no_env_async_io,
         env_window=args.env_window,
         checkpoint_dir=args.checkpoint_dir,
+        save_artifacts=not args.no_save_artifacts,
+        save_artifacts_since=args.save_artifacts_since,
         verbose=not args.quiet,
     )

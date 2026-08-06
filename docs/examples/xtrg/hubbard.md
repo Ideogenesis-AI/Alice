@@ -58,7 +58,7 @@ opts = xtrg.Options(
     n_sweeps     = 4,
 )
 
-summary = xtrg.run(hamiltonian, spc, opts)
+summary, artifact = xtrg.run(hamiltonian, spc, opts)
 ```
 
 ## 4. Compare with the exact `U=0` solution
@@ -86,7 +86,7 @@ config["model"]["U"] = 4.0
 interactions, spc, geo = build_interaction(config)
 hamiltonian = build_hamiltonian(interactions, geo.L, spc)
 
-summary_u4 = xtrg.run(hamiltonian, spc, opts)
+summary_u4, artifact_u4 = xtrg.run(hamiltonian, spc, opts)
 # No closed-form log Z reference exists for U != 0; compare thermodynamics
 # (free energy, internal energy, entropy) against the U=0 point for context.
 ```

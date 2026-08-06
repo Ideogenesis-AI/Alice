@@ -25,7 +25,7 @@ import math
 
 import pytest
 
-from alice.algorithm.xtrg import Options, Summary, run
+from alice.algorithm.xtrg import Artifact, Options, Summary, run
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +42,8 @@ class TestOptions:
         assert opts.tau_0 == 2 ** -12
         assert opts.n_steps == 20
         assert opts.n_sweeps == 4
+        assert opts.save_artifacts is True
+        assert opts.save_artifacts_since == 0
 
     def test_scheme_aliases(self):
         """All scheme aliases resolve to canonical names."""
@@ -62,6 +64,11 @@ class TestOptions:
         """Unknown scheme raises ValueError."""
         with pytest.raises(ValueError, match='scheme'):
             Options(scheme='invalid')
+
+    def test_save_artifacts_since_negative_raises(self):
+        """Negative save_artifacts_since raises ValueError."""
+        with pytest.raises(ValueError, match='save_artifacts_since'):
+            Options(save_artifacts_since=-1)
 
     def test_toml_roundtrip(self, tmp_path):
         """Options survives a TOML serialize → deserialize round-trip."""
@@ -84,6 +91,15 @@ class TestOptions:
         assert opts2.expand_k == 6
         assert opts2.expand_alpha == 3
 
+    def test_toml_roundtrip_artifact_fields(self, tmp_path):
+        """save_artifacts / save_artifacts_since survive a TOML round-trip."""
+        opts = Options(save_artifacts=False, save_artifacts_since=3)
+        path = tmp_path / 'opts.toml'
+        opts.to_toml(path, section='xtrg')
+        opts2 = Options.load_toml(path, section='xtrg')
+        assert opts2.save_artifacts is False
+        assert opts2.save_artifacts_since == 3
+
 
 # ---------------------------------------------------------------------------
 # Summary
@@ -95,10 +111,13 @@ class TestSummary:
     def test_roundtrip(self, spinless_fermion_L4, tmp_path):
         """Summary survives a save → load round-trip."""
         mpo, spc, _ = spinless_fermion_L4
-        opts = Options(scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2)
-        summary = run(mpo, spc, opts)
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
+            save_artifacts=False,
+        )
+        summary, _artifact = run(mpo, spc, opts)
 
-        path = tmp_path / 'xtrg.ckpt'
+        path = tmp_path / 'thermal.ckpt'
         summary.save(path)
         loaded = Summary.load(path)
 
@@ -106,6 +125,173 @@ class TestSummary:
         assert math.isclose(loaded.betas[-1], summary.betas[-1])
         assert math.isclose(loaded.log_z[-1], summary.log_z[-1], rel_tol=1e-10)
         assert loaded.converged == summary.converged
+        assert 'rho' not in Summary.__dataclass_fields__
+
+    def test_rejects_version_1(self):
+        """Version-1 payloads (with rho) are rejected."""
+        with pytest.raises(ValueError, match='version'):
+            Summary.deserialize({'version': 1, 'betas': [], 'log_z': []})
+
+
+# ---------------------------------------------------------------------------
+# Artifact
+# ---------------------------------------------------------------------------
+
+class TestArtifact:
+    """Tests for Artifact serialize/deserialize and on-disk archives."""
+
+    def test_roundtrip(self, spinless_fermion_L4, tmp_path):
+        """Artifact survives a save → load round-trip."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+            save_artifacts=False,
+        )
+        _summary, artifact = run(mpo, spc, opts)
+
+        path = tmp_path / 'art.ckpt'
+        artifact.save(path)
+        loaded = Artifact.load(path)
+
+        assert loaded.step == artifact.step
+        assert math.isclose(loaded.beta, artifact.beta)
+        assert loaded.rho.L == artifact.rho.L
+
+    def test_progress_removed_after_success(self, spinless_fermion_L4, tmp_path):
+        """progress.ckpt is deleted after a successful run."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+            save_artifacts=False,
+        )
+        run(mpo, spc, opts)
+        assert not (tmp_path / 'progress.ckpt').exists()
+        assert not (tmp_path / 'progress_lock.ckpt').exists()
+
+    def test_artifacts_archived_by_default(self, spinless_fermion_L4, tmp_path):
+        """Default save_artifacts writes step_00 … step_n under artifacts/."""
+        mpo, spc, _ = spinless_fermion_L4
+        n_steps = 2
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=n_steps, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        summary, artifact = run(mpo, spc, opts)
+
+        for k in range(n_steps + 1):
+            path = tmp_path / 'artifacts' / f'step_{k:02d}.ckpt'
+            assert path.exists(), f'missing {path}'
+            loaded = Artifact.load(path)
+            assert loaded.step == k
+            assert math.isclose(loaded.beta, summary.betas[k])
+
+        assert artifact.step == n_steps
+        assert math.isclose(artifact.beta, summary.betas[-1])
+
+    def test_save_artifacts_since(self, spinless_fermion_L4, tmp_path):
+        """Only steps >= save_artifacts_since are archived."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=3, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+            save_artifacts=True,
+            save_artifacts_since=2,
+        )
+        run(mpo, spc, opts)
+
+        arts = tmp_path / 'artifacts'
+        assert not (arts / 'step_00.ckpt').exists()
+        assert not (arts / 'step_01.ckpt').exists()
+        assert (arts / 'step_02.ckpt').exists()
+        assert (arts / 'step_03.ckpt').exists()
+
+    def test_save_artifacts_false_skips_directory(self, spinless_fermion_L4, tmp_path):
+        """save_artifacts=False does not create an artifacts/ directory."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+            save_artifacts=False,
+        )
+        summary, artifact = run(mpo, spc, opts)
+        assert not (tmp_path / 'artifacts').exists()
+        assert artifact.step == summary.n_steps
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint
+# ---------------------------------------------------------------------------
+
+class TestCheckpoint:
+    """Tests for the per-step thermal.ckpt writing logic."""
+
+    def test_checkpoint_file_created(self, spinless_fermion_L4, tmp_path):
+        """thermal.ckpt is written to checkpoint_dir after run()."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
+            checkpoint_dir=str(tmp_path),
+            save_artifacts=False,
+        )
+        run(mpo, spc, opts)
+        assert (tmp_path / 'thermal.ckpt').exists()
+
+    def test_lock_file_not_present(self, spinless_fermion_L4, tmp_path):
+        """thermal_lock.ckpt is renamed away on success and must not exist afterwards."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
+            checkpoint_dir=str(tmp_path),
+            save_artifacts=False,
+        )
+        run(mpo, spc, opts)
+        assert not (tmp_path / 'thermal_lock.ckpt').exists()
+
+    def test_checkpoint_loadable(self, spinless_fermion_L4, tmp_path):
+        """Checkpoint loads via Summary.load and matches the run summary."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
+            checkpoint_dir=str(tmp_path),
+            save_artifacts=False,
+        )
+        summary, _artifact = run(mpo, spc, opts)
+        loaded = Summary.load(tmp_path / 'thermal.ckpt')
+        assert loaded.n_steps == summary.n_steps
+        assert math.isclose(loaded.betas[-1], summary.betas[-1])
+        assert math.isclose(loaded.log_z[-1], summary.log_z[-1], rel_tol=1e-10)
+        assert loaded.converged is True
+
+    def test_checkpoint_written_to_cwd_by_default(self, spinless_fermion_L4, tmp_path):
+        """With checkpoint_dir=None, thermal.ckpt is written to Path.cwd()."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+            save_artifacts=False,
+        )
+        run(mpo, spc, opts)
+        assert (tmp_path / 'thermal.ckpt').exists()
+
+    def test_checkpoint_written_each_step(self, spinless_fermion_L4, tmp_path):
+        """Checkpoint reflects the step count of the last cooling step performed."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=3, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+            save_artifacts=False,
+        )
+        summary, _artifact = run(mpo, spc, opts)
+        loaded = Summary.load(tmp_path / 'thermal.ckpt')
+        assert loaded.n_steps == summary.n_steps
+
+    def test_checkpoint_dir_toml_round_trip(self, tmp_path):
+        """checkpoint_dir survives a to_toml / load_toml round trip."""
+        original = Options(checkpoint_dir='/tmp/ckpt')
+        path = tmp_path / 'opts.toml'
+        original.to_toml(path)
+        loaded = Options.load_toml(path)
+        assert loaded.checkpoint_dir == '/tmp/ckpt'
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +320,7 @@ class TestXtrgLogScaleOverflow:
             taylor_order=10,
             n_sweeps=2,
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
 
         assert all(math.isfinite(lz) for lz in summary.log_z), (
             f"non-finite log_z encountered: {summary.log_z}"
@@ -180,7 +366,7 @@ class TestXtrg1s:
             max_bond=None,
             n_sweeps=4,
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
 
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
@@ -198,7 +384,7 @@ class TestXtrg1s:
         """
         mpo, spc, _ = spinless_fermion_L4
         opts = Options(scheme='1s', tau_0=2 ** -6, n_steps=4, n_sweeps=2)
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
         fs = summary.free_energies
         for i in range(len(fs) - 1):
             assert fs[i + 1] >= fs[i] - 1e-8, (
@@ -221,7 +407,7 @@ class TestXtrg2s:
             max_bond=None,
             n_sweeps=4,
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
 
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
@@ -237,7 +423,7 @@ class TestXtrg2s:
         opts = Options(
             scheme='2s', tau_0=2 ** -6, n_steps=4, max_bond=4, n_sweeps=2
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
         for dw in summary.discarded_weights:
             assert dw >= 0.0
 
@@ -258,7 +444,7 @@ class TestXtrg1sp:
             expand_k=4,
             expand_alpha=4,
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
 
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
@@ -275,7 +461,7 @@ class TestXtrg1sp:
             scheme='1sp', tau_0=2 ** -6, n_steps=4, max_bond=4, n_sweeps=2,
             expand_k=2, expand_alpha=2,
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
         for dw in summary.discarded_weights:
             assert dw >= 0.0
 
@@ -292,7 +478,7 @@ class TestXtrg1sp:
             expand_k=4,
             expand_alpha=None,
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
 
         beta, lz = summary.betas[-1], summary.log_z[-1]
         lz_exact = exact_log_z_fn(beta)
@@ -318,7 +504,7 @@ class TestXtrgSpinful:
             max_bond=None,
             n_sweeps=4,
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
 
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
@@ -342,7 +528,7 @@ class TestXtrgSpinful:
             expand_k=4,
             expand_alpha=4,
         )
-        summary = run(mpo, spc, opts)
+        summary, _artifact = run(mpo, spc, opts)
 
         beta, lz = summary.betas[-1], summary.log_z[-1]
         lz_exact = exact_log_z_fn(beta)

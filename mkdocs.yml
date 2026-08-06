@@ -72,6 +72,7 @@ nav:
       - Overview: algorithms/xtrg/index.md
       - Options: algorithms/xtrg/options.md
       - Summary: algorithms/xtrg/summary.md
+      - Artifact: algorithms/xtrg/artifact.md
       - Launch: algorithms/xtrg/run.md
   - API Reference:
     - Overview: api/index.md

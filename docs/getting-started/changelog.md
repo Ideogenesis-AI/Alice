@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.2.1] - 2026-08-07
+
+**XTRG: Density-Matrix Artifacts**
+
+Splits XTRG's density matrix out of `Summary` into a new `Artifact` dataclass, and
+reworks checkpointing around that split: `thermal.ckpt` tracks the thermodynamic history
+alone, `progress.ckpt` protects the latest density matrix against a mid-run crash, and an
+optional `artifacts/` archive keeps a caller-chosen range of per-step density matrices on
+disk. `xtrg.run()` now returns `(Summary, Artifact)`. Breaking change to `xtrg.run()`'s
+return signature and `Summary`'s fields.
+
+### `Artifact` and Checkpointing
+
+- New `Artifact(AlgorithmSummary)` dataclass holding `rho` (`NormalMPO`), `beta`, and
+  `step`; exported from `alice.algorithm.xtrg` alongside `Options`, `Summary`, and `run`.
+- `Summary` drops its `rho` and `rho_log_scale` fields entirely; `serialize`/
+  `deserialize` bump to version 2 and reject version-1 (rho-carrying) payloads with a
+  `ValueError`.
+- `thermal.ckpt` replaces `xtrg.ckpt` (rho-free `Summary`, written every step);
+  `progress.ckpt` is new (latest `Artifact`, deleted on successful completion).
+- New `Options.save_artifacts` (default `True`) and `Options.save_artifacts_since`
+  (default `0`) archive per-step `Artifact` files under `artifacts/step_XX.ckpt`.
+- `checkpoint_dir` now defaults to the current working directory instead of disabling
+  checkpointing when unset.
+
+### Examples
+
+- `xtrg_spinless` and `xtrg_spinful` return `(Summary, Artifact)` and accept
+  `save_artifacts` / `save_artifacts_since`; CLI gains `--no-save-artifacts` and
+  `--save-artifacts-since K`.
+
+### Documentation
+
+- New `docs/algorithms/xtrg/artifact.md`; other XTRG algorithm pages updated for the
+  `Summary`/`Artifact` split and the `(Summary, Artifact)` return tuple.
+
+### Statistics
+
+- **930 tests** across 29 test modules (up from 916 / 29 modules in v0.2.0).
+- **19 commits** since v0.2.0.
+- **14 files changed**, 545 insertions, 142 deletions.
+- **26 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** `xtrg.run()` returns `(Summary, Artifact)` instead of a single
+  `Summary`; `Summary` no longer has `rho`/`rho_log_scale` fields; `xtrg.ckpt` is
+  replaced by `thermal.ckpt` and `progress.ckpt`.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.2.0] - 2026-08-01
 
 **XTRG: Finite-Temperature Thermodynamics**
@@ -513,6 +566,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.0
 [0.1.6]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.6
 [0.1.5]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.5
