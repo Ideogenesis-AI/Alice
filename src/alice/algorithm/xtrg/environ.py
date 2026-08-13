@@ -252,9 +252,10 @@ class Environment:
     def _submit(self, fn, *args):
         if self._async_io:
             return self._get_executor().submit(fn, *args)
-        result = fn(*args)
+        # Synchronous fallback: run now and hand back an already-resolved
+        # Future so callers can treat both paths identically.
         fut: Future = Future()
-        fut.set_result(result)
+        fut.set_result(fn(*args))
         return fut
 
     def _evict(self, i: int) -> None:
@@ -330,7 +331,7 @@ def left_env_boundary(mpo_a: NormalMPO, mpo_b: NormalMPO, mpo_c: NormalMPO) -> T
     Tensor
         Rank-3 boundary tensor with axes `(C_left, A_left, B_left)`.
     """
-    # identity on C's left bond gives a 2-leg IN/OUT pair (both dim-1 for OBC).
+    # identity on C's left bond gives an IN/OUT index pair (both dim-1 for OBC).
     E = identity(mpo_c[0].indices[0])
     # Retag: axis 0 → C's left itag, axis 1 → B's left itag.
     E.retag([0, 1], [mpo_c[0].itags[0], mpo_b[0].itags[0]])
@@ -458,7 +459,7 @@ def step_right_env(E: Tensor, A_i: Tensor, B_i: Tensor, C_i: Tensor) -> Tensor:
 
 
 # ---------------------------------------------------------------------------
-# Bulk initialisation
+# Bulk initialization
 # ---------------------------------------------------------------------------
 
 def build_left_envs(

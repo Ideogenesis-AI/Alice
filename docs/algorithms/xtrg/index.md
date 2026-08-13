@@ -47,11 +47,11 @@ XTRG samples an exponentially spaced β grid starting from `τ₀`:
 ```
 
 Thermodynamic observables (u, c_V, S) are derived from log Z using log-β
-finite differences, which give uniform O((ln 2)²) discretisation error
+finite differences, which give uniform O((ln 2)²) discretization error
 across the grid.
 
 ## See Also
 
 - [xtrg.run](run.md) — full parameter reference.
 - [NormalMPO](../../api/network/normal-mpo.md) — the density matrix representation.
-- [thermal_mpo](../../api/network/thermal-mpo.md) — used for XTRG initialisation.
+- [thermal_mpo](../../api/network/thermal-mpo.md) — used for XTRG initialization.

@@ -20,12 +20,14 @@
 
 from __future__ import annotations
 
-import io
 import math
+import shutil as _shutil
+from unittest.mock import patch
 
 import pytest
 
 from alice.algorithm.xtrg import Artifact, Options, Summary, run
+from alice.algorithm.xtrg.xtrg import _compute_observables
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +101,33 @@ class TestOptions:
         opts2 = Options.load_toml(path, section='xtrg')
         assert opts2.save_artifacts is False
         assert opts2.save_artifacts_since == 3
+
+
+# ---------------------------------------------------------------------------
+# Observables
+# ---------------------------------------------------------------------------
+
+class TestComputeObservables:
+    """Tests for thermodynamic observable extraction from the log-Z grid."""
+
+    def test_specific_heat_has_thermodynamic_sign(self):
+        """c_V = −β ∂u/∂(ln β) is positive when energy falls under cooling.
+
+        A two-level system (E = 0, 1) has monotonically decreasing internal
+        energy as β grows, so the finite-difference c_V must be positive at
+        every interior point.
+        """
+        tau0 = 2 ** -4
+        n_steps = 8
+        betas = [tau0 * 2 ** n for n in range(n_steps + 1)]
+        log_z = [math.log1p(math.exp(-beta)) for beta in betas]
+        _f, energies, specific_heats, _S = _compute_observables(betas, log_z, L=1)
+        n_positive = 0
+        for n in range(len(betas) - 1):
+            if energies[n + 1] < energies[n]:
+                assert specific_heats[n] > 0
+                n_positive += 1
+        assert n_positive > 0
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +321,117 @@ class TestCheckpoint:
         original.to_toml(path)
         loaded = Options.load_toml(path)
         assert loaded.checkpoint_dir == '/tmp/ckpt'
+
+
+# ---------------------------------------------------------------------------
+# Environment caching
+# ---------------------------------------------------------------------------
+
+class TestEnvCache:
+    """Tests for the unique-subdirectory environment cache created by run()."""
+
+    def test_env_cache_dir_toml_round_trip(self, tmp_path):
+        """env_cache_dir survives a to_toml / load_toml round trip."""
+        original = Options(env_cache_dir='/tmp/envs')
+        path = tmp_path / 'opts.toml'
+        original.to_toml(path)
+        loaded = Options.load_toml(path)
+        assert loaded.env_cache_dir == '/tmp/envs'
+
+    def test_unique_subdir_removed_on_success(self, spinless_fermion_L4, tmp_path):
+        """run() removes the unique cache subdirectory on successful completion."""
+        mpo, spc, _ = spinless_fermion_L4
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        run(mpo, spc, Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+            env_cache_dir=str(cache_dir),
+            checkpoint_dir=str(tmp_path / 'ckpt'),
+            save_artifacts=False,
+        ))
+        subdirs = [p for p in cache_dir.iterdir() if p.is_dir()]
+        assert subdirs == []
+
+    def test_unique_subdir_created_inside_cache_dir(self, spinless_fermion_L4, tmp_path):
+        """run() creates a unique subdirectory inside env_cache_dir during execution."""
+        seen_subdirs: list = []
+        original_rmtree = _shutil.rmtree
+
+        def capturing_rmtree(path, **kwargs):
+            seen_subdirs.append(path)
+            original_rmtree(path, **kwargs)
+
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        mpo, spc, _ = spinless_fermion_L4
+        with patch('alice.algorithm.xtrg.xtrg.shutil.rmtree', side_effect=capturing_rmtree):
+            run(mpo, spc, Options(
+                scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+                env_cache_dir=str(cache_dir),
+                checkpoint_dir=str(tmp_path / 'ckpt'),
+                save_artifacts=False,
+            ))
+
+        assert len(seen_subdirs) == 1
+        subdir = seen_subdirs[0]
+        assert subdir.parent == cache_dir
+        # Name is exactly 8 hex characters.
+        assert len(subdir.name) == 8
+        assert all(c in '0123456789abcdef' for c in subdir.name)
+
+    def test_two_runs_use_distinct_subdirs(self, spinless_fermion_L4, tmp_path):
+        """Two sequential runs with the same env_cache_dir use different subdirectories."""
+        seen_subdirs: list = []
+        original_rmtree = _shutil.rmtree
+
+        def capturing_rmtree(path, **kwargs):
+            seen_subdirs.append(path)
+            original_rmtree(path, **kwargs)
+
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+            env_cache_dir=str(cache_dir),
+            checkpoint_dir=str(tmp_path / 'ckpt'),
+            save_artifacts=False,
+        )
+        mpo, spc, _ = spinless_fermion_L4
+        with patch('alice.algorithm.xtrg.xtrg.shutil.rmtree', side_effect=capturing_rmtree):
+            run(mpo, spc, opts)
+            run(mpo, spc, opts)
+
+        assert len(seen_subdirs) == 2
+        assert seen_subdirs[0] != seen_subdirs[1]
+
+    def test_no_leftover_files_after_two_runs(self, spinless_fermion_L4, tmp_path):
+        """env_cache_dir has no subdirectories after two sequential runs."""
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+            env_cache_dir=str(cache_dir),
+            checkpoint_dir=str(tmp_path / 'ckpt'),
+            save_artifacts=False,
+        )
+        mpo, spc, _ = spinless_fermion_L4
+        run(mpo, spc, opts)
+        run(mpo, spc, opts)
+        assert list(cache_dir.iterdir()) == []
+
+    def test_cached_run_matches_in_memory_run(self, spinless_fermion_L4, tmp_path):
+        """Disk-cached environments give the same log Z as the in-memory path."""
+        mpo, spc, _ = spinless_fermion_L4
+        cache_dir = tmp_path / 'envs'
+        cache_dir.mkdir()
+        kwargs = dict(
+            scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
+            checkpoint_dir=str(tmp_path / 'ckpt'),
+            save_artifacts=False,
+        )
+        plain, _ = run(mpo, spc, Options(**kwargs))
+        cached, _ = run(mpo, spc, Options(env_cache_dir=str(cache_dir), **kwargs))
+        assert math.isclose(cached.log_z[-1], plain.log_z[-1], rel_tol=1e-10)
 
 
 # ---------------------------------------------------------------------------
@@ -509,10 +649,10 @@ class TestXtrgSpinful:
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
             rel_err = abs(lz - lz_exact) / abs(lz_exact)
-        assert rel_err < 0.02, (
-            f"step {n}: β={beta:.4g}, XTRG log Z={lz:.8g}, "
-            f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
-        )
+            assert rel_err < 0.02, (
+                f"step {n}: β={beta:.4g}, XTRG log Z={lz:.8g}, "
+                f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
+            )
 
     @pytest.mark.slow
     def test_log_z_matches_exact_1sp(self, spinful_fermion_L4):

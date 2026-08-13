@@ -83,7 +83,7 @@ opts = dmrg.Options(
 )
 ```
 
-The `env_cache_dir` directory is created automatically. Each block is stored as a `.pt` file and re-loaded transparently as the sweep progresses.
+The `env_cache_dir` directory is created automatically. Each run then creates its own uniquely-named subdirectory inside it, so several jobs dispatched to the same node can share one cache root without overwriting each other's blocks. Individual blocks are stored as `.pt` files inside that subdirectory and re-loaded transparently as the sweep progresses; the subdirectory is removed when the run finishes or raises, leaving `env_cache_dir` itself empty.
 
 ## See Also
 

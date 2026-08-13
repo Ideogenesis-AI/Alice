@@ -20,8 +20,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from alice.network.thermal import NormalMPO, thermal_mpo
 from alice.algorithm.xtrg.environ import (
     Environment,
