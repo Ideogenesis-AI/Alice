@@ -616,13 +616,14 @@ def _compute_observables(
             u = -(log_z[n] - log_z[n - 1]) / (ln2 * betas[n - 1])
         energies.append(u / L)
 
-    # Specific heat: c_V[n] = β_n ∂u/∂(ln β) ≈ β_n Δu / Δ(ln β)
+    # Specific heat: c_V = ∂u/∂T = −β² ∂u/∂β = −β ∂u/∂(ln β).
+    # On the XTRG grid Δ(ln β) = ln 2, so c_V[n] ≈ −β_n Δu / ln 2.
     specific_heats = []
     for n in range(N):
         if n < N - 1:
-            cv = betas[n] * (energies[n + 1] - energies[n]) / ln2
+            cv = -betas[n] * (energies[n + 1] - energies[n]) / ln2
         else:
-            cv = betas[n] * (energies[n] - energies[n - 1]) / ln2
+            cv = -betas[n] * (energies[n] - energies[n - 1]) / ln2
         specific_heats.append(cv)
 
     # Entropy: S = β (u − f)  [per site]
