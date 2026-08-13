@@ -286,7 +286,7 @@ class Summary(AlgorithmSummary):
         }
 
     @classmethod
-    def deserialize(cls, data: Dict, device: str = 'cpu') -> 'Summary':
+    def deserialize(cls, data: Dict, device: str = 'cpu') -> Summary:
         """Reconstruct a `Summary` from a dict produced by `serialize`.
 
         Parameters
@@ -364,7 +364,7 @@ class Artifact(AlgorithmSummary):
         }
 
     @classmethod
-    def deserialize(cls, data: Dict, device: str = 'cpu') -> 'Artifact':
+    def deserialize(cls, data: Dict, device: str = 'cpu') -> Artifact:
         """Reconstruct an `Artifact` from a dict produced by `serialize`.
 
         Parameters
