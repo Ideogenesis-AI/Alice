@@ -20,7 +20,6 @@
 
 from __future__ import annotations
 
-import pytest
 import math
 
 from alice.network.thermal import thermal_mpo
@@ -64,7 +63,6 @@ class TestLocalUpdate2s:
         rho = thermal_mpo(mpo, 2 ** -12, 4, spc)
         rho.canonical(0)
 
-        L = rho.L
         env_left, env_right = _setup_envs(rho)
         theta = local_update_2s(
             env_left[0], rho[0], rho[0], rho[1], rho[1], env_right[1]
@@ -101,7 +99,6 @@ class TestSplitForward:
         rho = thermal_mpo(mpo, 2 ** -12, 4, spc)
         rho.canonical(0)
 
-        L = rho.L
         env_left, env_right = _setup_envs(rho)
         theta = local_update_2s(
             env_left[0], rho[0], rho[0], rho[1], rho[1], env_right[1]
@@ -117,7 +114,6 @@ class TestSplitForward:
         rho = thermal_mpo(mpo, 2 ** -12, 4, spc)
         rho.canonical(0)
 
-        L = rho.L
         env_left, env_right = _setup_envs(rho)
         theta = local_update_2s(
             env_left[0], rho[0], rho[0], rho[1], rho[1], env_right[1]
@@ -138,7 +134,6 @@ class TestSplitBackward:
         rho = thermal_mpo(mpo, 2 ** -12, 4, spc)
         rho.canonical(0)
 
-        L = rho.L
         env_left, env_right = _setup_envs(rho)
         theta = local_update_2s(
             env_left[0], rho[0], rho[0], rho[1], rho[1], env_right[1]
@@ -158,7 +153,6 @@ class TestDiscardedWeight:
         rho = thermal_mpo(mpo, 2 ** -12, 4, spc)
         rho.canonical(0)
 
-        L = rho.L
         env_left, env_right = _setup_envs(rho)
         theta = local_update_2s(
             env_left[0], rho[0], rho[0], rho[1], rho[1], env_right[1]
@@ -172,7 +166,6 @@ class TestDiscardedWeight:
         rho = thermal_mpo(mpo, 2 ** -12, 4, spc)
         rho.canonical(0)
 
-        L = rho.L
         env_left, env_right = _setup_envs(rho)
         theta = local_update_2s(
             env_left[0], rho[0], rho[0], rho[1], rho[1], env_right[1]
@@ -186,7 +179,6 @@ class TestDiscardedWeight:
         rho = thermal_mpo(mpo, 2 ** -12, 4, spc)
         rho.canonical(0)
 
-        L = rho.L
         env_left, env_right = _setup_envs(rho)
         theta = local_update_2s(
             env_left[0], rho[0], rho[0], rho[1], rho[1], env_right[1]
