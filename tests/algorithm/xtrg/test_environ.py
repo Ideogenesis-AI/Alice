@@ -147,7 +147,6 @@ class TestStepFitLeftEnv:
         rho.canonical(0)  # right-canonical
 
         env_left = Environment(rho.L)
-        build_right_envs(rho, rho, rho, env_right := Environment(rho.L))
         env_left[0] = left_env_boundary(rho, rho, rho)
         # Absorb site 0 into the left environment.
         E1 = step_left_env(env_left[0], rho[0], rho[0], rho[0])
