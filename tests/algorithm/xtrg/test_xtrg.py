@@ -26,6 +26,7 @@ import math
 import pytest
 
 from alice.algorithm.xtrg import Artifact, Options, Summary, run
+from alice.algorithm.xtrg.xtrg import _compute_observables
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +100,33 @@ class TestOptions:
         opts2 = Options.load_toml(path, section='xtrg')
         assert opts2.save_artifacts is False
         assert opts2.save_artifacts_since == 3
+
+
+# ---------------------------------------------------------------------------
+# Observables
+# ---------------------------------------------------------------------------
+
+class TestComputeObservables:
+    """Tests for thermodynamic observable extraction from the log-Z grid."""
+
+    def test_specific_heat_has_thermodynamic_sign(self):
+        """c_V = −β ∂u/∂(ln β) is positive when energy falls under cooling.
+
+        A two-level system (E = 0, 1) has monotonically decreasing internal
+        energy as β grows, so the finite-difference c_V must be positive at
+        every interior point.
+        """
+        tau0 = 2 ** -4
+        n_steps = 8
+        betas = [tau0 * 2 ** n for n in range(n_steps + 1)]
+        log_z = [math.log1p(math.exp(-beta)) for beta in betas]
+        _f, energies, specific_heats, _S = _compute_observables(betas, log_z, L=1)
+        n_positive = 0
+        for n in range(len(betas) - 1):
+            if energies[n + 1] < energies[n]:
+                assert specific_heats[n] > 0
+                n_positive += 1
+        assert n_positive > 0
 
 
 # ---------------------------------------------------------------------------
