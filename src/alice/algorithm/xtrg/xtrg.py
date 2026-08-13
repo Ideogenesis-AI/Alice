@@ -42,7 +42,7 @@ import shutil
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
 from nicole import Index
 from nicole import deserialize as _deserialize_tensor
@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 # Scheme alias resolution
 # ---------------------------------------------------------------------------
 
-_SCHEME_ALIASES: Dict[str, str] = {
+_SCHEME_ALIASES: dict[str, str] = {
     '1s': '1s',
     '1-site': '1s',
     'one-site': '1s',
@@ -77,7 +77,7 @@ _IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 
 def _resolve_scheme(alias: str) -> str:
-    """Normalise a scheme alias to its canonical name.
+    """Normalize a scheme alias to its canonical name.
 
     Parameters
     ----------
@@ -92,13 +92,13 @@ def _resolve_scheme(alias: str) -> str:
     Raises
     ------
     ValueError
-        If `alias` is not a recognised scheme name.
+        If `alias` is not a recognized scheme name.
     """
     canonical = _SCHEME_ALIASES.get(alias.lower())
     if canonical is None:
         known = ', '.join(sorted(_SCHEME_ALIASES))
         raise ValueError(
-            f"unknown XTRG scheme {alias!r}; recognised values are: {known}"
+            f"unknown XTRG scheme {alias!r}; recognized values are: {known}"
         )
     return canonical
 
@@ -254,22 +254,22 @@ class Summary(AlgorithmSummary):
         Number of cooling (squaring) steps reflected in this summary.
     """
 
-    betas: List[float] = field(default_factory=list)
-    log_z: List[float] = field(default_factory=list)
-    free_energies: List[float] = field(default_factory=list)
-    energies: List[float] = field(default_factory=list)
-    specific_heats: List[float] = field(default_factory=list)
-    entropies: List[float] = field(default_factory=list)
-    discarded_weights: List[float] = field(default_factory=list)
+    betas: list[float] = field(default_factory=list)
+    log_z: list[float] = field(default_factory=list)
+    free_energies: list[float] = field(default_factory=list)
+    energies: list[float] = field(default_factory=list)
+    specific_heats: list[float] = field(default_factory=list)
+    entropies: list[float] = field(default_factory=list)
+    discarded_weights: list[float] = field(default_factory=list)
     converged: bool = True
     n_steps: int = 0
 
-    def serialize(self) -> Dict:
+    def serialize(self) -> dict:
         """Serialize the summary to a plain dict compatible with `torch.save`.
 
         Returns
         -------
-        Dict
+        dict
             Serialized summary (version 2; no density matrix).
         """
         return {
@@ -286,7 +286,7 @@ class Summary(AlgorithmSummary):
         }
 
     @classmethod
-    def deserialize(cls, data: Dict, device: str = 'cpu') -> Summary:
+    def deserialize(cls, data: dict, device: str = 'cpu') -> Summary:
         """Reconstruct a `Summary` from a dict produced by `serialize`.
 
         Parameters
@@ -347,12 +347,12 @@ class Artifact(AlgorithmSummary):
     beta: float
     step: int
 
-    def serialize(self) -> Dict:
+    def serialize(self) -> dict:
         """Serialize the artifact to a plain dict compatible with `torch.save`.
 
         Returns
         -------
-        Dict
+        dict
             Serialized artifact.
         """
         return {
@@ -364,7 +364,7 @@ class Artifact(AlgorithmSummary):
         }
 
     @classmethod
-    def deserialize(cls, data: Dict, device: str = 'cpu') -> Artifact:
+    def deserialize(cls, data: dict, device: str = 'cpu') -> Artifact:
         """Reconstruct an `Artifact` from a dict produced by `serialize`.
 
         Parameters
@@ -408,7 +408,7 @@ class Artifact(AlgorithmSummary):
 # Checkpoint / artifact helpers
 # ---------------------------------------------------------------------------
 
-def _atomic_torch_save(payload: Dict, path: Path) -> None:
+def _atomic_torch_save(payload: dict, path: Path) -> None:
     """Atomically write `payload` via a sibling `*_lock` file then rename."""
     import torch
 
@@ -421,9 +421,9 @@ def _atomic_torch_save(payload: Dict, path: Path) -> None:
 
 
 def _build_summary(
-    betas: List[float],
-    log_z: List[float],
-    discarded_weights: List[float],
+    betas: list[float],
+    log_z: list[float],
+    discarded_weights: list[float],
     L: int,
     step: int,
     converged: bool,
@@ -484,7 +484,7 @@ def _fit_mpo(
     """Compress mpo_a @ mpo_b variationaly into a lower-bond-dim NormalMPO.
 
     Runs `opts.n_sweeps` full variational sweeps (each = forward + backward
-    half-sweep) to find C ≈ mpo_a · mpo_b by minimising ‖C − A·B‖²_F.
+    half-sweep) to find C ≈ mpo_a · mpo_b by minimizing ‖C − A·B‖²_F.
 
     Parameters
     ----------
@@ -583,14 +583,14 @@ def _fit_mpo(
 # ---------------------------------------------------------------------------
 
 def _compute_observables(
-    betas: List[float],
-    log_z: List[float],
+    betas: list[float],
+    log_z: list[float],
     L: int,
-) -> Tuple[List[float], List[float], List[float], List[float]]:
+) -> tuple[list[float], list[float], list[float], list[float]]:
     """Derive thermodynamic observables from the log Z grid.
 
     Uses log-β finite differences to compute internal energy and specific heat,
-    which give uniform O((ln 2)²) discretisation error across the exponentially
+    which give uniform O((ln 2)²) discretization error across the exponentially
     spaced β grid.
 
     Parameters
@@ -600,17 +600,17 @@ def _compute_observables(
     log_z:
         `log Z(β_n)` at each point, same length as `betas`.
     L:
-        Chain length (for per-site normalisation).
+        Chain length (for per-site normalization).
 
     Returns
     -------
-    List[float]
+    list[float]
         Free energies f(β) per site.
-    List[float]
+    list[float]
         Internal energies u(β) per site.
-    List[float]
+    list[float]
         Specific heats c_V(β) per site.
-    List[float]
+    list[float]
         Entropies S(β) per site.
     """
     N = len(betas)
@@ -696,7 +696,7 @@ def run(
 ) -> Tuple[Summary, Artifact]:
     """Run XTRG to compute finite-temperature properties of a Hamiltonian MPO.
 
-    Initialises the thermal density matrix via a Taylor expansion
+    Initializes the thermal density matrix via a Taylor expansion
     ρ(τ₀) ≈ Σ_n (-τ₀)^n/n! H^n, then repeatedly squares it using
     variational MPO-MPO compression to reach β_max = 2^n_steps × τ₀.
 
@@ -725,16 +725,16 @@ def run(
     Raises
     ------
     ValueError
-        If `opts.scheme` is not a recognised scheme.
+        If `opts.scheme` is not a recognized scheme.
     NotImplementedError
-        If `opts.scheme` is recognised but not yet implemented.
+        If `opts.scheme` is recognized but not yet implemented.
     """
     if opts is None:
         opts = Options()
 
     if opts.scheme not in _IMPLEMENTED_SCHEMES:
         raise NotImplementedError(
-            f"XTRG scheme {opts.scheme!r} is recognised but not yet implemented; "
+            f"XTRG scheme {opts.scheme!r} is recognized but not yet implemented; "
             f"implemented schemes are: {', '.join(sorted(_IMPLEMENTED_SCHEMES))}"
         )
 
@@ -782,18 +782,18 @@ def run(
         logger.info("  save artifacts    : True (since step %d)", opts.save_artifacts_since)
     logger.info("")
 
-    # Step 0: initialise ρ(τ₀) via Taylor expansion.
+    # Step 0: initialize ρ(τ₀) via Taylor expansion.
     logger.info("Initializing ρ(τ₀=%.6g) via Taylor expansion (order %d)…",
                 opts.tau_0, opts.taylor_order)
     rho = thermal_mpo(H, opts.tau_0, opts.taylor_order, spc)
 
-    betas: List[float] = [opts.tau_0]
+    betas: list[float] = [opts.tau_0]
     # log_trace() (rather than log(rho.trace())) keeps log_z finite even
     # when Z(beta) itself would overflow float64 deep into the cooling run.
     log_abs_z, sign_z = rho.log_trace()
     _ensure_positive_trace(sign_z, betas[-1])
-    log_z: List[float] = [log_abs_z]
-    discarded_weights: List[float] = []
+    log_z: list[float] = [log_abs_z]
+    discarded_weights: list[float] = []
 
     logger.info("  β = %.6g,  log Z = %+.8g", betas[-1], log_z[-1])
 
