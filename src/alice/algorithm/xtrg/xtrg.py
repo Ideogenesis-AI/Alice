@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import logging
 import math
+import shutil
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -140,9 +142,16 @@ class Options(AlgorithmOptions):
         Number of full variational sweeps (forward + backward) per squaring
         step. More sweeps improve compression accuracy at the cost of compute.
     env_cache_dir:
-        Directory for environment disk caching. `None` keeps all blocks in
-        memory (default). Useful for large chains where environments do not
-        fit in RAM.
+        Root directory for environment disk caching. When set, `run()`
+        creates a unique subdirectory inside it (first 8 hex characters of a
+        UUID4, e.g. `{env_cache_dir}/a1b2c3d4/`) so that concurrent runs
+        sharing the same config do not overwrite each other's blocks. Inside
+        that subdirectory, `xtrg_left/{i:05d}.pt` and `xtrg_right/{i:05d}.pt`
+        files are written, and are reused across all squaring steps of the
+        run. The unique subdirectory is removed automatically when `run()`
+        returns (or raises). `None` (default) keeps all blocks in memory.
+        Useful for large chains where environments do not fit in RAM.
+        Stored as `str` for TOML compatibility.
     env_async_io:
         If `True` (default), disk writes are submitted asynchronously so
         they overlap with computation. Has no effect when `env_cache_dir`
@@ -470,6 +479,7 @@ def _fit_mpo(
     mpo_a: NormalMPO,
     mpo_b: NormalMPO,
     opts: Options,
+    cache_dir: Optional[Path] = None,
 ) -> Tuple[NormalMPO, float]:
     """Compress mpo_a @ mpo_b variationaly into a lower-bond-dim NormalMPO.
 
@@ -484,6 +494,11 @@ def _fit_mpo(
         Right factor MPO.
     opts:
         XTRG options (scheme, max_bond, trunc_thresh, n_sweeps, env_*).
+    cache_dir:
+        Run-specific directory for environment disk caching, already made
+        unique by the caller. `None` (default) keeps all blocks in memory,
+        regardless of `opts.env_cache_dir`; the resolution of that option
+        into a collision-free path is the caller's responsibility.
 
     Returns
     -------
@@ -508,14 +523,13 @@ def _fit_mpo(
         mpo_c.canonical(0)
 
     _2s = (opts.scheme == '2s')
-    _cache: Optional[Path] = Path(opts.env_cache_dir) if opts.env_cache_dir else None
-    if _cache is not None:
-        (_cache / 'xtrg_left').mkdir(parents=True, exist_ok=True)
-        (_cache / 'xtrg_right').mkdir(parents=True, exist_ok=True)
+    if cache_dir is not None:
+        (cache_dir / 'xtrg_left').mkdir(parents=True, exist_ok=True)
+        (cache_dir / 'xtrg_right').mkdir(parents=True, exist_ok=True)
 
     env_left = Environment(
         L,
-        _cache / 'xtrg_left' if _cache is not None else None,
+        cache_dir / 'xtrg_left' if cache_dir is not None else None,
         async_io=opts.env_async_io,
         window=opts.env_window,
         fetch_lo=0,
@@ -523,7 +537,7 @@ def _fit_mpo(
     )
     env_right = Environment(
         L,
-        _cache / 'xtrg_right' if _cache is not None else None,
+        cache_dir / 'xtrg_right' if cache_dir is not None else None,
         async_io=opts.env_async_io,
         window=opts.env_window,
         fetch_lo=1 if _2s else 0,
@@ -725,6 +739,15 @@ def run(
         )
 
     L = H.L
+    # Resolve the optional disk-cache directory. A unique subdirectory
+    # (first 8 hex digits of a UUID4) is created inside the user-supplied
+    # path so that concurrent runs sharing the same config do not collide.
+    # The same subdirectory is reused by every squaring step of this run.
+    _cache: Optional[Path] = None
+    if opts.env_cache_dir:
+        _cache = Path(opts.env_cache_dir) / uuid.uuid4().hex[:8]
+        _cache.mkdir(parents=True, exist_ok=True)
+
     # Resolve the checkpoint directory; default to Path.cwd() when unset,
     # mirroring the convention used by configure_logging / DMRG.
     _ckpt: Path = Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else Path.cwd()
@@ -753,6 +776,8 @@ def run(
         logger.info("  expand alpha      : %s", alpha_str)
     if opts.checkpoint_dir is not None:
         logger.info("  checkpoint dir    : %s", _ckpt)
+    if _cache is not None:
+        logger.info("  env cache dir     : %s", _cache)
     if opts.save_artifacts:
         logger.info("  save artifacts    : True (since step %d)", opts.save_artifacts_since)
     logger.info("")
@@ -777,29 +802,36 @@ def run(
     _archive_artifact(artifact, opts, _artifacts)
 
     w = len(str(opts.n_steps))
-    for step in range(opts.n_steps):
-        logger.info("step %*d / %d: squaring ρ(β=%.6g) → ρ(β=%.6g)",
-                    w, step + 1, opts.n_steps, betas[-1], betas[-1] * 2)
+    try:
+        for step in range(opts.n_steps):
+            logger.info("step %*d / %d: squaring ρ(β=%.6g) → ρ(β=%.6g)",
+                        w, step + 1, opts.n_steps, betas[-1], betas[-1] * 2)
 
-        rho, dw = _fit_mpo(rho, rho, opts)
-        discarded_weights.append(dw)
-        betas.append(betas[-1] * 2)
-        lz, sign_z = rho.log_trace()
-        _ensure_positive_trace(sign_z, betas[-1])
-        log_z.append(lz)
+            rho, dw = _fit_mpo(rho, rho, opts, _cache)
+            discarded_weights.append(dw)
+            betas.append(betas[-1] * 2)
+            lz, sign_z = rho.log_trace()
+            _ensure_positive_trace(sign_z, betas[-1])
+            log_z.append(lz)
 
-        logger.info("  β = %.6g,  log Z = %+.8g,  dw = %.4e",
-                    betas[-1], lz, dw)
+            logger.info("  β = %.6g,  log Z = %+.8g,  dw = %.4e",
+                        betas[-1], lz, dw)
 
-        k = step + 1
-        mid_summary = _build_summary(
-            betas, log_z, discarded_weights, L, step=k, converged=False,
-        )
-        _save_thermal(mid_summary, _ckpt)
+            k = step + 1
+            mid_summary = _build_summary(
+                betas, log_z, discarded_weights, L, step=k, converged=False,
+            )
+            _save_thermal(mid_summary, _ckpt)
 
-        artifact = Artifact(rho=rho, beta=betas[-1], step=k)
-        _save_progress(artifact, _ckpt)
-        _archive_artifact(artifact, opts, _artifacts)
+            artifact = Artifact(rho=rho, beta=betas[-1], step=k)
+            _save_progress(artifact, _ckpt)
+            _archive_artifact(artifact, opts, _artifacts)
+    finally:
+        # Remove the run-specific cache subdirectory; ignore errors so that a
+        # partially-written or already-deleted directory does not mask the real
+        # exception (if any) from the cooling loop.
+        if _cache is not None:
+            shutil.rmtree(_cache, ignore_errors=True)
 
     logger.info("")
 
