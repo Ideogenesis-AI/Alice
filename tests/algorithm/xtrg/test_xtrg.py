@@ -20,7 +20,6 @@
 
 from __future__ import annotations
 
-import io
 import math
 import shutil as _shutil
 from unittest.mock import patch
@@ -650,10 +649,10 @@ class TestXtrgSpinful:
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
             rel_err = abs(lz - lz_exact) / abs(lz_exact)
-        assert rel_err < 0.02, (
-            f"step {n}: β={beta:.4g}, XTRG log Z={lz:.8g}, "
-            f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
-        )
+            assert rel_err < 0.02, (
+                f"step {n}: β={beta:.4g}, XTRG log Z={lz:.8g}, "
+                f"exact={lz_exact:.8g}, rel err={rel_err:.2e}"
+            )
 
     @pytest.mark.slow
     def test_log_z_matches_exact_1sp(self, spinful_fermion_L4):
