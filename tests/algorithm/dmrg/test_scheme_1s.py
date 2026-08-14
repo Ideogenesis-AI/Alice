@@ -20,8 +20,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from alice.network import observe
 from alice.algorithm.dmrg.davidson import _inner_product
 from alice.algorithm.dmrg.environ import (
