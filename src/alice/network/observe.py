@@ -168,7 +168,7 @@ def _observe_mps(
 
     Notes
     -----
-    The left boundary environment is initialised as an identity on the dim-1
+    The left boundary environment is initialized as an identity on the dim-1
     left bond of `mps[0]`, extended with a dim-1 MPO bond index. At each
     site the environment is updated via `einsum('ace,abg,cdgh,efh->bdf', ...)`,
     where the letters denote:

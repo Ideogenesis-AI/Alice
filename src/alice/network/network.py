@@ -103,7 +103,7 @@ class Network:
     def _validate(self) -> None:
         """Check that adjacent bond indices are consistent.
 
-        For each pair of neighbouring sites, verifies that the right bond of
+        For each pair of neighboring sites, verifies that the right bond of
         site *i* and the left bond of site *i+1*:
 
         - share the same itag,
