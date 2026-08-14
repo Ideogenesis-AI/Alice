@@ -81,7 +81,7 @@ class TestMatvec2s:
         return env_left, env_right
 
     def test_energy_matches_observe(self, heisenberg_L2):
-        """⟨Θ|H_eff|Θ⟩ / ⟨Θ|Θ⟩ at bond (0,1) equals the normalised observe energy.
+        """⟨Θ|H_eff|Θ⟩ / ⟨Θ|Θ⟩ at bond (0,1) equals the normalized observe energy.
 
         For L=2 the bond tensor Θ covers the whole chain, so ⟨Θ|H_eff|Θ⟩ / ⟨Θ|Θ⟩
         equals ⟨ψ|H|ψ⟩ / ⟨ψ|ψ⟩ as computed by `observe`.
@@ -95,9 +95,9 @@ class TestMatvec2s:
 
         obs = observe(mps, mpo)
         norm_sq = mps.norm() ** 2
-        obs_normalised = obs / norm_sq
-        assert abs(energy - obs_normalised) < 1e-9, (
-            f"matvec_2s energy {energy} != normalised observe {obs_normalised}"
+        obs_normalized = obs / norm_sq
+        assert abs(energy - obs_normalized) < 1e-9, (
+            f"matvec_2s energy {energy} != normalized observe {obs_normalized}"
         )
 
     def test_hermiticity(self, heisenberg_L2):

@@ -134,7 +134,7 @@ class TestFullSweep:
         """Energy after a full 1-site sweep is ≤ energy before (variational principle).
 
         We use the Davidson eigenvalue at site 0 as the pre-sweep reference
-        (normalised Rayleigh quotient), comparable to what the sweeps return.
+        (normalized Rayleigh quotient), comparable to what the sweeps return.
         """
         mps, mpo = heisenberg_L2
         env_left, env_right = _setup_envs(mps, mpo)
