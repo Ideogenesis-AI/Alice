@@ -350,7 +350,7 @@ class TestBuildHubbard:
             assert intr.terminal_tnsr is not None
 
     def test_U_interactions_appended(self):
-        """Exactly L Hubbard-U Interaction1Site objects (labelled 'U') are appended."""
+        """Exactly L Hubbard-U Interaction1Site objects (labeled 'U') are appended."""
         L = 6
         interactions = _nn_chain(L)
         build_hubbard(interactions, L, U=4.0, mu=0.0)

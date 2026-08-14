@@ -64,7 +64,7 @@ class TestNetwork:
     def test_bc_default(self, mps_tensors):
         assert Network(mps_tensors).bc == 'OBC'
 
-    def test_bc_uppercase_normalised(self, mps_tensors):
+    def test_bc_uppercase_normalized(self, mps_tensors):
         assert Network(mps_tensors, bc='obc').bc == 'OBC'
 
     def test_invalid_bc_raises(self, mps_tensors):
