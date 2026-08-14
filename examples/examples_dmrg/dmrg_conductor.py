@@ -25,7 +25,7 @@ Runs DMRG to find the ground state of the Hubbard Hamiltonian
 
 for a chain of length L with open boundary conditions. The chemical potential
 shift -U/2 restores particle-hole symmetry at half-filling (μ = 0). The
-algorithm performs alternating left and right half-sweeps, optimising each
+algorithm performs alternating left and right half-sweeps, optimizing each
 site tensor (1-site / 1-site-plus) or bond tensor (2-site) with the Davidson
 eigensolver, until the energy converges.
 
@@ -179,7 +179,7 @@ def dmrg_conductor(
     scheme:
         DMRG update scheme: `'1s'` (1-site, default), `'2s'` (2-site), or
         `'1sp'` (1-site-plus / controlled bond expansion). The 2-site scheme
-        optimises a bond tensor at each step and uses SVD truncation to control
+        optimizes a bond tensor at each step and uses SVD truncation to control
         the bond dimension. The 1-site-plus scheme grows the bond dimension
         cheaply via a complement isometry before each 1-site update.
     e_tol:
@@ -221,7 +221,7 @@ def dmrg_conductor(
     Summary
         DMRG output: final energy, convergence flag, energy history, bond dims.
     MPS
-        Optimised ground-state MPS.
+        Optimized ground-state MPS.
     """
     _VALID_SYMMETRIES = ('U1,U1', 'Z2,U1', 'U1,SU2', 'Z2,SU2')
     if symmetry not in _VALID_SYMMETRIES:

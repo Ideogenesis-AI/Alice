@@ -23,7 +23,7 @@ Runs DMRG to find the ground state of the Heisenberg Hamiltonian
     H = J Σ_i (S_i^+ S_{i+1}^- + S_i^- S_{i+1}^+ + S_i^z S_{i+1}^z)
 
 for a chain of length L with open boundary conditions. The algorithm performs
-alternating left and right half-sweeps, optimising each site tensor (1-site /
+alternating left and right half-sweeps, optimizing each site tensor (1-site /
 1-site-plus) or bond tensor (2-site) with the Davidson eigensolver, until the
 energy converges.
 
@@ -156,7 +156,7 @@ def dmrg_heisenberg(
     scheme:
         DMRG update scheme: `'1s'` (1-site, default), `'2s'` (2-site), or
         `'1sp'` (1-site-plus / controlled bond expansion). The 2-site scheme
-        optimises a bond tensor at each step and uses SVD truncation to control
+        optimizes a bond tensor at each step and uses SVD truncation to control
         the bond dimension. The 1-site-plus scheme grows the bond dimension
         cheaply via a complement isometry before each 1-site update.
     e_tol:
@@ -197,7 +197,7 @@ def dmrg_heisenberg(
     Summary
         DMRG output: final energy, convergence flag, energy history, bond dims.
     MPS
-        Optimised ground-state MPS.
+        Optimized ground-state MPS.
     """
     if symmetry not in ('U1', 'SU2'):
         raise ValueError(f"symmetry must be 'U1' or 'SU2', got {symmetry!r}")
