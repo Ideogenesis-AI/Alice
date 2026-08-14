@@ -64,7 +64,7 @@ class Environment:
     When `path` is provided, the class maintains a sliding window of
     `window` blocks in memory and caches the rest to disk. Disk writes are
     submitted asynchronously via a `ThreadPoolExecutor` so they overlap with
-    the Davidson optimisation step. Prefetch reads are also submitted
+    the Davidson optimization step. Prefetch reads are also submitted
     asynchronously; `fetch` waits on them if needed.
 
     The sweep direction is tracked as an explicit `_direction` state variable
@@ -118,7 +118,7 @@ class Environment:
         self._window: int = min(window, fetch_range)
 
         # Sweep direction: +1 = forward (increasing index), -1 = backward.
-        # Initialised to +1 because every DMRG run begins with a forward sweep.
+        # Initialized to +1 because every DMRG run begins with a forward sweep.
         self._direction: int = 1
 
         # Lazy-created executor shared for both reads and writes.
@@ -369,7 +369,7 @@ def left_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     the left boundary. The axes follow the convention
     `(a=bra_left, o=mpo_left, b=ket_left)`.
 
-    The construction mirrors the boundary initialisation in
+    The construction mirrors the boundary initialization in
     `alice.network.observe._observe_mps`.
 
     Parameters
@@ -494,7 +494,7 @@ def step_right_env(E: Tensor, M: Tensor, W: Tensor) -> Tensor:
 
 
 # ---------------------------------------------------------------------------
-# Bulk initialisation
+# Bulk initialization
 # ---------------------------------------------------------------------------
 
 def build_left_envs(mps: MPS, mpo: MPO, env_left: Environment) -> None:
@@ -530,7 +530,7 @@ def build_left_envs(mps: MPS, mpo: MPO, env_left: Environment) -> None:
             f"build_left_envs requires mps.center == L-1 (= {L - 1}), "
             f"got center={mps.center}"
         )
-    # Initialise the left boundary (site 0 has a trivial left bond for OBC).
+    # Initialize the left boundary (site 0 has a trivial left bond for OBC).
     env_left[0] = left_env_boundary(mps, mpo)
     # Sweep left-to-right: env_left[i+1] accumulates sites 0 … i.
     # When disk caching is active, evict block i immediately after it has
@@ -582,7 +582,7 @@ def build_right_envs(mps: MPS, mpo: MPO, env_right: Environment) -> None:
             f"build_right_envs requires mps.center == 0, got center={mps.center}"
         )
     L = mps.L
-    # Initialise the right boundary (site L-1 has a trivial right bond for OBC).
+    # Initialize the right boundary (site L-1 has a trivial right bond for OBC).
     env_right[L - 1] = right_env_boundary(mps, mpo)
     # Sweep right-to-left: env_right[i] accumulates sites i+1 … L-1.
     # When disk caching is active, evict block i+1 immediately after it has
