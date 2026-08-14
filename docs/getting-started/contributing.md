@@ -198,7 +198,7 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
 User-facing changes must include documentation updates. This includes:
 
 - New public functions or classes → add an API page under `docs/api/` and link it from `docs/api/index.md`.
-- New behaviour in existing functions → update the relevant API page.
+- New behavior in existing functions → update the relevant API page.
 - New examples → add a page under `docs/examples/`.
 
 ---
