@@ -165,7 +165,7 @@ class TestMPS:
     # ------------------------------------------------------------------
 
     def test_validation_wrong_axis_count(self, mpo_tensors):
-        """4-axis MPO tensors must fail MPS validation."""
+        """4th-order MPO tensors must fail MPS validation."""
         with pytest.raises(ValueError, match="3 axes"):
             MPS(mpo_tensors)
 
@@ -384,7 +384,7 @@ class TestMPO:
     # ------------------------------------------------------------------
 
     def test_validation_wrong_axis_count(self, mps_tensors):
-        """3-axis (MPS) tensors must fail MPO validation."""
+        """3rd-order (MPS) tensors must fail MPO validation."""
         with pytest.raises(ValueError, match="4 axes"):
             MPO(mps_tensors)
 
