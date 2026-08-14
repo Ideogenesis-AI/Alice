@@ -87,7 +87,7 @@ def _log_banner(log: logging.Logger) -> None:
         f"{'Session:'.ljust(key_col)}{session}",
     ]
 
-    # Block-centre: all info lines share the same left padding.
+    # Block-center: all info lines share the same left padding.
     block_pad = ' ' * max(0, (width - max(len(l) for l in info_lines)) // 2)
 
     log.info(border)
