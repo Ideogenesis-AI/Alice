@@ -3655,7 +3655,7 @@ right-to-left compression sweep. Defaults to
 <p>Performs a left-to-right transfer-matrix sweep. At each site the
 physical indices (phys_in and phys_out, sharing itag <code>s{i:02d}</code>
 with opposite directions) are traced using Nicole's <code>trace</code> function,
-yielding a 2-leg bond tensor. Adjacent bond tensors are chained with
+yielding a 2<sup>nd</sup>-order bond tensor. Adjacent bond tensors are chained with
 <code>einsum</code>.</p>
 <p>This is the overflow-safe counterpart to <code>trace()</code>: it never forms
 <code>Tr[ρ]</code> itself, so it remains finite even when the physical trace

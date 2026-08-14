@@ -3292,7 +3292,7 @@ TOML section, or <code>Options.load_toml</code> to read directly from a file.</p
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Maximum Davidson iterations per site optimisation.</p>
+                <p>Maximum Davidson iterations per site optimization.</p>
               </div>
             </td>
             <td>
@@ -3440,7 +3440,7 @@ additional truncation beyond the existing bond dimension).</p>
               <div class="doc-md-description">
                 <p>Directory to write checkpoint files into. A <code>dmrg.ckpt</code> file
 (PyTorch format, loadable via <code>dmrg.Summary.load</code>) is written after
-every full sweep using an atomic write: the data is first serialised
+every full sweep using an atomic write: the data is first serialized
 to <code>dmrg_lock.ckpt</code> in the same directory, then renamed to
 <code>dmrg.ckpt</code> on success, so a failed write cannot corrupt the
 previous checkpoint. <code>None</code> (default) resolves to <code>Path.cwd()</code> at
