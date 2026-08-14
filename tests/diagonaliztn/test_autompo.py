@@ -24,7 +24,7 @@ import math
 
 import pytest
 
-from alice.network import MPO, observe, build_hamiltonian, build_interaction
+from alice.network import observe, build_hamiltonian, build_interaction
 
 
 # Tolerance for energy comparisons.

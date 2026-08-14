@@ -18,7 +18,7 @@
 
 """Tests for alice.algorithm.interface (AlgorithmOptions, AlgorithmSummary).
 
-Uses inline concrete subclasses to isolate the base-class behaviour from any
+Uses inline concrete subclasses to isolate the base-class behavior from any
 algorithm-specific logic. No DMRG or MPS imports appear here.
 """
 

@@ -68,7 +68,7 @@ def _identity_mpo(spc: Index, L: int) -> MPO:
     """
     ndigits = max(2, len(str(L)))
 
-    # identity(spc) is a 2-leg tensor (phys_in=spc_IN, phys_out=spc_OUT).
+    # identity(spc) is a 2nd-order tensor (phys_in=spc_IN, phys_out=spc_OUT).
     I = identity(spc)
     I4 = I.clone()
     # Insert trivial bond axes: left bond at position 0, right at position 1.
@@ -323,7 +323,7 @@ class NormalMPO(MPO):
         Performs a left-to-right transfer-matrix sweep. At each site the
         physical indices (phys_in and phys_out, sharing itag `s{i:02d}`
         with opposite directions) are traced using Nicole's `trace` function,
-        yielding a 2-leg bond tensor. Adjacent bond tensors are chained with
+        yielding a 2nd-order bond tensor. Adjacent bond tensors are chained with
         `einsum`.
 
         This is the overflow-safe counterpart to `trace()`: it never forms
@@ -342,7 +342,7 @@ class NormalMPO(MPO):
             the class docstring for where sign lives).
         """
         L = self.L
-        # Site 0: partial trace over physical axes → 2-leg bond tensor.
+        # Site 0: partial trace over physical axes → 2nd-order bond tensor.
         env = trace(self._tensors[0], axes=[(2, 3)])
 
         # Sites 1..L-1: absorb each site's partial trace into the environment.
@@ -350,7 +350,7 @@ class NormalMPO(MPO):
             w_tr = trace(self._tensors[i], axes=[(2, 3)])
             env = einsum('ab,bc->ac', env, w_tr)
 
-        # env is a 2-leg 1×1 tensor (both bonds are the vacuum at OBC
+        # env is a 2nd-order 1×1 tensor (both bonds are the vacuum at OBC
         # boundaries). Extract the scalar, accounting for the Bridge weight
         # in non-Abelian groups.
         key, val = next(iter(env.data.items()))
@@ -397,7 +397,7 @@ class NormalMPO(MPO):
            shared physical itags).
         2. Contract over the shared physical axis (`self`'s `phys_out`
            × `other`'s `phys_in`) via
-           `einsum('abrs,cdsu->acbdru', W1, W2)`, producing a 6-axis
+           `einsum('abrs,cdsu->acbdru', W1, W2)`, producing a 6th-order
            tensor `(L1, L2, R1, R2, phys_in, phys_out)`.
         3. Fuse right bonds first: `merge_axes(C, [2, 3], 'R', OUT)`
            → axes `(R, L1, L2, r, u)`.
@@ -640,7 +640,7 @@ def thermal_mpo(
         coeff = (-beta) ** n / factorial(n)
         # Early stop: compare the actual contribution magnitude
         # |coeff| * ||H^n||_F against the threshold, not the bare
-        # coefficient alone.  The bare coefficient beta^n/n! can be
+        # coefficient alone. The bare coefficient beta^n/n! can be
         # below machine precision while |coeff| * ||H^n||_F is still
         # non-negligible for Hamiltonians with large operator norm.
         if abs(coeff) * H_pow.scale < coeff_thresh:

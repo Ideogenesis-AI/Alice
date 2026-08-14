@@ -64,7 +64,7 @@ class TestNetwork:
     def test_bc_default(self, mps_tensors):
         assert Network(mps_tensors).bc == 'OBC'
 
-    def test_bc_uppercase_normalised(self, mps_tensors):
+    def test_bc_uppercase_normalized(self, mps_tensors):
         assert Network(mps_tensors, bc='obc').bc == 'OBC'
 
     def test_invalid_bc_raises(self, mps_tensors):
@@ -90,7 +90,6 @@ class TestNetwork:
     def test_bond_sector_dim_mismatch_raises(self, mps_tensors, spin_space):
         """Mismatched sector dimension on a shared charge must raise."""
         from nicole.index import Index, Sector
-        from nicole import Direction
         Spc, Op = spin_space
         # Replace site 1's left bond with an index that has a different dim
         # for an overlapping charge sector.
@@ -165,7 +164,7 @@ class TestMPS:
     # ------------------------------------------------------------------
 
     def test_validation_wrong_axis_count(self, mpo_tensors):
-        """4-axis MPO tensors must fail MPS validation."""
+        """4th-order MPO tensors must fail MPS validation."""
         with pytest.raises(ValueError, match="3 axes"):
             MPS(mpo_tensors)
 
@@ -384,7 +383,7 @@ class TestMPO:
     # ------------------------------------------------------------------
 
     def test_validation_wrong_axis_count(self, mps_tensors):
-        """3-axis (MPS) tensors must fail MPO validation."""
+        """3rd-order (MPS) tensors must fail MPO validation."""
         with pytest.raises(ValueError, match="4 axes"):
             MPO(mps_tensors)
 

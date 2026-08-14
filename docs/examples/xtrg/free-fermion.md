@@ -74,6 +74,34 @@ whole cooling range — at this modest chain length the untruncated bond
 dimension never exceeds `~16`, so `max_bond=32` amounts to essentially exact
 compression.
 
+## 5. Environment caching for large chains
+
+Each squaring step fits a compressed MPO against two factor MPOs, so XTRG holds
+three networks at once and runs out of RAM at shorter chain lengths than DMRG
+does. When the environment blocks no longer fit, spill them to disk:
+
+```python
+opts = xtrg.Options(
+    scheme        = '2s',
+    tau_0         = 2 ** -12,
+    n_steps       = 20,
+    max_bond      = 256,
+    env_cache_dir = "/tmp/alice_envs",   # write blocks to disk
+    env_window    = 4,                    # keep 4 blocks in memory
+    env_async_io  = True,                 # overlap I/O with computation
+)
+```
+
+The `env_cache_dir` directory is created automatically. Each run then creates
+its own uniquely-named subdirectory inside it, so several jobs dispatched to the
+same node can share one cache root without overwriting each other's blocks. That
+subdirectory is reused by every squaring step of the run and removed when
+`run()` finishes or raises, leaving `env_cache_dir` itself empty.
+
+Peak memory then scales with `env_window` rather than with chain length, at the
+cost of one serialize/deserialize round trip per block. Leave `env_async_io`
+enabled so those writes overlap with the variational sweeps.
+
 ## See Also
 
 - [Hubbard model](hubbard.md)

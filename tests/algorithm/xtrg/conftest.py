@@ -49,9 +49,9 @@ import math
 from typing import Callable, Tuple
 
 import pytest
+from nicole import Index
 
 from alice.network import MPO, build_hamiltonian, build_interaction
-from nicole import Index
 
 
 # ---------------------------------------------------------------------------

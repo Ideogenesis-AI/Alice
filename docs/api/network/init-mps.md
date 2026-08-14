@@ -33,7 +33,7 @@ Nicole's `load_space` encodes all symmetry information.
 
 ### Logic Overview
 
-The diagram below summarises how `target_qn`, `config`, `Q[L]`, and
+The diagram below summarizes how `target_qn`, `config`, `Q[L]`, and
 `bond_dim` interact inside `init_mps`.
 
 ```

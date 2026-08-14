@@ -18,7 +18,7 @@
 
 """2-site variational MPO-MPO compression update.
 
-The 2-site update optimises a two-site bond tensor
+The 2-site update optimizes a two-site bond tensor
 
     Θ[c, d, r, s, u, v]
 
@@ -113,7 +113,7 @@ def local_update_2s(
 ) -> Tensor:
     """Compute the optimal 2-site bond tensor Θ for sites (i, i+1).
 
-    Builds the 2-site right-hand side of the Frobenius-norm optimisation via
+    Builds the 2-site right-hand side of the Frobenius-norm optimization via
     two partial contractions (`left_partial`, `right_partial`) followed by a
     join, which avoids intermediate tensors of size O(χ⁵):
 
@@ -231,7 +231,7 @@ def build_bulk(C_i: Tensor, C_j: Tensor) -> Tensor:
 
     Used to measure the discarded weight at the center bond during a 1s+
     backward half-sweep, mirroring `local_update_2s`'s Θ but built directly
-    from the already-optimised `(C_i, C_j)` pair rather than from the factor
+    from the already-optimized `(C_i, C_j)` pair rather than from the factor
     operands A, B.
 
     Parameters

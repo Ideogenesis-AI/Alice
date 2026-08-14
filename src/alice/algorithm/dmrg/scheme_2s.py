@@ -24,7 +24,7 @@ This module contains all operations specific to the 2-site update:
   used as the initial guess for the Davidson solver.
 - `matvec_2s`: apply the 2-site effective Hamiltonian
   `H_eff = E_left ⊗ W_i ⊗ W_{i+1} ⊗ E_right` to Θ.
-- `split_forward` / `split_backward`: SVD-split the optimised Θ back into two
+- `split_forward` / `split_backward`: SVD-split the optimized Θ back into two
   site tensors, replacing the `mps.canonical` call used in 1-site DMRG.
 - `optimize_2site`: pure function that runs the Davidson solver on Θ.
 
@@ -62,7 +62,7 @@ def build_bulk(M_i: Tensor, M_i1: Tensor) -> Tensor:
     """Contract two adjacent MPS tensors into a 2-site bond tensor Θ.
 
     Θ is used as the initial guess for the Davidson solver in `optimize_2site`.
-    After Davidson converges, the optimised Θ is split back into two site
+    After Davidson converges, the optimized Θ is split back into two site
     tensors via `split_forward` or `split_backward`.
 
     Parameters
@@ -224,7 +224,7 @@ def discarded_weight(theta: Tensor, trunc: Optional[dict]) -> float:
     and `split_backward`) and performs a second SVD with `requires_info=True` to
     read back `info["discarded_weight"]`. This is an intentional second SVD;
     it is called only once per full sweep at the center bond, so the overhead is
-    negligible relative to the Davidson optimisation cost.
+    negligible relative to the Davidson optimization cost.
 
     Parameters
     ----------
@@ -258,7 +258,7 @@ def optimize_2site(
     """Find the optimal 2-site bond tensor via the Davidson eigensolver.
 
     Forms the bond tensor Θ = M_i ⊗ M_{i+1} as the initial guess, then runs
-    Davidson to minimise the 2-site Rayleigh quotient. Returns the optimised
+    Davidson to minimize the 2-site Rayleigh quotient. Returns the optimized
     Θ ready to be split by `split_forward` or `split_backward`.
 
     This is a pure function: it takes tensors and returns tensors without
@@ -287,7 +287,7 @@ def optimize_2site(
     float
         Variational energy estimate (lowest Ritz value).
     Tensor
-        Optimised bond tensor `theta_opt` with axes
+        Optimized bond tensor `theta_opt` with axes
         `(ket_left, ket_right, phys_ket_i, phys_ket_{i+1})`.
     float
         Final Davidson residual norm at convergence (or at exit if not converged).

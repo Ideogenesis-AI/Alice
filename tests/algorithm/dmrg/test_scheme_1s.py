@@ -20,8 +20,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from alice.network import observe
 from alice.algorithm.dmrg.davidson import _inner_product
 from alice.algorithm.dmrg.environ import (
@@ -125,7 +123,7 @@ class TestOptimize1site:
         davidson_opts = {'max_iter': 50, 'tol': 1e-10, 'max_subspace': 10}
         energy_opt, M_opt, _ = optimize_1site(M, mpo[0], env_left[0], env_right[0], davidson_opts)
 
-        # Variational principle: optimised energy ≤ initial Rayleigh quotient.
+        # Variational principle: optimized energy ≤ initial Rayleigh quotient.
         assert energy_opt <= energy_init + 1e-10, (
             f"optimize_1site increased energy: {energy_init} -> {energy_opt}"
         )
@@ -142,7 +140,7 @@ class TestOptimize1site:
         build_right_envs(mps, mpo, env_right)
 
         M = mps[0]
-        # Snapshot the data blocks before optimisation.
+        # Snapshot the data blocks before optimization.
         before = {k: v.clone() for k, v in M.data.items()}
 
         davidson_opts = {'max_iter': 10, 'tol': 1e-8, 'max_subspace': 5}

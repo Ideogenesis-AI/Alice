@@ -22,10 +22,10 @@ All physics tests use a product Hamiltonian H = h * Σ_i n_i (no
 inter-site coupling) on L sites of spin-1/2 U(1), where n_i is the
 number operator (eigenvalues 0 and 1 per site). For this model:
 
-- Spectrum: eigenvalue ``E_m = h * m`` with degeneracy ``C(L, m)``.
-- Moments: ``Tr[H^k] = Σ_{m=0}^{L} C(L, m) * (h*m)^k``.
-- Partition function: ``Z(β) = (1 + e^{-βh})^L``.
-- Thermal energy: ``⟨H⟩_β = L * h * e^{-βh} / (1 + e^{-βh})``.
+- Spectrum: eigenvalue `E_m = h * m` with degeneracy `C(L, m)`.
+- Moments: `Tr[H^k] = Σ_{m=0}^{L} C(L, m) * (h*m)^k`.
+- Partition function: `Z(β) = (1 + e^{-βh})^L`.
+- Thermal energy: `⟨H⟩_β = L * h * e^{-βh} / (1 + e^{-βh})`.
 
 All reference values are computed analytically, avoiding the need for
 a `to_dense()` conversion.
@@ -58,7 +58,7 @@ from alice.network.thermal import _identity_mpo
 def _make_product_h(Spc, Op, L, h=1.0):
     """Build H = h * Σ_i n_i as an MPO.
 
-    Returns ``(H_mpo, Spc)`` where ``H_mpo`` is the plain `MPO` and ``Spc``
+    Returns `(H_mpo, Spc)` where `H_mpo` is the plain `MPO` and `Spc`
     is the physical index.
     """
     Sz = Op['Sz']
@@ -78,17 +78,17 @@ def _make_product_h(Spc, Op, L, h=1.0):
 
 
 def _tr_H_power(L, h, k):
-    """Compute ``Tr[H^k]`` analytically for H = h * Σ_i n_i."""
+    """Compute `Tr[H^k]` analytically for H = h * Σ_i n_i."""
     return sum(math.comb(L, m) * (h * m) ** k for m in range(L + 1))
 
 
 def _Z_exact(L, h, beta):
-    """Exact partition function ``Z(β) = (1 + e^{-βh})^L``."""
+    """Exact partition function `Z(β) = (1 + e^{-βh})^L`."""
     return (1.0 + math.exp(-beta * h)) ** L
 
 
 def _E_exact(L, h, beta):
-    """Exact thermal energy ``⟨H⟩_β = L h e^{-βh} / (1 + e^{-βh})``."""
+    """Exact thermal energy `⟨H⟩_β = L h e^{-βh} / (1 + e^{-βh})`."""
     return L * h * math.exp(-beta * h) / (1.0 + math.exp(-beta * h))
 
 
@@ -130,21 +130,21 @@ class TestNormalMPOConstruction:
         assert math.isclose(H_n.norm(), 1.0, rel_tol=1e-10)
 
     def test_from_mpo_scale_equals_original_norm(self, product_h_L2):
-        """``scale`` returned by `from_mpo` equals the original MPO norm."""
+        """`scale` returned by `from_mpo` equals the original MPO norm."""
         H_mpo, Spc = product_h_L2
         original_norm = H_mpo.norm()
         H_n = NormalMPO.from_mpo(H_mpo)
         assert math.isclose(H_n.scale, original_norm, rel_tol=1e-10)
 
     def test_from_mpo_does_not_modify_input(self, product_h_L2):
-        """``from_mpo`` leaves the source MPO unchanged."""
+        """`from_mpo` leaves the source MPO unchanged."""
         H_mpo, Spc = product_h_L2
         norm_before = H_mpo.norm()
         NormalMPO.from_mpo(H_mpo)
         assert math.isclose(H_mpo.norm(), norm_before, rel_tol=1e-14)
 
     def test_compact_restores_unit_norm(self, product_h_L4):
-        """After `compact()` on a raw product MPO, ``norm() ≈ 1``."""
+        """After `compact()` on a raw product MPO, `norm() ≈ 1`."""
         H_mpo, Spc = product_h_L4
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -154,7 +154,7 @@ class TestNormalMPOConstruction:
         assert math.isclose(raw.norm(), 1.0, rel_tol=1e-9)
 
     def test_compact_scale_consistent_with_trace(self, product_h_L2):
-        """After `compact()`, ``scale * norm`` is consistent with trace."""
+        """After `compact()`, `scale * norm` is consistent with trace."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -168,7 +168,7 @@ class TestNormalMPOConstruction:
         assert math.isclose(raw.trace(), tr_before_compact, rel_tol=1e-8)
 
     def test_mul_scales_scale_only(self, product_h_L2):
-        """``c * H`` has ``scale = c * H.scale`` and identical tensors."""
+        """`c * H` has `scale = c * H.scale` and identical tensors."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         c = 3.7
@@ -180,14 +180,14 @@ class TestNormalMPOConstruction:
             assert allclose(scaled[i], H_n[i])
 
     def test_rmul_same_as_mul(self, product_h_L2):
-        """``c * H`` and ``H * c`` give identical results."""
+        """`c * H` and `H * c` give identical results."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         c = 2.5
         assert math.isclose((c * H_n).scale, (H_n * c).scale, rel_tol=1e-14)
 
     def test_scale_property_is_readonly_float(self, product_h_L2):
-        """``scale`` property returns a float."""
+        """`scale` property returns a float."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         assert isinstance(H_n.scale, float)
@@ -283,7 +283,7 @@ class TestNormalMPOTrace:
         assert math.isclose(I_n.trace(), 16.0, rel_tol=1e-10)
 
     def test_product_h_trace_L2(self, product_h_L2):
-        """``Tr[H] = Σ_m C(L,m) m*h`` for a product Hamiltonian."""
+        """`Tr[H] = Σ_m C(L,m) m*h` for a product Hamiltonian."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         L, h = 2, 1.0
@@ -291,7 +291,7 @@ class TestNormalMPOTrace:
         assert math.isclose(H_n.trace(), expected, rel_tol=1e-9)
 
     def test_product_h_trace_L4(self, product_h_L4):
-        """``Tr[H] = Σ_m C(L,m) m*h`` for L=4."""
+        """`Tr[H] = Σ_m C(L,m) m*h` for L=4."""
         H_mpo, Spc = product_h_L4
         H_n = NormalMPO.from_mpo(H_mpo)
         L, h = 4, 1.0
@@ -299,14 +299,14 @@ class TestNormalMPOTrace:
         assert math.isclose(H_n.trace(), expected, rel_tol=1e-9)
 
     def test_scaled_trace(self, product_h_L2):
-        """``Tr[c * H] = c * Tr[H]``."""
+        """`Tr[c * H] = c * Tr[H]`."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         c = 4.0
         assert math.isclose((c * H_n).trace(), c * H_n.trace(), rel_tol=1e-10)
 
     def test_trace_after_compact(self, product_h_L4):
-        """``trace()`` is preserved through `compact()`."""
+        """`trace()` is preserved through `compact()`."""
         H_mpo, Spc = product_h_L4
         H_n = NormalMPO.from_mpo(H_mpo)
         tr_before = H_n.trace()
@@ -323,7 +323,7 @@ class TestNormalMPOMatmul:
     """Consistency tests for `__matmul__` via trace checks."""
 
     def test_right_identity(self, product_h_L2):
-        """``Tr[H @ I] ≈ Tr[H]``."""
+        """`Tr[H @ I] ≈ Tr[H]`."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -332,7 +332,7 @@ class TestNormalMPOMatmul:
         assert math.isclose(prod.trace(), H_n.trace(), rel_tol=1e-8)
 
     def test_left_identity(self, product_h_L2):
-        """``Tr[I @ H] ≈ Tr[H]``."""
+        """`Tr[I @ H] ≈ Tr[H]`."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -341,7 +341,7 @@ class TestNormalMPOMatmul:
         assert math.isclose(prod.trace(), H_n.trace(), rel_tol=1e-8)
 
     def test_power_moment_L2(self, product_h_L2):
-        """``Tr[H²] = Σ_m C(L,m) (hm)²`` (L=2, h=1)."""
+        """`Tr[H²] = Σ_m C(L,m) (hm)²` (L=2, h=1)."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         L, h = 2, 1.0
@@ -351,7 +351,7 @@ class TestNormalMPOMatmul:
         assert math.isclose(HH.trace(), expected, rel_tol=1e-8)
 
     def test_power_moment_L4(self, product_h_L4):
-        """``Tr[H²] = Σ_m C(L,m) (hm)²`` (L=4, h=1)."""
+        """`Tr[H²] = Σ_m C(L,m) (hm)²` (L=4, h=1)."""
         H_mpo, Spc = product_h_L4
         H_n = NormalMPO.from_mpo(H_mpo)
         L, h = 4, 1.0
@@ -361,7 +361,7 @@ class TestNormalMPOMatmul:
         assert math.isclose(HH.trace(), expected, rel_tol=1e-8)
 
     def test_cubic_moment_L2(self, product_h_L2):
-        """``Tr[H³] = Σ_m C(L,m) (hm)³`` (L=2, h=1)."""
+        """`Tr[H³] = Σ_m C(L,m) (hm)³` (L=2, h=1)."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         L, h = 2, 1.0
@@ -371,7 +371,7 @@ class TestNormalMPOMatmul:
         assert math.isclose(HHH.trace(), expected, rel_tol=1e-8)
 
     def test_associativity_L2(self, product_h_L2):
-        """``Tr[(H @ H) @ H] = Tr[H @ (H @ H)]``."""
+        """`Tr[(H @ H) @ H] = Tr[H @ (H @ H)]`."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         left = (H_n @ H_n) @ H_n
@@ -381,7 +381,7 @@ class TestNormalMPOMatmul:
         assert math.isclose(left.trace(), right.trace(), rel_tol=1e-8)
 
     def test_associativity_L4(self, product_h_L4):
-        """``Tr[(H @ H) @ H] = Tr[H @ (H @ H)]`` for L=4."""
+        """`Tr[(H @ H) @ H] = Tr[H @ (H @ H)]` for L=4."""
         H_mpo, Spc = product_h_L4
         H_n = NormalMPO.from_mpo(H_mpo)
         left = (H_n @ H_n) @ H_n
@@ -391,7 +391,7 @@ class TestNormalMPOMatmul:
         assert math.isclose(left.trace(), right.trace(), rel_tol=1e-7)
 
     def test_scale_multiplicative(self, product_h_L2):
-        """``(c * H) @ (d * I)`` has scale consistent with trace."""
+        """`(c * H) @ (d * I)` has scale consistent with trace."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -411,7 +411,7 @@ class TestNormalMPOAdd:
     """Consistency tests for `__add__` via trace checks."""
 
     def test_linearity_L2(self, product_h_L2):
-        """``Tr[H + I] = Tr[H] + Tr[I]``."""
+        """`Tr[H + I] = Tr[H] + Tr[I]`."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -421,7 +421,7 @@ class TestNormalMPOAdd:
         assert math.isclose(S.trace(), expected, rel_tol=1e-8)
 
     def test_linearity_L4(self, product_h_L4):
-        """``Tr[H + I] = Tr[H] + Tr[I]`` for L=4."""
+        """`Tr[H + I] = Tr[H] + Tr[I]` for L=4."""
         H_mpo, Spc = product_h_L4
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -431,7 +431,7 @@ class TestNormalMPOAdd:
         assert math.isclose(S.trace(), expected, rel_tol=1e-8)
 
     def test_scalar_consistency_L2(self, product_h_L2):
-        """``Tr[c*H + H] = (c+1) * Tr[H]``."""
+        """`Tr[c*H + H] = (c+1) * Tr[H]`."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         c = 2.5
@@ -441,7 +441,7 @@ class TestNormalMPOAdd:
         assert math.isclose(S.trace(), expected, rel_tol=1e-8)
 
     def test_scalar_consistency_negative_coeff(self, product_h_L2):
-        """``Tr[H + (-0.5)*I] = Tr[H] - 0.5*Tr[I]`` (negative coefficient)."""
+        """`Tr[H + (-0.5)*I] = Tr[H] - 0.5*Tr[I]` (negative coefficient)."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -452,7 +452,7 @@ class TestNormalMPOAdd:
         assert math.isclose(S.trace(), expected, rel_tol=1e-8)
 
     def test_distributivity_L2(self, product_h_L2):
-        """``Tr[(H + I) @ H] = Tr[H @ H] + Tr[I @ H]``."""
+        """`Tr[(H + I) @ H] = Tr[H @ H] + Tr[I @ H]`."""
         H_mpo, Spc = product_h_L2
         H_n = NormalMPO.from_mpo(H_mpo)
         I_n = NormalMPO.from_mpo(_identity_mpo(Spc, H_mpo.L))
@@ -469,7 +469,7 @@ class TestNormalMPOAdd:
         assert math.isclose(lhs.trace(), expected, rel_tol=1e-7)
 
     def test_add_with_scaled_term(self, product_h_L4):
-        """``Tr[H + 2*H] = 3 * Tr[H]`` for L=4."""
+        """`Tr[H + 2*H] = 3 * Tr[H]` for L=4."""
         H_mpo, Spc = product_h_L4
         H_n = NormalMPO.from_mpo(H_mpo)
         S = H_n + 2.0 * H_n
@@ -490,7 +490,7 @@ class TestThermalMPO:
 
     @pytest.mark.parametrize('beta', _BETA_VALS)
     def test_partition_function_L2(self, product_h_L2, beta):
-        """``Z(β) = (1 + e^{-βh})^L`` for L=2."""
+        """`Z(β) = (1 + e^{-βh})^L` for L=2."""
         H_mpo, Spc = product_h_L2
         L, h = 2, 1.0
         rho = thermal_mpo(H_mpo, beta, self._ORDER, Spc)
@@ -499,7 +499,7 @@ class TestThermalMPO:
 
     @pytest.mark.parametrize('beta', _BETA_VALS)
     def test_partition_function_L4(self, product_h_L4, beta):
-        """``Z(β) = (1 + e^{-βh})^L`` for L=4."""
+        """`Z(β) = (1 + e^{-βh})^L` for L=4."""
         H_mpo, Spc = product_h_L4
         L, h = 4, 1.0
         rho = thermal_mpo(H_mpo, beta, self._ORDER, Spc)
@@ -508,7 +508,7 @@ class TestThermalMPO:
 
     @pytest.mark.parametrize('beta', _BETA_VALS)
     def test_thermal_energy_L2(self, product_h_L2, beta):
-        """``⟨H⟩_β = L h e^{-βh} / (1 + e^{-βh})`` for L=2."""
+        """`⟨H⟩_β = L h e^{-βh} / (1 + e^{-βh})` for L=2."""
         H_mpo, Spc = product_h_L2
         L, h = 2, 1.0
         rho = thermal_mpo(H_mpo, beta, self._ORDER, Spc)
@@ -517,7 +517,7 @@ class TestThermalMPO:
 
     @pytest.mark.parametrize('beta', _BETA_VALS)
     def test_thermal_energy_L4(self, product_h_L4, beta):
-        """``⟨H⟩_β = L h e^{-βh} / (1 + e^{-βh})`` for L=4."""
+        """`⟨H⟩_β = L h e^{-βh} / (1 + e^{-βh})` for L=4."""
         H_mpo, Spc = product_h_L4
         L, h = 4, 1.0
         rho = thermal_mpo(H_mpo, beta, self._ORDER, Spc)
@@ -525,7 +525,7 @@ class TestThermalMPO:
         assert math.isclose(E, _E_exact(L, h, beta), rel_tol=1e-8)
 
     def test_z_order1_approximation(self, product_h_L2):
-        """First-order Taylor gives ``Z ≈ d^L - β Tr[H]`` for small β."""
+        """First-order Taylor gives `Z ≈ d^L - β Tr[H]` for small β."""
         H_mpo, Spc = product_h_L2
         L, h = 2, 1.0
         beta = 0.05
@@ -562,7 +562,7 @@ class TestThermalMPO:
         assert math.isclose(Z, _Z_exact(L, h, beta), rel_tol=1e-10)
 
     def test_observe_dispatch_for_normal_mpo(self, product_h_L2):
-        """``observe(rho, H)`` dispatches to the thermal branch when rho is a NormalMPO."""
+        """`observe(rho, H)` dispatches to the thermal branch when rho is a NormalMPO."""
         H_mpo, Spc = product_h_L2
         rho = thermal_mpo(H_mpo, 0.3, self._ORDER, Spc)
         E = observe(rho, H_mpo)
@@ -627,14 +627,14 @@ class TestFreeFermionThermal:
 
     @pytest.mark.parametrize('beta', [0.5, 1.0])
     def test_partition_function(self, tight_binding_h, beta):
-        """Partition function ``Tr[ρ]`` matches the exact free-fermion result."""
+        """Partition function `Tr[ρ]` matches the exact free-fermion result."""
         H_mpo, Spc = tight_binding_h
         rho = thermal_mpo(H_mpo, beta, self._ORDER, Spc)
         assert math.isclose(rho.trace(), self._Z_exact(beta), rel_tol=1e-6)
 
     @pytest.mark.parametrize('beta', [0.5, 1.0])
     def test_thermal_energy(self, tight_binding_h, beta):
-        """Thermal energy ``⟨H⟩_β`` matches the exact free-fermion result."""
+        """Thermal energy `⟨H⟩_β` matches the exact free-fermion result."""
         H_mpo, Spc = tight_binding_h
         rho = thermal_mpo(H_mpo, beta, self._ORDER, Spc)
         E = observe(rho, H_mpo)

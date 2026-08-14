@@ -1,5 +1,72 @@
 # Changelog
 
+## [0.2.2] - 2026-08-14
+
+**XTRG: Specific Heat and Cache Isolation**
+
+Fixes the sign of XTRG's specific heat, which was reported negative for every physical
+Hamiltonian, and isolates XTRG's environment disk cache per run so that concurrent jobs
+sharing one `env_cache_dir` no longer overwrite each other's blocks. The remainder is a
+consistency pass over the codebase: American English spelling, "index" in place of "leg",
+lowercase builtin type annotations, and role-based einsum index names. No breaking
+changes.
+
+### Specific Heat Sign Fix
+
+- **Bug fixed:** `_compute_observables` computed `c_V[n] = β_n Δu / ln 2`, dropping the
+  minus sign in `c_V = ∂u/∂T = −β ∂u/∂(ln β)`. Since `u` decreases with β, the reported
+  specific heat was negative wherever the true value is positive.
+- Both the interior and the trailing one-sided stencil now carry the correct sign;
+  `free_energies`, `energies`, and `entropies` are unaffected.
+
+### XTRG Environment Cache Isolation
+
+- `xtrg.run()` now creates a unique subdirectory (first 8 hex characters of a UUID4,
+  e.g. `{env_cache_dir}/a1b2c3d4/`) inside `env_cache_dir` per invocation, reused by
+  every squaring step and removed in a `finally` block on return or exception.
+- Cache-directory resolution moved from `_fit_mpo` to `run()`; `_fit_mpo` gains a
+  `cache_dir` parameter and no longer reads `opts.env_cache_dir`.
+- The resolved cache path is logged in `run()`'s startup banner.
+
+### Consistency Pass
+
+- All comments, docstrings, and documentation pages converted to American English;
+  "leg" replaced by "index" or an ordinal rank ("2nd-order" instead of "2-leg").
+- XTRG drops `typing.Dict`/`typing.List` for builtin `dict`/`list`; `sweep` gains real
+  `Options` annotations under `TYPE_CHECKING`.
+- `_observe_mps`'s contraction renamed from `einsum('ace,abg,cdgh,efh->bdf', …)` to
+  `einsum('aob,acr,oprs,bds->cpd', …)`, following the project's index-naming convention.
+
+### Tests
+
+- New `TestComputeObservables` (specific-heat sign on a two-level system) and
+  `TestEnvCache` (per-run subdirectory creation and removal, distinct subdirectories
+  across runs, cached run matching the in-memory run, TOML round trip).
+- `test_scheme_1s`'s idempotency test now builds mixed-canonical environments in the
+  compressed MPO's own canonical frame, where the 1-site update is a true variational
+  optimum.
+
+### Documentation
+
+- New **Environment caching for large chains** section in the XTRG free-fermion example;
+  the DMRG Hubbard example's caching note updated for the per-run subdirectory.
+
+### Statistics
+
+- **937 tests** across 29 test modules (up from 930 / 29 modules in v0.2.1).
+- **44 commits** since v0.2.1.
+- **48 files changed**, 528 insertions, 313 deletions.
+- **28 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** None — fully backward compatible with v0.2.1. Checkpoints from
+  v0.2.0/v0.2.1 still load, but their `specific_heats` entries must be negated.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.2.1] - 2026-08-07
 
 **XTRG: Density-Matrix Artifacts**
@@ -566,6 +633,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.0
 [0.1.6]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.1.6

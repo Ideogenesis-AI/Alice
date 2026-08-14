@@ -38,7 +38,7 @@ After a backward sweep:
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from alice.network.thermal import NormalMPO
 
@@ -47,6 +47,11 @@ from .environ import Environment, step_left_env, step_right_env
 from .scheme_1s import local_update_1s
 from .scheme_2s import build_bulk, discarded_weight
 from .scheme_2s import local_update_2s, split_backward, split_forward
+
+if TYPE_CHECKING:
+    # `xtrg` imports this module, so `Options` can only be referenced under
+    # TYPE_CHECKING; the future import keeps the annotation unevaluated.
+    from .xtrg import Options
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +62,7 @@ def forward_sweep(
     mpo_c: NormalMPO,
     env_left: Environment,
     env_right: Environment,
-    opts,
+    opts: Options,
 ) -> None:
     """Perform a left-to-right (forward) half-sweep updating `mpo_c` in-place.
 
@@ -99,7 +104,7 @@ def backward_sweep(
     mpo_c: NormalMPO,
     env_left: Environment,
     env_right: Environment,
-    opts,
+    opts: Options,
 ) -> float:
     """Perform a right-to-left (backward) half-sweep updating `mpo_c` in-place.
 
@@ -145,7 +150,7 @@ def backward_sweep(
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _unpack_opts(opts):
+def _unpack_opts(opts: Options) -> Tuple[Optional[dict], dict]:
     """Build the truncation dict and CBE keyword-args from `opts`."""
     trunc: Optional[dict] = {'thresh': opts.trunc_thresh}
     if opts.max_bond is not None:

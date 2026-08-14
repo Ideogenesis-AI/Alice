@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Davidson iterative eigensolver for DMRG local optimisation.
+"""Davidson iterative eigensolver for DMRG local optimization.
 
 Finds the lowest eigenvalue and corresponding eigenvector of a large symmetric
 operator given only a matrix-vector product routine (`matvec_fn`). No
@@ -26,18 +26,18 @@ Hamiltonian, which is expensive for symmetric tensors.
 
 Algorithm outline (residual variant)
 -------------------------------------
-1. Normalise the initial guess `v0` and seed the Krylov subspace `V = [v0]`.
+1. Normalize the initial guess `v0` and seed the Krylov subspace `V = [v0]`.
 2. Apply the operator: `HV = [matvec_fn(v0)]`.
 3. Build the 1×1 projected matrix `H_sub = [[⟨v0|Hv0⟩]]`.
 4. Iterate:
-   a. Diagonalise `H_sub` (real symmetric) → lowest eigenvalue `θ` and
+   a. Diagonalize `H_sub` (real symmetric) → lowest eigenvalue `θ` and
       Ritz coefficient vector `u`.
    b. Form the Ritz vector `q = Σ_i u[i] V[i]`.
    c. Compute the residual `r = Σ_i u[i] HV[i] − θ·q`.
    d. If `‖r‖ < tol`: converged; return `(θ, q)`.
    e. If the subspace has reached `max_subspace`: collapse to `q` and
       restart (thick restart with a single vector).
-   f. Otherwise: orthogonalise `r` against `V` (Gram-Schmidt), append the
+   f. Otherwise: orthogonalize `r` against `V` (Gram-Schmidt), append the
       new direction to `V` and `HV`, and extend `H_sub` by one row/column.
 """
 
@@ -151,7 +151,7 @@ def davidson(
     float
         Approximate lowest eigenvalue `θ`.
     Tensor
-        Approximate eigenvector (Ritz vector) `q`, normalised to unit norm.
+        Approximate eigenvector (Ritz vector) `q`, normalized to unit norm.
     float
         Final residual norm `‖r‖` at exit (convergence, subspace collapse, or
         max iterations reached).
@@ -161,13 +161,13 @@ def davidson(
     ValueError
         If `v0` has zero norm.
     """
-    # Normalise the initial guess.
+    # Normalize the initial guess.
     norm0 = v0.norm()
     if norm0 == 0.0:
         raise ValueError("initial guess v0 has zero norm")
     v0 = _scale(1.0 / norm0, v0)
 
-    # Seed the subspace with the normalised initial guess.
+    # Seed the subspace with the normalized initial guess.
     V: List[Tensor] = [v0]
     HV: List[Tensor] = [matvec_fn(v0)]
 
@@ -179,7 +179,7 @@ def davidson(
     q = v0
 
     for iteration in range(max_iter):
-        # Diagonalise the small projected matrix (real symmetric for Hermitian H).
+        # Diagonalize the small projected matrix (real symmetric for Hermitian H).
         evals, evecs = np.linalg.eigh(H_sub)
         # Select the lowest eigenvalue and its coefficient vector.
         theta = float(evals[0])
@@ -213,7 +213,7 @@ def davidson(
             ip = _inner_product(q, Hq)
             H_sub = np.array([[ip.real]], dtype=np.float64)
         else:
-            # Orthogonalise the residual against the current subspace (Gram-Schmidt).
+            # Orthogonalize the residual against the current subspace (Gram-Schmidt).
             v_new = r
             for vi in V:
                 coeff = _inner_product(vi, v_new)

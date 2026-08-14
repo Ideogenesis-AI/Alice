@@ -38,9 +38,11 @@ from __future__ import annotations
 
 import logging
 import math
+import shutil
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
 from nicole import Index
 from nicole import deserialize as _deserialize_tensor
@@ -59,7 +61,7 @@ logger = logging.getLogger(__name__)
 # Scheme alias resolution
 # ---------------------------------------------------------------------------
 
-_SCHEME_ALIASES: Dict[str, str] = {
+_SCHEME_ALIASES: dict[str, str] = {
     '1s': '1s',
     '1-site': '1s',
     'one-site': '1s',
@@ -75,7 +77,7 @@ _IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 
 def _resolve_scheme(alias: str) -> str:
-    """Normalise a scheme alias to its canonical name.
+    """Normalize a scheme alias to its canonical name.
 
     Parameters
     ----------
@@ -90,13 +92,13 @@ def _resolve_scheme(alias: str) -> str:
     Raises
     ------
     ValueError
-        If `alias` is not a recognised scheme name.
+        If `alias` is not a recognized scheme name.
     """
     canonical = _SCHEME_ALIASES.get(alias.lower())
     if canonical is None:
         known = ', '.join(sorted(_SCHEME_ALIASES))
         raise ValueError(
-            f"unknown XTRG scheme {alias!r}; recognised values are: {known}"
+            f"unknown XTRG scheme {alias!r}; recognized values are: {known}"
         )
     return canonical
 
@@ -140,9 +142,16 @@ class Options(AlgorithmOptions):
         Number of full variational sweeps (forward + backward) per squaring
         step. More sweeps improve compression accuracy at the cost of compute.
     env_cache_dir:
-        Directory for environment disk caching. `None` keeps all blocks in
-        memory (default). Useful for large chains where environments do not
-        fit in RAM.
+        Root directory for environment disk caching. When set, `run()`
+        creates a unique subdirectory inside it (first 8 hex characters of a
+        UUID4, e.g. `{env_cache_dir}/a1b2c3d4/`) so that concurrent runs
+        sharing the same config do not overwrite each other's blocks. Inside
+        that subdirectory, `xtrg_left/{i:05d}.pt` and `xtrg_right/{i:05d}.pt`
+        files are written, and are reused across all squaring steps of the
+        run. The unique subdirectory is removed automatically when `run()`
+        returns (or raises). `None` (default) keeps all blocks in memory.
+        Useful for large chains where environments do not fit in RAM.
+        Stored as `str` for TOML compatibility.
     env_async_io:
         If `True` (default), disk writes are submitted asynchronously so
         they overlap with computation. Has no effect when `env_cache_dir`
@@ -245,22 +254,22 @@ class Summary(AlgorithmSummary):
         Number of cooling (squaring) steps reflected in this summary.
     """
 
-    betas: List[float] = field(default_factory=list)
-    log_z: List[float] = field(default_factory=list)
-    free_energies: List[float] = field(default_factory=list)
-    energies: List[float] = field(default_factory=list)
-    specific_heats: List[float] = field(default_factory=list)
-    entropies: List[float] = field(default_factory=list)
-    discarded_weights: List[float] = field(default_factory=list)
+    betas: list[float] = field(default_factory=list)
+    log_z: list[float] = field(default_factory=list)
+    free_energies: list[float] = field(default_factory=list)
+    energies: list[float] = field(default_factory=list)
+    specific_heats: list[float] = field(default_factory=list)
+    entropies: list[float] = field(default_factory=list)
+    discarded_weights: list[float] = field(default_factory=list)
     converged: bool = True
     n_steps: int = 0
 
-    def serialize(self) -> Dict:
+    def serialize(self) -> dict:
         """Serialize the summary to a plain dict compatible with `torch.save`.
 
         Returns
         -------
-        Dict
+        dict
             Serialized summary (version 2; no density matrix).
         """
         return {
@@ -277,7 +286,7 @@ class Summary(AlgorithmSummary):
         }
 
     @classmethod
-    def deserialize(cls, data: Dict, device: str = 'cpu') -> 'Summary':
+    def deserialize(cls, data: dict, device: str = 'cpu') -> Summary:
         """Reconstruct a `Summary` from a dict produced by `serialize`.
 
         Parameters
@@ -338,12 +347,12 @@ class Artifact(AlgorithmSummary):
     beta: float
     step: int
 
-    def serialize(self) -> Dict:
+    def serialize(self) -> dict:
         """Serialize the artifact to a plain dict compatible with `torch.save`.
 
         Returns
         -------
-        Dict
+        dict
             Serialized artifact.
         """
         return {
@@ -355,7 +364,7 @@ class Artifact(AlgorithmSummary):
         }
 
     @classmethod
-    def deserialize(cls, data: Dict, device: str = 'cpu') -> 'Artifact':
+    def deserialize(cls, data: dict, device: str = 'cpu') -> Artifact:
         """Reconstruct an `Artifact` from a dict produced by `serialize`.
 
         Parameters
@@ -399,7 +408,7 @@ class Artifact(AlgorithmSummary):
 # Checkpoint / artifact helpers
 # ---------------------------------------------------------------------------
 
-def _atomic_torch_save(payload: Dict, path: Path) -> None:
+def _atomic_torch_save(payload: dict, path: Path) -> None:
     """Atomically write `payload` via a sibling `*_lock` file then rename."""
     import torch
 
@@ -412,9 +421,9 @@ def _atomic_torch_save(payload: Dict, path: Path) -> None:
 
 
 def _build_summary(
-    betas: List[float],
-    log_z: List[float],
-    discarded_weights: List[float],
+    betas: list[float],
+    log_z: list[float],
+    discarded_weights: list[float],
     L: int,
     step: int,
     converged: bool,
@@ -470,11 +479,12 @@ def _fit_mpo(
     mpo_a: NormalMPO,
     mpo_b: NormalMPO,
     opts: Options,
+    cache_dir: Optional[Path] = None,
 ) -> Tuple[NormalMPO, float]:
     """Compress mpo_a @ mpo_b variationaly into a lower-bond-dim NormalMPO.
 
     Runs `opts.n_sweeps` full variational sweeps (each = forward + backward
-    half-sweep) to find C ≈ mpo_a · mpo_b by minimising ‖C − A·B‖²_F.
+    half-sweep) to find C ≈ mpo_a · mpo_b by minimizing ‖C − A·B‖²_F.
 
     Parameters
     ----------
@@ -484,6 +494,11 @@ def _fit_mpo(
         Right factor MPO.
     opts:
         XTRG options (scheme, max_bond, trunc_thresh, n_sweeps, env_*).
+    cache_dir:
+        Run-specific directory for environment disk caching, already made
+        unique by the caller. `None` (default) keeps all blocks in memory,
+        regardless of `opts.env_cache_dir`; the resolution of that option
+        into a collision-free path is the caller's responsibility.
 
     Returns
     -------
@@ -508,14 +523,13 @@ def _fit_mpo(
         mpo_c.canonical(0)
 
     _2s = (opts.scheme == '2s')
-    _cache: Optional[Path] = Path(opts.env_cache_dir) if opts.env_cache_dir else None
-    if _cache is not None:
-        (_cache / 'xtrg_left').mkdir(parents=True, exist_ok=True)
-        (_cache / 'xtrg_right').mkdir(parents=True, exist_ok=True)
+    if cache_dir is not None:
+        (cache_dir / 'xtrg_left').mkdir(parents=True, exist_ok=True)
+        (cache_dir / 'xtrg_right').mkdir(parents=True, exist_ok=True)
 
     env_left = Environment(
         L,
-        _cache / 'xtrg_left' if _cache is not None else None,
+        cache_dir / 'xtrg_left' if cache_dir is not None else None,
         async_io=opts.env_async_io,
         window=opts.env_window,
         fetch_lo=0,
@@ -523,7 +537,7 @@ def _fit_mpo(
     )
     env_right = Environment(
         L,
-        _cache / 'xtrg_right' if _cache is not None else None,
+        cache_dir / 'xtrg_right' if cache_dir is not None else None,
         async_io=opts.env_async_io,
         window=opts.env_window,
         fetch_lo=1 if _2s else 0,
@@ -569,14 +583,14 @@ def _fit_mpo(
 # ---------------------------------------------------------------------------
 
 def _compute_observables(
-    betas: List[float],
-    log_z: List[float],
+    betas: list[float],
+    log_z: list[float],
     L: int,
-) -> Tuple[List[float], List[float], List[float], List[float]]:
+) -> tuple[list[float], list[float], list[float], list[float]]:
     """Derive thermodynamic observables from the log Z grid.
 
     Uses log-β finite differences to compute internal energy and specific heat,
-    which give uniform O((ln 2)²) discretisation error across the exponentially
+    which give uniform O((ln 2)²) discretization error across the exponentially
     spaced β grid.
 
     Parameters
@@ -586,17 +600,17 @@ def _compute_observables(
     log_z:
         `log Z(β_n)` at each point, same length as `betas`.
     L:
-        Chain length (for per-site normalisation).
+        Chain length (for per-site normalization).
 
     Returns
     -------
-    List[float]
+    list[float]
         Free energies f(β) per site.
-    List[float]
+    list[float]
         Internal energies u(β) per site.
-    List[float]
+    list[float]
         Specific heats c_V(β) per site.
-    List[float]
+    list[float]
         Entropies S(β) per site.
     """
     N = len(betas)
@@ -616,13 +630,14 @@ def _compute_observables(
             u = -(log_z[n] - log_z[n - 1]) / (ln2 * betas[n - 1])
         energies.append(u / L)
 
-    # Specific heat: c_V[n] = β_n ∂u/∂(ln β) ≈ β_n Δu / Δ(ln β)
+    # Specific heat: c_V = ∂u/∂T = −β² ∂u/∂β = −β ∂u/∂(ln β).
+    # On the XTRG grid Δ(ln β) = ln 2, so c_V[n] ≈ −β_n Δu / ln 2.
     specific_heats = []
     for n in range(N):
         if n < N - 1:
-            cv = betas[n] * (energies[n + 1] - energies[n]) / ln2
+            cv = -betas[n] * (energies[n + 1] - energies[n]) / ln2
         else:
-            cv = betas[n] * (energies[n] - energies[n - 1]) / ln2
+            cv = -betas[n] * (energies[n] - energies[n - 1]) / ln2
         specific_heats.append(cv)
 
     # Entropy: S = β (u − f)  [per site]
@@ -681,7 +696,7 @@ def run(
 ) -> Tuple[Summary, Artifact]:
     """Run XTRG to compute finite-temperature properties of a Hamiltonian MPO.
 
-    Initialises the thermal density matrix via a Taylor expansion
+    Initializes the thermal density matrix via a Taylor expansion
     ρ(τ₀) ≈ Σ_n (-τ₀)^n/n! H^n, then repeatedly squares it using
     variational MPO-MPO compression to reach β_max = 2^n_steps × τ₀.
 
@@ -710,20 +725,29 @@ def run(
     Raises
     ------
     ValueError
-        If `opts.scheme` is not a recognised scheme.
+        If `opts.scheme` is not a recognized scheme.
     NotImplementedError
-        If `opts.scheme` is recognised but not yet implemented.
+        If `opts.scheme` is recognized but not yet implemented.
     """
     if opts is None:
         opts = Options()
 
     if opts.scheme not in _IMPLEMENTED_SCHEMES:
         raise NotImplementedError(
-            f"XTRG scheme {opts.scheme!r} is recognised but not yet implemented; "
+            f"XTRG scheme {opts.scheme!r} is recognized but not yet implemented; "
             f"implemented schemes are: {', '.join(sorted(_IMPLEMENTED_SCHEMES))}"
         )
 
     L = H.L
+    # Resolve the optional disk-cache directory. A unique subdirectory
+    # (first 8 hex digits of a UUID4) is created inside the user-supplied
+    # path so that concurrent runs sharing the same config do not collide.
+    # The same subdirectory is reused by every squaring step of this run.
+    _cache: Optional[Path] = None
+    if opts.env_cache_dir:
+        _cache = Path(opts.env_cache_dir) / uuid.uuid4().hex[:8]
+        _cache.mkdir(parents=True, exist_ok=True)
+
     # Resolve the checkpoint directory; default to Path.cwd() when unset,
     # mirroring the convention used by configure_logging / DMRG.
     _ckpt: Path = Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else Path.cwd()
@@ -752,22 +776,24 @@ def run(
         logger.info("  expand alpha      : %s", alpha_str)
     if opts.checkpoint_dir is not None:
         logger.info("  checkpoint dir    : %s", _ckpt)
+    if _cache is not None:
+        logger.info("  env cache dir     : %s", _cache)
     if opts.save_artifacts:
         logger.info("  save artifacts    : True (since step %d)", opts.save_artifacts_since)
     logger.info("")
 
-    # Step 0: initialise ρ(τ₀) via Taylor expansion.
+    # Step 0: initialize ρ(τ₀) via Taylor expansion.
     logger.info("Initializing ρ(τ₀=%.6g) via Taylor expansion (order %d)…",
                 opts.tau_0, opts.taylor_order)
     rho = thermal_mpo(H, opts.tau_0, opts.taylor_order, spc)
 
-    betas: List[float] = [opts.tau_0]
+    betas: list[float] = [opts.tau_0]
     # log_trace() (rather than log(rho.trace())) keeps log_z finite even
     # when Z(beta) itself would overflow float64 deep into the cooling run.
     log_abs_z, sign_z = rho.log_trace()
     _ensure_positive_trace(sign_z, betas[-1])
-    log_z: List[float] = [log_abs_z]
-    discarded_weights: List[float] = []
+    log_z: list[float] = [log_abs_z]
+    discarded_weights: list[float] = []
 
     logger.info("  β = %.6g,  log Z = %+.8g", betas[-1], log_z[-1])
 
@@ -776,29 +802,36 @@ def run(
     _archive_artifact(artifact, opts, _artifacts)
 
     w = len(str(opts.n_steps))
-    for step in range(opts.n_steps):
-        logger.info("step %*d / %d: squaring ρ(β=%.6g) → ρ(β=%.6g)",
-                    w, step + 1, opts.n_steps, betas[-1], betas[-1] * 2)
+    try:
+        for step in range(opts.n_steps):
+            logger.info("step %*d / %d: squaring ρ(β=%.6g) → ρ(β=%.6g)",
+                        w, step + 1, opts.n_steps, betas[-1], betas[-1] * 2)
 
-        rho, dw = _fit_mpo(rho, rho, opts)
-        discarded_weights.append(dw)
-        betas.append(betas[-1] * 2)
-        lz, sign_z = rho.log_trace()
-        _ensure_positive_trace(sign_z, betas[-1])
-        log_z.append(lz)
+            rho, dw = _fit_mpo(rho, rho, opts, _cache)
+            discarded_weights.append(dw)
+            betas.append(betas[-1] * 2)
+            lz, sign_z = rho.log_trace()
+            _ensure_positive_trace(sign_z, betas[-1])
+            log_z.append(lz)
 
-        logger.info("  β = %.6g,  log Z = %+.8g,  dw = %.4e",
-                    betas[-1], lz, dw)
+            logger.info("  β = %.6g,  log Z = %+.8g,  dw = %.4e",
+                        betas[-1], lz, dw)
 
-        k = step + 1
-        mid_summary = _build_summary(
-            betas, log_z, discarded_weights, L, step=k, converged=False,
-        )
-        _save_thermal(mid_summary, _ckpt)
+            k = step + 1
+            mid_summary = _build_summary(
+                betas, log_z, discarded_weights, L, step=k, converged=False,
+            )
+            _save_thermal(mid_summary, _ckpt)
 
-        artifact = Artifact(rho=rho, beta=betas[-1], step=k)
-        _save_progress(artifact, _ckpt)
-        _archive_artifact(artifact, opts, _artifacts)
+            artifact = Artifact(rho=rho, beta=betas[-1], step=k)
+            _save_progress(artifact, _ckpt)
+            _archive_artifact(artifact, opts, _artifacts)
+    finally:
+        # Remove the run-specific cache subdirectory; ignore errors so that a
+        # partially-written or already-deleted directory does not mask the real
+        # exception (if any) from the cooling loop.
+        if _cache is not None:
+            shutil.rmtree(_cache, ignore_errors=True)
 
     logger.info("")
 

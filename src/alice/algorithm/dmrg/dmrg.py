@@ -76,7 +76,7 @@ _IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 
 def _resolve_scheme(alias: str) -> str:
-    """Normalise a scheme alias to its canonical name.
+    """Normalize a scheme alias to its canonical name.
 
     Parameters
     ----------
@@ -131,7 +131,7 @@ class Options(AlgorithmOptions):
     davidson_tol:
         Residual norm tolerance for the Davidson eigensolver.
     davidson_max_iter:
-        Maximum Davidson iterations per site optimisation.
+        Maximum Davidson iterations per site optimization.
     davidson_max_subspace:
         Maximum Krylov subspace size before a thick restart.
     e_tol:
@@ -167,7 +167,7 @@ class Options(AlgorithmOptions):
     checkpoint_dir:
         Directory to write checkpoint files into. A `dmrg.ckpt` file
         (PyTorch format, loadable via `dmrg.Summary.load`) is written after
-        every full sweep using an atomic write: the data is first serialised
+        every full sweep using an atomic write: the data is first serialized
         to `dmrg_lock.ckpt` in the same directory, then renamed to
         `dmrg.ckpt` on success, so a failed write cannot corrupt the
         previous checkpoint. `None` (default) resolves to `Path.cwd()` at
@@ -192,7 +192,7 @@ class Options(AlgorithmOptions):
     checkpoint_dir: Optional[str] = None
 
     def __post_init__(self) -> None:
-        # Normalise the scheme alias to the canonical name immediately.
+        # Normalize the scheme alias to the canonical name immediately.
         self.scheme = _resolve_scheme(self.scheme)
 
 
@@ -209,7 +209,7 @@ class Summary(AlgorithmSummary):
     energy:
         Final ground-state energy (lowest Ritz value from the last sweep).
     state:
-        Optimised MPS after all sweeps.
+        Optimized MPS after all sweeps.
     energies:
         Energy recorded at the end of each full sweep (forward + backward half-sweep).
     converged:
@@ -305,9 +305,9 @@ def _save_checkpoint(
 ) -> None:
     """Write an atomic checkpoint of the current DMRG state.
 
-    Serialises the current MPS and energy history to `dmrg_lock.ckpt` in
+    Serializes the current MPS and energy history to `dmrg_lock.ckpt` in
     `ckpt_dir`, then renames it to `dmrg.ckpt`. The rename is atomic on
-    POSIX systems, so a crash during serialisation cannot corrupt the
+    POSIX systems, so a crash during serialization cannot corrupt the
     previously written checkpoint.
 
     Parameters
@@ -352,7 +352,7 @@ def _save_checkpoint(
 def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     """Run DMRG to find the ground state of a Hamiltonian MPO.
 
-    Performs alternating forward and backward half-sweeps, optimising each site
+    Performs alternating forward and backward half-sweeps, optimizing each site
     tensor with the Davidson eigensolver, until the energy converges or the
     maximum number of sweeps is reached.
 
@@ -369,7 +369,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     Returns
     -------
     Summary
-        Ground-state energy, optimised MPS, energy history, and convergence
+        Ground-state energy, optimized MPS, energy history, and convergence
         information.
 
     Raises
@@ -440,7 +440,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         fetch_hi=L - 1,
     )
 
-    # Initialise the left boundary and all right environment blocks.
+    # Initialize the left boundary and all right environment blocks.
     # __setitem__ auto-caches each block to disk when _cache is set.
     env_left[0] = left_env_boundary(mps, mpo)
     build_right_envs(mps, mpo, env_right)

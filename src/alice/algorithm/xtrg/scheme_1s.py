@@ -18,7 +18,7 @@
 
 """1-site variational MPO-MPO compression update.
 
-At each site `i`, the optimal `C_i` that minimises the local contribution to
+At each site `i`, the optimal `C_i` that minimizes the local contribution to
 `‖C − A·B‖²_F` (given all other sites of C are fixed) is obtained by a
 direct tensor contraction — no eigensolver is needed:
 
@@ -48,7 +48,7 @@ def local_update_1s(
     """Compute the optimal 1-site update for the compressed MPO C at site `i`.
 
     Given the current left and right environments and the factor tensors A and B
-    at site i, returns the C_i that minimises the Frobenius-norm residual
+    at site i, returns the C_i that minimizes the Frobenius-norm residual
 
         ‖C − A·B‖²_F
 

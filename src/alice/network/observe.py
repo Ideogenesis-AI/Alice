@@ -40,7 +40,7 @@ def observe(
     - `MPS` (or a plain sequence of tensors): evaluates ⟨ψ|O|ψ⟩ via a
       left-to-right MPS-MPO-MPS transfer-matrix sweep.
     - `NormalMPO` (thermal density matrix): evaluates
-      ``Tr[ρ O] / Tr[ρ]`` by forming the MPO product ``ρ · O``, compressing
+      `Tr[ρ O] / Tr[ρ]` by forming the MPO product `ρ · O`, compressing
       it, and returning the ratio of traces.
 
     Parameters
@@ -85,10 +85,10 @@ def observe(
 
 
 def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
-    """Compute the thermal expectation value ``Tr[ρ O] / Tr[ρ]``.
+    """Compute the thermal expectation value `Tr[ρ O] / Tr[ρ]`.
 
-    Forms the MPO product ``ρ · O``, compresses it with `compact()`, and
-    returns the ratio of its trace to ``Tr[ρ]``.
+    Forms the MPO product `ρ · O`, compresses it with `compact()`, and
+    returns the ratio of its trace to `Tr[ρ]`.
 
     The ratio is computed via `log_trace()` on both the numerator and the
     denominator and combined in log-space (subtracting logs, then
@@ -107,12 +107,12 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     Returns
     -------
     float
-        The thermal expectation value ``Tr[ρ O] / Tr[ρ]``.
+        The thermal expectation value `Tr[ρ O] / Tr[ρ]`.
 
     Raises
     ------
     ZeroDivisionError
-        If ``Tr[ρ]`` is exactly zero.
+        If `Tr[ρ]` is exactly zero.
     """
     from .thermal import NormalMPO
 
@@ -139,7 +139,7 @@ def _observe_mps(
     """Compute ⟨ψ|O|ψ⟩ by a left-to-right MPS-MPO-MPS contraction.
 
     Performs a transfer-matrix sweep from site 0 to site L−1, accumulating a
-    three-legged environment `E[bra_bond, mpo_bond, ket_bond]` at each step.
+    3rd-order environment `E[bra_bond, mpo_bond, ket_bond]` at each step.
 
     The MPO tensors must follow the axis layout:
 
@@ -168,18 +168,18 @@ def _observe_mps(
 
     Notes
     -----
-    The left boundary environment is initialised as an identity on the dim-1
+    The left boundary environment is initialized as an identity on the dim-1
     left bond of `mps[0]`, extended with a dim-1 MPO bond index. At each
-    site the environment is updated via `einsum('ace,abg,cdgh,efh->bdf', ...)`,
+    site the environment is updated via `einsum('aob,acr,oprs,bds->cpd', ...)`,
     where the letters denote:
 
-    - a, b — bra (conj MPS) left and right bonds
-    - c, d — MPO left and right bonds
-    - e, f — ket (MPS) left and right bonds
-    - g — physical bra index (shared between bra and MPO axis 2)
-    - h — physical ket index (shared between MPO axis 3 and ket)
+    - a, c — bra (conj MPS) left and right bonds
+    - b, d — ket (MPS) left and right bonds
+    - o, p — MPO left and right bonds
+    - r — physical bra index (shared between bra and MPO axis 2)
+    - s — physical ket index (shared between MPO axis 3 and ket)
 
-    a, c, e are contracted against E; b, d, f become the updated E.
+    a, o, b are contracted against E; c, p, d become the updated E.
 
     After the right boundary E is a 1×1×1 tensor. The scalar is read from
     its single data block, multiplied by the Bridge weight for non-Abelian
@@ -200,7 +200,7 @@ def _observe_mps(
 
     for i in range(L):
         # absorb bra, MPO, and ket into E; see Notes for letter definitions
-        E = einsum('ace,abg,cdgh,efh->bdf', E, mps[i].conj(), mpo[i], mps[i])
+        E = einsum('aob,acr,oprs,bds->cpd', E, mps[i].conj(), mpo[i], mps[i])
 
     # E is now a 1×1×1 tensor at the right boundary. Extract the scalar,
     # accounting for the Bridge normalization weight in non-Abelian groups.

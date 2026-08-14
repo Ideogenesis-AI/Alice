@@ -281,7 +281,7 @@ class TestBuildRightEnvs:
 # ---------------------------------------------------------------------------
 
 class TestEnvironmentDiskCache:
-    """Tests for the disk-backed caching behaviour of Environment.
+    """Tests for the disk-backed caching behavior of Environment.
 
     All tests use `async_io=False` so every write completes synchronously
     before the assertion — no timing complexity.

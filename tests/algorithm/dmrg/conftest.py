@@ -24,7 +24,7 @@ import pytest
 from nicole import Direction, Tensor, load_space
 from nicole.index import Index, Sector
 
-from alice.network import MPS, MPO, build_hamiltonian, build_interaction
+from alice.network import MPS, build_hamiltonian, build_interaction
 
 
 # ---------------------------------------------------------------------------

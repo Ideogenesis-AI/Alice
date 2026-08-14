@@ -20,8 +20,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from alice.network import MPS, MPO
 from alice.network.display import _select_sites, network_summary
 
@@ -45,36 +43,36 @@ class TestSelectSites:
 
     def test_always_includes_edges(self):
         for L in (10, 20, 50):
-            result = _select_sites(L, None, 5)
-            assert 0 in result
-            assert L - 1 in result
+            sites = _select_sites(L, None, 5)
+            assert 0 in sites
+            assert L - 1 in sites
 
     def test_always_includes_center(self):
-        result = _select_sites(20, 10, 7)
-        assert 10 in result
+        sites = _select_sites(20, 10, 7)
+        assert 10 in sites
 
     def test_respects_max_sites(self):
         for max_s in (3, 5, 7, 9):
-            result = _select_sites(50, 25, max_s)
-            assert len(result) == max_s
+            sites = _select_sites(50, 25, max_s)
+            assert len(sites) == max_s
 
     def test_no_center_fills_from_edges(self):
-        result = _select_sites(20, None, 5)
-        assert result[0] == 0
-        assert result[-1] == 19
+        sites = _select_sites(20, None, 5)
+        assert sites[0] == 0
+        assert sites[-1] == 19
         # inner sites come from both edges
-        assert result[1] < result[-2]
+        assert sites[1] < sites[-2]
 
     def test_center_near_edge(self):
-        result = _select_sites(20, 1, 7)
-        assert 0 in result
-        assert 1 in result
-        assert 19 in result
-        assert len(result) == 7
+        sites = _select_sites(20, 1, 7)
+        assert 0 in sites
+        assert 1 in sites
+        assert 19 in sites
+        assert len(sites) == 7
 
     def test_sorted(self):
-        result = _select_sites(30, 15, 7)
-        assert result == sorted(result)
+        sites = _select_sites(30, 15, 7)
+        assert sites == sorted(sites)
 
 
 # ── TestNetworkSummary ────────────────────────────────────────────────────────

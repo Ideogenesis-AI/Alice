@@ -73,7 +73,7 @@ def _compress_bond(far_tensor: Tensor, axis: int, alpha: int, itag: str) -> Tens
 
     Performs a single-tensor truncated SVD of `far_tensor` (Eq. 13),
     treating `axis` (the connector bond shared with the near-side tensor) as
-    the left partition and all other axes (own bond, physical legs) as the
+    the left partition and all other axes (own bond, physical indices) as the
     right partition. This SVD depends only on `far_tensor` itself — no
     object of size O(D²) is ever formed, which is what makes the
     compression cheap: cost `O(D³d²)` instead of the `O(D⁴d³)` of a direct
@@ -280,7 +280,7 @@ def _project_complement_right(right_half: Tensor, C_j: Tensor) -> Tensor:
 def _join_disc(left_disc: Tensor, right_disc: Tensor) -> Tensor:
     """Join the discarded halves into the doubly-discarded bond tensor Θ'_disc.
 
-    Contracts over the small `(p, q)` connector legs — cheap,
+    Contracts over the small `(p, q)` connector indices — cheap,
     `O(D²·alpha_a·alpha_b·d⁴)`, subdominant to the exact fill-in step.
 
     Parameters
@@ -551,7 +551,7 @@ def expand_backward(
 
     Mirror of `expand_forward` for backward sweeps. The orthogonality
     center sits at site i; the exact fill-in happens at site i, and site
-    i-1 is only expanded (it will be finalised in a later sweep step). The
+    i-1 is only expanded (it will be finalized in a later sweep step). The
     procedure is:
 
     1. Cheap per-operand bond compression of `A_im1`, `B_im1` (Eq. 13).

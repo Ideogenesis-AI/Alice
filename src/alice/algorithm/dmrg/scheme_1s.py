@@ -121,7 +121,7 @@ def optimize_1site(
     float
         Variational energy estimate (lowest Ritz value).
     Tensor
-        Optimised site tensor `M_opt` with the same axis layout as `M`.
+        Optimized site tensor `M_opt` with the same axis layout as `M`.
     float
         Final Davidson residual norm at convergence (or at exit if not
         converged).

@@ -98,13 +98,13 @@ def forward_sweep(
     Parameters
     ----------
     mps:
-        MPS to optimise in-place. Must have `center` set.
+        MPS to optimize in-place. Must have `center` set.
     mpo:
         Hamiltonian MPO.
     env_left:
-        Left environment blocks. `env_left[mps.center]` must be initialised.
+        Left environment blocks. `env_left[mps.center]` must be initialized.
     env_right:
-        Right environment blocks. All slots must be initialised before the
+        Right environment blocks. All slots must be initialized before the
         first call (populated by `build_right_envs`).
     opts:
         DMRG run options (scheme, truncation, Davidson parameters).
@@ -112,7 +112,7 @@ def forward_sweep(
     Returns
     -------
     float
-        Variational energy at the last optimised site or bond.
+        Variational energy at the last optimized site or bond.
     """
     trunc, davidson_opts, cbe_opts = _unpack_opts(opts)
     if opts.scheme == '1s':
@@ -144,21 +144,21 @@ def backward_sweep(
     Parameters
     ----------
     mps:
-        MPS to optimise in-place. Must have `center` set.
+        MPS to optimize in-place. Must have `center` set.
     mpo:
         Hamiltonian MPO.
     env_left:
         Left environment blocks. All slots must be populated from a prior
         `forward_sweep`.
     env_right:
-        Right environment blocks. `env_right[mps.center]` must be initialised.
+        Right environment blocks. `env_right[mps.center]` must be initialized.
     opts:
         DMRG run options (scheme, truncation, Davidson parameters).
 
     Returns
     -------
     float
-        Variational energy at the last optimised site or bond.
+        Variational energy at the last optimized site or bond.
     float
         Discarded weight at the center bond (2-site only; `0.0` for 1-site
         and 1-site-plus).
@@ -208,10 +208,10 @@ def _forward_1s(
 ) -> float:
     """Forward (left-to-right) half-sweep for 1-site DMRG.
 
-    Visits sites from the current orthogonality center to `L-1`, optimising
+    Visits sites from the current orthogonality center to `L-1`, optimizing
     each site tensor with Davidson, moving the center one step to the right,
     and updating the left environment for the next site. The rightmost site
-    is optimised last without moving the center further.
+    is optimized last without moving the center further.
 
     After this call:
     - `mps.center == mps.L - 1`.
@@ -222,7 +222,7 @@ def _forward_1s(
     w = len(str(L - 1))
 
     for i in range(mps.center, L - 1):
-        # Optimise the site tensor at position i.
+        # Optimize the site tensor at position i.
         E_left = env_left.fetch(i)
         E_right = env_right.fetch(i)
         energy, mps[i], davidson_error = optimize_1site(
@@ -238,7 +238,7 @@ def _forward_1s(
         # Build the left environment for site i+1 from the now-canonicalised tensor.
         env_left[i + 1] = step_left_env(E_left, mps[i], mpo[i])
 
-    # Optimise the rightmost site without moving the center further.
+    # Optimize the rightmost site without moving the center further.
     energy, mps[L - 1], davidson_error = optimize_1site(
         mps[L - 1], mpo[L - 1], env_left.fetch(L - 1), env_right.fetch(L - 1), davidson_opts
     )
@@ -259,9 +259,9 @@ def _backward_1s(
 ) -> float:
     """Backward (right-to-left) half-sweep for 1-site DMRG.
 
-    Visits sites from the current orthogonality center down to `0`, optimising
+    Visits sites from the current orthogonality center down to `0`, optimizing
     each site tensor with Davidson, moving the center one step to the left, and
-    updating the right environment for the next site. Site `0` is optimised
+    updating the right environment for the next site. Site `0` is optimized
     last without moving the center further.
 
     After this call:
@@ -273,7 +273,7 @@ def _backward_1s(
     w = len(str(L - 1))
 
     for i in range(mps.center, 0, -1):
-        # Optimise the site tensor at position i.
+        # Optimize the site tensor at position i.
         E_left = env_left.fetch(i)
         E_right = env_right.fetch(i)
         energy, mps[i], davidson_error = optimize_1site(
@@ -288,7 +288,7 @@ def _backward_1s(
         # Build the right environment for site i-1 from the now-canonicalised tensor.
         env_right[i - 1] = step_right_env(E_right, mps[i], mpo[i])
 
-    # Optimise site 0 without moving the center further.
+    # Optimize site 0 without moving the center further.
     energy, mps[0], davidson_error = optimize_1site(
         mps[0], mpo[0], env_left.fetch(0), env_right.fetch(0), davidson_opts
     )
@@ -314,7 +314,7 @@ def _forward_2s(
     """Forward (left-to-right) half-sweep for 2-site DMRG.
 
     Visits all L-1 bonds from (mps.center, mps.center+1) to (L-2, L-1),
-    optimising the 2-site bond tensor Θ at each step via Davidson, then
+    optimizing the 2-site bond tensor Θ at each step via Davidson, then
     splitting it with SVD (no `mps.canonical` call).
 
     After this call:
@@ -326,7 +326,7 @@ def _forward_2s(
     pair_w = 2 * len(str(L - 1)) + 4
 
     for i in range(mps.center, L - 1):
-        # Optimise the 2-site bond tensor at position (i, i+1).
+        # Optimize the 2-site bond tensor at position (i, i+1).
         E_left = env_left.fetch(i)
         energy, theta_opt, davidson_error = optimize_2site(
             mps[i], mps[i + 1], mpo[i], mpo[i + 1],
@@ -358,7 +358,7 @@ def _backward_2s(
 ) -> Tuple[float, float]:
     """Backward (right-to-left) half-sweep for 2-site DMRG.
 
-    Visits all L-1 bonds from (L-2, L-1) down to (0, 1), optimising the
+    Visits all L-1 bonds from (L-2, L-1) down to (0, 1), optimizing the
     2-site bond tensor Θ at each step via Davidson, then splitting it with SVD.
     At the center bond (`i == L // 2 - 1`) the discarded weight is measured
     via a second SVD call.
@@ -374,7 +374,7 @@ def _backward_2s(
     pair_w = 2 * len(str(L - 1)) + 4
 
     for i in range(L - 2, -1, -1):
-        # Optimise the 2-site bond tensor at position (i, i+1).
+        # Optimize the 2-site bond tensor at position (i, i+1).
         E_right = env_right.fetch(i + 1)
         energy, theta_opt, davidson_error = optimize_2site(
             mps[i], mps[i + 1], mpo[i], mpo[i + 1],
@@ -423,7 +423,7 @@ def _forward_1sp(
        Θ = M[i] ⊗ M[i+1] are formed, H is applied in factored half-sweeps,
        the kept subspace is projected out, and the top-`k_expand` complement
        directions are added via `oplus`.
-    2. Davidson optimises the expanded M[i] using the original left environment
+    2. Davidson optimizes the expanded M[i] using the original left environment
        and the expanded right environment from step 1.
     3. `mps.canonical(i+1, trunc=trunc)` moves the center and truncates the
        expanded bond back to at most `max_bond`.
@@ -497,7 +497,7 @@ def _backward_1sp(
 
     1. `expand_backward` expands the bond using the complement of M[i-1]
        (left projector) and M[i] (right projector).
-    2. Davidson optimises the expanded M[i] with the expanded left environment.
+    2. Davidson optimizes the expanded M[i] with the expanded left environment.
     3. `mps.canonical(i-1, trunc=trunc)` truncates and moves the center left.
     4. `env_right[i-1]` is updated from the truncated right-isometric M[i].
 
