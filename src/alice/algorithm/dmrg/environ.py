@@ -293,10 +293,10 @@ class Environment:
         """Submit a callable to the executor (sync or async depending on config)."""
         if self._async_io:
             return self._get_executor().submit(fn, *args)
-        # Synchronous fallback: run immediately and wrap result in a trivial future.
-        result = fn(*args)
+        # Synchronous fallback: run now and hand back an already-resolved
+        # Future so callers can treat both paths identically.
         fut: Future = Future()
-        fut.set_result(result)
+        fut.set_result(fn(*args))
         return fut
 
     def _evict(self, i: int) -> None:
