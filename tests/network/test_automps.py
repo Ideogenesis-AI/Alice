@@ -28,7 +28,6 @@ from alice.network import MPS, init_mps
 from alice.network.automps import (
     _auto_config,
     _bond_charges,
-    _next_charge,
     _reachable_charges,
 )
 
@@ -601,7 +600,6 @@ class TestTargetQn:
         """Explicit target_qn is used as the right boundary charge (random mode)."""
         Spc, Op = spin_u1
         L = 7
-        Q_vac = _q_vac(Op)
         # Use +1 as the target: the auto-config greedy reaches it exactly.
         qn = 1
         mps = init_mps(L, Spc, Op, bond_dim=8, target_qn=qn)
