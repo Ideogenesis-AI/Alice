@@ -34,7 +34,7 @@ from typing import Any, Dict, Optional, Union
 
 
 # ---------------------------------------------------------------------------
-# TOML serialisation helper
+# TOML serialization helper
 # ---------------------------------------------------------------------------
 
 def _to_toml_value(v: Any) -> Optional[str]:
@@ -88,7 +88,7 @@ class AlgorithmOptions:
     values. All three I/O methods (`from_toml`, `load_toml`, `to_toml`) work
     generically on any subclass via `dataclasses.fields`.
 
-    Supported field types for TOML serialisation: `bool`, `int`, `float`,
+    Supported field types for TOML serialization: `bool`, `int`, `float`,
     `str`, and `Optional` variants of the above (the `None` case is silently
     skipped when writing).
     """
