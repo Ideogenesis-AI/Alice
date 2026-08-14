@@ -90,7 +90,6 @@ class TestNetwork:
     def test_bond_sector_dim_mismatch_raises(self, mps_tensors, spin_space):
         """Mismatched sector dimension on a shared charge must raise."""
         from nicole.index import Index, Sector
-        from nicole import Direction
         Spc, Op = spin_space
         # Replace site 1's left bond with an index that has a different dim
         # for an overlapping charge sector.

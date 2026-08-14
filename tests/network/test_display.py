@@ -20,8 +20,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from alice.network import MPS, MPO
 from alice.network.display import _select_sites, network_summary
 
