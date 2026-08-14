@@ -92,7 +92,7 @@ def _select_sites(L: int, center: Optional[int], max_sites: int) -> List[int]:
     return sorted(shown)
 
 
-def network_summary(net: 'Network', max_sites: int = 9) -> str:
+def network_summary(net: Network, max_sites: int = 9) -> str:
     """Render a text diagram of an MPS or MPO chain.
 
     The output contains three independently centered blocks within a

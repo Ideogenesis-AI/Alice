@@ -40,7 +40,7 @@ def observe(
     - `MPS` (or a plain sequence of tensors): evaluates ⟨ψ|O|ψ⟩ via a
       left-to-right MPS-MPO-MPS transfer-matrix sweep.
     - `NormalMPO` (thermal density matrix): evaluates
-      ``Tr[ρ O] / Tr[ρ]`` by forming the MPO product ``ρ · O``, compressing
+      `Tr[ρ O] / Tr[ρ]` by forming the MPO product `ρ · O`, compressing
       it, and returning the ratio of traces.
 
     Parameters
@@ -85,10 +85,10 @@ def observe(
 
 
 def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
-    """Compute the thermal expectation value ``Tr[ρ O] / Tr[ρ]``.
+    """Compute the thermal expectation value `Tr[ρ O] / Tr[ρ]`.
 
-    Forms the MPO product ``ρ · O``, compresses it with `compact()`, and
-    returns the ratio of its trace to ``Tr[ρ]``.
+    Forms the MPO product `ρ · O`, compresses it with `compact()`, and
+    returns the ratio of its trace to `Tr[ρ]`.
 
     The ratio is computed via `log_trace()` on both the numerator and the
     denominator and combined in log-space (subtracting logs, then
@@ -107,12 +107,12 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     Returns
     -------
     float
-        The thermal expectation value ``Tr[ρ O] / Tr[ρ]``.
+        The thermal expectation value `Tr[ρ O] / Tr[ρ]`.
 
     Raises
     ------
     ZeroDivisionError
-        If ``Tr[ρ]`` is exactly zero.
+        If `Tr[ρ]` is exactly zero.
     """
     from .thermal import NormalMPO
 
@@ -139,7 +139,7 @@ def _observe_mps(
     """Compute ⟨ψ|O|ψ⟩ by a left-to-right MPS-MPO-MPS contraction.
 
     Performs a transfer-matrix sweep from site 0 to site L−1, accumulating a
-    three-legged environment `E[bra_bond, mpo_bond, ket_bond]` at each step.
+    3rd-order environment `E[bra_bond, mpo_bond, ket_bond]` at each step.
 
     The MPO tensors must follow the axis layout:
 

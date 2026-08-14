@@ -632,7 +632,7 @@ class MPO(Network):
         trunc:
             Truncation options forwarded to `canonical()` during the
             right-to-left compression sweep. Defaults to
-            ``{'thresh': 1e-14}`` when `None`.
+            `{'thresh': 1e-14}` when `None`.
         """
         if trunc is None:
             trunc = {'thresh': 1e-14}
