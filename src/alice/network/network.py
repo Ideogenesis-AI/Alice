@@ -435,7 +435,7 @@ class Network:
         }
 
     @staticmethod
-    def deserialize(data: dict, device: str = "cpu") -> "Network":
+    def deserialize(data: dict, device: str = "cpu") -> Network:
         """Reconstruct a `Network` (or subclass) from a dict produced by `serialize`.
 
         Dispatches to the correct subclass (`Network`, `MPS`, or `MPO`) based
