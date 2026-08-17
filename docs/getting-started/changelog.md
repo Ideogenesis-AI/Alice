@@ -4,14 +4,14 @@
 
 **XTRG: Convergence-Based Early Termination**
 
-Lets XTRG's variational compression fit stop before exhausting its sweep budget once it
+Lets XTRG's variational compression terminate before exhausting its sweep budget once it
 has converged, via a new `Options.z_tol` tolerance on `‖C‖` between sweeps.
 `Summary.converged` is renamed to `Summary.finished` to say what it actually means.
 One breaking change to `Summary`'s fields.
 
 ### Early-Termination Compression Fit
 
-- New `Options.z_tol` (default `1e-10`): `_fit_mpo` stops sweeping once
+- New `Options.z_tol` (default `1e-10`): `_fit_mpo` terminates sweeping once
   `|‖C‖ − ‖C_prev‖| < z_tol`, measured at the orthogonality center after each full
   sweep; `n_sweeps` becomes a maximum rather than a fixed count.
 - The criterion is exact: at the least-squares optimum, `⟨C, A·B⟩ = ‖C‖²`, so
@@ -31,7 +31,7 @@ One breaking change to `Summary`'s fields.
 ### Tests
 
 - New `TestFitMpoZTol`: a loose `z_tol` stops early, `z_tol=0.0` always runs the full
-  sweep budget, and an early-stopped fit reproduces the `log_z` of a full-sweep run.
+  sweep budget, and an early-terminated fit reproduces the `log_z` of a full-sweep run.
 
 ### Statistics
 
