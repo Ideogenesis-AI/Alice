@@ -26,8 +26,25 @@ Each squaring step ρ_{n+1} ≈ compress(ρ_n ⊗ ρ_n) is performed via the
 variational MPO-MPO compression defined in `environ.py`, `scheme_1s.py`,
 `scheme_2s.py`, and `sweep.py`.
 
-Initialization uses `thermal_mpo()` to compute ρ(τ₀) via a Taylor expansion
-of e^{-τ₀ H}, which is accurate for sufficiently small τ₀.
+`run()` operates purely on state: it takes a starting density matrix
+(bundled with its `beta` and `step` in an `Artifact`) and repeatedly
+squares it. Building ρ(τ₀) is the caller's responsibility, via a Taylor
+expansion of e^{-τ₀ H} (`thermal_mpo()`, accurate for sufficiently small
+τ₀):
+
+    import alice.algorithm.xtrg as xtrg
+    from alice.network.thermal import thermal_mpo
+
+    opts = xtrg.Options(tau_0=2 ** -12, n_steps=20)
+    rho0 = thermal_mpo(H, opts.tau_0, opts.taylor_order, spc)
+    summary, artifact = xtrg.run(xtrg.Artifact(rho=rho0, beta=opts.tau_0, step=0), opts)
+
+Resuming an interrupted run is then just calling `run()` again with the
+`Artifact` written to `progress.ckpt`; the matching β/log Z history is
+recovered automatically from `thermal.ckpt` in `opts.checkpoint_dir`:
+
+    resumed = xtrg.Artifact.load(ckpt_dir / 'progress.ckpt')
+    summary, artifact = xtrg.run(resumed, opts)
 
 Thermodynamic observables (log Z, f, u, c_V, S) are extracted at each
 cooling step using log-β finite differences, which give uniform accuracy
@@ -44,11 +61,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Tuple
 
-from nicole import Index
 from nicole import deserialize as _deserialize_tensor
 
-from alice.network import MPO
-from alice.network.thermal import NormalMPO, thermal_mpo
+from alice.network.thermal import NormalMPO
 
 from ..interface import AlgorithmOptions, AlgorithmSummary
 from .environ import Environment, build_right_envs, left_env_boundary
@@ -723,16 +738,16 @@ def _ensure_positive_trace(sign: float, beta: float) -> None:
 # Top-level entry point
 # ---------------------------------------------------------------------------
 
-def run(
-    H: MPO,
-    spc: Index,
-    opts: Optional[Options] = None,
-) -> Tuple[Summary, Artifact]:
-    """Run XTRG to compute finite-temperature properties of a Hamiltonian MPO.
+def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artifact]:
+    """Run XTRG starting from a given thermal density matrix state.
 
-    Initializes the thermal density matrix via a Taylor expansion
-    ρ(τ₀) ≈ Σ_n (-τ₀)^n/n! H^n, then repeatedly squares it using
-    variational MPO-MPO compression to reach β_max = 2^n_steps × τ₀.
+    Repeatedly squares `state.rho` using variational MPO-MPO compression to
+    reach β_max = 2^n_steps × τ₀, starting at `state.step` and continuing to
+    `opts.n_steps`. Building ρ(τ₀) (e.g. via `thermal_mpo`) and wrapping it
+    in an `Artifact` at `step=0` is the caller's responsibility. Resuming an
+    interrupted run is calling `run()` again with the `Artifact` loaded from
+    `progress.ckpt`; the matching β/log Z history is recovered automatically
+    from `thermal.ckpt` in `opts.checkpoint_dir`.
 
     Thermodynamic observables (f, u, c_V, S) are computed from log Z at each
     step using log-β finite differences for uniform accuracy across the
@@ -740,11 +755,9 @@ def run(
 
     Parameters
     ----------
-    H:
-        Hamiltonian MPO. Should be in standard MPO form; not modified.
-    spc:
-        Physical space index, used to build the identity MPO (H⁰ = I)
-        inside `thermal_mpo`.
+    state:
+        Starting density matrix, paired with its `beta` and `step`. `step=0`
+        for a fresh run; `step > 0` to resume.
     opts:
         XTRG run options. Defaults to `Options()` if `None`.
 
@@ -759,9 +772,14 @@ def run(
     Raises
     ------
     ValueError
-        If `opts.scheme` is not a recognized scheme.
+        If `opts.scheme` is not a recognized scheme, or if `state.step > 0`
+        and the `thermal.ckpt` found in `opts.checkpoint_dir` is
+        inconsistent with `state`.
     NotImplementedError
         If `opts.scheme` is recognized but not yet implemented.
+    FileNotFoundError
+        If `state.step > 0` and no `thermal.ckpt` exists in
+        `opts.checkpoint_dir` to recover the β/log Z history from.
     """
     if opts is None:
         opts = Options()
@@ -772,7 +790,7 @@ def run(
             f"implemented schemes are: {', '.join(sorted(_IMPLEMENTED_SCHEMES))}"
         )
 
-    L = H.L
+    L = state.rho.L
     # Resolve the optional disk-cache directory. A unique subdirectory
     # (first 8 hex digits of a UUID4) is created inside the user-supplied
     # path so that concurrent runs sharing the same config do not collide.
@@ -817,28 +835,55 @@ def run(
         logger.info("  save artifacts    : True (since step %d)", opts.save_artifacts_since)
     logger.info("")
 
-    # Step 0: initialize ρ(τ₀) via Taylor expansion.
-    logger.info("Initializing ρ(τ₀=%.6g) via Taylor expansion (order %d)…",
-                opts.tau_0, opts.taylor_order)
-    rho = thermal_mpo(H, opts.tau_0, opts.taylor_order, spc)
+    rho = state.rho
+    if state.step == 0:
+        # Fresh start: the caller already built ρ(τ₀) (e.g. via thermal_mpo)
+        # and handed it in as `state`; this call just records its (β, log Z)
+        # as the first grid point.
+        betas: list[float] = [state.beta]
+        # log_trace() (rather than log(rho.trace())) keeps log_z finite even
+        # when Z(beta) itself would overflow float64 deep into the cooling run.
+        log_abs_z, sign_z = rho.log_trace()
+        _ensure_positive_trace(sign_z, betas[-1])
+        log_z: list[float] = [log_abs_z]
+        discarded_weights: list[float] = []
+        logger.info("  β = %.6g,  log Z = %+.8g", betas[-1], log_z[-1])
+    else:
+        # Resuming: the β/log Z history up to `state.step` lives in
+        # thermal.ckpt, alongside progress.ckpt (which is where `state`
+        # itself typically came from). Both files are written together by
+        # every prior call to run(), so history is recovered with a plain
+        # load from `_ckpt`.
+        thermal_path = _ckpt / 'thermal.ckpt'
+        if not thermal_path.exists():
+            raise FileNotFoundError(
+                f"resuming from step {state.step} requires an existing thermal.ckpt "
+                f"in {_ckpt} to recover the β/log Z history, but none was found"
+            )
+        history = Summary.load(thermal_path)
+        if history.n_steps != state.step:
+            raise ValueError(
+                f"thermal.ckpt at {_ckpt} reflects step {history.n_steps}, but the "
+                f"given state is at step {state.step}; the two are inconsistent"
+            )
+        if not math.isclose(history.betas[-1], state.beta):
+            raise ValueError(
+                f"thermal.ckpt's last β ({history.betas[-1]:.6g}) at {_ckpt} does not "
+                f"match the given state's β ({state.beta:.6g}); the two are inconsistent"
+            )
+        betas = list(history.betas)
+        log_z = list(history.log_z)
+        discarded_weights = list(history.discarded_weights)
+        logger.info("  resuming from step %d / %d  (β = %.6g,  log Z = %+.8g)",
+                    state.step, opts.n_steps, betas[-1], log_z[-1])
 
-    betas: list[float] = [opts.tau_0]
-    # log_trace() (rather than log(rho.trace())) keeps log_z finite even
-    # when Z(beta) itself would overflow float64 deep into the cooling run.
-    log_abs_z, sign_z = rho.log_trace()
-    _ensure_positive_trace(sign_z, betas[-1])
-    log_z: list[float] = [log_abs_z]
-    discarded_weights: list[float] = []
-
-    logger.info("  β = %.6g,  log Z = %+.8g", betas[-1], log_z[-1])
-
-    artifact = Artifact(rho=rho, beta=betas[-1], step=0)
+    artifact = Artifact(rho=rho, beta=betas[-1], step=state.step)
     _save_progress(artifact, _ckpt)
     _archive_artifact(artifact, opts, _artifacts)
 
     w = len(str(opts.n_steps))
     try:
-        for step in range(opts.n_steps):
+        for step in range(state.step, opts.n_steps):
             logger.info("step %*d / %d: squaring ρ(β=%.6g) → ρ(β=%.6g)",
                         w, step + 1, opts.n_steps, betas[-1], betas[-1] * 2)
 
