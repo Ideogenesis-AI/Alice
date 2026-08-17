@@ -23,6 +23,7 @@ import alice
 alice.configure_logging()  # optional: write diagnostics to .logging/
 
 from alice.network import build_hamiltonian, build_interaction
+from alice.network.thermal import thermal_mpo
 from alice.algorithm import xtrg
 ```
 
@@ -51,7 +52,8 @@ opts = xtrg.Options(
     n_sweeps     = 4,
 )
 
-summary, artifact = xtrg.run(hamiltonian, spc, opts)
+rho0 = thermal_mpo(hamiltonian, opts.tau_0, opts.taylor_order, spc)
+summary, artifact = xtrg.run(xtrg.Artifact(rho=rho0, beta=opts.tau_0, step=0), opts)
 ```
 
 ## 4. Compare with the exact solution
