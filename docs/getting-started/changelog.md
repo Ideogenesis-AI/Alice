@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.2.3] - 2026-08-17
+
+**XTRG: Convergence-Based Early Termination**
+
+Lets XTRG's variational compression terminate before exhausting its sweep budget once it
+has converged, via a new `Options.z_tol` tolerance on `‖C‖` between sweeps.
+`Summary.converged` is renamed to `Summary.finished` to say what it actually means.
+One breaking change to `Summary`'s fields.
+
+### Early-Termination Compression Fit
+
+- New `Options.z_tol` (default `1e-10`): `_fit_mpo` terminates sweeping once
+  `|‖C‖ − ‖C_prev‖| < z_tol`, measured at the orthogonality center after each full
+  sweep; `n_sweeps` becomes a maximum rather than a fixed count.
+- The criterion is exact: at the least-squares optimum, `⟨C, A·B⟩ = ‖C‖²`, so
+  `‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²` with `‖A·B‖` fixed across sweeps — `‖C‖` convergence is
+  equivalent to residual convergence, read from the already-isometric center tensor.
+- `z_tol=0.0` restores the previous fixed-sweep-count behavior exactly. `run()`'s
+  startup banner now logs the configured fit convergence threshold.
+
+### `Summary.finished` Rename
+
+- **Breaking:** `Summary.converged` is renamed to `Summary.finished`; the field was
+  always about whether the summary came from a completed `run()` call, not fit
+  convergence. `serialize()`/`deserialize()` updated; serialization version stays at 2.
+- A v0.2.2 `thermal.ckpt` still loads, but reloads as `finished=True` unconditionally,
+  since the old `converged` key is no longer consulted.
+
+### Tests
+
+- New `TestFitMpoZTol`: a loose `z_tol` stops early, `z_tol=0.0` always runs the full
+  sweep budget, and an early-terminated fit reproduces the `log_z` of a full-sweep run.
+
+### Statistics
+
+- **940 tests** across 29 test modules (up from 937 / 29 modules in v0.2.2).
+- **7 commits** since v0.2.2.
+- **3 files changed**, 119 insertions, 20 deletions.
+- **28 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** `Summary.converged` is renamed to `Summary.finished`; a
+  `thermal.ckpt` from v0.2.2 or earlier still loads but reloads as `finished=True`
+  unconditionally.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.2.2] - 2026-08-14
 
 **XTRG: Specific Heat and Cache Isolation**
@@ -633,6 +683,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.3]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.3
 [0.2.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.0

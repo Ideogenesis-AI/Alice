@@ -134,13 +134,26 @@ class Options(AlgorithmOptions):
         Higher order increases accuracy and bond dimension of the initial ρ.
     max_bond:
         Maximum bond dimension of the compressed ρ. `None` means unlimited
-        (only meaningful for 2-site, where SVD truncation controls growth).
+        (meaningful for 2-site and 1-site-plus, where SVD truncation
+        controls growth; a no-op for 1-site beyond the initial compaction,
+        since its local update never changes bond dimension).
     trunc_thresh:
         Singular value truncation threshold (relative to the largest singular
         value per charge sector).
     n_sweeps:
-        Number of full variational sweeps (forward + backward) per squaring
-        step. More sweeps improve compression accuracy at the cost of compute.
+        Maximum number of full variational sweeps (forward + backward) per
+        squaring step. A sweep may stop early once `z_tol` is satisfied.
+    z_tol:
+        Convergence tolerance for the inner variational fit: sweeping stops
+        early once `|‖C‖ − ‖C_prev‖| < z_tol`, where `‖C‖` is the Frobenius
+        norm of the compressed density matrix (proportional to the
+        partition function Z) measured at the orthogonality center after
+        each full sweep. Plays the same structural role as DMRG's `e_tol`,
+        but tracks fit convergence via ‖C‖ rather than energy, since the
+        local update here is an exact least-squares projection (no
+        eigenproblem): at that optimum `⟨C, A·B⟩ = ‖C‖²`, so
+        `‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²` and `‖A·B‖` is fixed across sweeps,
+        making `‖C‖` convergence equivalent to residual convergence.
     env_cache_dir:
         Root directory for environment disk caching. When set, `run()`
         creates a unique subdirectory inside it (first 8 hex characters of a
@@ -197,6 +210,7 @@ class Options(AlgorithmOptions):
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-15
     n_sweeps: int = 4
+    z_tol: float = 1e-10
     env_cache_dir: Optional[str] = None
     env_async_io: bool = True
     env_window: int = 2
@@ -247,9 +261,10 @@ class Summary(AlgorithmSummary):
         Per-step discarded weight from the variational compression (2-site
         only; `0.0` entries for 1-site). Length equals the number of
         squaring steps (`n_steps`), not the length of `betas`.
-    converged:
-        Always `True` for a finished XTRG run (fixed number of cooling
-        steps). Mid-run `thermal.ckpt` files use `False`.
+    finished:
+        `True` only for the summary returned by a completed `run()` call.
+        `False` for mid-run `thermal.ckpt` snapshots written after an
+        intermediate squaring step (e.g. if the process is interrupted).
     n_steps:
         Number of cooling (squaring) steps reflected in this summary.
     """
@@ -261,7 +276,7 @@ class Summary(AlgorithmSummary):
     specific_heats: list[float] = field(default_factory=list)
     entropies: list[float] = field(default_factory=list)
     discarded_weights: list[float] = field(default_factory=list)
-    converged: bool = True
+    finished: bool = True
     n_steps: int = 0
 
     def serialize(self) -> dict:
@@ -281,7 +296,7 @@ class Summary(AlgorithmSummary):
             'specific_heats': self.specific_heats,
             'entropies': self.entropies,
             'discarded_weights': self.discarded_weights,
-            'converged': self.converged,
+            'finished': self.finished,
             'n_steps': self.n_steps,
         }
 
@@ -320,7 +335,7 @@ class Summary(AlgorithmSummary):
             specific_heats=list(data['specific_heats']),
             entropies=list(data['entropies']),
             discarded_weights=list(data.get('discarded_weights', [])),
-            converged=bool(data.get('converged', True)),
+            finished=bool(data.get('finished', True)),
             n_steps=int(data.get('n_steps', 0)),
         )
 
@@ -426,7 +441,7 @@ def _build_summary(
     discarded_weights: list[float],
     L: int,
     step: int,
-    converged: bool,
+    finished: bool,
 ) -> Summary:
     """Build a rho-free `Summary` from the current thermodynamic history."""
     free_energies, energies, specific_heats, entropies = _compute_observables(
@@ -440,7 +455,7 @@ def _build_summary(
         specific_heats=specific_heats,
         entropies=entropies,
         discarded_weights=list(discarded_weights),
-        converged=converged,
+        finished=finished,
         n_steps=step,
     )
 
@@ -483,8 +498,10 @@ def _fit_mpo(
 ) -> Tuple[NormalMPO, float]:
     """Compress mpo_a @ mpo_b variationaly into a lower-bond-dim NormalMPO.
 
-    Runs `opts.n_sweeps` full variational sweeps (each = forward + backward
-    half-sweep) to find C ≈ mpo_a · mpo_b by minimizing ‖C − A·B‖²_F.
+    Runs up to `opts.n_sweeps` full variational sweeps (each = forward +
+    backward half-sweep) to find C ≈ mpo_a · mpo_b by minimizing
+    ‖C − A·B‖²_F, stopping early once `opts.z_tol` is satisfied (see
+    `Options.z_tol`).
 
     Parameters
     ----------
@@ -493,7 +510,8 @@ def _fit_mpo(
     mpo_b:
         Right factor MPO.
     opts:
-        XTRG options (scheme, max_bond, trunc_thresh, n_sweeps, env_*).
+        XTRG options (scheme, max_bond, trunc_thresh, n_sweeps, z_tol,
+        env_*).
     cache_dir:
         Run-specific directory for environment disk caching, already made
         unique by the caller. `None` (default) keeps all blocks in memory,
@@ -549,11 +567,27 @@ def _fit_mpo(
     build_right_envs(mpo_a, mpo_b, mpo_c, env_right)
 
     dw = 0.0
+    prev_norm: Optional[float] = None
     try:
         for sweep_idx in range(opts.n_sweeps):
             logger.debug("  compression sweep %d / %d", sweep_idx + 1, opts.n_sweeps)
             forward_sweep(mpo_a, mpo_b, mpo_c, env_left, env_right, opts)
             dw = backward_sweep(mpo_a, mpo_b, mpo_c, env_left, env_right, opts)
+
+            # ‖C‖ at the orthogonality center (mpo_c.center == 0 after a
+            # backward sweep) is a cheap, exact proxy for fit convergence:
+            # since each local update is the exact least-squares projection,
+            # ⟨C, A·B⟩ = ‖C‖² at the optimum, so ‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²
+            # and ‖A·B‖ is fixed across sweeps. No extra contraction needed —
+            # `norm()` just reads the already-isometric center tensor.
+            norm = mpo_c.norm()
+            if prev_norm is not None and abs(norm - prev_norm) < opts.z_tol:
+                logger.debug(
+                    "  fit converged after %d sweep(s) (Δ‖C‖=%.3e)",
+                    sweep_idx + 1, abs(norm - prev_norm),
+                )
+                break
+            prev_norm = norm
     finally:
         env_left.shutdown()
         env_right.shutdown()
@@ -769,6 +803,7 @@ def run(
     logger.info("  max bond dim      : %s", max_bond_str)
     logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
     logger.info("  sweeps / step     : %d", opts.n_sweeps)
+    logger.info("  fit conv thresh   : %.2e", opts.z_tol)
     logger.info("  taylor order      : %d", opts.taylor_order)
     if opts.scheme == '1sp':
         alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'no compression'
@@ -819,7 +854,7 @@ def run(
 
             k = step + 1
             mid_summary = _build_summary(
-                betas, log_z, discarded_weights, L, step=k, converged=False,
+                betas, log_z, discarded_weights, L, step=k, finished=False,
             )
             _save_thermal(mid_summary, _ckpt)
 
@@ -836,7 +871,7 @@ def run(
     logger.info("")
 
     summary = _build_summary(
-        betas, log_z, discarded_weights, L, step=opts.n_steps, converged=True,
+        betas, log_z, discarded_weights, L, step=opts.n_steps, finished=True,
     )
     _save_thermal(summary, _ckpt)
 
