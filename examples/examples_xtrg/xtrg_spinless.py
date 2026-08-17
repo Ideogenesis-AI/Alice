@@ -55,6 +55,7 @@ from typing import Tuple, Optional
 
 import alice
 from alice.network import build_hamiltonian, build_interaction
+from alice.network.thermal import thermal_mpo
 from alice.algorithm import xtrg
 
 
@@ -245,7 +246,8 @@ def xtrg_spinless(
         save_artifacts=save_artifacts,
         save_artifacts_since=save_artifacts_since,
     )
-    summary, artifact = xtrg.run(H, spc, opts)
+    rho0 = thermal_mpo(H, opts.tau_0, opts.taylor_order, spc)
+    summary, artifact = xtrg.run(xtrg.Artifact(rho=rho0, beta=opts.tau_0, step=0), opts)
 
     # -----------------------------------------------------------------------
     # Print thermodynamics comparison table
