@@ -153,7 +153,7 @@ class TestSummary:
         assert loaded.n_steps == summary.n_steps
         assert math.isclose(loaded.betas[-1], summary.betas[-1])
         assert math.isclose(loaded.log_z[-1], summary.log_z[-1], rel_tol=1e-10)
-        assert loaded.converged == summary.converged
+        assert loaded.finished == summary.finished
         assert 'rho' not in Summary.__dataclass_fields__
 
     def test_rejects_version_1(self):
@@ -290,7 +290,7 @@ class TestCheckpoint:
         assert loaded.n_steps == summary.n_steps
         assert math.isclose(loaded.betas[-1], summary.betas[-1])
         assert math.isclose(loaded.log_z[-1], summary.log_z[-1], rel_tol=1e-10)
-        assert loaded.converged is True
+        assert loaded.finished is True
 
     def test_checkpoint_written_to_cwd_by_default(self, spinless_fermion_L4, tmp_path):
         """With checkpoint_dir=None, thermal.ckpt is written to Path.cwd()."""
