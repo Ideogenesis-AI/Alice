@@ -18,16 +18,26 @@ sweep-based variational MPO-MPO compression kernel.
 
 ```python
 from alice.network import build_interaction, build_hamiltonian
+from alice.network.thermal import thermal_mpo
 from alice.algorithm import xtrg
 
 interactions, spc, geo = build_interaction(cfg)
 H = build_hamiltonian(interactions, geo.L, spc)
 
 opts = xtrg.Options(scheme='2s', n_steps=20, max_bond=64)
-summary, artifact = xtrg.run(H, spc, opts)
+rho0 = thermal_mpo(H, opts.tau_0, opts.taylor_order, spc)
+summary, artifact = xtrg.run(xtrg.Artifact(rho=rho0, beta=opts.tau_0, step=0), opts)
 
 for beta, f in zip(summary.betas, summary.free_energies):
     print(f"β = {beta:.4f},  f = {f:.6f}")
+```
+
+`run()` takes the starting density matrix as an `Artifact` (`rho`, `beta`, `step`). Resuming an
+interrupted run is just calling `run()` again with the `Artifact` loaded from `progress.ckpt`:
+
+```python
+resumed = xtrg.Artifact.load(ckpt_dir / 'progress.ckpt')
+summary, artifact = xtrg.run(resumed, opts)  # thermal.ckpt auto-loaded from opts.checkpoint_dir
 ```
 
 ## Update Schemes
@@ -54,4 +64,4 @@ across the grid.
 
 - [xtrg.run](run.md) — full parameter reference.
 - [NormalMPO](../../api/network/normal-mpo.md) — the density matrix representation.
-- [thermal_mpo](../../api/network/thermal-mpo.md) — used for XTRG initialization.
+- [thermal_mpo](../../api/network/thermal-mpo.md) — used to build the initial `Artifact`.
