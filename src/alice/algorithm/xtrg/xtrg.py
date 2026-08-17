@@ -134,7 +134,9 @@ class Options(AlgorithmOptions):
         Higher order increases accuracy and bond dimension of the initial ρ.
     max_bond:
         Maximum bond dimension of the compressed ρ. `None` means unlimited
-        (only meaningful for 2-site, where SVD truncation controls growth).
+        (meaningful for 2-site and 1-site-plus, where SVD truncation
+        controls growth; a no-op for 1-site beyond the initial compaction,
+        since its local update never changes bond dimension).
     trunc_thresh:
         Singular value truncation threshold (relative to the largest singular
         value per charge sector).
