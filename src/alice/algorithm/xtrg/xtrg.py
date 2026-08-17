@@ -141,8 +141,19 @@ class Options(AlgorithmOptions):
         Singular value truncation threshold (relative to the largest singular
         value per charge sector).
     n_sweeps:
-        Number of full variational sweeps (forward + backward) per squaring
-        step. More sweeps improve compression accuracy at the cost of compute.
+        Maximum number of full variational sweeps (forward + backward) per
+        squaring step. A sweep may stop early once `z_tol` is satisfied.
+    z_tol:
+        Convergence tolerance for the inner variational fit: sweeping stops
+        early once `|‖C‖ − ‖C_prev‖| < z_tol`, where `‖C‖` is the Frobenius
+        norm of the compressed density matrix (proportional to the
+        partition function Z) measured at the orthogonality center after
+        each full sweep. Plays the same structural role as DMRG's `e_tol`,
+        but tracks fit convergence via ‖C‖ rather than energy, since the
+        local update here is an exact least-squares projection (no
+        eigenproblem): at that optimum `⟨C, A·B⟩ = ‖C‖²`, so
+        `‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²` and `‖A·B‖` is fixed across sweeps,
+        making `‖C‖` convergence equivalent to residual convergence.
     env_cache_dir:
         Root directory for environment disk caching. When set, `run()`
         creates a unique subdirectory inside it (first 8 hex characters of a
@@ -199,6 +210,7 @@ class Options(AlgorithmOptions):
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-15
     n_sweeps: int = 4
+    z_tol: float = 1e-10
     env_cache_dir: Optional[str] = None
     env_async_io: bool = True
     env_window: int = 2
@@ -486,8 +498,10 @@ def _fit_mpo(
 ) -> Tuple[NormalMPO, float]:
     """Compress mpo_a @ mpo_b variationaly into a lower-bond-dim NormalMPO.
 
-    Runs `opts.n_sweeps` full variational sweeps (each = forward + backward
-    half-sweep) to find C ≈ mpo_a · mpo_b by minimizing ‖C − A·B‖²_F.
+    Runs up to `opts.n_sweeps` full variational sweeps (each = forward +
+    backward half-sweep) to find C ≈ mpo_a · mpo_b by minimizing
+    ‖C − A·B‖²_F, stopping early once `opts.z_tol` is satisfied (see
+    `Options.z_tol`).
 
     Parameters
     ----------
@@ -496,7 +510,8 @@ def _fit_mpo(
     mpo_b:
         Right factor MPO.
     opts:
-        XTRG options (scheme, max_bond, trunc_thresh, n_sweeps, env_*).
+        XTRG options (scheme, max_bond, trunc_thresh, n_sweeps, z_tol,
+        env_*).
     cache_dir:
         Run-specific directory for environment disk caching, already made
         unique by the caller. `None` (default) keeps all blocks in memory,
@@ -552,11 +567,27 @@ def _fit_mpo(
     build_right_envs(mpo_a, mpo_b, mpo_c, env_right)
 
     dw = 0.0
+    prev_norm: Optional[float] = None
     try:
         for sweep_idx in range(opts.n_sweeps):
             logger.debug("  compression sweep %d / %d", sweep_idx + 1, opts.n_sweeps)
             forward_sweep(mpo_a, mpo_b, mpo_c, env_left, env_right, opts)
             dw = backward_sweep(mpo_a, mpo_b, mpo_c, env_left, env_right, opts)
+
+            # ‖C‖ at the orthogonality center (mpo_c.center == 0 after a
+            # backward sweep) is a cheap, exact proxy for fit convergence:
+            # since each local update is the exact least-squares projection,
+            # ⟨C, A·B⟩ = ‖C‖² at the optimum, so ‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²
+            # and ‖A·B‖ is fixed across sweeps. No extra contraction needed —
+            # `norm()` just reads the already-isometric center tensor.
+            norm = mpo_c.norm()
+            if prev_norm is not None and abs(norm - prev_norm) < opts.z_tol:
+                logger.debug(
+                    "  fit converged after %d sweep(s) (Δ‖C‖=%.3e)",
+                    sweep_idx + 1, abs(norm - prev_norm),
+                )
+                break
+            prev_norm = norm
     finally:
         env_left.shutdown()
         env_right.shutdown()
@@ -772,6 +803,7 @@ def run(
     logger.info("  max bond dim      : %s", max_bond_str)
     logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
     logger.info("  sweeps / step     : %d", opts.n_sweeps)
+    logger.info("  fit conv thresh   : %.2e", opts.z_tol)
     logger.info("  taylor order      : %d", opts.taylor_order)
     if opts.scheme == '1sp':
         alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'no compression'
