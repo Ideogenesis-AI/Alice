@@ -247,9 +247,10 @@ class Summary(AlgorithmSummary):
         Per-step discarded weight from the variational compression (2-site
         only; `0.0` entries for 1-site). Length equals the number of
         squaring steps (`n_steps`), not the length of `betas`.
-    converged:
-        Always `True` for a finished XTRG run (fixed number of cooling
-        steps). Mid-run `thermal.ckpt` files use `False`.
+    finished:
+        `True` only for the summary returned by a completed `run()` call.
+        `False` for mid-run `thermal.ckpt` snapshots written after an
+        intermediate squaring step (e.g. if the process is interrupted).
     n_steps:
         Number of cooling (squaring) steps reflected in this summary.
     """
@@ -261,7 +262,7 @@ class Summary(AlgorithmSummary):
     specific_heats: list[float] = field(default_factory=list)
     entropies: list[float] = field(default_factory=list)
     discarded_weights: list[float] = field(default_factory=list)
-    converged: bool = True
+    finished: bool = True
     n_steps: int = 0
 
     def serialize(self) -> dict:
@@ -281,7 +282,7 @@ class Summary(AlgorithmSummary):
             'specific_heats': self.specific_heats,
             'entropies': self.entropies,
             'discarded_weights': self.discarded_weights,
-            'converged': self.converged,
+            'finished': self.finished,
             'n_steps': self.n_steps,
         }
 
@@ -320,7 +321,7 @@ class Summary(AlgorithmSummary):
             specific_heats=list(data['specific_heats']),
             entropies=list(data['entropies']),
             discarded_weights=list(data.get('discarded_weights', [])),
-            converged=bool(data.get('converged', True)),
+            finished=bool(data.get('finished', True)),
             n_steps=int(data.get('n_steps', 0)),
         )
 
@@ -426,7 +427,7 @@ def _build_summary(
     discarded_weights: list[float],
     L: int,
     step: int,
-    converged: bool,
+    finished: bool,
 ) -> Summary:
     """Build a rho-free `Summary` from the current thermodynamic history."""
     free_energies, energies, specific_heats, entropies = _compute_observables(
@@ -440,7 +441,7 @@ def _build_summary(
         specific_heats=specific_heats,
         entropies=entropies,
         discarded_weights=list(discarded_weights),
-        converged=converged,
+        finished=finished,
         n_steps=step,
     )
 
@@ -819,7 +820,7 @@ def run(
 
             k = step + 1
             mid_summary = _build_summary(
-                betas, log_z, discarded_weights, L, step=k, converged=False,
+                betas, log_z, discarded_weights, L, step=k, finished=False,
             )
             _save_thermal(mid_summary, _ckpt)
 
@@ -836,7 +837,7 @@ def run(
     logger.info("")
 
     summary = _build_summary(
-        betas, log_z, discarded_weights, L, step=opts.n_steps, converged=True,
+        betas, log_z, discarded_weights, L, step=opts.n_steps, finished=True,
     )
     _save_thermal(summary, _ckpt)
 
