@@ -27,7 +27,9 @@ from unittest.mock import patch
 import pytest
 
 from alice.algorithm.xtrg import Artifact, Options, Summary, run
-from alice.algorithm.xtrg.xtrg import _compute_observables
+from alice.algorithm.xtrg import xtrg as _xtrg_module
+from alice.algorithm.xtrg.xtrg import _compute_observables, _fit_mpo
+from alice.network.thermal import thermal_mpo
 
 
 # ---------------------------------------------------------------------------
@@ -44,6 +46,7 @@ class TestOptions:
         assert opts.tau_0 == 2 ** -12
         assert opts.n_steps == 20
         assert opts.n_sweeps == 4
+        assert opts.z_tol == 1e-10
         assert opts.save_artifacts is True
         assert opts.save_artifacts_since == 0
 
@@ -101,6 +104,67 @@ class TestOptions:
         opts2 = Options.load_toml(path, section='xtrg')
         assert opts2.save_artifacts is False
         assert opts2.save_artifacts_since == 3
+
+
+# ---------------------------------------------------------------------------
+# _fit_mpo: z_tol early stopping
+# ---------------------------------------------------------------------------
+
+class TestFitMpoZTol:
+    """Tests for the z_tol early-stopping criterion in _fit_mpo."""
+
+    def _rho(self, mpo, spc, opts: Options):
+        """Build the same initial Taylor-expanded rho that run() would use."""
+        return thermal_mpo(mpo, opts.tau_0, opts.taylor_order, spc)
+
+    def test_loose_z_tol_stops_before_n_sweeps(self, spinless_fermion_L4):
+        """A very loose z_tol should trigger early stopping well before n_sweeps."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='2s', tau_0=2 ** -6, taylor_order=10, n_sweeps=20, z_tol=1.0,
+        )
+        rho = self._rho(mpo, spc, opts)
+
+        with patch.object(
+            _xtrg_module, 'forward_sweep', wraps=_xtrg_module.forward_sweep,
+        ) as spy:
+            _fit_mpo(rho, rho, opts)
+
+        assert spy.call_count < opts.n_sweeps
+
+    def test_z_tol_zero_runs_full_n_sweeps(self, spinless_fermion_L4):
+        """z_tol=0.0 can never be satisfied (a norm difference is always >= 0),
+        so every one of the n_sweeps sweeps should run."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='2s', tau_0=2 ** -6, taylor_order=10, n_sweeps=3, z_tol=0.0,
+        )
+        rho = self._rho(mpo, spc, opts)
+
+        with patch.object(
+            _xtrg_module, 'forward_sweep', wraps=_xtrg_module.forward_sweep,
+        ) as spy:
+            _fit_mpo(rho, rho, opts)
+
+        assert spy.call_count == opts.n_sweeps
+
+    def test_early_stop_matches_full_sweep_result(self, spinless_fermion_L4):
+        """Early-stopped fits reproduce the log Z of an equivalent full-sweep run.
+
+        With a generous n_sweeps budget, a tight z_tol should stop once the fit
+        has genuinely converged, giving thermodynamic observables indistinguishable
+        from a run that never stops early (z_tol=0.0).
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        base = dict(
+            scheme='2s', tau_0=2 ** -6, n_steps=4, taylor_order=10,
+            max_bond=None, n_sweeps=20,
+        )
+        summary_early, _ = run(mpo, spc, Options(**base, z_tol=1e-10))
+        summary_full, _ = run(mpo, spc, Options(**base, z_tol=0.0))
+
+        for lz_early, lz_full in zip(summary_early.log_z, summary_full.log_z):
+            assert math.isclose(lz_early, lz_full, rel_tol=1e-8, abs_tol=1e-10)
 
 
 # ---------------------------------------------------------------------------
