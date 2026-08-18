@@ -1,5 +1,73 @@
 # Changelog
 
+## [0.2.5] - 2026-08-19
+
+**Independent Artifact Storage for DMRG and XTRG**
+
+Decouples archived-artifact storage from the checkpoint directory in both
+`dmrg.run()` and `xtrg.run()`, via a new `Options.artifacts_dir`. DMRG gains
+final-state archiving to match XTRG's existing per-step archiving; XTRG's mid-run
+`Artifact` file is renamed from `progress.ckpt` to `xtrg.ckpt`. Two breaking changes,
+both to on-disk file names.
+
+### `artifacts_dir`: Decoupled from `checkpoint_dir`
+
+- New `Options.artifacts_dir` on both `dmrg.Options` and `xtrg.Options` (default
+  `None`, resolving to `artifacts/` under `checkpoint_dir`); an explicit path archives
+  artifacts elsewhere, independent of where checkpoints themselves live.
+- XTRG's `save_artifacts`/`save_artifacts_since` now write `step_XX.ckpt` under
+  `artifacts_dir` instead of always under `checkpoint_dir/artifacts`.
+- Both `run()`s log the resolved artifacts directory in their startup banner.
+
+### DMRG Final-State Archiving
+
+- **Breaking:** `dmrg.run()` now archives its final `Summary` as `state.ckpt` under
+  `artifacts_dir` on success, then removes the per-sweep `dmrg.ckpt`/`dmrg_lock.ckpt`,
+  since they are redundant with the archived artifact. Previously `dmrg.ckpt` was left
+  on disk after a successful run.
+- Unlike the per-sweep checkpoint, the archived `Summary` carries the correct
+  `converged` flag, since it is built after the sweep loop exits.
+
+### XTRG `xtrg.ckpt` Rename
+
+- **Breaking:** the mid-run `Artifact` checkpoint is renamed from `progress.ckpt` to
+  `xtrg.ckpt` (lock file `progress_lock.ckpt` → `xtrg_lock.ckpt`), aligning the name
+  with DMRG's `dmrg.ckpt` as each algorithm's own per-run checkpoint file. Behavior is
+  unchanged: written every step, removed on success.
+
+### Tests
+
+- New `TestArtifact` class in `test_dmrg.py`: `state.ckpt` creation, lock-file cleanup,
+  round-trip loading with a correct `converged` flag, default placement, and
+  `artifacts_dir` decoupled from `checkpoint_dir`.
+- New `artifacts_dir` default/TOML-round-trip tests in both `test_dmrg.py` and
+  `test_xtrg.py`; `test_progress_removed_after_success` renamed to
+  `test_checkpoint_removed_after_success` and updated for `xtrg.ckpt`.
+
+### Documentation
+
+- `artifact.md`'s on-disk layout diagram gains `artifacts_dir` and the `xtrg.ckpt`
+  rename; `index.md`'s resumption example and both example scripts updated from
+  `progress.ckpt` to `xtrg.ckpt`.
+
+### Statistics
+
+- **954 tests** across 29 test modules (up from 946 / 29 modules in v0.2.4).
+- **11 commits** since v0.2.4.
+- **9 files changed**, 214 insertions, 69 deletions.
+- **28 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** `dmrg.run()` no longer leaves `dmrg.ckpt` on disk after a
+  successful run — read `artifacts_dir/state.ckpt` instead. XTRG's mid-run
+  `progress.ckpt` is renamed to `xtrg.ckpt`; callers loading it by a hardcoded path
+  must update the filename.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.2.4] - 2026-08-18
 
 **XTRG: Resumption from Interrupted Runs**
@@ -737,6 +805,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.5]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.5
 [0.2.4]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.4
 [0.2.3]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.3
 [0.2.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.2
