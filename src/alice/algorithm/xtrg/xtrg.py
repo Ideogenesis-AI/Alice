@@ -40,10 +40,10 @@ expansion of e^{-τ₀ H} (`thermal_mpo()`, accurate for sufficiently small
     summary, artifact = xtrg.run(xtrg.Artifact(rho=rho0, beta=opts.tau_0, step=0), opts)
 
 Resuming an interrupted run is then just calling `run()` again with the
-`Artifact` written to `progress.ckpt`; the matching β/log Z history is
+`Artifact` written to `xtrg.ckpt`; the matching β/log Z history is
 recovered automatically from `thermal.ckpt` in `opts.checkpoint_dir`:
 
-    resumed = xtrg.Artifact.load(ckpt_dir / 'progress.ckpt')
+    resumed = xtrg.Artifact.load(ckpt_dir / 'xtrg.ckpt')
     summary, artifact = xtrg.run(resumed, opts)
 
 Thermodynamic observables (log Z, f, u, c_V, S) are extracted at each
@@ -202,7 +202,7 @@ class Options(AlgorithmOptions):
         `thermal.ckpt` file (PyTorch format, loadable via
         `xtrg.Summary.load`) is written using an atomic write
         (`thermal_lock.ckpt` → rename). Mid-run progress is stored as
-        `progress.ckpt` (an `Artifact`) and removed when `run()` finishes
+        `xtrg.ckpt` (an `Artifact`) and removed when `run()` finishes
         successfully. `None` (default) resolves to `Path.cwd()` at the
         time `run()` is called, mirroring `.logging`. Pass an explicit
         path string to write elsewhere. Stored as `str` for TOML
@@ -487,9 +487,9 @@ def _save_thermal(summary: Summary, ckpt_dir: Path) -> None:
     _atomic_torch_save(summary.serialize(), ckpt_dir / 'thermal.ckpt')
 
 
-def _save_progress(artifact: Artifact, ckpt_dir: Path) -> None:
-    """Write `progress.ckpt` atomically in `ckpt_dir`."""
-    _atomic_torch_save(artifact.serialize(), ckpt_dir / 'progress.ckpt')
+def _save_checkpoint(artifact: Artifact, ckpt_dir: Path) -> None:
+    """Write `xtrg.ckpt` atomically in `ckpt_dir`."""
+    _atomic_torch_save(artifact.serialize(), ckpt_dir / 'xtrg.ckpt')
 
 
 def _save_artifact_file(artifact: Artifact, artifacts_dir: Path) -> None:
@@ -753,7 +753,7 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     `opts.n_steps`. Building ρ(τ₀) (e.g. via `thermal_mpo`) and wrapping it
     in an `Artifact` at `step=0` is the caller's responsibility. Resuming an
     interrupted run is calling `run()` again with the `Artifact` loaded from
-    `progress.ckpt`; the matching β/log Z history is recovered automatically
+    `xtrg.ckpt`; the matching β/log Z history is recovered automatically
     from `thermal.ckpt` in `opts.checkpoint_dir`.
 
     Thermodynamic observables (f, u, c_V, S) are computed from log Z at each
@@ -863,7 +863,7 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
         logger.info("  β = %.6g,  log Z = %+.8g", betas[-1], log_z[-1])
     else:
         # Resuming: the β/log Z history up to `state.step` lives in
-        # thermal.ckpt, alongside progress.ckpt (which is where `state`
+        # thermal.ckpt, alongside xtrg.ckpt (which is where `state`
         # itself typically came from). Both files are written together by
         # every prior call to run(), so history is recovered with a plain
         # load from `_ckpt`.
@@ -891,7 +891,7 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
                     state.step, opts.n_steps, betas[-1], log_z[-1])
 
     artifact = Artifact(rho=rho, beta=betas[-1], step=state.step)
-    _save_progress(artifact, _ckpt)
+    _save_checkpoint(artifact, _ckpt)
     _archive_artifact(artifact, opts, _artifacts)
 
     w = len(str(opts.n_steps))
@@ -917,7 +917,7 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
             _save_thermal(mid_summary, _ckpt)
 
             artifact = Artifact(rho=rho, beta=betas[-1], step=k)
-            _save_progress(artifact, _ckpt)
+            _save_checkpoint(artifact, _ckpt)
             _archive_artifact(artifact, opts, _artifacts)
     finally:
         # Remove the run-specific cache subdirectory; ignore errors so that a
@@ -933,9 +933,9 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     )
     _save_thermal(summary, _ckpt)
 
-    # Success path only: drop mid-run progress so a finished job does not
-    # leave a stale progress.ckpt behind. A crash earlier leaves it on disk.
-    (_ckpt / 'progress.ckpt').unlink(missing_ok=True)
-    (_ckpt / 'progress_lock.ckpt').unlink(missing_ok=True)
+    # Success path only: drop the mid-run checkpoint so a finished job does
+    # not leave a stale xtrg.ckpt behind. A crash earlier leaves it on disk.
+    (_ckpt / 'xtrg.ckpt').unlink(missing_ok=True)
+    (_ckpt / 'xtrg_lock.ckpt').unlink(missing_ok=True)
 
     return summary, artifact
