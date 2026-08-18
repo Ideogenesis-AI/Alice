@@ -33,10 +33,10 @@ for beta, f in zip(summary.betas, summary.free_energies):
 ```
 
 `run()` takes the starting density matrix as an `Artifact` (`rho`, `beta`, `step`). Resuming an
-interrupted run is just calling `run()` again with the `Artifact` loaded from `progress.ckpt`:
+interrupted run is just calling `run()` again with the `Artifact` loaded from `xtrg.ckpt`:
 
 ```python
-resumed = xtrg.Artifact.load(ckpt_dir / 'progress.ckpt')
+resumed = xtrg.Artifact.load(ckpt_dir / 'xtrg.ckpt')
 summary, artifact = xtrg.run(resumed, opts)  # thermal.ckpt auto-loaded from opts.checkpoint_dir
 ```
 

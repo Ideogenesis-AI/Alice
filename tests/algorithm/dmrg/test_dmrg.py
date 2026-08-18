@@ -315,38 +315,17 @@ class TestDmrg:
 class TestCheckpoint:
     """Tests for the per-sweep checkpoint writing logic."""
 
-    def test_checkpoint_file_created(self, heisenberg_L2, tmp_path):
-        """dmrg.ckpt is written to checkpoint_dir after run()."""
+    def test_checkpoint_removed_after_success(self, heisenberg_L2, tmp_path):
+        """dmrg.ckpt is removed from checkpoint_dir once run() finishes successfully."""
         mps, mpo = heisenberg_L2
         run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
-        assert (tmp_path / 'dmrg.ckpt').exists()
+        assert not (tmp_path / 'dmrg.ckpt').exists()
 
     def test_lock_file_not_present(self, heisenberg_L2, tmp_path):
         """dmrg_lock.ckpt is renamed away on success and must not exist afterwards."""
         mps, mpo = heisenberg_L2
         run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
         assert not (tmp_path / 'dmrg_lock.ckpt').exists()
-
-    def test_checkpoint_loadable(self, heisenberg_L2, tmp_path):
-        """Checkpoint loads correctly and energy matches the run summary."""
-        mps, mpo = heisenberg_L2
-        summary = run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
-        loaded = Summary.load(tmp_path / 'dmrg.ckpt')
-        assert abs(loaded.energy - summary.energy) < 1e-12
-        assert loaded.n_sweeps == summary.n_sweeps
-
-    def test_checkpoint_written_to_cwd_by_default(self, heisenberg_L2, tmp_path):
-        """With checkpoint_dir=None, dmrg.ckpt is written to Path.cwd()."""
-        mps, mpo = heisenberg_L2
-        run(mps, mpo, Options(n_sweeps=1))
-        assert (tmp_path / 'dmrg.ckpt').exists()
-
-    def test_checkpoint_written_each_sweep(self, heisenberg_L2, tmp_path):
-        """Checkpoint reflects the sweep count of the last sweep performed."""
-        mps, mpo = heisenberg_L2
-        summary = run(mps, mpo, Options(n_sweeps=3, checkpoint_dir=str(tmp_path)))
-        loaded = Summary.load(tmp_path / 'dmrg.ckpt')
-        assert loaded.n_sweeps == summary.n_sweeps
 
     def test_checkpoint_dir_toml_round_trip(self, tmp_path):
         """checkpoint_dir survives a to_toml / load_toml round trip."""
@@ -355,6 +334,76 @@ class TestCheckpoint:
         original.to_toml(path)
         loaded = Options.load_toml(path)
         assert loaded.checkpoint_dir == '/tmp/ckpt'
+
+
+# ---------------------------------------------------------------------------
+# Final artifact archiving
+# ---------------------------------------------------------------------------
+
+class TestArtifact:
+    """Tests for the final-state artifact written under artifacts_dir."""
+
+    def test_artifact_file_created(self, heisenberg_L2, tmp_path):
+        """state.ckpt is written under artifacts/ in checkpoint_dir by default."""
+        mps, mpo = heisenberg_L2
+        run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
+        assert (tmp_path / 'artifacts' / 'state.ckpt').exists()
+
+    def test_artifact_lock_file_not_present(self, heisenberg_L2, tmp_path):
+        """state_lock.ckpt is renamed away on success and must not exist afterwards."""
+        mps, mpo = heisenberg_L2
+        run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
+        assert not (tmp_path / 'artifacts' / 'state_lock.ckpt').exists()
+
+    def test_artifact_loadable(self, heisenberg_L2, tmp_path):
+        """Archived artifact loads correctly and matches the returned summary."""
+        mps, mpo = heisenberg_L2
+        summary = run(mps, mpo, Options(n_sweeps=2, checkpoint_dir=str(tmp_path)))
+        loaded = Summary.load(tmp_path / 'artifacts' / 'state.ckpt')
+        assert abs(loaded.energy - summary.energy) < 1e-12
+        assert loaded.n_sweeps == summary.n_sweeps
+        assert loaded.converged == summary.converged
+
+    def test_artifact_reflects_converged_flag(self, heisenberg_L2, tmp_path):
+        """The archived artifact's converged flag matches the returned summary,
+        unlike the per-sweep dmrg.ckpt checkpoint, which always writes False."""
+        mps, mpo = heisenberg_L2
+        opts = Options(n_sweeps=30, e_tol=1e-6, checkpoint_dir=str(tmp_path))
+        summary = run(mps, mpo, opts)
+        assert summary.converged is True
+        loaded = Summary.load(tmp_path / 'artifacts' / 'state.ckpt')
+        assert loaded.converged is True
+
+    def test_artifact_written_to_cwd_by_default(self, heisenberg_L2, tmp_path):
+        """With checkpoint_dir=None, state.ckpt is written under Path.cwd()/artifacts."""
+        mps, mpo = heisenberg_L2
+        run(mps, mpo, Options(n_sweeps=1))
+        assert (tmp_path / 'artifacts' / 'state.ckpt').exists()
+
+    def test_artifacts_dir_decoupled_from_checkpoint_dir(self, heisenberg_L2, tmp_path):
+        """An explicit artifacts_dir is used verbatim, independent of checkpoint_dir."""
+        mps, mpo = heisenberg_L2
+        ckpt_dir = tmp_path / 'ckpt'
+        artifacts_dir = tmp_path / 'elsewhere' / 'artifacts'
+        run(mps, mpo, Options(
+            n_sweeps=2,
+            checkpoint_dir=str(ckpt_dir),
+            artifacts_dir=str(artifacts_dir),
+        ))
+        assert not (ckpt_dir / 'artifacts').exists()
+        assert (artifacts_dir / 'state.ckpt').exists()
+
+    def test_artifacts_dir_defaults_to_none(self):
+        """artifacts_dir defaults to None (nested under checkpoint_dir)."""
+        assert Options().artifacts_dir is None
+
+    def test_artifacts_dir_toml_round_trip(self, tmp_path):
+        """artifacts_dir survives a to_toml / load_toml round trip."""
+        original = Options(artifacts_dir='/tmp/artifacts')
+        path = tmp_path / 'opts.toml'
+        original.to_toml(path)
+        loaded = Options.load_toml(path)
+        assert loaded.artifacts_dir == '/tmp/artifacts'
 
 
 # ---------------------------------------------------------------------------
