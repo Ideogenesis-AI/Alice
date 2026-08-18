@@ -27,6 +27,7 @@ import alice
 alice.configure_logging()  # optional: write diagnostics to .logging/
 
 from alice.network import build_hamiltonian, build_interaction
+from alice.network.thermal import thermal_mpo
 from alice.algorithm import xtrg
 ```
 
@@ -58,7 +59,8 @@ opts = xtrg.Options(
     n_sweeps     = 4,
 )
 
-summary, artifact = xtrg.run(hamiltonian, spc, opts)
+rho0 = thermal_mpo(hamiltonian, opts.tau_0, opts.taylor_order, spc)
+summary, artifact = xtrg.run(xtrg.Artifact(rho=rho0, beta=opts.tau_0, step=0), opts)
 ```
 
 ## 4. Compare with the exact `U=0` solution
@@ -86,7 +88,8 @@ config["model"]["U"] = 4.0
 interactions, spc, geo = build_interaction(config)
 hamiltonian = build_hamiltonian(interactions, geo.L, spc)
 
-summary_u4, artifact_u4 = xtrg.run(hamiltonian, spc, opts)
+rho0_u4 = thermal_mpo(hamiltonian, opts.tau_0, opts.taylor_order, spc)
+summary_u4, artifact_u4 = xtrg.run(xtrg.Artifact(rho=rho0_u4, beta=opts.tau_0, step=0), opts)
 # No closed-form log Z reference exists for U != 0; compare thermodynamics
 # (free energy, internal energy, entropy) against the U=0 point for context.
 ```

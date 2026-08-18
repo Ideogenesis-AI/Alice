@@ -33,6 +33,16 @@ from alice.network.thermal import thermal_mpo
 
 
 # ---------------------------------------------------------------------------
+# Test helper: build the fresh-start Artifact that run() now expects
+# ---------------------------------------------------------------------------
+
+def _initial_state(mpo, spc, opts: Options) -> Artifact:
+    """Build the step-0 Artifact run() expects, mirroring a fresh caller."""
+    rho0 = thermal_mpo(mpo, opts.tau_0, opts.taylor_order, spc)
+    return Artifact(rho=rho0, beta=opts.tau_0, step=0)
+
+
+# ---------------------------------------------------------------------------
 # Options
 # ---------------------------------------------------------------------------
 
@@ -160,8 +170,10 @@ class TestFitMpoZTol:
             scheme='2s', tau_0=2 ** -6, n_steps=4, taylor_order=10,
             max_bond=None, n_sweeps=20,
         )
-        summary_early, _ = run(mpo, spc, Options(**base, z_tol=1e-10))
-        summary_full, _ = run(mpo, spc, Options(**base, z_tol=0.0))
+        opts_early = Options(**base, z_tol=1e-10)
+        opts_full = Options(**base, z_tol=0.0)
+        summary_early, _ = run(_initial_state(mpo, spc, opts_early), opts_early)
+        summary_full, _ = run(_initial_state(mpo, spc, opts_full), opts_full)
 
         for lz_early, lz_full in zip(summary_early.log_z, summary_full.log_z):
             assert math.isclose(lz_early, lz_full, rel_tol=1e-8, abs_tol=1e-10)
@@ -208,7 +220,7 @@ class TestSummary:
             scheme='1s', tau_0=2 ** -4, n_steps=2, n_sweeps=2,
             save_artifacts=False,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
 
         path = tmp_path / 'thermal.ckpt'
         summary.save(path)
@@ -240,7 +252,7 @@ class TestArtifact:
             scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
             save_artifacts=False,
         )
-        _summary, artifact = run(mpo, spc, opts)
+        _summary, artifact = run(_initial_state(mpo, spc, opts), opts)
 
         path = tmp_path / 'art.ckpt'
         artifact.save(path)
@@ -258,7 +270,7 @@ class TestArtifact:
             checkpoint_dir=str(tmp_path),
             save_artifacts=False,
         )
-        run(mpo, spc, opts)
+        run(_initial_state(mpo, spc, opts), opts)
         assert not (tmp_path / 'progress.ckpt').exists()
         assert not (tmp_path / 'progress_lock.ckpt').exists()
 
@@ -270,7 +282,7 @@ class TestArtifact:
             scheme='1s', tau_0=2 ** -4, n_steps=n_steps, n_sweeps=1,
             checkpoint_dir=str(tmp_path),
         )
-        summary, artifact = run(mpo, spc, opts)
+        summary, artifact = run(_initial_state(mpo, spc, opts), opts)
 
         for k in range(n_steps + 1):
             path = tmp_path / 'artifacts' / f'step_{k:02d}.ckpt'
@@ -291,7 +303,7 @@ class TestArtifact:
             save_artifacts=True,
             save_artifacts_since=2,
         )
-        run(mpo, spc, opts)
+        run(_initial_state(mpo, spc, opts), opts)
 
         arts = tmp_path / 'artifacts'
         assert not (arts / 'step_00.ckpt').exists()
@@ -307,7 +319,7 @@ class TestArtifact:
             checkpoint_dir=str(tmp_path),
             save_artifacts=False,
         )
-        summary, artifact = run(mpo, spc, opts)
+        summary, artifact = run(_initial_state(mpo, spc, opts), opts)
         assert not (tmp_path / 'artifacts').exists()
         assert artifact.step == summary.n_steps
 
@@ -327,7 +339,7 @@ class TestCheckpoint:
             checkpoint_dir=str(tmp_path),
             save_artifacts=False,
         )
-        run(mpo, spc, opts)
+        run(_initial_state(mpo, spc, opts), opts)
         assert (tmp_path / 'thermal.ckpt').exists()
 
     def test_lock_file_not_present(self, spinless_fermion_L4, tmp_path):
@@ -338,7 +350,7 @@ class TestCheckpoint:
             checkpoint_dir=str(tmp_path),
             save_artifacts=False,
         )
-        run(mpo, spc, opts)
+        run(_initial_state(mpo, spc, opts), opts)
         assert not (tmp_path / 'thermal_lock.ckpt').exists()
 
     def test_checkpoint_loadable(self, spinless_fermion_L4, tmp_path):
@@ -349,7 +361,7 @@ class TestCheckpoint:
             checkpoint_dir=str(tmp_path),
             save_artifacts=False,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
         loaded = Summary.load(tmp_path / 'thermal.ckpt')
         assert loaded.n_steps == summary.n_steps
         assert math.isclose(loaded.betas[-1], summary.betas[-1])
@@ -363,7 +375,7 @@ class TestCheckpoint:
             scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
             save_artifacts=False,
         )
-        run(mpo, spc, opts)
+        run(_initial_state(mpo, spc, opts), opts)
         assert (tmp_path / 'thermal.ckpt').exists()
 
     def test_checkpoint_written_each_step(self, spinless_fermion_L4, tmp_path):
@@ -374,7 +386,7 @@ class TestCheckpoint:
             checkpoint_dir=str(tmp_path),
             save_artifacts=False,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
         loaded = Summary.load(tmp_path / 'thermal.ckpt')
         assert loaded.n_steps == summary.n_steps
 
@@ -385,6 +397,139 @@ class TestCheckpoint:
         original.to_toml(path)
         loaded = Options.load_toml(path)
         assert loaded.checkpoint_dir == '/tmp/ckpt'
+
+
+# ---------------------------------------------------------------------------
+# Resume
+# ---------------------------------------------------------------------------
+
+class TestResume:
+    """Tests for resuming run() from a previously-checkpointed Artifact.
+
+    run() takes state directly (mirroring DMRG's run(mps, mpo, opts)), so
+    resuming is just calling run() again with an Artifact whose step > 0.
+    The β/log Z history needed to continue correctly is recovered from
+    thermal.ckpt in the resolved checkpoint directory, not passed in.
+    """
+
+    def test_resume_matches_uninterrupted_run(self, spinless_fermion_L4, tmp_path):
+        """Interrupted (n_steps=2) + resumed (n_steps=4) matches an uninterrupted run."""
+        mpo, spc, _ = spinless_fermion_L4
+        base = dict(scheme='1s', tau_0=2 ** -6, taylor_order=10, n_sweeps=2)
+
+        # Reference: uninterrupted run straight to n_steps=4.
+        ref_ckpt = tmp_path / 'ref'
+        ref_opts = Options(**base, n_steps=4, checkpoint_dir=str(ref_ckpt))
+        reference, _ = run(_initial_state(mpo, spc, ref_opts), ref_opts)
+
+        # Interrupted: run to n_steps=2 first (completes successfully).
+        resume_ckpt = tmp_path / 'resume'
+        opts2 = Options(**base, n_steps=2, checkpoint_dir=str(resume_ckpt))
+        _summary2, artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
+        assert artifact2.step == 2
+
+        # Resume: same checkpoint_dir, n_steps raised to 4.
+        opts4 = Options(**base, n_steps=4, checkpoint_dir=str(resume_ckpt))
+        resumed, _artifact4 = run(artifact2, opts4)
+
+        assert resumed.n_steps == reference.n_steps
+        for lz_resumed, lz_ref in zip(resumed.log_z, reference.log_z):
+            assert math.isclose(lz_resumed, lz_ref, rel_tol=1e-10)
+        for beta_resumed, beta_ref in zip(resumed.betas, reference.betas):
+            assert math.isclose(beta_resumed, beta_ref)
+
+    def test_resume_does_not_redo_earlier_steps(self, spinless_fermion_L4, tmp_path):
+        """Resuming only performs the remaining squaring steps."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts2 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=2, n_sweeps=2,
+            checkpoint_dir=str(tmp_path),
+        )
+        _summary2, artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
+
+        opts4 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=4, n_sweeps=2,
+            checkpoint_dir=str(tmp_path),
+        )
+        with patch.object(
+            _xtrg_module, '_fit_mpo', wraps=_xtrg_module._fit_mpo,
+        ) as spy:
+            run(artifact2, opts4)
+
+        assert spy.call_count == opts4.n_steps - artifact2.step
+
+    def test_missing_thermal_ckpt_raises(self, spinless_fermion_L4, tmp_path):
+        """Resuming with step > 0 in an empty checkpoint_dir raises FileNotFoundError."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=1, n_sweeps=1,
+        )
+        state0 = _initial_state(mpo, spc, opts)
+        rho1, _dw = _fit_mpo(state0.rho, state0.rho, opts)
+        stale_state = Artifact(rho=rho1, beta=state0.beta * 2, step=1)
+
+        empty_ckpt = tmp_path / 'empty'
+        resume_opts = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=4, n_sweeps=1,
+            checkpoint_dir=str(empty_ckpt),
+        )
+        with pytest.raises(FileNotFoundError, match='thermal.ckpt'):
+            run(stale_state, resume_opts)
+
+    def test_mismatched_thermal_ckpt_step_raises(self, spinless_fermion_L4, tmp_path):
+        """A thermal.ckpt whose n_steps disagrees with state.step raises ValueError."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts2 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=2, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        _summary2, artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
+
+        # thermal.ckpt on disk reflects step 2; claim the state is at step 1.
+        mismatched_state = Artifact(rho=artifact2.rho, beta=artifact2.beta, step=1)
+        opts_resume = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=4, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        with pytest.raises(ValueError, match='inconsistent'):
+            run(mismatched_state, opts_resume)
+
+    def test_mismatched_thermal_ckpt_beta_raises(self, spinless_fermion_L4, tmp_path):
+        """A thermal.ckpt whose last beta disagrees with state.beta raises ValueError."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts2 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=2, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        _summary2, artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
+
+        mismatched_state = Artifact(
+            rho=artifact2.rho, beta=artifact2.beta * 3, step=artifact2.step,
+        )
+        opts_resume = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=4, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        with pytest.raises(ValueError, match='inconsistent'):
+            run(mismatched_state, opts_resume)
+
+    def test_already_at_target_skips_squaring(self, spinless_fermion_L4, tmp_path):
+        """state.step >= opts.n_steps returns without any further squaring."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts2 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=2, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        _summary2, artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
+
+        with patch.object(
+            _xtrg_module, '_fit_mpo', wraps=_xtrg_module._fit_mpo,
+        ) as spy:
+            resumed, resumed_artifact = run(artifact2, opts2)
+
+        assert spy.call_count == 0
+        assert resumed.n_steps == opts2.n_steps
+        assert math.isclose(resumed_artifact.beta, artifact2.beta)
 
 
 # ---------------------------------------------------------------------------
@@ -407,12 +552,13 @@ class TestEnvCache:
         mpo, spc, _ = spinless_fermion_L4
         cache_dir = tmp_path / 'envs'
         cache_dir.mkdir()
-        run(mpo, spc, Options(
+        opts = Options(
             scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
             env_cache_dir=str(cache_dir),
             checkpoint_dir=str(tmp_path / 'ckpt'),
             save_artifacts=False,
-        ))
+        )
+        run(_initial_state(mpo, spc, opts), opts)
         subdirs = [p for p in cache_dir.iterdir() if p.is_dir()]
         assert subdirs == []
 
@@ -428,13 +574,14 @@ class TestEnvCache:
         cache_dir = tmp_path / 'envs'
         cache_dir.mkdir()
         mpo, spc, _ = spinless_fermion_L4
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
+            env_cache_dir=str(cache_dir),
+            checkpoint_dir=str(tmp_path / 'ckpt'),
+            save_artifacts=False,
+        )
         with patch('alice.algorithm.xtrg.xtrg.shutil.rmtree', side_effect=capturing_rmtree):
-            run(mpo, spc, Options(
-                scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
-                env_cache_dir=str(cache_dir),
-                checkpoint_dir=str(tmp_path / 'ckpt'),
-                save_artifacts=False,
-            ))
+            run(_initial_state(mpo, spc, opts), opts)
 
         assert len(seen_subdirs) == 1
         subdir = seen_subdirs[0]
@@ -462,8 +609,8 @@ class TestEnvCache:
         )
         mpo, spc, _ = spinless_fermion_L4
         with patch('alice.algorithm.xtrg.xtrg.shutil.rmtree', side_effect=capturing_rmtree):
-            run(mpo, spc, opts)
-            run(mpo, spc, opts)
+            run(_initial_state(mpo, spc, opts), opts)
+            run(_initial_state(mpo, spc, opts), opts)
 
         assert len(seen_subdirs) == 2
         assert seen_subdirs[0] != seen_subdirs[1]
@@ -479,8 +626,8 @@ class TestEnvCache:
             save_artifacts=False,
         )
         mpo, spc, _ = spinless_fermion_L4
-        run(mpo, spc, opts)
-        run(mpo, spc, opts)
+        run(_initial_state(mpo, spc, opts), opts)
+        run(_initial_state(mpo, spc, opts), opts)
         assert list(cache_dir.iterdir()) == []
 
     def test_cached_run_matches_in_memory_run(self, spinless_fermion_L4, tmp_path):
@@ -493,8 +640,10 @@ class TestEnvCache:
             checkpoint_dir=str(tmp_path / 'ckpt'),
             save_artifacts=False,
         )
-        plain, _ = run(mpo, spc, Options(**kwargs))
-        cached, _ = run(mpo, spc, Options(env_cache_dir=str(cache_dir), **kwargs))
+        opts_plain = Options(**kwargs)
+        opts_cached = Options(env_cache_dir=str(cache_dir), **kwargs)
+        plain, _ = run(_initial_state(mpo, spc, opts_plain), opts_plain)
+        cached, _ = run(_initial_state(mpo, spc, opts_cached), opts_cached)
         assert math.isclose(cached.log_z[-1], plain.log_z[-1], rel_tol=1e-10)
 
 
@@ -524,7 +673,7 @@ class TestXtrgLogScaleOverflow:
             taylor_order=10,
             n_sweeps=2,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
 
         assert all(math.isfinite(lz) for lz in summary.log_z), (
             f"non-finite log_z encountered: {summary.log_z}"
@@ -570,7 +719,7 @@ class TestXtrg1s:
             max_bond=None,
             n_sweeps=4,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
 
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
@@ -588,7 +737,7 @@ class TestXtrg1s:
         """
         mpo, spc, _ = spinless_fermion_L4
         opts = Options(scheme='1s', tau_0=2 ** -6, n_steps=4, n_sweeps=2)
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
         fs = summary.free_energies
         for i in range(len(fs) - 1):
             assert fs[i + 1] >= fs[i] - 1e-8, (
@@ -611,7 +760,7 @@ class TestXtrg2s:
             max_bond=None,
             n_sweeps=4,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
 
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
@@ -627,7 +776,7 @@ class TestXtrg2s:
         opts = Options(
             scheme='2s', tau_0=2 ** -6, n_steps=4, max_bond=4, n_sweeps=2
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
         for dw in summary.discarded_weights:
             assert dw >= 0.0
 
@@ -648,7 +797,7 @@ class TestXtrg1sp:
             expand_k=4,
             expand_alpha=4,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
 
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
@@ -665,7 +814,7 @@ class TestXtrg1sp:
             scheme='1sp', tau_0=2 ** -6, n_steps=4, max_bond=4, n_sweeps=2,
             expand_k=2, expand_alpha=2,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
         for dw in summary.discarded_weights:
             assert dw >= 0.0
 
@@ -682,7 +831,7 @@ class TestXtrg1sp:
             expand_k=4,
             expand_alpha=None,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
 
         beta, lz = summary.betas[-1], summary.log_z[-1]
         lz_exact = exact_log_z_fn(beta)
@@ -708,7 +857,7 @@ class TestXtrgSpinful:
             max_bond=None,
             n_sweeps=4,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
 
         for n, (beta, lz) in enumerate(zip(summary.betas, summary.log_z)):
             lz_exact = exact_log_z_fn(beta)
@@ -732,7 +881,7 @@ class TestXtrgSpinful:
             expand_k=4,
             expand_alpha=4,
         )
-        summary, _artifact = run(mpo, spc, opts)
+        summary, _artifact = run(_initial_state(mpo, spc, opts), opts)
 
         beta, lz = summary.betas[-1], summary.log_z[-1]
         lz_exact = exact_log_z_fn(beta)
