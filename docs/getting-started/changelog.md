@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.2.4] - 2026-08-18
+
+**XTRG: Resumption from Interrupted Runs**
+
+Allows an interrupted XTRG run to resume from its last checkpointed step rather than
+restarting from `ρ(τ₀)`. This required moving state construction out of `run()`: it now
+accepts a starting `Artifact` (`rho`, `beta`, `step`) supplied by the caller, instead of
+building `ρ(τ₀)` internally via `thermal_mpo()`. Breaking change to the signature of
+`run()`.
+
+### Resumable `run()`
+
+- **Breaking:** `run(H, spc, opts)` becomes `run(state: Artifact, opts=None)`; the chain
+  length `L` is read from `state.rho.L`, and the internal `thermal_mpo` call is removed.
+- At `state.step == 0`, `run()` records the initial `(beta, log Z)` grid point directly
+  from `state`, as before. When resuming (`state.step > 0`), it loads `thermal.ckpt` to
+  recover the prior `betas`/`log_z`/`discarded_weights` history, validates it against
+  `state.step` and `state.beta`, and continues squaring from `state.step` onward.
+- Callers now build the initial state explicitly — `thermal_mpo(...)` wrapped in an
+  `Artifact` — and resume a crashed run by passing the `Artifact` from `progress.ckpt`
+  back into `run()`.
+
+### Tests
+
+- New `_initial_state` helper builds the step-zero `Artifact`; all existing XTRG tests
+  updated to use it.
+- New `TestResume` (5 tests): a resumed run matches an uninterrupted one's thermodynamics
+  to `rel_tol=1e-10` while only computing the remaining steps; missing or inconsistent
+  checkpoints raise `FileNotFoundError`/`ValueError`; resuming past `n_steps` is a no-op.
+
+### Documentation
+
+- `xtrg_spinless`, `xtrg_spinful`, and the XTRG documentation and worked examples
+  (free-fermion, Hubbard) updated to build the initial `Artifact` via `thermal_mpo`
+  before calling `run()`. The module docstring and `index.md` gain a resumption example.
+
+### Statistics
+
+- **946 tests** across 29 test modules (up from 940 / 29 modules in v0.2.3).
+- **9 commits** since v0.2.3.
+- **8 files changed**, 295 insertions, 82 deletions.
+- **28 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** `xtrg.run()` no longer accepts `(H, spc, opts)`; its signature is
+  now `run(state: Artifact, opts=None)`. Callers must build the initial state themselves,
+  e.g. `xtrg.Artifact(rho=thermal_mpo(H, opts.tau_0, opts.taylor_order, spc), beta=opts.tau_0, step=0)`.
+  `progress.ckpt` and `thermal.ckpt` from earlier versions remain loadable for resumption.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.2.3] - 2026-08-17
 
 **XTRG: Convergence-Based Early Termination**
@@ -683,6 +737,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.4]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.4
 [0.2.3]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.3
 [0.2.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.1
