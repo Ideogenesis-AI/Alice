@@ -115,6 +115,18 @@ class TestOptions:
         assert opts2.save_artifacts is False
         assert opts2.save_artifacts_since == 3
 
+    def test_artifacts_dir_defaults_to_none(self):
+        """artifacts_dir defaults to None (nested under checkpoint_dir)."""
+        assert Options().artifacts_dir is None
+
+    def test_artifacts_dir_toml_round_trip(self, tmp_path):
+        """artifacts_dir survives a to_toml / load_toml round trip."""
+        original = Options(artifacts_dir='/tmp/artifacts')
+        path = tmp_path / 'opts.toml'
+        original.to_toml(path, section='xtrg')
+        loaded = Options.load_toml(path, section='xtrg')
+        assert loaded.artifacts_dir == '/tmp/artifacts'
+
 
 # ---------------------------------------------------------------------------
 # _fit_mpo: z_tol early stopping
@@ -262,8 +274,8 @@ class TestArtifact:
         assert math.isclose(loaded.beta, artifact.beta)
         assert loaded.rho.L == artifact.rho.L
 
-    def test_progress_removed_after_success(self, spinless_fermion_L4, tmp_path):
-        """progress.ckpt is deleted after a successful run."""
+    def test_checkpoint_removed_after_success(self, spinless_fermion_L4, tmp_path):
+        """xtrg.ckpt is deleted after a successful run."""
         mpo, spc, _ = spinless_fermion_L4
         opts = Options(
             scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
@@ -271,8 +283,8 @@ class TestArtifact:
             save_artifacts=False,
         )
         run(_initial_state(mpo, spc, opts), opts)
-        assert not (tmp_path / 'progress.ckpt').exists()
-        assert not (tmp_path / 'progress_lock.ckpt').exists()
+        assert not (tmp_path / 'xtrg.ckpt').exists()
+        assert not (tmp_path / 'xtrg_lock.ckpt').exists()
 
     def test_artifacts_archived_by_default(self, spinless_fermion_L4, tmp_path):
         """Default save_artifacts writes step_00 … step_n under artifacts/."""
@@ -321,6 +333,27 @@ class TestArtifact:
         )
         summary, artifact = run(_initial_state(mpo, spc, opts), opts)
         assert not (tmp_path / 'artifacts').exists()
+        assert artifact.step == summary.n_steps
+
+    def test_artifacts_dir_decoupled_from_checkpoint_dir(self, spinless_fermion_L4, tmp_path):
+        """An explicit artifacts_dir is used verbatim, independent of checkpoint_dir."""
+        mpo, spc, _ = spinless_fermion_L4
+        ckpt_dir = tmp_path / 'ckpt'
+        artifacts_dir = tmp_path / 'elsewhere' / 'artifacts'
+        n_steps = 2
+        opts = Options(
+            scheme='1s', tau_0=2 ** -4, n_steps=n_steps, n_sweeps=1,
+            checkpoint_dir=str(ckpt_dir),
+            artifacts_dir=str(artifacts_dir),
+        )
+        summary, artifact = run(_initial_state(mpo, spc, opts), opts)
+
+        assert (ckpt_dir / 'thermal.ckpt').exists()
+        assert not (ckpt_dir / 'artifacts').exists()
+        for k in range(n_steps + 1):
+            path = artifacts_dir / f'step_{k:02d}.ckpt'
+            assert path.exists(), f'missing {path}'
+
         assert artifact.step == summary.n_steps
 
 

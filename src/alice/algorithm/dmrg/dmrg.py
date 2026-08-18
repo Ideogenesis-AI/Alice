@@ -170,10 +170,18 @@ class Options(AlgorithmOptions):
         every full sweep using an atomic write: the data is first serialized
         to `dmrg_lock.ckpt` in the same directory, then renamed to
         `dmrg.ckpt` on success, so a failed write cannot corrupt the
-        previous checkpoint. `None` (default) resolves to `Path.cwd()` at
-        the time `run()` is called, mirroring `.logging`. Pass an explicit
-        path string to write elsewhere. Stored as `str` for TOML
-        compatibility.
+        previous checkpoint. Once `run()` finishes successfully, the final
+        `Summary` is archived under `artifacts_dir` (see below) and
+        `dmrg.ckpt` is removed, since it is redundant with the archived
+        artifact. `None` (default) resolves to `Path.cwd()` at the time
+        `run()` is called, mirroring `.logging`. Pass an explicit path
+        string to write elsewhere. Stored as `str` for TOML compatibility.
+    artifacts_dir:
+        Directory for the final `Summary` artifact, written as `state.ckpt`
+        when `run()` finishes successfully. `None` (default) resolves to
+        `artifacts/` under `checkpoint_dir`. Pass an explicit path string to
+        archive the final state elsewhere, independent of `checkpoint_dir`.
+        Stored as `str` for TOML compatibility.
     """
 
     scheme: str = '1s'
@@ -190,6 +198,7 @@ class Options(AlgorithmOptions):
     expand_k: int = 4
     expand_alpha: Optional[int] = None
     checkpoint_dir: Optional[str] = None
+    artifacts_dir: Optional[str] = None
 
     def __post_init__(self) -> None:
         # Normalize the scheme alias to the canonical name immediately.
@@ -345,6 +354,28 @@ def _save_checkpoint(
     lock_path.replace(ckpt_path)
 
 
+def _save_final_artifact(summary: Summary, artifacts_dir: Path) -> None:
+    """Write the final `Summary` atomically to `state.ckpt` in `artifacts_dir`.
+
+    Unlike the per-sweep `dmrg.ckpt` checkpoint, `summary` here carries the
+    correct `converged` flag, since it is built after the sweep loop exits
+    rather than while it is still in progress.
+
+    Parameters
+    ----------
+    summary:
+        Final DMRG summary, including the optimized MPS.
+    artifacts_dir:
+        Directory in which `state.ckpt` and `state_lock.ckpt` are written.
+    """
+    import torch
+
+    lock_path = artifacts_dir / 'state_lock.ckpt'
+    path = artifacts_dir / 'state.ckpt'
+    torch.save(summary.serialize(), lock_path)
+    lock_path.replace(path)
+
+
 # ---------------------------------------------------------------------------
 # Top-level entry point
 # ---------------------------------------------------------------------------
@@ -370,7 +401,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     -------
     Summary
         Ground-state energy, optimized MPS, energy history, and convergence
-        information.
+        information. Also archived as `state.ckpt` under `opts.artifacts_dir`.
 
     Raises
     ------
@@ -415,6 +446,13 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     # mirroring the convention used by configure_logging.
     _ckpt: Path = Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else Path.cwd()
     _ckpt.mkdir(parents=True, exist_ok=True)
+    # artifacts_dir defaults to artifacts/ under the checkpoint directory,
+    # but may be pointed elsewhere, independent of where checkpoints
+    # themselves live.
+    _artifacts: Path = (
+        Path(opts.artifacts_dir) if opts.artifacts_dir is not None else _ckpt / 'artifacts'
+    )
+    _artifacts.mkdir(parents=True, exist_ok=True)
 
     # For 2-site DMRG the effective fetch ranges are narrower than [0, L-1]:
     #   env_left  is never fetched at index L-1 (that tensor is never written).
@@ -476,6 +514,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         logger.info("  env async I/O     : %s", opts.env_async_io)
     if opts.checkpoint_dir is not None:
         logger.info("  checkpoint dir    : %s", _ckpt)
+    logger.info("  artifacts dir     : %s", _artifacts)
     logger.info("")
 
     w = len(str(opts.n_sweeps))
@@ -530,7 +569,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
 
     logger.info("")
 
-    return Summary(
+    summary = Summary(
         energy=energies[-1] if energies else math.nan,
         state=mps,
         energies=energies,
@@ -539,3 +578,12 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         bond_dims=list(mps.bond_dims),
         discarded_weights=discarded_weights,
     )
+
+    # Success path only: archive the final state under artifacts_dir, then
+    # drop the per-sweep checkpoint, since it is now redundant with the
+    # archived artifact (a crash earlier leaves it on disk instead).
+    _save_final_artifact(summary, _artifacts)
+    (_ckpt / 'dmrg.ckpt').unlink(missing_ok=True)
+    (_ckpt / 'dmrg_lock.ckpt').unlink(missing_ok=True)
+
+    return summary
