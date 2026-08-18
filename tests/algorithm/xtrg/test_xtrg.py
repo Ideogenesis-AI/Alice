@@ -274,8 +274,8 @@ class TestArtifact:
         assert math.isclose(loaded.beta, artifact.beta)
         assert loaded.rho.L == artifact.rho.L
 
-    def test_progress_removed_after_success(self, spinless_fermion_L4, tmp_path):
-        """progress.ckpt is deleted after a successful run."""
+    def test_checkpoint_removed_after_success(self, spinless_fermion_L4, tmp_path):
+        """xtrg.ckpt is deleted after a successful run."""
         mpo, spc, _ = spinless_fermion_L4
         opts = Options(
             scheme='1s', tau_0=2 ** -4, n_steps=1, n_sweeps=1,
@@ -283,8 +283,8 @@ class TestArtifact:
             save_artifacts=False,
         )
         run(_initial_state(mpo, spc, opts), opts)
-        assert not (tmp_path / 'progress.ckpt').exists()
-        assert not (tmp_path / 'progress_lock.ckpt').exists()
+        assert not (tmp_path / 'xtrg.ckpt').exists()
+        assert not (tmp_path / 'xtrg_lock.ckpt').exists()
 
     def test_artifacts_archived_by_default(self, spinless_fermion_L4, tmp_path):
         """Default save_artifacts writes step_00 … step_n under artifacts/."""
