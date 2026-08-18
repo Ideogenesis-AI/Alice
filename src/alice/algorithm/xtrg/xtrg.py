@@ -198,24 +198,30 @@ class Options(AlgorithmOptions):
         exact factor-MPO tensors, at the cost of a full 2-site-scale join).
         The paper recommends `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     checkpoint_dir:
-        Directory for checkpoint and artifact files. After every cooling
-        step a `thermal.ckpt` file (PyTorch format, loadable via
+        Directory for checkpoint files. After every cooling step a
+        `thermal.ckpt` file (PyTorch format, loadable via
         `xtrg.Summary.load`) is written using an atomic write
         (`thermal_lock.ckpt` → rename). Mid-run progress is stored as
         `progress.ckpt` (an `Artifact`) and removed when `run()` finishes
-        successfully. When `save_artifacts` is `True`, per-step density
-        matrices are also archived under `artifacts/step_XX.ckpt`.
-        `None` (default) resolves to `Path.cwd()` at the time `run()` is
-        called, mirroring `.logging`. Pass an explicit path string to write
-        elsewhere. Stored as `str` for TOML compatibility.
+        successfully. `None` (default) resolves to `Path.cwd()` at the
+        time `run()` is called, mirroring `.logging`. Pass an explicit
+        path string to write elsewhere. Stored as `str` for TOML
+        compatibility.
+    artifacts_dir:
+        Directory for per-step `Artifact` files (`step_XX.ckpt`), written
+        when `save_artifacts` is `True`. `None` (default) resolves to
+        `artifacts/` under `checkpoint_dir`. Pass an explicit path string
+        to archive artifacts elsewhere, independent of `checkpoint_dir`.
+        Stored as `str` for TOML compatibility.
     save_artifacts:
         If `True` (default), write per-step `Artifact` files under
-        `artifacts/` in the checkpoint directory for every step with index
-        `>= save_artifacts_since`. Step `0` is after Taylor init (`ρ(τ₀)`);
-        step `k` (`1 … n_steps`) is after the `k`-th squaring.
+        `artifacts_dir` for every step with index `>= save_artifacts_since`.
+        Step `0` is after Taylor init (`ρ(τ₀)`); step `k` (`1 … n_steps`) is
+        after the `k`-th squaring.
     save_artifacts_since:
-        First step index (inclusive) at which `artifacts/step_XX.ckpt` files
-        are written when `save_artifacts` is `True`. Must be `>= 0`.
+        First step index (inclusive) at which `step_XX.ckpt` files are
+        written under `artifacts_dir` when `save_artifacts` is `True`.
+        Must be `>= 0`.
     """
 
     scheme: str = '2s'
@@ -232,6 +238,7 @@ class Options(AlgorithmOptions):
     expand_k: int = 4
     expand_alpha: Optional[int] = None
     checkpoint_dir: Optional[str] = None
+    artifacts_dir: Optional[str] = None
     save_artifacts: bool = True
     save_artifacts_since: int = 0
 
@@ -804,7 +811,12 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     # mirroring the convention used by configure_logging / DMRG.
     _ckpt: Path = Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else Path.cwd()
     _ckpt.mkdir(parents=True, exist_ok=True)
-    _artifacts: Path = _ckpt / 'artifacts'
+    # artifacts_dir defaults to artifacts/ under the checkpoint directory,
+    # but may be pointed elsewhere (e.g. faster or larger storage) independent
+    # of where checkpoints themselves live.
+    _artifacts: Path = (
+        Path(opts.artifacts_dir) if opts.artifacts_dir is not None else _ckpt / 'artifacts'
+    )
     if opts.save_artifacts:
         _artifacts.mkdir(parents=True, exist_ok=True)
 
@@ -833,6 +845,7 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
         logger.info("  env cache dir     : %s", _cache)
     if opts.save_artifacts:
         logger.info("  save artifacts    : True (since step %d)", opts.save_artifacts_since)
+        logger.info("  artifacts dir     : %s", _artifacts)
     logger.info("")
 
     rho = state.rho
