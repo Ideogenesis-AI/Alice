@@ -3131,16 +3131,20 @@
 
 <a href="#alice.algorithm.xtrg.run" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">H</span><span class="p">:</span> <span class="n">MPO</span><span class="p">,</span> <span class="n">spc</span><span class="p">:</span> <span class="n">Index</span><span class="p">,</span> <span class="n">opts</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Options</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">state</span><span class="p">:</span> <span class="n">Artifact</span><span class="p">,</span> <span class="n">opts</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Options</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Summary</span><span class="p">,</span> <span class="n">Artifact</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Run XTRG to compute finite-temperature properties of a Hamiltonian MPO.</p>
-<p>Initializes the thermal density matrix via a Taylor expansion
-ρ(τ₀) ≈ Σ_n (-τ₀)^n/n! H^n, then repeatedly squares it using
-variational MPO-MPO compression to reach β_max = 2^n_steps × τ₀.</p>
+        <p>Run XTRG starting from a given thermal density matrix state.</p>
+<p>Repeatedly squares <code>state.rho</code> using variational MPO-MPO compression to
+reach β_max = 2^n_steps × τ₀, starting at <code>state.step</code> and continuing to
+<code>opts.n_steps</code>. Building ρ(τ₀) (e.g. via <code>thermal_mpo</code>) and wrapping it
+in an <code>Artifact</code> at <code>step=0</code> is the caller's responsibility. Resuming an
+interrupted run is calling <code>run()</code> again with the <code>Artifact</code> loaded from
+<code>progress.ckpt</code>; the matching β/log Z history is recovered automatically
+from <code>thermal.ckpt</code> in <code>opts.checkpoint_dir</code>.</p>
 <p>Thermodynamic observables (f, u, c_V, S) are computed from log Z at each
 step using log-β finite differences for uniform accuracy across the
 exponential temperature grid.</p>
@@ -3159,31 +3163,20 @@ exponential temperature grid.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>H</code>
+                <code>state</code>
             </td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="            MPO (alice.network.MPO)" href="../../../api/network/mpo/#alice.MPO">MPO</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Hamiltonian MPO. Should be in standard MPO form; not modified.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>spc</code>
-            </td>
-            <td>
-                  <code><span title="nicole.Index">Index</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            Artifact
+
+
+  
+      dataclass
+   (alice.algorithm.xtrg.xtrg.Artifact)" href="../artifact/#alice.algorithm.xtrg.Artifact">Artifact</a></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Physical space index, used to build the identity MPO (H⁰ = I)
-inside <code>thermal_mpo</code>.</p>
+                <p>Starting density matrix, paired with its <code>beta</code> and <code>step</code>. <code>step=0</code>
+for a fresh run; <code>step &gt; 0</code> to resume.</p>
               </div>
             </td>
             <td>
@@ -3274,7 +3267,9 @@ to <code>thermal.ckpt</code> under the checkpoint directory.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>opts.scheme</code> is not a recognized scheme.</p>
+                <p>If <code>opts.scheme</code> is not a recognized scheme, or if <code>state.step &gt; 0</code>
+and the <code>thermal.ckpt</code> found in <code>opts.checkpoint_dir</code> is
+inconsistent with <code>state</code>.</p>
               </div>
             </td>
           </tr>
@@ -3285,6 +3280,17 @@ to <code>thermal.ckpt</code> under the checkpoint directory.</p>
             <td>
               <div class="doc-md-description">
                 <p>If <code>opts.scheme</code> is recognized but not yet implemented.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="FileNotFoundError">FileNotFoundError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>state.step &gt; 0</code> and no <code>thermal.ckpt</code> exists in
+<code>opts.checkpoint_dir</code> to recover the β/log Z history from.</p>
               </div>
             </td>
           </tr>
