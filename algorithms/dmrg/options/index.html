@@ -3172,7 +3172,8 @@
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">expand_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">expand_alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">)</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">artifacts_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3443,10 +3444,32 @@ additional truncation beyond the existing bond dimension).</p>
 every full sweep using an atomic write: the data is first serialized
 to <code>dmrg_lock.ckpt</code> in the same directory, then renamed to
 <code>dmrg.ckpt</code> on success, so a failed write cannot corrupt the
-previous checkpoint. <code>None</code> (default) resolves to <code>Path.cwd()</code> at
-the time <code>run()</code> is called, mirroring <code>.logging</code>. Pass an explicit
-path string to write elsewhere. Stored as <code>str</code> for TOML
-compatibility.</p>
+previous checkpoint. Once <code>run()</code> finishes successfully, the final
+<code>Summary</code> is archived under <code>artifacts_dir</code> (see below) and
+<code>dmrg.ckpt</code> is removed, since it is redundant with the archived
+artifact. <code>None</code> (default) resolves to <code>Path.cwd()</code> at the time
+<code>run()</code> is called, mirroring <code>.logging</code>. Pass an explicit path
+string to write elsewhere. Stored as <code>str</code> for TOML compatibility.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>artifacts_dir</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Directory for the final <code>Summary</code> artifact, written as <code>state.ckpt</code>
+when <code>run()</code> finishes successfully. <code>None</code> (default) resolves to
+<code>artifacts/</code> under <code>checkpoint_dir</code>. Pass an explicit path string to
+archive the final state elsewhere, independent of <code>checkpoint_dir</code>.
+Stored as <code>str</code> for TOML compatibility.</p>
               </div>
             </td>
             <td>

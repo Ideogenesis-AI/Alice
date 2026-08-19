@@ -3143,7 +3143,7 @@ reach β_max = 2^n_steps × τ₀, starting at <code>state.step</code> and conti
 <code>opts.n_steps</code>. Building ρ(τ₀) (e.g. via <code>thermal_mpo</code>) and wrapping it
 in an <code>Artifact</code> at <code>step=0</code> is the caller's responsibility. Resuming an
 interrupted run is calling <code>run()</code> again with the <code>Artifact</code> loaded from
-<code>progress.ckpt</code>; the matching β/log Z history is recovered automatically
+<code>xtrg.ckpt</code>; the matching β/log Z history is recovered automatically
 from <code>thermal.ckpt</code> in <code>opts.checkpoint_dir</code>.</p>
 <p>Thermodynamic observables (f, u, c_V, S) are computed from log Z at each
 step using log-β finite differences for uniform accuracy across the

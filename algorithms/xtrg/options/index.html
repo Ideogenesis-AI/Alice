@@ -3172,9 +3172,10 @@
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">expand_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">expand_alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">save_artifacts</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">save_artifacts_since</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">artifacts_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">save_artifacts</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">save_artifacts_since</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3449,16 +3450,35 @@ The paper recommends <code>expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))</
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Directory for checkpoint and artifact files. After every cooling
-step a <code>thermal.ckpt</code> file (PyTorch format, loadable via
+                <p>Directory for checkpoint files. After every cooling step a
+<code>thermal.ckpt</code> file (PyTorch format, loadable via
 <code>xtrg.Summary.load</code>) is written using an atomic write
 (<code>thermal_lock.ckpt</code> → rename). Mid-run progress is stored as
-<code>progress.ckpt</code> (an <code>Artifact</code>) and removed when <code>run()</code> finishes
-successfully. When <code>save_artifacts</code> is <code>True</code>, per-step density
-matrices are also archived under <code>artifacts/step_XX.ckpt</code>.
-<code>None</code> (default) resolves to <code>Path.cwd()</code> at the time <code>run()</code> is
-called, mirroring <code>.logging</code>. Pass an explicit path string to write
-elsewhere. Stored as <code>str</code> for TOML compatibility.</p>
+<code>xtrg.ckpt</code> (an <code>Artifact</code>) and removed when <code>run()</code> finishes
+successfully. <code>None</code> (default) resolves to <code>Path.cwd()</code> at the
+time <code>run()</code> is called, mirroring <code>.logging</code>. Pass an explicit
+path string to write elsewhere. Stored as <code>str</code> for TOML
+compatibility.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>artifacts_dir</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Directory for per-step <code>Artifact</code> files (<code>step_XX.ckpt</code>), written
+when <code>save_artifacts</code> is <code>True</code>. <code>None</code> (default) resolves to
+<code>artifacts/</code> under <code>checkpoint_dir</code>. Pass an explicit path string
+to archive artifacts elsewhere, independent of <code>checkpoint_dir</code>.
+Stored as <code>str</code> for TOML compatibility.</p>
               </div>
             </td>
             <td>
@@ -3475,9 +3495,9 @@ elsewhere. Stored as <code>str</code> for TOML compatibility.</p>
             <td>
               <div class="doc-md-description">
                 <p>If <code>True</code> (default), write per-step <code>Artifact</code> files under
-<code>artifacts/</code> in the checkpoint directory for every step with index
-<code>&gt;= save_artifacts_since</code>. Step <code>0</code> is after Taylor init (<code>ρ(τ₀)</code>);
-step <code>k</code> (<code>1 … n_steps</code>) is after the <code>k</code>-th squaring.</p>
+<code>artifacts_dir</code> for every step with index <code>&gt;= save_artifacts_since</code>.
+Step <code>0</code> is after Taylor init (<code>ρ(τ₀)</code>); step <code>k</code> (<code>1 … n_steps</code>) is
+after the <code>k</code>-th squaring.</p>
               </div>
             </td>
             <td>
@@ -3493,8 +3513,9 @@ step <code>k</code> (<code>1 … n_steps</code>) is after the <code>k</code>-th 
             </td>
             <td>
               <div class="doc-md-description">
-                <p>First step index (inclusive) at which <code>artifacts/step_XX.ckpt</code> files
-are written when <code>save_artifacts</code> is <code>True</code>. Must be <code>&gt;= 0</code>.</p>
+                <p>First step index (inclusive) at which <code>step_XX.ckpt</code> files are
+written under <code>artifacts_dir</code> when <code>save_artifacts</code> is <code>True</code>.
+Must be <code>&gt;= 0</code>.</p>
               </div>
             </td>
             <td>
