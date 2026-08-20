@@ -26,6 +26,11 @@ import pytest
 from nicole import Direction, Tensor, load_space
 from nicole.index import Index, Sector
 
+from alice.network import build_hamiltonian
+from alice.physics.geometry import build_geometry
+from alice.physics.models import build_heisenberg
+from alice.physics.square import intrcmap_square
+
 
 @pytest.fixture(autouse=True)
 def configure_logging():
@@ -164,6 +169,52 @@ def mpo_tensors_su2(spin_space_su2):
                           itags=[f'W{i:02d}', f'W{i + 1:02d}', f's{i:02d}', f's{i:02d}'])
         tensors.append(W)
     return tensors
+
+
+# ------------------------------------------------------------------
+# Heisenberg Hamiltonian MPO fixtures (for observe()/thermal_mpo tests)
+# ------------------------------------------------------------------
+
+_HEISENBERG_L = 4  # short enough to keep thermal_mpo's Taylor sweep fast
+
+
+def _nn_chain(L: int) -> list:
+    """Return L-1 nearest-neighbor Interaction2Site objects for a 1D chain."""
+    geo = build_geometry({
+        'lattice': 'square',
+        'lx': L, 'ly': 1,
+        'bcx': 'OBC', 'bcy': 'OBC',
+        'n2x': True, 'n2y': False,
+    })
+    return intrcmap_square(geo)
+
+
+@pytest.fixture(scope='session')
+def heisenberg_mpo_u1():
+    """`H = J Σ S_i · S_{i+1}` Heisenberg chain MPO, U(1) (Sz-conserving) symmetry.
+
+    Returns `(H_mpo, Spc)`. `thermal_mpo`/`observe` never mutate `H_mpo`, so
+    this is safe to share (unmodified) across the whole test session.
+    """
+    interactions = _nn_chain(_HEISENBERG_L)
+    Spc, _ = build_heisenberg(interactions, symmetry='U1', spin=0.5, J=1.0)
+    H_mpo = build_hamiltonian(interactions, _HEISENBERG_L, Spc)
+    return H_mpo, Spc
+
+
+@pytest.fixture(scope='session')
+def heisenberg_mpo_su2():
+    """`H = J Σ S_i · S_{i+1}` Heisenberg chain MPO, full SU(2) symmetry.
+
+    Same physical Hamiltonian as `heisenberg_mpo_u1`, built with full
+    spin-rotation symmetry instead of just its U(1) subgroup — used to
+    exercise the non-Abelian Bridge-weight code paths, and to cross-check
+    against the U(1) fixture for a real numerical correctness signal.
+    """
+    interactions = _nn_chain(_HEISENBERG_L)
+    Spc, _ = build_heisenberg(interactions, symmetry='SU2', spin=0.5, J=1.0)
+    H_mpo = build_hamiltonian(interactions, _HEISENBERG_L, Spc)
+    return H_mpo, Spc
 
 
 # ------------------------------------------------------------------
