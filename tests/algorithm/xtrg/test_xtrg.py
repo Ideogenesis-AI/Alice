@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import shutil as _shutil
 from unittest.mock import patch
@@ -490,6 +491,111 @@ class TestResume:
             run(artifact2, opts4)
 
         assert spy.call_count == opts4.n_steps - artifact2.step
+
+    def test_continue_finished_run_from_archived_artifact(
+        self, spinless_fermion_L4, tmp_path,
+    ):
+        """A finished run continues from its archived final artifact on disk."""
+        mpo, spc, _ = spinless_fermion_L4
+        base = dict(scheme='1s', tau_0=2 ** -6, taylor_order=10, n_sweeps=2)
+
+        opts2 = Options(**base, n_steps=2, checkpoint_dir=str(tmp_path))
+        summary2, _artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
+
+        # Reload from disk rather than reusing the returned Artifact, as a
+        # separate process continuing the run would have to.
+        state = Artifact.load(tmp_path / 'artifacts' / 'step_02.ckpt')
+        opts4 = Options(**base, n_steps=4, max_bond=8, checkpoint_dir=str(tmp_path))
+        continued, artifact4 = run(state, opts4)
+
+        assert continued.n_steps == 4
+        assert len(continued.betas) == 5
+        assert artifact4.step == 4
+        # The first three grid points come from the earlier run untouched.
+        for n in range(3):
+            assert math.isclose(continued.betas[n], summary2.betas[n])
+            assert math.isclose(continued.log_z[n], summary2.log_z[n])
+        for n in range(3, 5):
+            assert math.isclose(continued.betas[n], summary2.betas[-1] * 2 ** (n - 2))
+
+    def test_continue_from_earlier_step_truncates_history(
+        self, spinless_fermion_L4, tmp_path, caplog,
+    ):
+        """Restarting from an earlier archived step truncates and redoes the tail."""
+        mpo, spc, _ = spinless_fermion_L4
+        base = dict(scheme='1s', tau_0=2 ** -6, taylor_order=10, n_sweeps=2)
+
+        opts4 = Options(**base, n_steps=4, checkpoint_dir=str(tmp_path))
+        summary4, _artifact4 = run(_initial_state(mpo, spc, opts4), opts4)
+        assert summary4.n_steps == 4
+
+        # Re-cool steps 3 and 4 starting from the step-2 archive.
+        state = Artifact.load(tmp_path / 'artifacts' / 'step_02.ckpt')
+        with caplog.at_level(logging.WARNING, logger='alice.algorithm.xtrg.xtrg'):
+            redone, artifact = run(state, opts4)
+
+        assert redone.n_steps == 4
+        assert len(redone.betas) == 5
+        assert len(redone.discarded_weights) == 4
+        assert artifact.step == 4
+        for n in range(5):
+            assert math.isclose(redone.betas[n], summary4.betas[n])
+        assert any(
+            record.levelno >= logging.WARNING and 'overwritten' in record.getMessage()
+            for record in caplog.records
+        ), 'expected a WARNING that the truncated entries are overwritten'
+
+    def test_history_shorter_than_state_step_raises(self, spinless_fermion_L4, tmp_path):
+        """A thermal.ckpt stopping before state.step raises ValueError."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts2 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=2, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        _summary2, artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
+
+        # thermal.ckpt reaches step 2; claim the state is at step 3.
+        ahead_state = Artifact(
+            rho=artifact2.rho, beta=artifact2.beta * 2, step=3,
+        )
+        opts_resume = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=5, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        with pytest.raises(ValueError, match='inconsistent'):
+            run(ahead_state, opts_resume)
+
+    def test_mismatched_tau_0_raises(self, spinless_fermion_L4, tmp_path):
+        """Resuming with a tau_0 that differs from the history's raises ValueError."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts2 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=2, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        _summary2, artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
+
+        opts_resume = Options(
+            scheme='1s', tau_0=2 ** -5, n_steps=4, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        with pytest.raises(ValueError, match='inconsistent'):
+            run(artifact2, opts_resume)
+
+    def test_state_step_past_n_steps_raises(self, spinless_fermion_L4, tmp_path):
+        """state.step > opts.n_steps raises ValueError."""
+        mpo, spc, _ = spinless_fermion_L4
+        opts4 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=4, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        _summary4, artifact4 = run(_initial_state(mpo, spc, opts4), opts4)
+
+        opts2 = Options(
+            scheme='1s', tau_0=2 ** -6, n_steps=2, n_sweeps=1,
+            checkpoint_dir=str(tmp_path),
+        )
+        with pytest.raises(ValueError, match='n_steps'):
+            run(artifact4, opts2)
 
     def test_missing_thermal_ckpt_raises(self, spinless_fermion_L4, tmp_path):
         """Resuming with step > 0 in an empty checkpoint_dir raises FileNotFoundError."""
