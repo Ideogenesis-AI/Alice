@@ -46,6 +46,22 @@ recovered automatically from `thermal.ckpt` in `opts.checkpoint_dir`:
     resumed = xtrg.Artifact.load(ckpt_dir / 'xtrg.ckpt')
     summary, artifact = xtrg.run(resumed, opts)
 
+Continuing a run that already finished works the same way, starting from
+any archived `artifacts/step_XX.ckpt` and new options — e.g. cooling
+further, at a larger bond dimension:
+
+    state = xtrg.Artifact.load(ckpt_dir / 'artifacts' / 'step_20.ckpt')
+    opts = xtrg.Options(tau_0=2 ** -12, n_steps=25, max_bond=512,
+                        checkpoint_dir=str(ckpt_dir))
+    summary, artifact = xtrg.run(state, opts)
+
+`n_steps` counts cooling steps from τ₀, not additional steps to perform,
+and `tau_0` must match the τ₀ the recovered history was built on. Starting
+from a step before the end of that history is allowed: the entries past
+that step are truncated, then recomputed and overwritten by this run. That
+is how a segment is re-cooled under different options — say steps 16 … 20
+at a larger `max_bond`, by starting from `step_15.ckpt` with `n_steps=20`.
+
 Thermodynamic observables (log Z, f, u, c_V, S) are extracted at each
 cooling step using log-β finite differences, which give uniform accuracy
 across the exponentially spaced temperature grid.
@@ -508,6 +524,91 @@ def _archive_artifact(
         _save_artifact_file(artifact, artifacts_dir)
 
 
+def _resume_history(
+    state: Artifact,
+    ckpt_dir: Path,
+    tau_0: float,
+) -> Tuple[list[float], list[float], list[float]]:
+    """Recover the β/log Z history up to `state.step` from `thermal.ckpt`.
+
+    The history is read from `thermal.ckpt` in `ckpt_dir`, where every prior
+    call to `run()` wrote it alongside `xtrg.ckpt`. A history reaching past
+    `state.step` is truncated rather than rejected, so a run can be continued
+    from any archived `artifacts/step_XX.ckpt` — not only from the step the
+    previous run stopped at. The steps beyond `state.step` are then
+    recomputed by the caller and overwrite the truncated ones on disk.
+
+    Parameters
+    ----------
+    state:
+        Starting density matrix with its `beta` and `step`.
+    ckpt_dir:
+        Resolved checkpoint directory holding `thermal.ckpt`.
+    tau_0:
+        Initial inverse temperature from the run options, checked against
+        the first β of the recovered history.
+
+    Returns
+    -------
+    list[float]
+        β values for steps `0 … state.step`.
+    list[float]
+        `log Z` values for steps `0 … state.step`.
+    list[float]
+        Discarded weights for the `state.step` squarings performed so far.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no `thermal.ckpt` exists in `ckpt_dir`.
+    ValueError
+        If the history stops before `state.step`, if its β at `state.step`
+        does not match `state.beta`, or if its τ₀ does not match `tau_0`.
+    """
+    thermal_path = ckpt_dir / 'thermal.ckpt'
+    if not thermal_path.exists():
+        raise FileNotFoundError(
+            f"resuming from step {state.step} requires an existing thermal.ckpt "
+            f"in {ckpt_dir} to recover the β/log Z history, but none was found"
+        )
+    history = Summary.load(thermal_path)
+
+    if len(history.betas) <= state.step:
+        raise ValueError(
+            f"thermal.ckpt at {ckpt_dir} only reaches step {len(history.betas) - 1}, "
+            f"but the given state is at step {state.step}; the two are inconsistent"
+        )
+    # Compare β at the state's own step (not at the end of the history), so a
+    # history reaching further can still be truncated back to `state.step`.
+    if not math.isclose(history.betas[state.step], state.beta):
+        raise ValueError(
+            f"thermal.ckpt's β at step {state.step} ({history.betas[state.step]:.6g}) at "
+            f"{ckpt_dir} does not match the given state's β ({state.beta:.6g}); "
+            "the two are inconsistent"
+        )
+    if not math.isclose(history.betas[0], tau_0):
+        raise ValueError(
+            f"thermal.ckpt at {ckpt_dir} was built with τ₀ = {history.betas[0]:.6g}, "
+            f"but the given options specify τ₀ = {tau_0:.6g}; the two are inconsistent"
+        )
+
+    last = len(history.betas) - 1
+    if last > state.step:
+        logger.warning(
+            "thermal.ckpt reaches step %d; continuing from step %d — the %d later "
+            "entries will be recomputed and overwritten",
+            last, state.step, last - state.step,
+        )
+
+    return (
+        list(history.betas[:state.step + 1]),
+        list(history.log_z[:state.step + 1]),
+        # One discarded weight per squaring, so `state.step` entries cover
+        # the steps that produced β_0 … β_{state.step}.
+        list(history.discarded_weights[:state.step]),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Inner variational compression
 # ---------------------------------------------------------------------------
@@ -752,9 +853,16 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     reach β_max = 2^n_steps × τ₀, starting at `state.step` and continuing to
     `opts.n_steps`. Building ρ(τ₀) (e.g. via `thermal_mpo`) and wrapping it
     in an `Artifact` at `step=0` is the caller's responsibility. Resuming an
-    interrupted run is calling `run()` again with the `Artifact` loaded from
-    `xtrg.ckpt`; the matching β/log Z history is recovered automatically
-    from `thermal.ckpt` in `opts.checkpoint_dir`.
+    interrupted run, or continuing a finished one under new options, is
+    calling `run()` again with the `Artifact` loaded from `xtrg.ckpt` or
+    from any archived `artifacts/step_XX.ckpt`; the matching β/log Z history
+    is recovered automatically from `thermal.ckpt` in `opts.checkpoint_dir`.
+
+    When that history reaches past `state.step` — the case when restarting
+    from an earlier archived step to re-cool a segment at, say, a larger
+    `max_bond` — the later entries are truncated (with a warning), then
+    recomputed by this run and overwritten on disk, together with their
+    `step_XX.ckpt` archives.
 
     Thermodynamic observables (f, u, c_V, S) are computed from log Z at each
     step using log-β finite differences for uniform accuracy across the
@@ -764,9 +872,11 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     ----------
     state:
         Starting density matrix, paired with its `beta` and `step`. `step=0`
-        for a fresh run; `step > 0` to resume.
+        for a fresh run; `step > 0` to resume or continue.
     opts:
-        XTRG run options. Defaults to `Options()` if `None`.
+        XTRG run options. Defaults to `Options()` if `None`. `n_steps`
+        counts cooling steps from τ₀, so it is the absolute step index to
+        stop at — not a number of additional steps to perform.
 
     Returns
     -------
@@ -779,9 +889,11 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     Raises
     ------
     ValueError
-        If `opts.scheme` is not a recognized scheme, or if `state.step > 0`
-        and the `thermal.ckpt` found in `opts.checkpoint_dir` is
-        inconsistent with `state`.
+        If `opts.scheme` is not a recognized scheme, if `state.step` is past
+        `opts.n_steps`, or if `state.step > 0` and the `thermal.ckpt` found
+        in `opts.checkpoint_dir` is inconsistent with `state` — because it
+        stops before `state.step`, because its β there disagrees with
+        `state.beta`, or because it was built with a different τ₀.
     NotImplementedError
         If `opts.scheme` is recognized but not yet implemented.
     FileNotFoundError
@@ -795,6 +907,16 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
         raise NotImplementedError(
             f"XTRG scheme {opts.scheme!r} is recognized but not yet implemented; "
             f"implemented schemes are: {', '.join(sorted(_IMPLEMENTED_SCHEMES))}"
+        )
+
+    # `n_steps` counts doublings from τ₀, so a target behind the state would
+    # leave the written summary claiming fewer steps than its own history
+    # carries. Equality is fine: it is the already-at-target no-op.
+    if state.step > opts.n_steps:
+        raise ValueError(
+            f"the given state is at step {state.step}, past the target "
+            f"opts.n_steps = {opts.n_steps}; note that n_steps counts cooling "
+            "steps from τ₀, not additional steps to perform"
         )
 
     L = state.rho.L
@@ -829,7 +951,16 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     logger.info("  chain length      : %d", L)
     logger.info("  initial tau_0     : %.6g", opts.tau_0)
     logger.info("  cooling steps     : %d", opts.n_steps)
-    logger.info("  beta_max          : %.6g", opts.tau_0 * 2 ** opts.n_steps)
+    if state.step > 0:
+        # On a resumed run the remaining work starts at the state's own β, so
+        # report that grid rather than the τ₀-derived one, which describes the
+        # full run only when starting from step 0.
+        logger.info("  resuming at step  : %d  (%d step(s) remaining)",
+                    state.step, opts.n_steps - state.step)
+        logger.info("  beta_max          : %.6g",
+                    state.beta * 2 ** (opts.n_steps - state.step))
+    else:
+        logger.info("  beta_max          : %.6g", opts.tau_0 * 2 ** opts.n_steps)
     logger.info("  max bond dim      : %s", max_bond_str)
     logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
     logger.info("  sweeps / step     : %d", opts.n_sweeps)
@@ -867,26 +998,7 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
         # itself typically came from). Both files are written together by
         # every prior call to run(), so history is recovered with a plain
         # load from `_ckpt`.
-        thermal_path = _ckpt / 'thermal.ckpt'
-        if not thermal_path.exists():
-            raise FileNotFoundError(
-                f"resuming from step {state.step} requires an existing thermal.ckpt "
-                f"in {_ckpt} to recover the β/log Z history, but none was found"
-            )
-        history = Summary.load(thermal_path)
-        if history.n_steps != state.step:
-            raise ValueError(
-                f"thermal.ckpt at {_ckpt} reflects step {history.n_steps}, but the "
-                f"given state is at step {state.step}; the two are inconsistent"
-            )
-        if not math.isclose(history.betas[-1], state.beta):
-            raise ValueError(
-                f"thermal.ckpt's last β ({history.betas[-1]:.6g}) at {_ckpt} does not "
-                f"match the given state's β ({state.beta:.6g}); the two are inconsistent"
-            )
-        betas = list(history.betas)
-        log_z = list(history.log_z)
-        discarded_weights = list(history.discarded_weights)
+        betas, log_z, discarded_weights = _resume_history(state, _ckpt, opts.tau_0)
         logger.info("  resuming from step %d / %d  (β = %.6g,  log Z = %+.8g)",
                     state.step, opts.n_steps, betas[-1], log_z[-1])
 
