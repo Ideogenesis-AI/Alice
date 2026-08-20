@@ -1,5 +1,81 @@
 # Changelog
 
+## [0.2.6] - 2026-08-20
+
+**Continuable Cooling, Faster Thermal Measurement**
+
+Generalizes XTRG resumption: `run()` now accepts a starting state from *any* archived
+`artifacts/step_XX.ckpt`, not just the step the previous run stopped at, so a finished
+run can be cooled further or a segment re-cooled under different options. Separately,
+`observe()` on a thermal `NormalMPO` is rewritten as a transfer-matrix environment
+sweep instead of forming and compressing the MPO product `ρ · O`. No breaking API
+changes.
+
+### Continuing a Finished XTRG Run
+
+- `run()` accepts a state at any step covered by `thermal.ckpt`, including one *before*
+  the end of that history; the later entries are truncated (with a `WARNING`), then
+  recomputed and overwritten on disk together with their `step_XX.ckpt` archives.
+  Previously the history had to end exactly at `state.step`.
+- History recovery moves into a new `_resume_history` helper, with validation anchored
+  at `state.step` — β is compared at `history.betas[state.step]` rather than at the end
+  of the history, which is rejected only if it *stops before* `state.step`.
+- New checks: `history.betas[0]` must match `opts.tau_0`, and `state.step` must not be
+  past `opts.n_steps` (which is the absolute step index to stop at, counted from τ₀,
+  not a number of additional steps).
+- A resumed run's startup banner reports the starting step and steps remaining, and
+  derives `beta_max` from `state.beta` instead of τ₀.
+
+### Thermal `observe()` via Environment Sweep
+
+- `observe(rho, O)` for a `NormalMPO` now evaluates `Tr[ρ O] / Tr[ρ]` with a
+  left-to-right sweep accumulating a `(ρ_bond, O_bond)` environment, mirroring the MPS
+  path, instead of forming `ρ · O` at bond dimension `χ_ρ · χ_O` and calling `compact()`
+  before the trace.
+- The ratio is still combined in log-space, so it stays correct when either trace alone
+  would overflow float64; the boundary scalar accounts for the Bridge (`intw`) weight,
+  covering generic symmetry groups.
+- A length mismatch between `rho` and `observable` now raises `ValueError`.
+
+### Tests
+
+- New `TestResume` cases in `test_xtrg.py` for continuing a finished run from
+  `step_02.ckpt`, re-cooling from an earlier step (asserting the truncation warning),
+  and the three new error conditions.
+- New thermal `observe()` coverage in `test_observe.py`, shared via
+  `_ObserveThermalTests` and run against both U(1) and SU(2) realizations of the same
+  Heisenberg chain, including an SU(2)-vs-U(1) cross-check of `⟨H⟩_β`; new session-scoped
+  `heisenberg_mpo_u1`/`heisenberg_mpo_su2` fixtures in `tests/network/conftest.py`.
+
+### Documentation
+
+- `xtrg/index.md` gains a "Continuing a finished run" section; the module and `run()`
+  docstrings document the same, including the new `ValueError` conditions.
+- `xtrg/summary.md` warns that a continued run's summary may merge segments computed
+  under different options, with `u`/`c_V` finite differences at the junction mixing both
+  accuracies.
+
+### Statistics
+
+- **968 tests** across 29 test modules (up from 954 / 29 modules in v0.2.5).
+- **8 commits** since v0.2.5.
+- **8 files changed**, 498 insertions, 46 deletions.
+- **28 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** a `thermal.ckpt` reaching past `state.step` is now accepted
+  and truncated rather than rejected, while a mismatched τ₀ and a `state.step` past
+  `opts.n_steps` are now rejected; a continued run overwrites the `step_XX.ckpt` and
+  `thermal.ckpt` entries past its starting step. Thermal `observe()` results may differ
+  in the last few digits, since the environment sweep skips the `compact()` compression
+  the MPO-product path applied.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.2.5] - 2026-08-19
 
 **Independent Artifact Storage for DMRG and XTRG**
@@ -805,6 +881,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.6]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.5
 [0.2.4]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.4
 [0.2.3]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.3

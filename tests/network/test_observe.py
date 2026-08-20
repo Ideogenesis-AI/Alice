@@ -24,7 +24,7 @@ import math
 
 import pytest
 
-from alice.network import MPS, MPO, observe
+from alice.network import MPS, MPO, observe, thermal_mpo
 
 _L = 10   # must match the fixture chain length in conftest.py
 
@@ -124,3 +124,108 @@ class TestObserveMPS:
         """observe returns 0 for a zero SU(2) MPO."""
         zero_mpo = [W * 0.0 for W in mpo_tensors_su2]
         assert math.isclose(observe(mps_tensors_su2, zero_mpo), 0.0, abs_tol=1e-14)
+
+
+# ---------------------------------------------------------------------------
+# Thermal (NormalMPO) observation path — Abelian and non-Abelian
+# ---------------------------------------------------------------------------
+
+class _ObserveThermalTests:
+    """Shared test logic for `observe()` on a `NormalMPO` thermal state.
+
+    Subclasses supply a `hamiltonian` fixture yielding `(H_mpo, Spc)` for a
+    specific symmetry group (see `heisenberg_mpo_u1`/`heisenberg_mpo_su2`
+    in `conftest.py`); every test method below is shared verbatim between
+    the Abelian and non-Abelian cases, only the underlying symmetry group
+    differs.
+    """
+
+    _BETA = 0.5
+    _ORDER = 20   # Taylor order for thermal_mpo; ample for this beta/L=4 chain.
+
+    def test_returns_finite_float(self, hamiltonian):
+        """observe(rho, H) returns a finite Python float."""
+        H_mpo, Spc = hamiltonian
+        rho = thermal_mpo(H_mpo, self._BETA, self._ORDER, Spc)
+        E = observe(rho, H_mpo)
+        assert isinstance(E, float)
+        assert math.isfinite(E)
+
+    def test_raises_on_length_mismatch(self, hamiltonian):
+        """observe raises ValueError when rho and the observable have different lengths."""
+        H_mpo, Spc = hamiltonian
+        rho = thermal_mpo(H_mpo, self._BETA, self._ORDER, Spc)
+        truncated = [H_mpo[i] for i in range(H_mpo.L - 1)]
+        with pytest.raises(ValueError, match="same length"):
+            observe(rho, truncated)
+
+    def test_linear_in_observable(self, hamiltonian):
+        """observe(rho, c·H) = c·observe(rho, H).
+
+        Scaling H → c·H is achieved by scaling a single MPO tensor (e.g.
+        the first one) by c, since the MPO is a linear function of each
+        local tensor. Scaling all L tensors would multiply the result by
+        c^L, not c.
+        """
+        H_mpo, Spc = hamiltonian
+        rho = thermal_mpo(H_mpo, self._BETA, self._ORDER, Spc)
+        c = 2.5
+        scaled = [H_mpo[0] * c] + [H_mpo[i] for i in range(1, H_mpo.L)]
+        E = observe(rho, H_mpo)
+        E_scaled = observe(rho, scaled)
+        assert math.isclose(E_scaled, c * E, rel_tol=1e-9)
+
+    def test_raises_for_zero_observable(self, hamiltonian):
+        """observe raises ValueError for an identically-zero observable.
+
+        Unlike the MPS path, the thermal path normalizes the observable
+        via `NormalMPO.from_mpo()` before sweeping, which requires a
+        nonzero Frobenius norm — an all-zero observable has zero norm by
+        construction, so this raises rather than silently returning 0.
+        """
+        H_mpo, Spc = hamiltonian
+        rho = thermal_mpo(H_mpo, self._BETA, self._ORDER, Spc)
+        zero_mpo = [H_mpo[i] * 0.0 for i in range(H_mpo.L)]
+        with pytest.raises(ValueError, match="zero-norm"):
+            observe(rho, zero_mpo)
+
+
+class TestObserveThermalU1(_ObserveThermalTests):
+    """Thermal observe() tests for Abelian U(1) symmetry."""
+
+    @pytest.fixture(scope='class')
+    def hamiltonian(self, heisenberg_mpo_u1):
+        return heisenberg_mpo_u1
+
+
+class TestObserveThermalSU2(_ObserveThermalTests):
+    """Thermal observe() tests for non-Abelian SU(2) symmetry.
+
+    Also exercises the Bridge (`intw`) weight-extraction branch at the
+    environment-sweep boundary in `_observe_thermal`, which only ever
+    activates for a generic (non-Abelian) symmetry group.
+    """
+
+    @pytest.fixture(scope='class')
+    def hamiltonian(self, heisenberg_mpo_su2):
+        return heisenberg_mpo_su2
+
+    def test_matches_u1_restriction(self, heisenberg_mpo_su2, heisenberg_mpo_u1):
+        """SU(2) and U(1) realizations of the same Heisenberg chain agree.
+
+        `H = J Σ S_i · S_{i+1}` is the same physical operator whether built
+        with full SU(2) spin-rotation symmetry or only its U(1) (Sz-
+        conserving) subgroup, so the thermal energy `⟨H⟩_β` must agree
+        between the two — the strongest correctness signal available here,
+        since there is no simple closed-form reference for a generic
+        Heisenberg chain.
+        """
+        H_su2, Spc_su2 = heisenberg_mpo_su2
+        H_u1, Spc_u1 = heisenberg_mpo_u1
+
+        rho_su2 = thermal_mpo(H_su2, self._BETA, self._ORDER, Spc_su2)
+        rho_u1 = thermal_mpo(H_u1, self._BETA, self._ORDER, Spc_u1)
+
+        E_su2 = observe(rho_su2, H_su2)
+        E_u1 = observe(rho_u1, H_u1)
+        assert math.isclose(E_su2, E_u1, rel_tol=1e-6)

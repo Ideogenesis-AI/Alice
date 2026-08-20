@@ -40,6 +40,29 @@ resumed = xtrg.Artifact.load(ckpt_dir / 'xtrg.ckpt')
 summary, artifact = xtrg.run(resumed, opts)  # thermal.ckpt auto-loaded from opts.checkpoint_dir
 ```
 
+### Continuing a finished run
+
+A run that already finished continues the same way, starting from any archived
+`artifacts/step_XX.ckpt` and new options — here cooling from β = 2²⁰τ₀ to
+2²⁵τ₀ at a larger bond dimension:
+
+```python
+state = xtrg.Artifact.load(ckpt_dir / 'artifacts' / 'step_20.ckpt')
+opts = xtrg.Options(tau_0=2 ** -12, n_steps=25, max_bond=512,
+                    checkpoint_dir=str(ckpt_dir))
+summary, artifact = xtrg.run(state, opts)
+```
+
+`n_steps` is the absolute step index to stop at (steps counted from τ₀), not a
+number of additional steps, and `tau_0` must match the τ₀ the recovered history
+was built on.
+
+Starting from a step *before* the end of that history is allowed, and is how a
+segment is re-cooled under different options: loading `step_15.ckpt` with
+`n_steps=20` truncates the history back to step 15 (with a warning), then
+recomputes steps 16 … 20, overwriting both `thermal.ckpt` and the corresponding
+`step_XX.ckpt` archives.
+
 ## Update Schemes
 
 | Name | Alias | Description |

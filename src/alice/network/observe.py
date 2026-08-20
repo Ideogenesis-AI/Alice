@@ -40,8 +40,9 @@ def observe(
     - `MPS` (or a plain sequence of tensors): evaluates ⟨ψ|O|ψ⟩ via a
       left-to-right MPS-MPO-MPS transfer-matrix sweep.
     - `NormalMPO` (thermal density matrix): evaluates
-      `Tr[ρ O] / Tr[ρ]` by forming the MPO product `ρ · O`, compressing
-      it, and returning the ratio of traces.
+      `Tr[ρ O] / Tr[ρ]` via a left-to-right transfer-matrix sweep that
+      accumulates a small `(ρ_bond, O_bond)` environment, analogous to the
+      MPS case.
 
     Parameters
     ----------
@@ -87,15 +88,22 @@ def observe(
 def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     """Compute the thermal expectation value `Tr[ρ O] / Tr[ρ]`.
 
-    Forms the MPO product `ρ · O`, compresses it with `compact()`, and
-    returns the ratio of its trace to `Tr[ρ]`.
+    Evaluates the numerator via a left-to-right transfer-matrix sweep that
+    accumulates a 2nd-order environment `E[ρ_bond, O_bond]`, analogous to
+    `_observe_mps`'s bra-mpo-ket sweep. At each site, `ρ`'s phys_out is
+    contracted against `O`'s phys_in (matrix product) and `ρ`'s phys_in
+    against `O`'s phys_out (closing the physical trace loop) in a single
+    `einsum` call.
 
-    The ratio is computed via `log_trace()` on both the numerator and the
-    denominator and combined in log-space (subtracting logs, then
-    exponentiating once at the end), rather than via `trace() / trace()`.
-    This avoids materializing either trace as a raw float, which would
-    overflow for very cold thermal states (e.g. deep into an XTRG run)
-    even though the ratio itself is a well-behaved O(1) number.
+    The ratio is computed via log-space combination (rather than
+    `trace() / trace()`), so it remains correct even when either trace
+    would overflow float64 (e.g. deep into an XTRG run at low
+    temperature), even though the ratio itself is a well-behaved O(1)
+    number. The denominator uses `rho.log_trace()` directly (a single MPO
+    trace sweep — already cheap). The numerator's raw magnitude comes
+    from the environment sweep on `rho` and `O_norm`'s internal
+    (unit-normed) tensors, so it is combined with `rho.log_scale +
+    O_norm.log_scale` to recover the full log-magnitude.
 
     Parameters
     ----------
@@ -111,24 +119,64 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
 
     Raises
     ------
+    ValueError
+        If `rho` and `observable` have different lengths.
     ZeroDivisionError
         If `Tr[ρ]` is exactly zero.
+
+    Notes
+    -----
+    Letters used in the per-site `einsum`:
+
+    - `a`, `c` — ρ's left and right bond
+    - `b`, `d` — O's left and right bond
+    - `s` — ρ's phys_out paired with O's phys_in (matrix-product contraction)
+    - `r` — ρ's phys_in paired with O's phys_out (closes the trace loop)
+
+    `a`, `b` are contracted against `E`; `c`, `d` become the updated `E`.
     """
     from .thermal import NormalMPO
 
     if not isinstance(observable, MPO):
         observable = MPO(list(observable))
+    if len(observable) != rho.L:
+        raise ValueError(
+            f"rho and observable must have the same length, got {rho.L} and {len(observable)}"
+        )
 
     O_norm = NormalMPO.from_mpo(observable)
-    product = rho @ O_norm
-    product.compact()
 
     log_den, sign_den = rho.log_trace()
     if sign_den == 0.0:
         raise ZeroDivisionError("Tr[ρ] is numerically zero; cannot compute expectation value")
-    log_num, sign_num = product.log_trace()
-    if sign_num == 0.0:
+
+    # Left boundary: both rho[0] and O_norm[0] have their left bond in the
+    # IN direction (standard MPO convention), so E needs two independent
+    # OUT axes to contract against them. Build it via identity() (which
+    # gives one IN, one OUT axis on rho[0]'s trivial left bond), insert a
+    # second OUT axis for O_norm's left bond, then discard the leftover
+    # (unused) IN axis with squeeze().
+    E = identity(rho[0].indices[0])
+    E.retag([0, 1], ['_thermal_env_', rho[0].itags[0]])
+    E.insert_index(2, direction=Direction.OUT, itag=O_norm[0].itags[0])
+    E.squeeze(0)
+    # E axes: (rho_left=a, O_left=b), both OUT and dim-1.
+
+    for i in range(rho.L):
+        # absorb rho and O into E; see Notes for letter definitions
+        E = einsum('ab,acrs,bdsr->cd', E, rho[i], O_norm[i])
+
+    # E is now a 1×1 tensor at the right boundary. Extract the scalar,
+    # accounting for the Bridge normalization weight in non-Abelian groups.
+    key, val = next(iter(E.data.items()))
+    weight = 1.0 if E.intw is None else float(E.intw[key].weights[0, 0])
+    raw_num = float(val.item().real) * weight
+
+    if raw_num == 0.0:
         return 0.0
+    log_num = math.log(abs(raw_num)) + rho.log_scale + O_norm.log_scale
+    sign_num = math.copysign(1.0, raw_num)
+
     return (sign_num * sign_den) * math.exp(log_num - log_den)
 
 

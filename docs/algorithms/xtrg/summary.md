@@ -25,6 +25,13 @@ During `run()`, the latest summary is written to `thermal.ckpt` under
 `Options.checkpoint_dir` (or the current working directory when that option
 is unset). Serialization version is `2` (no density matrix in the payload).
 
+`thermal.ckpt` is also where a resumed or continued run recovers its β/log Z
+history from. A continued run appends to that history, so a single summary may
+merge segments computed under different options (a larger `max_bond`, say). The
+merged history records no marker of where the options changed, and the `u` /
+`c_V` finite differences spanning the junction mix both accuracies — copy the
+checkpoint directory beforehand to keep the original series for comparison.
+
 ## See Also
 
 - [Artifact](artifact.md) — density-matrix snapshot at one cooling step.
