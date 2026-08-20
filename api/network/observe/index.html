@@ -3176,8 +3176,9 @@
 <li><code>MPS</code> (or a plain sequence of tensors): evaluates ⟨ψ|O|ψ⟩ via a
   left-to-right MPS-MPO-MPS transfer-matrix sweep.</li>
 <li><code>NormalMPO</code> (thermal density matrix): evaluates
-  <code>Tr[ρ O] / Tr[ρ]</code> by forming the MPO product <code>ρ · O</code>, compressing
-  it, and returning the ratio of traces.</li>
+  <code>Tr[ρ O] / Tr[ρ]</code> via a left-to-right transfer-matrix sweep that
+  accumulates a small <code>(ρ_bond, O_bond)</code> environment, analogous to the
+  MPS case.</li>
 </ul>
 
 

@@ -3142,9 +3142,15 @@
 reach β_max = 2^n_steps × τ₀, starting at <code>state.step</code> and continuing to
 <code>opts.n_steps</code>. Building ρ(τ₀) (e.g. via <code>thermal_mpo</code>) and wrapping it
 in an <code>Artifact</code> at <code>step=0</code> is the caller's responsibility. Resuming an
-interrupted run is calling <code>run()</code> again with the <code>Artifact</code> loaded from
-<code>xtrg.ckpt</code>; the matching β/log Z history is recovered automatically
-from <code>thermal.ckpt</code> in <code>opts.checkpoint_dir</code>.</p>
+interrupted run, or continuing a finished one under new options, is
+calling <code>run()</code> again with the <code>Artifact</code> loaded from <code>xtrg.ckpt</code> or
+from any archived <code>artifacts/step_XX.ckpt</code>; the matching β/log Z history
+is recovered automatically from <code>thermal.ckpt</code> in <code>opts.checkpoint_dir</code>.</p>
+<p>When that history reaches past <code>state.step</code> — the case when restarting
+from an earlier archived step to re-cool a segment at, say, a larger
+<code>max_bond</code> — the later entries are truncated (with a warning), then
+recomputed by this run and overwritten on disk, together with their
+<code>step_XX.ckpt</code> archives.</p>
 <p>Thermodynamic observables (f, u, c_V, S) are computed from log Z at each
 step using log-β finite differences for uniform accuracy across the
 exponential temperature grid.</p>
@@ -3176,7 +3182,7 @@ exponential temperature grid.</p>
             <td>
               <div class="doc-md-description">
                 <p>Starting density matrix, paired with its <code>beta</code> and <code>step</code>. <code>step=0</code>
-for a fresh run; <code>step &gt; 0</code> to resume.</p>
+for a fresh run; <code>step &gt; 0</code> to resume or continue.</p>
               </div>
             </td>
             <td>
@@ -3197,7 +3203,9 @@ for a fresh run; <code>step &gt; 0</code> to resume.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>XTRG run options. Defaults to <code>Options()</code> if <code>None</code>.</p>
+                <p>XTRG run options. Defaults to <code>Options()</code> if <code>None</code>. <code>n_steps</code>
+counts cooling steps from τ₀, so it is the absolute step index to
+stop at — not a number of additional steps to perform.</p>
               </div>
             </td>
             <td>
@@ -3267,9 +3275,11 @@ to <code>thermal.ckpt</code> under the checkpoint directory.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>opts.scheme</code> is not a recognized scheme, or if <code>state.step &gt; 0</code>
-and the <code>thermal.ckpt</code> found in <code>opts.checkpoint_dir</code> is
-inconsistent with <code>state</code>.</p>
+                <p>If <code>opts.scheme</code> is not a recognized scheme, if <code>state.step</code> is past
+<code>opts.n_steps</code>, or if <code>state.step &gt; 0</code> and the <code>thermal.ckpt</code> found
+in <code>opts.checkpoint_dir</code> is inconsistent with <code>state</code> — because it
+stops before <code>state.step</code>, because its β there disagrees with
+<code>state.beta</code>, or because it was built with a different τ₀.</p>
               </div>
             </td>
           </tr>
