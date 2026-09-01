@@ -19,7 +19,8 @@ description = "Alice: collection of 1D tensor network algorithms"
 dynamic = ["readme"]
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
-authors = [{ name = "Changkai Zhang", email = "changkai.zhang@lmu.de" }]
+authors = [{ name = "Changkai Zhang", email = "c.zhang@ideogenesis.ai" }]
+maintainers = [{ name = "Ideogenesis AI", email = "developer@ideogenesis.ai" }]
 keywords = [
   "tensor-network", "dmrg", "xtrg", "tantrg", "tdvp", 
   "quantum", "physics", "symmetry", "mps", "mpo"
