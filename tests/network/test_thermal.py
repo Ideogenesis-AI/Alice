@@ -402,6 +402,29 @@ class TestNormalMPOMatmul:
         expected = c * d * H_n.trace()
         assert math.isclose(prod.trace(), expected, rel_tol=1e-8)
 
+    def test_identity_square_small_norm_compacts(self, spin_u1):
+        """Squaring a long unit-norm identity MPO must compact without error.
+
+        The unit-norm identity is `I / d^(L/2)`, so its square has Frobenius
+        norm `d^(-L/2)`, below 1e-15 for spin-1/2 at L >= 100. This is the
+        XTRG seed scenario (near-identity `exp(-tau_0 H)`); an absolute
+        zero-tolerance in `normalize()` used to reject it spuriously.
+        """
+        Spc, _ = spin_u1
+        L = 100
+        I_n = NormalMPO.from_mpo(_identity_mpo(Spc, L))
+        sq = I_n @ I_n
+        assert sq.norm() < 1e-15
+        sq.compact()
+        # log_scale of I @ I is log ||I||_F = (L/2) log d, and the internal
+        # MPO is back at unit norm.
+        assert math.isclose(sq.log_scale, 0.5 * L * math.log(2.0), rel_tol=1e-9)
+        assert math.isclose(sq.norm(), 1.0, rel_tol=1e-9)
+        # Tr[I] = d^L, checked in log space.
+        log_tr, sign = sq.log_trace()
+        assert sign == 1.0
+        assert math.isclose(log_tr, L * math.log(2.0), rel_tol=1e-9)
+
 
 # ---------------------------------------------------------------------------
 # Tests: __add__ consistency
