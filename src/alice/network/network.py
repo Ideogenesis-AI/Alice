@@ -388,16 +388,22 @@ class Network:
             If `center` is `None`. Call `canonical()` first to bring the
             network into mixed-canonical form before normalizing.
         ValueError
-            If the norm is numerically zero (cannot divide by zero).
+            If the norm is exactly zero or not finite (cannot divide by it).
         """
         if self.center is None:
             raise ValueError(
                 "normalize() requires a canonical form; call canonical() first"
             )
-        # Divide the tensor at orthogonality center by its norm
+        # Divide the tensor at orthogonality center by its norm.
         n = self._tensors[self.center].norm()
-        if math.isclose(n, 0.0, abs_tol=1e-15):
-            raise ValueError("cannot normalize: network norm is numerically zero")
+        # Only reject an exact zero or a non-finite norm. A small but
+        # non-zero norm is legitimate and must not be rejected with an
+        # absolute tolerance: e.g. the product of two unit-norm identity-like
+        # MPOs has Frobenius norm d^(-L/2), which is below 1e-15 already for
+        # spin-1/2 chains with L >= 100 (XTRG squaring step), yet dividing by
+        # it is perfectly well-conditioned in float64.
+        if n == 0.0 or not math.isfinite(n):
+            raise ValueError(f"cannot normalize: network norm is {n}")
         self._tensors[self.center] = self._tensors[self.center] * (1.0 / n)
 
     # ------------------------------------------------------------------
@@ -666,14 +672,15 @@ class MPO(Network):
             If `center` is `None` (the MPO must be in canonical form so the
             norm is concentrated in a well-defined center tensor).
         ValueError
-            If the MPO norm is numerically zero (e.g. due to norm decay).
+            If the MPO norm is exactly zero or not finite.
         """
         if self.center is None:
             raise ValueError("redistribute_norm requires a canonical form")
-        # Compute the total norm
+        # Compute the total norm. Only an exact zero or non-finite norm is
+        # rejected; a small norm is legitimate (see `normalize()`).
         N = self.norm()
-        if math.isclose(N, 0.0, abs_tol=1e-15):
-            raise ValueError("cannot redistribute norm: MPO norm is numerically zero")
+        if N == 0.0 or not math.isfinite(N):
+            raise ValueError(f"cannot redistribute norm: MPO norm is {N}")
 
         factor = N ** (1.0 / self.L)
         # Scale each tensor by the factor

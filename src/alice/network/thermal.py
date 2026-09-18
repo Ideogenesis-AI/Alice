@@ -202,15 +202,18 @@ class NormalMPO(MPO):
         Raises
         ------
         ValueError
-            If the source MPO has numerically zero norm.
+            If the source MPO has exactly zero or non-finite norm.
         """
         # Clone to avoid modifying the caller's MPO.
         tensors = [t.clone() for t in mpo]
         copy = MPO(tensors, bc=mpo.bc, center=mpo.center)
         copy.canonical(0)
         n = copy.norm()
-        if math.isclose(n, 0.0, abs_tol=1e-15):
-            raise ValueError("cannot create NormalMPO from a zero-norm MPO")
+        # Only an exact zero or non-finite norm is rejected. A small norm is
+        # legitimate (e.g. d^(-L/2) for a squared unit-norm identity-like
+        # MPO) and math.log(n) stays finite for any non-zero float64.
+        if n == 0.0 or not math.isfinite(n):
+            raise ValueError(f"cannot create NormalMPO from an MPO with norm {n}")
         copy.normalize()
         return cls(copy._tensors, log_scale=math.log(n), bc=mpo.bc, center=0)
 

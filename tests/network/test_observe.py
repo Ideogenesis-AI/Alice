@@ -186,7 +186,7 @@ class _ObserveThermalTests:
         H_mpo, Spc = hamiltonian
         rho = thermal_mpo(H_mpo, self._BETA, self._ORDER, Spc)
         zero_mpo = [H_mpo[i] * 0.0 for i in range(H_mpo.L)]
-        with pytest.raises(ValueError, match="zero-norm"):
+        with pytest.raises(ValueError, match="norm 0.0"):
             observe(rho, zero_mpo)
 
 
