@@ -637,13 +637,27 @@ class TestMPO:
         assert mpo.center is None
 
     def test_redistribute_norm_zero_raises(self, mpo_tensors):
-        """redistribute_norm() must raise ValueError when the norm is numerically zero."""
+        """redistribute_norm() must raise ValueError when the norm is exactly zero."""
         mpo = MPO([t.clone() for t in mpo_tensors])
         mpo.canonical(0, trunc=None)
         for i in range(mpo.L):
             mpo[i] = mpo[i] * 0.0
-        with pytest.raises(ValueError, match="numerically zero"):
+        with pytest.raises(ValueError, match="norm is 0.0"):
             mpo.redistribute_norm()
+
+    def test_redistribute_norm_small_norm_ok(self, mpo_tensors):
+        """A tiny but non-zero norm (below 1e-15) must not be rejected.
+
+        Regression test: an absolute tolerance used to reject norms that
+        arise legitimately, e.g. d^(-L/2) after squaring a unit-norm
+        identity-like MPO in XTRG.
+        """
+        mpo = MPO([t.clone() for t in mpo_tensors])
+        mpo.canonical(0, trunc=None)
+        mpo[mpo.center] = mpo[mpo.center] * (1e-20 / mpo.norm())
+        assert mpo.norm() < 1e-15
+        mpo.redistribute_norm()
+        assert math.isclose(mpo.norm(), 1e-20, rel_tol=1e-9)
 
 
 class TestNormalize:
@@ -668,12 +682,25 @@ class TestNormalize:
             mpo.normalize()
 
     def test_zero_norm_raises_mps(self, mps_tensors):
-        """normalize() must raise ValueError when the norm is numerically zero."""
+        """normalize() must raise ValueError when the norm is exactly zero."""
         mps = MPS([t.clone() for t in mps_tensors])
         mps.canonical(0, trunc=None)
         mps[mps.center] = mps[mps.center] * 0.0
-        with pytest.raises(ValueError, match="numerically zero"):
+        with pytest.raises(ValueError, match="norm is 0.0"):
             mps.normalize()
+
+    def test_small_norm_ok_mps(self, mps_tensors):
+        """A tiny but non-zero norm (below 1e-15) must normalize to 1.
+
+        Regression test for the absolute-tolerance zero check that
+        spuriously rejected small norms.
+        """
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.canonical(0, trunc=None)
+        mps[mps.center] = mps[mps.center] * (1e-20 / mps.norm())
+        assert mps.norm() < 1e-15
+        mps.normalize()
+        assert math.isclose(mps.norm(), 1.0, rel_tol=1e-9)
 
     # ------------------------------------------------------------------
     # MPS: correctness
