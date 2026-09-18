@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.2.7] - 2026-09-19
+
+**Small Norms Are Not Zero**
+
+Corrects the zero-norm guards in `Network.normalize()`, `MPO.redistribute_norm()`, and
+`NormalMPO.from_mpo()`. These used an absolute tolerance of `1e-15`, spuriously
+rejecting small but legitimate norms — most importantly the `d^(-L/2)` norm of a squared
+unit-norm identity-like MPO, the XTRG seed scenario on long chains. All three now reject
+only an exact zero or a non-finite norm. Package metadata is updated with the new author
+and maintainer contacts. No breaking API changes.
+
+### Zero-Norm Guards
+
+- `Network.normalize()`, `MPO.redistribute_norm()`, and `NormalMPO.from_mpo()` raise
+  only when the relevant norm is exactly `0.0` or not finite (`inf`/`nan`). Previously
+  `math.isclose(n, 0.0, abs_tol=1e-15)` rejected any norm below `1e-15`, even though
+  dividing by such a value is well-conditioned in float64 and `math.log(n)` stays finite
+  for any non-zero float64.
+- Error messages now report the offending value (e.g. `"cannot normalize: network norm
+  is 0.0"`) instead of the generic `"numerically zero"` / `"zero-norm"` wording.
+
+### Tests
+
+- New `test_small_norm_ok_mps` and `test_redistribute_norm_small_norm_ok` in
+  `test_network.py`: scale a canonical network to norm `1e-20` and check that
+  normalization and redistribution succeed.
+- New `test_identity_square_small_norm_compacts` in `test_thermal.py`: square a
+  unit-norm identity `NormalMPO` on an `L = 100` spin-1/2 chain (norm `2^(-50)`), then
+  `compact()` it and verify `log_scale`, unit internal norm, and `log_trace()` against
+  their closed forms.
+- Existing zero-norm tests updated to the new error messages.
+
+### Metadata
+
+- `pyproject.toml`: author email moves to `c.zhang@ideogenesis.ai`; new `maintainers`
+  entry for Ideogenesis AI (`developer@ideogenesis.ai`). Documentation hero image
+  refreshed.
+
+### Statistics
+
+- **971 tests** across 29 test modules (up from 968 / 29 modules in v0.2.6).
+- **7 commits** since v0.2.6.
+- **7 files changed**, 79 insertions, 18 deletions.
+- **28 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `normalize()`, `redistribute_norm()`, and
+  `NormalMPO.from_mpo()` no longer raise on norms in `(0, 1e-15)`. The `ValueError`
+  messages for a genuinely zero norm changed wording; callers matching on
+  `"numerically zero"` or `"zero-norm"` should match on `"norm is 0.0"` / `"norm 0.0"`.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.2.6] - 2026-08-20
 
 **Continuable Cooling, Faster Thermal Measurement**
@@ -881,6 +938,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.7]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.7
 [0.2.6]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.5
 [0.2.4]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.4
