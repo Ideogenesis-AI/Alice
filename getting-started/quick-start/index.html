@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../images/alice.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -33,7 +33,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -3317,22 +3317,22 @@
 <h3 id="2-define-the-model-via-toml">2. Define the model via TOML<a class="headerlink" href="#2-define-the-model-via-toml" title="Permanent link">&para;</a></h3>
 <p>Create a file <code>heisenberg.toml</code>:</p>
 <div class="language-toml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">[model.geometry]</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">lattice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;chain&quot;</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">lattice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"chain"</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">lx</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="mi">20</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">bcx</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;OBC&quot;</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">bcx</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="s2">"OBC"</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">n2x</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">[model.model]</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">category</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;bosonic&quot;</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">label</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Heisenberg&quot;</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">symmetry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;U1&quot;</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">category</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"bosonic"</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">label</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="s2">"Heisenberg"</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">symmetry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"U1"</span>
 </span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">spin</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="mf">0.5</span>
 </span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">J</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0</span>
 </span></code></pre></div>
 <h3 id="3-build-interactions-and-hamiltonian">3. Build interactions and Hamiltonian<a class="headerlink" href="#3-build-interactions-and-hamiltonian" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_interaction</span><span class="p">,</span> <span class="n">build_hamiltonian</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">interactions</span><span class="p">,</span> <span class="n">spc</span><span class="p">,</span> <span class="n">L</span> <span class="o">=</span> <span class="n">build_interaction</span><span class="p">(</span><span class="s2">&quot;heisenberg.toml&quot;</span><span class="p">)</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">interactions</span><span class="p">,</span> <span class="n">spc</span><span class="p">,</span> <span class="n">L</span> <span class="o">=</span> <span class="n">build_interaction</span><span class="p">(</span><span class="s2">"heisenberg.toml"</span><span class="p">)</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">hamiltonian</span> <span class="o">=</span> <span class="n">build_hamiltonian</span><span class="p">(</span><span class="n">interactions</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">spc</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="4-create-an-initial-mps">4. Create an initial MPS<a class="headerlink" href="#4-create-an-initial-mps" title="Permanent link">&para;</a></h3>
@@ -3342,7 +3342,7 @@ separate symmetry argument.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">nicole</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_space</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">init_mps</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">&#39;Spin&#39;</span><span class="p">,</span> <span class="s1">&#39;U1&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;J&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">'Spin'</span><span class="p">,</span> <span class="s1">'U1'</span><span class="p">,</span> <span class="p">{</span><span class="s1">'J'</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="c1"># Product state (bond_dim=1) — exact charge targeting, best for CBE / 2-site DMRG</span>
 </span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">mps</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
@@ -3356,21 +3356,21 @@ supported symmetry groups.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">dmrg</span><span class="p">,</span> <span class="n">MPS</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">opts</span> <span class="o">=</span> <span class="n">dmrg</span><span class="o">.</span><span class="n">Options</span><span class="p">(</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">scheme</span>    <span class="o">=</span> <span class="s1">&#39;2s&#39;</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">scheme</span>    <span class="o">=</span> <span class="s1">'2s'</span><span class="p">,</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">n_sweeps</span>  <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">max_bond</span>  <span class="o">=</span> <span class="mi">64</span><span class="p">,</span>
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">e_tol</span>     <span class="o">=</span> <span class="mf">1e-8</span><span class="p">,</span>
 </span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">)</span>
 </span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
 </span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">dmrg</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">mps</span><span class="p">,</span> <span class="n">hamiltonian</span><span class="p">,</span> <span class="n">opts</span><span class="p">)</span>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Ground-state energy: </span><span class="si">{</span><span class="n">summary</span><span class="o">.</span><span class="n">energy</span><span class="si">:</span><span class="s2">.10f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Converged: </span><span class="si">{</span><span class="n">summary</span><span class="o">.</span><span class="n">converged</span><span class="si">}</span><span class="s2"> after </span><span class="si">{</span><span class="n">summary</span><span class="o">.</span><span class="n">n_sweeps</span><span class="si">}</span><span class="s2"> sweeps&quot;</span><span class="p">)</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Ground-state energy: </span><span class="si">{</span><span class="n">summary</span><span class="o">.</span><span class="n">energy</span><span class="si">:</span><span class="s2">.10f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Converged: </span><span class="si">{</span><span class="n">summary</span><span class="o">.</span><span class="n">converged</span><span class="si">}</span><span class="s2"> after </span><span class="si">{</span><span class="n">summary</span><span class="o">.</span><span class="n">n_sweeps</span><span class="si">}</span><span class="s2"> sweeps"</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="6-save-the-result">6. Save the result<a class="headerlink" href="#6-save-the-result" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">summary</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;ground_state.ckpt&quot;</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">summary</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">"ground_state.ckpt"</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Reload later:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">dmrg</span><span class="o">.</span><span class="n">Summary</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;ground_state.ckpt&quot;</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">summary</span> <span class="o">=</span> <span class="n">dmrg</span><span class="o">.</span><span class="n">Summary</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"ground_state.ckpt"</span><span class="p">)</span>
 </span></code></pre></div>
 <h2 id="expected-output">Expected Output<a class="headerlink" href="#expected-output" title="Permanent link">&para;</a></h2>
 <p>For a 20-site Heisenberg chain with OBC, U(1) symmetry, and bond dimension 64, the run converges in 2 sweeps. Alice logs the sweep progress at INFO level:</p>
@@ -3550,7 +3550,7 @@ supported symmetry groups.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.tracking", "navigation.indexes", "search.suggest", "search.highlight", "search.share", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "content.action.view"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../assets/_markdown_exec_pyodide.js"></script>
       

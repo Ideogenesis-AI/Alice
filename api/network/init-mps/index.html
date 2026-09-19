@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../../images/alice.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -33,7 +33,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -3483,15 +3483,15 @@ space (i.e. auto-config's charge path ends at a different sector).</p>
     <p>Product state for Heisenberg spin-&frac12; (U1), ready for 1sp DMRG:</p>
     <div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">nicole</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_space</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">init_mps</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">&#39;Spin&#39;</span><span class="p">,</span> <span class="s1">&#39;U1&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;J&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">'Spin'</span><span class="p">,</span> <span class="s1">'U1'</span><span class="p">,</span> <span class="p">{</span><span class="s1">'J'</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mps</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </span></code></pre></div>
     <p>Random MPS for spinless fermions (U1), bond dimension 32:</p>
-    <div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">&#39;Ferm&#39;</span><span class="p">,</span> <span class="s1">&#39;U1&#39;</span><span class="p">)</span>
+    <div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">'Ferm'</span><span class="p">,</span> <span class="s1">'U1'</span><span class="p">)</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mps</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
 </span></code></pre></div>
     <p>Odd-length chain — product state and random MPS with explicit Sz = +½:</p>
-    <div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">&#39;Spin&#39;</span><span class="p">,</span> <span class="s1">&#39;U1&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;J&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
+    <div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">'Spin'</span><span class="p">,</span> <span class="s1">'U1'</span><span class="p">,</span> <span class="p">{</span><span class="s1">'J'</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mps1</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>  <span class="n">target_qn</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mps2</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">target_qn</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 </span></code></pre></div>
@@ -3677,7 +3677,7 @@ greedy's <code>Q[L]</code> as the effective right boundary.</p>
 <code>target_qn=0</code> for odd-L spin-½ — <code>init_mps</code> raises a <code>ValueError</code> in both
 modes rather than silently constructing an MPS in the wrong sector.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Spin-½ U(1), L=7 — both modes work with the same target_qn</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">&#39;Spin&#39;</span><span class="p">,</span> <span class="s1">&#39;U1&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;J&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">'Spin'</span><span class="p">,</span> <span class="s1">'U1'</span><span class="p">,</span> <span class="p">{</span><span class="s1">'J'</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Product state in the Sz = +½ sector</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">mps_ps</span> <span class="o">=</span> <span class="n">init_mps</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">bond_dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>  <span class="n">target_qn</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
@@ -3853,7 +3853,7 @@ unreachable and raises <code>ValueError</code>.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.top", "navigation.tracking", "navigation.indexes", "search.suggest", "search.highlight", "search.share", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "content.action.view"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
         <script src="../../../assets/_markdown_exec_pyodide.js"></script>
       
