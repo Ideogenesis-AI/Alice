@@ -91,6 +91,7 @@ nav:
       - Interaction: api/interaction/interaction.md
       - Interaction1Site: api/interaction/interaction-1site.md
       - Interaction2Site: api/interaction/interaction-2site.md
+      - InteractionNSite: api/interaction/interaction-nsite.md
       - build_interaction: api/interaction/build-interaction.md
     - Geometry:
       - Overview: api/geometry/index.md
