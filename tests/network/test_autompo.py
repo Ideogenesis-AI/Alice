@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import itertools
+from dataclasses import dataclass
 
 import numpy as np
 import pytest
@@ -29,6 +30,7 @@ from nicole import Direction, Tensor, einsum, identity
 
 from alice.algorithm.dmrg import dmrg
 from alice.network import (
+    Interaction,
     Interaction2Site,
     InteractionNSite,
     build_hamiltonian,
@@ -218,6 +220,17 @@ class TestInteractionNSiteValidation:
             cpl=1.0, sites=[0, 1, 2, 3], tnsrs=[ops['I4'].clone()] * 2,
         )
         with pytest.raises(ValueError, match='len\\(tnsrs\\)'):
+            build_hamiltonian([intr], 4, spc)
+
+    def test_unsupported_subclass_raises(self, ferm_u1):
+        spc, _ = ferm_u1
+
+        @dataclass
+        class InteractionMystery(Interaction):
+            pass
+
+        intr = InteractionMystery(cpl=1.0)
+        with pytest.raises(TypeError, match='InteractionMystery'):
             build_hamiltonian([intr], 4, spc)
 
 
