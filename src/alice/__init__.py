@@ -21,7 +21,7 @@
 from importlib.metadata import version
 
 from .network import (
-    Interaction, Interaction1Site, Interaction2Site,
+    Interaction, Interaction1Site, Interaction2Site, InteractionNSite,
     build_interaction,
     build_hamiltonian,
     MPS, MPO, Network,
@@ -38,6 +38,7 @@ __all__ = [
     'Interaction',
     'Interaction1Site',
     'Interaction2Site',
+    'InteractionNSite',
     # high-level entry points
     'build_interaction',
     'build_hamiltonian',
