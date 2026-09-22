@@ -84,6 +84,8 @@ def build_hamiltonian(
         for a two-site interaction with `terminal_site > leading_site + 1`,
         or if an `InteractionNSite` has a missing or wrong-length `tnsrs`
         window.
+    TypeError
+        If an active interaction is not one of the three supported subclasses.
     """
     if trunc is None:
         trunc = {'thresh': 1e-14}
@@ -141,6 +143,14 @@ def build_hamiltonian(
                     f"has len(tnsrs)={len(intr.tnsrs)}, expected {expected} "
                     f"for window [{i_min}, {i_max}]"
                 )
+        else:
+            # Without this guard the accumulation loop would fall through and
+            # contribute a bare identity term, silently altering the spectrum.
+            raise TypeError(
+                f"interactions[{k}] has unsupported type "
+                f"'{type(intr).__name__}'; expected Interaction1Site, "
+                f"Interaction2Site, or InteractionNSite"
+            )
 
     # Build the physical identity with trivial bond axes as a reusable template.
     I = identity(spc)
