@@ -49,11 +49,12 @@ The MPO class in Alice extends the same `Network` base class as `MPS`. Hamiltoni
 
 ## Interaction
 
-An **Interaction** describes a single term in the Hamiltonian. Alice uses three dataclasses:
+An **Interaction** describes a single term in the Hamiltonian. Alice uses four dataclasses:
 
 - `Interaction` — base class carrying a `cpl` (coupling constant) and a `label` list (bond topology tags).
 - `Interaction1Site` — on-site term: adds `site` and `tnsr` fields.
 - `Interaction2Site` — two-site term: adds `leading_site`, `terminal_site`, `leading_tnsr`, `terminal_tnsr`, and `intermid_tnsr` fields.
+- `InteractionNSite` — N-site term: adds `sites` and `tnsrs`, an explicit tensor window covering every site from `min(sites)` to `max(sites)`. Used for terms with more than two operators, where the operator string is supplied verbatim rather than synthesized from a single `intermid_tnsr`.
 
 A list of `Interaction` objects forms the complete description of a Hamiltonian. The AutoMPO pipeline populates these objects in two stages (geometry, then model) and passes the result to `build_hamiltonian`.
 
