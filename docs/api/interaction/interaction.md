@@ -10,4 +10,5 @@ Base class for a single Hamiltonian interaction term.
 
 - [Interaction1Site](interaction-1site.md) — on-site specialization.
 - [Interaction2Site](interaction-2site.md) — two-site specialization.
+- [InteractionNSite](interaction-nsite.md) — N-site specialization.
 - [build_interaction](build-interaction.md) — produces a list of these objects.

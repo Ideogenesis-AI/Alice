@@ -9,6 +9,7 @@ The `alice.network.interaction` module defines the dataclasses that represent Ha
 | [Interaction](interaction.md) | Base interaction (coupling + label) |
 | [Interaction1Site](interaction-1site.md) | On-site term |
 | [Interaction2Site](interaction-2site.md) | Two-site term |
+| [InteractionNSite](interaction-nsite.md) | N-site term over a contiguous window |
 
 ## Builder
 
