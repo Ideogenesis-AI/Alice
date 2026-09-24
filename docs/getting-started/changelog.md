@@ -1,5 +1,78 @@
 # Changelog
 
+## [0.2.8] - 2026-09-22
+
+**N-Site Terms as Verbatim Windows**
+
+Adds `InteractionNSite`, a third `Interaction` subclass for Hamiltonian terms with more
+than two operators. Instead of naming its sites and letting `build_hamiltonian`
+synthesize the operator string in between, it supplies the entire contiguous window
+verbatim — one tensor per site from `min(sites)` to `max(sites)`, including the identity
+and Jordan-Wigner string tensors on sites carrying no operator. `build_hamiltonian`
+accepts the new subclass and now rejects unrecognized `Interaction` subclasses instead
+of silently adding a bare identity term. No breaking API changes.
+
+### `InteractionNSite`
+
+- New dataclass in `alice.network.interaction`, exported from `alice.network` and the
+  top-level `alice` namespace, adding `sites` (operator site indices in operator order,
+  e.g. `[m, n, k, l]` for `c†_m c†_n c_k c_l`) and `tnsrs` (the contiguous window of
+  4-index MPO tensors).
+- `sites` is metadata for the model builder: placement depends only on the span covered,
+  so `build_hamiltonian` reads only `min(sites)` and `max(sites)` and accepts any
+  permutation. `tnsrs[offset]` goes at site `min(sites) + offset`, and the two outer
+  bonds of the window must be trivial dim-1 charge-neutral.
+- Non-contiguous terms are expressed by padding the gaps with identity or string
+  tensors, not by splitting the term.
+
+### `build_hamiltonian`
+
+- Handles `InteractionNSite` in the validation pass and the accumulation loop, applying
+  the coupling to the **last** window tensor only — matching the on-site and terminal
+  tensor rules for the other two subclasses. The docstring now states that `cpl` must
+  *not* be baked into the tensors, correcting wording that said otherwise.
+- New `ValueError` conditions naming the offending index and sites: empty `sites`,
+  `tnsrs=None`, and a `tnsrs` whose length is not `max(sites) - min(sites) + 1`.
+- An active interaction of an unsupported subclass now raises `TypeError`; previously it
+  fell through the accumulation loop and contributed a bare identity term.
+
+### Tests
+
+- New `tests/network/test_autompo.py`, the first dedicated AutoMPO test module, built on
+  `build_fermionic('U1')` and a dense Jordan-Wigner reference.
+- `TestInteractionNSiteValidation` covers the three new error paths;
+  `TestFourOperatorMPO` checks a four-fermion term plus its Hermitian conjugate on an
+  `L = 4` chain against the exact two-particle sector eigenvalue, an identity-padded gap
+  between disjoint one-body factors, the `p = 0` density-density term over every
+  two-particle configuration, and a hopping channel matching its `G4`/`G4dag`
+  `Interaction2Site` construction.
+
+### Documentation
+
+- New `docs/api/interaction/interaction-nsite.md` describing the verbatim-window
+  contract, linked from the API and interaction indexes, the other interaction pages,
+  and the `mkdocs.yml` navigation.
+- `core-concepts.md` now describes four interaction dataclasses instead of three.
+
+### Statistics
+
+- **979 tests** across 30 test modules (up from 971 / 29 modules in v0.2.7).
+- **13 commits** since v0.2.7.
+- **14 files changed**, 477 insertions, 11 deletions.
+- **28 source modules** in four subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `build_hamiltonian` raises `TypeError` on an active
+  interaction that is not an `Interaction1Site`, `Interaction2Site`, or
+  `InteractionNSite`; such objects previously produced an MPO with a spurious identity
+  term.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.3.7.
+
+---
+
 ## [0.2.7] - 2026-09-19
 
 **Small Norms Are Not Zero**
@@ -938,6 +1011,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.2.8]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.8
 [0.2.7]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.7
 [0.2.6]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.5
