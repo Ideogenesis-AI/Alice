@@ -1722,6 +1722,8 @@
       
         
       
+        
+      
     
     
     
@@ -1849,6 +1851,34 @@
     
   
     Interaction2Site
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/interaction/interaction-nsite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    InteractionNSite
   
 
     
@@ -3283,11 +3313,12 @@
 <h2 id="network">Network<a class="headerlink" href="#network" title="Permanent link">&para;</a></h2>
 <p><code>Network</code> is the base class shared by <code>MPS</code> and <code>MPO</code>. It stores the list of site tensors, exposes <code>.canonical()</code>, <code>.norm()</code>, <code>.normalize()</code>, <code>.serialize()</code>, and <code>.deserialize()</code>, and enforces bond-consistency invariants on construction.</p>
 <h2 id="interaction">Interaction<a class="headerlink" href="#interaction" title="Permanent link">&para;</a></h2>
-<p>An <strong>Interaction</strong> describes a single term in the Hamiltonian. Alice uses three dataclasses:</p>
+<p>An <strong>Interaction</strong> describes a single term in the Hamiltonian. Alice uses four dataclasses:</p>
 <ul>
 <li><code>Interaction</code> — base class carrying a <code>cpl</code> (coupling constant) and a <code>label</code> list (bond topology tags).</li>
 <li><code>Interaction1Site</code> — on-site term: adds <code>site</code> and <code>tnsr</code> fields.</li>
 <li><code>Interaction2Site</code> — two-site term: adds <code>leading_site</code>, <code>terminal_site</code>, <code>leading_tnsr</code>, <code>terminal_tnsr</code>, and <code>intermid_tnsr</code> fields.</li>
+<li><code>InteractionNSite</code> — N-site term: adds <code>sites</code> and <code>tnsrs</code>, an explicit tensor window covering every site from <code>min(sites)</code> to <code>max(sites)</code>. Used for terms with more than two operators, where the operator string is supplied verbatim rather than synthesized from a single <code>intermid_tnsr</code>.</li>
 </ul>
 <p>A list of <code>Interaction</code> objects forms the complete description of a Hamiltonian. The AutoMPO pipeline populates these objects in two stages (geometry, then model) and passes the result to <code>build_hamiltonian</code>.</p>
 <h2 id="geometry">Geometry<a class="headerlink" href="#geometry" title="Permanent link">&para;</a></h2>
@@ -3356,7 +3387,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 10, 2026 16:00:53 UTC"><span class="timeago" datetime="2026-05-10T16:00:53+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 10, 2026 16:00:53 UTC">2026-05-10</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="September 22, 2026 07:40:02 UTC"><span class="timeago" datetime="2026-09-22T07:40:02+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="September 22, 2026 07:40:02 UTC">2026-09-22</span>
   </span>
 
     
@@ -3384,9 +3415,9 @@
     
     <nav>
       
-        <a href="https://github.com/Phy-David-Zhang" class="md-author" title="@Phy-David-Zhang">
+        <a href="https://github.com/changkai-zhang" class="md-author" title="@changkai-zhang">
           
-          <img src="https://avatars.githubusercontent.com/u/20659726?v=4&size=72" alt="Phy-David-Zhang">
+          <img src="https://avatars.githubusercontent.com/u/20659726?v=4&size=72" alt="changkai-zhang">
         </a>
       
       

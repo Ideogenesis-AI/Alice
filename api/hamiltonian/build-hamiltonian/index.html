@@ -1587,6 +1587,8 @@
       
         
       
+        
+      
     
     
     
@@ -1717,6 +1719,34 @@
     
   
     Interaction2Site
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../interaction/interaction-nsite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    InteractionNSite
   
 
     
@@ -3156,8 +3186,10 @@
 approach handles arbitrary symmetries — including non-Abelian SU(2) — by
 delegating sector arithmetic to Nicole's <code>oplus</code>.</p>
 <p>All tensor fields (<code>tnsr</code>, <code>leading_tnsr</code>, <code>terminal_tnsr</code>,
-<code>intermid_tnsr</code>) must be pre-filled (including any coupling constants)
-before calling this function. <code>build_hamiltonian</code> uses them verbatim.</p>
+<code>intermid_tnsr</code>, <code>tnsrs</code>) must be pre-filled before calling this function.
+The coupling <code>cpl</code> must NOT be baked in: <code>build_hamiltonian</code> applies it
+here, scaling the on-site tensor, the terminal tensor, or the last window
+tensor depending on the interaction type.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3185,8 +3217,8 @@ before calling this function. <code>build_hamiltonian</code> uses them verbatim.
             </td>
             <td>
               <div class="doc-md-description">
-                <p>List of <code>Interaction1Site</code> or <code>Interaction2Site</code> objects with all
-required tensor fields set.</p>
+                <p>List of <code>Interaction1Site</code>, <code>Interaction2Site</code>, or <code>InteractionNSite</code>
+objects with all required tensor fields set.</p>
               </div>
             </td>
             <td>
@@ -3303,8 +3335,20 @@ and physical itags <code>s{i:02d}</code> at each site.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If any required tensor slot is <code>None</code>, or if <code>intermid_tnsr</code> is <code>None</code>
-for a two-site interaction with <code>terminal_site &gt; leading_site + 1</code>.</p>
+                <p>If any required tensor slot is <code>None</code>, if <code>intermid_tnsr</code> is <code>None</code>
+for a two-site interaction with <code>terminal_site &gt; leading_site + 1</code>,
+or if an <code>InteractionNSite</code> has a missing or wrong-length <code>tnsrs</code>
+window.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If an active interaction is not one of the three supported subclasses.</p>
               </div>
             </td>
           </tr>
