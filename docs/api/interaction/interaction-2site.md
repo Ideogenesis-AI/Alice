@@ -18,4 +18,5 @@ Tensor axis conventions:
 
 - [Interaction](interaction.md) — base class.
 - [Interaction1Site](interaction-1site.md) — on-site partner.
+- [InteractionNSite](interaction-nsite.md) — N-site partner for terms beyond two operators.
 - [build_hamiltonian](../hamiltonian/build-hamiltonian.md) — consumes these objects.

@@ -14,4 +14,5 @@ The `tnsr` field must have axes `(L_trivial_IN, R_trivial_OUT, bra_OUT, ket_IN)`
 
 - [Interaction](interaction.md) — base class.
 - [Interaction2Site](interaction-2site.md) — two-site partner.
+- [InteractionNSite](interaction-nsite.md) — N-site partner.
 - [build_hamiltonian](../hamiltonian/build-hamiltonian.md) — consumes these objects.

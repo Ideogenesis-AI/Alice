@@ -111,6 +111,31 @@ class Interaction2Site(Interaction):
     intermid_tnsr: Optional[Tensor] = None
 
 
+@dataclass
+class InteractionNSite(Interaction):
+    """N-site interaction term spanning a contiguous window of MPO sites.
+
+    Attributes
+    ----------
+    sites:
+        Operator site indices in operator order (e.g. `[m, n, k, l]` for
+        `c†_m c†_n c_k c_l`). Used by the model builder; `build_hamiltonian`
+        places tensors by the contiguous window derived from `min(sites)` and
+        `max(sites)`.
+    tnsrs:
+        Contiguous list of 4-index MPO tensors covering
+        `[min(sites), max(sites)]`. Length must equal
+        `max(sites) - min(sites) + 1`. Each tensor has axes
+        `(L_bond_IN, R_bond_OUT, bra_OUT, ket_IN)`. Outer bonds of the window
+        are trivial dim-1 charge-neutral. `build_hamiltonian` scales the last
+        window tensor by `cpl`; the model builder must NOT bake the coupling
+        in. Set by the model builder.
+    """
+
+    sites: List[int] = field(default_factory=list)
+    tnsrs: Optional[List[Tensor]] = None
+
+
 # ---------------------------------------------------------------------------
 # Plugin loading helper
 # ---------------------------------------------------------------------------

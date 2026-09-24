@@ -22,6 +22,7 @@ Interaction term dataclasses and the TOML-driven builder.
 | [Interaction](interaction/interaction.md) | Base interaction term |
 | [Interaction1Site](interaction/interaction-1site.md) | On-site interaction |
 | [Interaction2Site](interaction/interaction-2site.md) | Two-site interaction |
+| [InteractionNSite](interaction/interaction-nsite.md) | N-site interaction over a contiguous window |
 | [build_interaction](interaction/build-interaction.md) | Build interactions from TOML config |
 
 ## Geometry

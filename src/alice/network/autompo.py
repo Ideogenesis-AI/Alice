@@ -25,7 +25,12 @@ from typing import List, Optional
 from nicole import Direction, Index, Tensor
 from nicole import identity, oplus, capcup
 
-from .interaction import Interaction, Interaction1Site, Interaction2Site
+from .interaction import (
+    Interaction,
+    Interaction1Site,
+    Interaction2Site,
+    InteractionNSite,
+)
 from .network import MPO
 
 
@@ -44,14 +49,16 @@ def build_hamiltonian(
     delegating sector arithmetic to Nicole's `oplus`.
 
     All tensor fields (`tnsr`, `leading_tnsr`, `terminal_tnsr`,
-    `intermid_tnsr`) must be pre-filled (including any coupling constants)
-    before calling this function. `build_hamiltonian` uses them verbatim.
+    `intermid_tnsr`, `tnsrs`) must be pre-filled before calling this function.
+    The coupling `cpl` must NOT be baked in: `build_hamiltonian` applies it
+    here, scaling the on-site tensor, the terminal tensor, or the last window
+    tensor depending on the interaction type.
 
     Parameters
     ----------
     interactions:
-        List of `Interaction1Site` or `Interaction2Site` objects with all
-        required tensor fields set.
+        List of `Interaction1Site`, `Interaction2Site`, or `InteractionNSite`
+        objects with all required tensor fields set.
     L:
         Chain length (number of sites).
     spc:
@@ -73,8 +80,12 @@ def build_hamiltonian(
     Raises
     ------
     ValueError
-        If any required tensor slot is `None`, or if `intermid_tnsr` is `None`
-        for a two-site interaction with `terminal_site > leading_site + 1`.
+        If any required tensor slot is `None`, if `intermid_tnsr` is `None`
+        for a two-site interaction with `terminal_site > leading_site + 1`,
+        or if an `InteractionNSite` has a missing or wrong-length `tnsrs`
+        window.
+    TypeError
+        If an active interaction is not one of the three supported subclasses.
     """
     if trunc is None:
         trunc = {'thresh': 1e-14}
@@ -110,6 +121,36 @@ def build_hamiltonian(
                     f"→{intr.terminal_site}) has intermid_tnsr=None but "
                     f"terminal_site > leading_site + 1"
                 )
+        elif isinstance(intr, InteractionNSite):
+            # The window is derived from the site extremes, so `tnsrs` must
+            # cover every site in between — including sites carrying only an
+            # identity or a string operator.
+            if not intr.sites:
+                raise ValueError(
+                    f"interactions[{k}] (InteractionNSite) has empty sites"
+                )
+            if intr.tnsrs is None:
+                raise ValueError(
+                    f"interactions[{k}] (InteractionNSite sites={intr.sites}) "
+                    f"has tnsrs=None"
+                )
+            i_min = min(intr.sites)
+            i_max = max(intr.sites)
+            expected = i_max - i_min + 1
+            if len(intr.tnsrs) != expected:
+                raise ValueError(
+                    f"interactions[{k}] (InteractionNSite sites={intr.sites}) "
+                    f"has len(tnsrs)={len(intr.tnsrs)}, expected {expected} "
+                    f"for window [{i_min}, {i_max}]"
+                )
+        else:
+            # Without this guard the accumulation loop would fall through and
+            # contribute a bare identity term, silently altering the spectrum.
+            raise TypeError(
+                f"interactions[{k}] has unsupported type "
+                f"'{type(intr).__name__}'; expected Interaction1Site, "
+                f"Interaction2Site, or InteractionNSite"
+            )
 
     # Build the physical identity with trivial bond axes as a reusable template.
     I = identity(spc)
@@ -187,6 +228,24 @@ def build_hamiltonian(
                 f's{j_site:02d}', f's{j_site:02d}',
             ])
             term[j_site] = t
+
+        elif isinstance(intr, InteractionNSite):
+            # `sites` is in operator order, which may be any permutation of the
+            # window; placement depends only on the span it covers.
+            i_min = min(intr.sites)
+            i_max = max(intr.sites)
+            n_win = i_max - i_min + 1
+            for offset in range(n_win):
+                site = i_min + offset
+                t = intr.tnsrs[offset].clone()
+                # Scale only the last window tensor by the coupling.
+                if offset == n_win - 1:
+                    t = t * intr.cpl
+                t.retag([0, 1, 2, 3], [
+                    f'W{site:02d}', f'W{site+1:02d}',
+                    f's{site:02d}', f's{site:02d}',
+                ])
+                term[site] = t
 
         _merge(term)
 
