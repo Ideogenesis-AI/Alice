@@ -281,8 +281,9 @@ def discarded_weight(theta: Tensor, trunc: Optional[dict]) -> float:
     Returns
     -------
     float
-        Sum of all singular values discarded by `trunc` across all charge
-        sectors. Zero when `trunc` is `None` or nothing is cut.
+        Sum of the *squared* singular values discarded by `trunc` across all
+        charge sectors, relative to the total — so for a normalized Θ it is
+        `1 - ‖kept‖²`. Zero when `trunc` is `None` or nothing is cut.
     """
     merged, _ = merge_axes(theta, [0, 2], merged_tag='_dw_merged_')
     *_, info = svd(merged, axis=0, trunc=trunc, requires_info=True)
