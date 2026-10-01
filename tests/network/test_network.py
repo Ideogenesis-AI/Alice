@@ -185,6 +185,33 @@ class TestMPS:
         assert MPS(mps_tensors, center=1).center == 1
 
     # ------------------------------------------------------------------
+    # to_complex()
+    # ------------------------------------------------------------------
+
+    def test_to_complex_promotes_all_sites(self, mps_tensors):
+        """to_complex() casts every site tensor to complex128."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        assert all(not t.dtype.is_complex for t in mps)
+        mps.to_complex()
+        assert all(t.dtype == torch.complex128 for t in mps)
+
+    def test_to_complex_preserves_norm(self, mps_tensors):
+        """Promotion to complex is value-preserving."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        n_before = mps.norm()
+        mps.to_complex()
+        assert math.isclose(mps.norm(), n_before, rel_tol=1e-14)
+
+    def test_to_complex_is_idempotent(self, mps_tensors):
+        """Calling to_complex() twice leaves the already-complex tensors alone."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.to_complex()
+        first = [t for t in mps]
+        mps.to_complex()
+        # Same objects, so the second call did no work.
+        assert all(a is b for a, b in zip(first, mps))
+
+    # ------------------------------------------------------------------
     # norm()
     # ------------------------------------------------------------------
 
