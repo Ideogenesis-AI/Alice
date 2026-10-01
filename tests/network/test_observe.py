@@ -125,6 +125,18 @@ class TestObserveMPS:
         zero_mpo = [W * 0.0 for W in mpo_tensors_su2]
         assert math.isclose(observe(mps_tensors_su2, zero_mpo), 0.0, abs_tol=1e-14)
 
+    def test_annihilated_sectors_give_zero(self, mps_tensors, mpo_tensors):
+        """An observable that annihilates every sector reports exactly zero.
+
+        A block-sparse contraction that keeps no sector leaves the boundary
+        tensor with no block at all, rather than a block holding zero. This
+        arises in practice from a number operator measured on a site that is
+        certainly empty, and must read as a vanishing expectation value.
+        """
+        annihilating = mpo_tensors[0].clone()
+        annihilating.data = {}
+        assert observe(mps_tensors, [annihilating] + list(mpo_tensors[1:])) == 0.0
+
 
 class TestObserveComplex:
     """Tests for the complex-dtype path used by real-time evolution.
