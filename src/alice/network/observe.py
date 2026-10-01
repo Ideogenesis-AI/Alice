@@ -51,12 +51,13 @@ def _real_scalar(E: Tensor, label: str) -> float:
 
     The scalar is multiplied by the Bridge normalization weight, which is
     non-trivial for non-Abelian symmetry groups. For a complex tensor the
-    imaginary part is discarded, provided it is at roundoff level.
+    imaginary part is discarded, provided it is at roundoff level. A tensor
+    carrying no block at all represents an exactly vanishing scalar.
 
     Parameters
     ----------
     E:
-        Boundary tensor whose single block holds one element.
+        Boundary tensor holding at most one block of one element.
     label:
         Name of the quantity, used in the error message.
 
@@ -71,6 +72,12 @@ def _real_scalar(E: Tensor, label: str) -> float:
         If the imaginary part is too large to be roundoff, which indicates a
         non-Hermitian observable.
     """
+    # Every symmetry sector can be annihilated, leaving no block at all — for
+    # instance a number operator measured on a site that is certainly empty.
+    # That is a vanishing expectation value, not a failure.
+    if not E.data:
+        return 0.0
+
     key, val = next(iter(E.data.items()))
     # `.real` is a no-op for a real weight and strips the (vanishing)
     # imaginary part of a Clebsch-Gordan coefficient promoted to complex.
