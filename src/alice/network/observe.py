@@ -25,7 +25,63 @@ from typing import Sequence, Union
 
 from nicole import Direction, Tensor, einsum, identity
 
+from .dtype import to_complex as _to_complex
 from .network import MPS, MPO
+
+
+# ---------------------------------------------------------------------------
+# Complex-dtype helpers
+# ---------------------------------------------------------------------------
+
+# Tolerance on the imaginary part of an expectation value, relative to its
+# magnitude but with an absolute floor of the same size. Contracting a
+# Hermitian observable against a complex state leaves an imaginary residue at
+# roundoff level, which is discarded; anything larger means the observable is
+# not Hermitian and is reported as an error rather than silently dropped.
+_IMAG_TOL = 1e-10
+
+
+def _needs_complex(*networks: Union[MPS, MPO, Sequence[Tensor]]) -> bool:
+    """Report whether any site tensor across `networks` carries complex blocks."""
+    return any(t.dtype.is_complex for net in networks for t in net)
+
+
+def _real_scalar(E: Tensor, label: str) -> float:
+    """Read the single real scalar carried by a 1-element boundary tensor.
+
+    The scalar is multiplied by the Bridge normalization weight, which is
+    non-trivial for non-Abelian symmetry groups. For a complex tensor the
+    imaginary part is discarded, provided it is at roundoff level.
+
+    Parameters
+    ----------
+    E:
+        Boundary tensor whose single block holds one element.
+    label:
+        Name of the quantity, used in the error message.
+
+    Returns
+    -------
+    float
+        The real part of the scalar, weighted.
+
+    Raises
+    ------
+    ValueError
+        If the imaginary part is too large to be roundoff, which indicates a
+        non-Hermitian observable.
+    """
+    key, val = next(iter(E.data.items()))
+    # `.real` is a no-op for a real weight and strips the (vanishing)
+    # imaginary part of a Clebsch-Gordan coefficient promoted to complex.
+    weight = 1.0 if E.intw is None else float(E.intw[key].weights[0, 0].real)
+    z = complex(val.item()) * weight
+    if abs(z.imag) > _IMAG_TOL * max(abs(z), 1.0):
+        raise ValueError(
+            f"{label} = {z!r} has a non-negligible imaginary part; the "
+            "observable is not Hermitian on this state"
+        )
+    return z.real
 
 
 def observe(
@@ -43,6 +99,11 @@ def observe(
       `Tr[ρ O] / Tr[ρ]` via a left-to-right transfer-matrix sweep that
       accumulates a small `(ρ_bond, O_bond)` environment, analogous to the
       MPS case.
+
+    Complex states (e.g. produced by real-time evolution) are supported: when
+    either the state or the observable carries complex blocks, the whole
+    contraction is promoted to `complex128`, and the imaginary part of the
+    final scalar is discarded provided it is at roundoff level.
 
     Parameters
     ----------
@@ -64,6 +125,9 @@ def observe(
         If `state` is not an `MPS`, `NormalMPO`, or a sequence of tensors.
     NotImplementedError
         If `state` is a plain `MPO` (use a `NormalMPO` for thermal states).
+    ValueError
+        If the expectation value has a non-negligible imaginary part, which
+        means `observable` is not Hermitian on `state`.
     """
     # Import here to avoid a top-level circular dependency
     # (thermal.py imports from network.py, which is fine, but we cannot
@@ -120,7 +184,8 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     Raises
     ------
     ValueError
-        If `rho` and `observable` have different lengths.
+        If `rho` and `observable` have different lengths, or if `Tr[ρ O]` has
+        a non-negligible imaginary part.
     ZeroDivisionError
         If `Tr[ρ]` is exactly zero.
 
@@ -162,15 +227,21 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     E.squeeze(0)
     # E axes: (rho_left=a, O_left=b), both OUT and dim-1.
 
+    # Nicole's einsum requires all operands to share one dtype, so a complex
+    # density matrix or observable promotes the whole sweep — including the
+    # identity-derived boundary — to complex128.
+    cmplx = _needs_complex(rho, O_norm)
+    if cmplx:
+        E = _to_complex(E)
+
     for i in range(rho.L):
         # absorb rho and O into E; see Notes for letter definitions
-        E = einsum('ab,acrs,bdsr->cd', E, rho[i], O_norm[i])
+        R_i = _to_complex(rho[i]) if cmplx else rho[i]
+        O_i = _to_complex(O_norm[i]) if cmplx else O_norm[i]
+        E = einsum('ab,acrs,bdsr->cd', E, R_i, O_i)
 
-    # E is now a 1×1 tensor at the right boundary. Extract the scalar,
-    # accounting for the Bridge normalization weight in non-Abelian groups.
-    key, val = next(iter(E.data.items()))
-    weight = 1.0 if E.intw is None else float(E.intw[key].weights[0, 0])
-    raw_num = float(val.item().real) * weight
+    # E is now a 1×1 tensor at the right boundary.
+    raw_num = _real_scalar(E, 'Tr[ρ O]')
 
     if raw_num == 0.0:
         return 0.0
@@ -231,7 +302,8 @@ def _observe_mps(
 
     After the right boundary E is a 1×1×1 tensor. The scalar is read from
     its single data block, multiplied by the Bridge weight for non-Abelian
-    symmetry groups.
+    symmetry groups, and its imaginary part (present only for a complex
+    state) is discarded once checked to be at roundoff level.
     """
     L = len(mps)
     if len(mpo) != L:
@@ -246,13 +318,20 @@ def _observe_mps(
     E.insert_index(1, direction=Direction.OUT, itag=mpo[0].itags[0])
     # E axes: (bra_left, mpo_left, ket_left)
 
+    # Nicole's einsum requires all operands to share one dtype, so a complex
+    # state (as produced by real-time evolution) promotes the whole sweep —
+    # including the real-valued MPO and the identity-derived boundary — to
+    # complex128. The bra side is `conj()`, which conjugates the blocks of a
+    # complex tensor on top of flipping index directions, so ⟨ψ| is correct.
+    cmplx = _needs_complex(mps, mpo)
+    if cmplx:
+        E = _to_complex(E)
+
     for i in range(L):
         # absorb bra, MPO, and ket into E; see Notes for letter definitions
-        E = einsum('aob,acr,oprs,bds->cpd', E, mps[i].conj(), mpo[i], mps[i])
+        ket = _to_complex(mps[i]) if cmplx else mps[i]
+        W = _to_complex(mpo[i]) if cmplx else mpo[i]
+        E = einsum('aob,acr,oprs,bds->cpd', E, ket.conj(), W, ket)
 
-    # E is now a 1×1×1 tensor at the right boundary. Extract the scalar,
-    # accounting for the Bridge normalization weight in non-Abelian groups.
-    k, v = next(iter(E.data.items()))
-    weight = 1.0 if E.intw is None else float(E.intw[k].weights[0, 0])
-
-    return float(v.item()) * weight
+    # E is now a 1×1×1 tensor at the right boundary.
+    return _real_scalar(E, '⟨ψ|O|ψ⟩')
