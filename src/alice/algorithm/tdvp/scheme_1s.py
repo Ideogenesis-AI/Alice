@@ -39,10 +39,15 @@ even first-order consistency, so `evolve_bond` is not optional.
 The 2-site update scheme lives in `scheme_2s.py`; it reuses `evolve_1site` for
 its own back-evolution and only needs its own forward step and splits.
 
-Bond dimensions are fixed under the 1-site scheme. The splits here are exact
-(no truncation): the 1-site tangent space cannot grow the bond, so discarding
-singular values would lose norm without buying any variational freedom. Use
-the 2-site scheme when the bond dimension has to adapt.
+Bond dimensions do not grow under the 1-site scheme. The splits here are
+exact (no truncation): the 1-site tangent space cannot grow the bond, so
+discarding singular values would lose norm without buying any variational
+freedom. Use the 2-site scheme when the bond dimension has to adapt.
+
+Being exact, a split reports the attainable rank, which near a chain edge can
+fall below the nominal bond dimension — `dim_left · d` caps it there. The
+first sweep therefore trims any such over-sized bond, losing nothing because
+those states carried no weight, after which the profile is a fixed point.
 
 That restriction bites hardest on a bond of dimension 1, across which the
 scheme cannot transport any correlation at all. A product state has every
@@ -258,7 +263,8 @@ def split_forward(M: Tensor, itag: str) -> Tuple[Tensor, Tensor]:
         left environment that `A` updates, axis 1 faces the right environment.
     """
     # cols = right bond only → LV gives isometry with axes (new_bond, left, phys).
-    # trunc=None: the 1-site scheme preserves bond dimensions exactly.
+    # trunc=None: the 1-site scheme never grows a bond, so there is nothing to
+    # truncate; any rank below the nominal bond dimension is exact.
     C, A = decomp(M, axes=1, flow='<<', mode='LV', trunc=None)
 
     A.permute([1, 0, 2], in_place=True)
