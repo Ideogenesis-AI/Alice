@@ -50,10 +50,10 @@ automatically from `evolution.ckpt` in `opts.checkpoint_dir`:
     summary, artifact = tdvp.run(resumed, mpo, opts)
 
 Continuing a run that already finished works the same way, starting from any
-archived `artifacts/step_XX.ckpt` and new options — e.g. evolving further, at
-a larger bond dimension:
+archived `artifacts/step_XXXXX.ckpt` and new options — e.g. evolving further,
+at a larger bond dimension:
 
-    state = tdvp.Artifact.load(ckpt_dir / 'artifacts' / 'step_40.ckpt')
+    state = tdvp.Artifact.load(ckpt_dir / 'artifacts' / 'step_00040.ckpt')
     opts = tdvp.Options(dt=0.05, n_steps=80, max_bond=512,
                         checkpoint_dir=str(ckpt_dir))
     summary, artifact = tdvp.run(state, mpo, opts)
@@ -62,6 +62,11 @@ a larger bond dimension:
 perform, and `dt` must match the step the recovered history was built on.
 Starting from a step before the end of that history is allowed: the entries
 past that step are truncated, then recomputed and overwritten by this run.
+
+Which states get archived is set by `save_artifacts_every`: step `k` is
+written when `k % save_artifacts_every == 0`. A long trajectory rarely wants
+every step on disk, and the stride is keyed on the absolute step index so a
+resumed run archives the same grid as an uninterrupted one.
 
 Choosing a scheme
 -----------------
@@ -235,18 +240,28 @@ class Options(AlgorithmOptions):
         `run()` is called, mirroring `.logging`. Stored as `str` for TOML
         compatibility.
     artifacts_dir:
-        Directory for per-step `Artifact` files (`step_XX.ckpt`), written when
-        `save_artifacts` is `True`. `None` (default) resolves to `artifacts/`
-        under `checkpoint_dir`. Stored as `str` for TOML compatibility.
+        Directory for archived `Artifact` files (`step_XXXXX.ckpt`), written
+        when `save_artifacts` is `True`. `None` (default) resolves to
+        `artifacts/` under `checkpoint_dir`. Stored as `str` for TOML
+        compatibility.
     save_artifacts:
-        If `True` (default), write per-step `Artifact` files under
-        `artifacts_dir` for every step with index `>= save_artifacts_since`.
-        Step `0` is the initial state; step `k` is after the `k`-th time step.
-        These snapshots are the only record of the state along the
-        trajectory, since `Summary` deliberately carries no MPS.
-    save_artifacts_since:
-        First step index (inclusive) at which `step_XX.ckpt` files are written
-        under `artifacts_dir` when `save_artifacts` is `True`. Must be `>= 0`.
+        If `True` (default), write `Artifact` files under `artifacts_dir` for
+        every step on the `save_artifacts_every` grid. Step `0` is the
+        initial state; step `k` is after the `k`-th time step. These
+        snapshots are the only record of the state along the trajectory,
+        since `Summary` deliberately carries no MPS.
+    save_artifacts_every:
+        Stride between archived steps: step `k` is written when
+        `k % save_artifacts_every == 0`. Must be `>= 1`; `1` (the default)
+        archives every step. The stride is keyed on the absolute step index
+        rather than on an offset from where the run started, so a resumed run
+        archives the same grid as an uninterrupted one.
+
+        A run never evolves past the last grid point. When `n_steps` is not a
+        multiple of the stride, `run()` stops at the largest multiple that is
+        not greater than it and warns, which keeps `artifacts_dir` an exact
+        grid whose final entry is also the run's resumable endpoint. No
+        clamping happens when `save_artifacts` is `False`.
     """
 
     scheme: str = '2s'
@@ -264,7 +279,7 @@ class Options(AlgorithmOptions):
     checkpoint_dir: Optional[str] = None
     artifacts_dir: Optional[str] = None
     save_artifacts: bool = True
-    save_artifacts_since: int = 0
+    save_artifacts_every: int = 1
 
     def __post_init__(self) -> None:
         self.scheme = _resolve_scheme(self.scheme)
@@ -274,9 +289,12 @@ class Options(AlgorithmOptions):
             raise ValueError("dt must be nonzero; a zero step advances no time")
         if self.krylov_dim < 1:
             raise ValueError(f"krylov_dim must be >= 1, got {self.krylov_dim}")
-        if self.save_artifacts_since < 0:
+        # The matching clamp of `n_steps` onto this grid lives in `run()`, not
+        # here: rewriting a field in __post_init__ would make the options
+        # silently disagree with the TOML they were loaded from.
+        if self.save_artifacts_every < 1:
             raise ValueError(
-                f"save_artifacts_since must be >= 0, got {self.save_artifacts_since}"
+                f"save_artifacts_every must be >= 1, got {self.save_artifacts_every}"
             )
 
 
@@ -495,9 +513,10 @@ def _save_checkpoint(artifact: Artifact, ckpt_dir: Path) -> None:
 
 
 def _archive_artifact(artifact: Artifact, opts: Options, artifacts_dir: Path) -> None:
-    """Archive `artifact` as `step_XX.ckpt` when options request it."""
-    if opts.save_artifacts and artifact.step >= opts.save_artifacts_since:
-        path = artifacts_dir / f'step_{artifact.step:02d}.ckpt'
+    """Archive `artifact` as `step_XXXXX.ckpt` when it falls on the grid."""
+    if opts.save_artifacts and artifact.step % opts.save_artifacts_every == 0:
+        # Five digits so a long run's archives still sort lexicographically.
+        path = artifacts_dir / f'step_{artifact.step:05d}.ckpt'
         _atomic_torch_save(artifact.serialize(), path)
 
 
@@ -541,7 +560,7 @@ def _resume_history(
     The history is read from `evolution.ckpt` in `ckpt_dir`, where every prior
     call to `run()` wrote it alongside `tdvp.ckpt`. A history reaching past
     `state.step` is truncated rather than rejected, so a run can be continued
-    from any archived `artifacts/step_XX.ckpt` — not only from the step the
+    from any archived `artifacts/step_XXXXX.ckpt` — not only from the step the
     previous run stopped at. The steps beyond `state.step` are then recomputed
     by the caller and overwrite the truncated ones on disk.
 
@@ -708,14 +727,14 @@ def run(
     in an `Artifact` at `step=0` is the caller's responsibility. Resuming an
     interrupted run, or continuing a finished one under new options, is
     calling `run()` again with the `Artifact` loaded from `tdvp.ckpt` or from
-    any archived `artifacts/step_XX.ckpt`; the matching time/energy history is
-    recovered automatically from `evolution.ckpt` in `opts.checkpoint_dir`.
+    any archived `artifacts/step_XXXXX.ckpt`; the matching time/energy history
+    is recovered automatically from `evolution.ckpt` in `opts.checkpoint_dir`.
 
     When that history reaches past `state.step` — the case when restarting
     from an earlier archived step to redo a segment at, say, a larger
     `max_bond` — the later entries are truncated (with a warning), then
     recomputed by this run and overwritten on disk, together with their
-    `step_XX.ckpt` archives.
+    `step_XXXXX.ckpt` archives.
 
     Both `state.state` and `mpo` are promoted to `complex128` in place when
     they are not already complex.
@@ -731,7 +750,10 @@ def run(
     opts:
         TDVP run options. Defaults to `Options()` if `None`. `n_steps` counts
         steps from the start of the history, so it is the absolute step index
-        to stop at — not a number of additional steps to perform.
+        to stop at — not a number of additional steps to perform. When
+        artifacts are being saved and `n_steps` is not a multiple of
+        `save_artifacts_every`, the run stops at the largest multiple that is
+        not greater than it and warns.
 
     Returns
     -------
@@ -775,6 +797,26 @@ def run(
             "the start of the history, not additional steps to perform"
         )
 
+    # Stop on a grid point: an endpoint between two archived steps would end
+    # the run with no snapshot of its own final state, since tdvp.ckpt is
+    # removed on success. The floor at `state.step` covers a continuation
+    # whose start already sits past the clamped target (reachable when the
+    # stride changed between runs) — that becomes the already-at-target
+    # no-op, rather than a summary claiming fewer steps than its own history.
+    n_target = opts.n_steps
+    if opts.save_artifacts:
+        n_target = max(
+            (opts.n_steps // opts.save_artifacts_every) * opts.save_artifacts_every,
+            state.step,
+        )
+        if n_target != opts.n_steps:
+            logger.warning(
+                "n_steps = %d is not a multiple of save_artifacts_every = %d; "
+                "stopping at step %d instead so the final state lands on the "
+                "artifact grid",
+                opts.n_steps, opts.save_artifacts_every, n_target,
+            )
+
     mps = state.state
     L = mps.L
 
@@ -801,7 +843,7 @@ def run(
         _artifacts.mkdir(parents=True, exist_ok=True)
 
     max_bond_str = str(opts.max_bond) if opts.max_bond is not None else 'unlimited'
-    t_final = state.time + (opts.n_steps - state.step) * opts.dt
+    t_final = state.time + (n_target - state.step) * opts.dt
     logger.info("─" * 60)
     logger.info("Commencing: TDVP Algorithm".center(60))
     logger.info("─" * 60)
@@ -810,10 +852,10 @@ def run(
     logger.info("  integrator order  : %d", opts.order)
     logger.info("  chain length      : %d", L)
     logger.info("  time step         : %.6g", opts.dt)
-    logger.info("  steps             : %d", opts.n_steps)
+    logger.info("  steps             : %d", n_target)
     if state.step > 0:
         logger.info("  resuming at step  : %d  (%d step(s) remaining)",
-                    state.step, opts.n_steps - state.step)
+                    state.step, n_target - state.step)
     logger.info("  final time        : %.6g", t_final)
     logger.info("  max bond dim      : %s", max_bond_str)
     logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
@@ -825,7 +867,8 @@ def run(
     if _cache is not None:
         logger.info("  env cache dir     : %s", _cache)
     if opts.save_artifacts:
-        logger.info("  save artifacts    : True (since step %d)", opts.save_artifacts_since)
+        logger.info("  save artifacts    : True (every %d step(s))",
+                    opts.save_artifacts_every)
         logger.info("  artifacts dir     : %s", _artifacts)
     logger.info("")
 
@@ -849,7 +892,7 @@ def run(
         (times, energies, norms, max_bonds,
          discarded_weights, krylov_errors) = _resume_history(state, _ckpt, opts.dt)
         logger.info("  resuming from step %d / %d  (t = %.6g,  E = %+.12g)",
-                    state.step, opts.n_steps, times[-1], energies[-1])
+                    state.step, n_target, times[-1], energies[-1])
 
     artifact = Artifact(state=mps, time=times[-1], step=state.step)
     _save_checkpoint(artifact, _ckpt)
@@ -884,9 +927,9 @@ def run(
         env_right[L - 1] = right_env_boundary(mps, mpo)
         build_left_envs(mps, mpo, env_left)
 
-    w = len(str(opts.n_steps))
+    w = len(str(n_target))
     try:
-        for step in range(state.step, opts.n_steps):
+        for step in range(state.step, n_target):
             err, dw = time_step(mps, mpo, env_left, env_right, opts, forward)
             if opts.order == 1:
                 forward = not forward
@@ -904,7 +947,7 @@ def run(
             logger.info(
                 "step %*d / %d: t = %.6g,  E = %+.12g,  ‖ψ‖ = %.12g,  "
                 "χ = %d,  dw = %.4e",
-                w, k, opts.n_steps, times[-1], energies[-1], norms[-1],
+                w, k, n_target, times[-1], energies[-1], norms[-1],
                 max_bonds[-1], dw,
             )
             logger.debug("  krylov err = %.4e", err)
@@ -931,7 +974,7 @@ def run(
 
     summary = _build_summary(
         times, energies, norms, max_bonds, discarded_weights, krylov_errors,
-        _bond_profile(mps), step=opts.n_steps, finished=True,
+        _bond_profile(mps), step=n_target, finished=True,
     )
     _save_evolution(summary, _ckpt)
 
