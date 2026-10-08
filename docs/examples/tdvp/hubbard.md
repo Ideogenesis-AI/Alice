@@ -143,23 +143,23 @@ Reference      : exact, 2 x the spinless free-fermion chain
 
      t   mult  states      N-Nex     E drift    n_j err      S err  density profile
 ----------------------------------------------------------------------------
- 0.150     19      36   +2.8e-14   -3.26e-15   2.45e-05   1.23e-04  |@@@   |
- 0.300     26      49   -3.7e-14   -9.11e-15   9.73e-05   3.22e-04  |@@%.  |
- 0.450     29      54   -6.0e-14   -1.86e-14   1.99e-04   4.84e-04  |@@#:  |
- 0.500     32      60   -1.1e-13   -1.81e-14   2.35e-04   5.20e-04  |@@#:  |
+ 0.125     16      28   -4.4e-15   -7.17e-16   4.49e-06   2.33e-05  |@@@   |
+ 0.250     21      40   -4.7e-14   +2.50e-16   1.77e-05   6.39e-05  |@@%.  |
+ 0.375     28      52   +5.6e-14   +7.85e-15   3.73e-05   1.03e-04  |@@%.  |
+ 0.500     32      60   -6.2e-15   +9.41e-15   5.96e-05   1.29e-04  |@@#:  |
 
-Max |n_j - exact| : 2.348e-04
-Max |S - exact|   : 5.204e-04
+Max |n_j - exact| : 5.959e-05
+Max |S - exact|   : 1.295e-04
 Particle number : 6.0000000000  (exact 6)
-Energy          : -0.0000000000  (initial +0.0000000000, conserved)
+Energy          : +0.0000000000  (initial +0.0000000000, conserved)
 Bond multiplets : [3, 10, 32, 10, 3]
 Bond states     : [4, 16, 60, 16, 4]
   states per multiplet : 1.724  (the SU(2) saving; 1.0 would mean no saving)
 ```
 
-Occupations match twice the analytic spinless result to 2.3e-04 and the
-degeneracy-weighted entropy to 5.2e-04, with particle number exact and energy
-conserved to 1.8e-14. The SU(2) representation stores 32 multiplets where the
+Occupations match twice the analytic spinless result to 6.0e-05 and the
+degeneracy-weighted entropy to 1.3e-04, with particle number exact and energy
+conserved to 9.4e-15. The SU(2) representation stores 32 multiplets where the
 state count is 60.
 
 ## Cross-symmetry agreement at finite U
@@ -172,20 +172,26 @@ uv run python examples/examples_tdvp/tdvp_hubbard.py --compare-symmetries --U 4.
 ```
 
 ```text
-           quantity             U1,U1            U1,SU2    difference
-             energy     -0.0000000000      0.0000000000     -7.48e-14
-    particle number      6.0000000000      6.0000000000     +2.49e-14
-   double occupancy      2.7472793103      2.7472793103     -1.78e-15
-    max |delta n_j|                                          1.61e-14
-      max |delta S|                                          2.80e-14
+Abelian vs non-Abelian  (L = 6, t = 1.0, U = 4.0, t_final = 1.0, dt = 0.025)
 
-    bond multiplets  [4, 16, 60, 16, 4]
-                     [3, 10, 32, 10, 3]
+              quantity             U1,U1            U1,SU2    difference
+--------------------------------------------------------------------------
+                energy      0.0000000000      0.0000000000     -1.14e-13
+       particle number      6.0000000000      6.0000000000     +1.00e-13
+      double occupancy      2.7778232525      2.7778232525     +2.53e-14
+       max |delta n_j|                                          3.15e-14
+         max |delta S|                                          4.90e-14
+
+       bond multiplets  [4, 16, 64, 16, 4]
+                        [3, 10, 35, 10, 3]
+           bond states  [4, 16, 64, 16, 4]
+                        [4, 16, 64, 16, 4]
 ```
 
 Every observable agrees to machine precision between two tensor structures that
-share nothing — one carries intertwiners, the other does not — while SU(2)
-stores 58 multiplets against 100.
+share nothing — one carries intertwiners, the other does not. The state counts
+match because it is the same state; the multiplet counts are what each group
+actually stores, and SU(2) needs 61 against 104 summed over all bonds.
 
 ## See Also
 
