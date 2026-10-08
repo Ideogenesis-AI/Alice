@@ -91,13 +91,22 @@ class TestOptions:
         with pytest.raises(ValueError):
             Options(krylov_dim=0)
 
-    def test_negative_save_artifacts_since_is_rejected(self):
-        with pytest.raises(ValueError):
-            Options(save_artifacts_since=-1)
+    @pytest.mark.parametrize('every', [0, -1])
+    def test_non_positive_save_artifacts_every_is_rejected(self, every):
+        with pytest.raises(ValueError, match='save_artifacts_every'):
+            Options(save_artifacts_every=every)
+
+    def test_off_grid_n_steps_is_accepted(self):
+        """The clamp lives in `run`, so `Options` itself keeps `n_steps` as given.
+
+        Rewriting it here would make an `Options` disagree with the TOML it
+        was loaded from.
+        """
+        assert Options(n_steps=5, save_artifacts_every=2).n_steps == 5
 
     def test_toml_roundtrip(self, tmp_path):
-        opts = Options(scheme='1s', dt=0.02, n_steps=7, order=1, max_bond=64,
-                       krylov_dim=12, renormalize=True, save_artifacts_since=3)
+        opts = Options(scheme='1s', dt=0.02, n_steps=8, order=1, max_bond=64,
+                       krylov_dim=12, renormalize=True, save_artifacts_every=2)
         path = tmp_path / 'tdvp.toml'
         opts.to_toml(path, section='tdvp')
         assert Options.load_toml(path, section='tdvp') == opts
@@ -261,14 +270,74 @@ class TestCheckpointing:
                                 save_artifacts=True))
         saved = sorted((tmp_path / 'art').glob('step_*.ckpt'))
         # One per step plus the initial state at t=0.
-        assert len(saved) == 4
+        assert [p.name for p in saved] == [f'step_{k:05d}.ckpt' for k in range(4)]
 
-    def test_save_artifacts_since_skips_early_steps(self, start, tmp_path):
+    def test_save_artifacts_every_thins_the_archive(self, start, tmp_path):
         state, mpo = start
-        run(state, mpo, Options(n_steps=4, artifacts_dir=str(tmp_path / 'art'),
-                                save_artifacts=True, save_artifacts_since=3))
+        run(state, mpo, Options(n_steps=6, artifacts_dir=str(tmp_path / 'art'),
+                                save_artifacts=True, save_artifacts_every=2))
         saved = sorted((tmp_path / 'art').glob('step_*.ckpt'))
-        assert len(saved) == 2
+        assert [p.name for p in saved] == [
+            'step_00000.ckpt', 'step_00002.ckpt', 'step_00004.ckpt', 'step_00006.ckpt',
+        ]
+
+    def test_off_grid_target_is_clamped_to_the_last_grid_point(
+        self, start, tmp_path, caplog,
+    ):
+        """A run stops on the grid, so its endpoint is always archived."""
+        state, mpo = start
+        with caplog.at_level('WARNING'):
+            summary, final = run(state, mpo, Options(
+                n_steps=5, artifacts_dir=str(tmp_path / 'art'),
+                save_artifacts=True, save_artifacts_every=2))
+
+        assert summary.n_steps == 4
+        assert len(summary.times) == 5
+        assert final.step == 4
+        saved = sorted(p.name for p in (tmp_path / 'art').glob('step_*.ckpt'))
+        assert saved == ['step_00000.ckpt', 'step_00002.ckpt', 'step_00004.ckpt']
+        assert 'save_artifacts_every' in caplog.text
+
+    def test_no_clamping_without_artifacts(self, start, tmp_path):
+        """Nothing is being archived, so there is no grid to land on."""
+        state, mpo = start
+        summary, final = run(state, mpo, Options(
+            n_steps=5, artifacts_dir=str(tmp_path / 'art'),
+            save_artifacts=False, save_artifacts_every=2))
+        assert summary.n_steps == 5
+        assert final.step == 5
+
+    def test_resumed_run_archives_the_same_grid(self, start, tmp_path):
+        """The stride keys on the absolute step, not on where the run began.
+
+        This is what keeps a trajectory stitched from two calls on the same
+        grid as one that ran straight through.
+        """
+        state, mpo = start
+        split = tmp_path / 'split'
+        whole = tmp_path / 'whole'
+
+        _, half = run(copy.deepcopy(state), mpo, Options(
+            n_steps=4, checkpoint_dir=str(split), save_artifacts_every=2))
+        run(half, mpo, Options(
+            n_steps=8, checkpoint_dir=str(split), save_artifacts_every=2))
+        run(copy.deepcopy(state), mpo, Options(
+            n_steps=8, checkpoint_dir=str(whole), save_artifacts_every=2))
+
+        names = sorted(p.name for p in (split / 'artifacts').glob('step_*.ckpt'))
+        assert names == sorted(p.name for p in (whole / 'artifacts').glob('step_*.ckpt'))
+        assert names == [f'step_{k:05d}.ckpt' for k in (0, 2, 4, 6, 8)]
+
+    def test_off_grid_start_is_not_archived(self, start, tmp_path):
+        """Only the endpoint is constrained; a run may start anywhere."""
+        state, mpo = start
+        _, mid = run(copy.deepcopy(state), mpo, Options(
+            n_steps=3, checkpoint_dir=str(tmp_path), save_artifacts=False))
+        run(mid, mpo, Options(n_steps=8, checkpoint_dir=str(tmp_path),
+                              save_artifacts_every=2))
+
+        names = sorted(p.name for p in (tmp_path / 'artifacts').glob('step_*.ckpt'))
+        assert names == [f'step_{k:05d}.ckpt' for k in (4, 6, 8)]
 
     def test_no_artifacts_when_disabled(self, start, tmp_path):
         state, mpo = start
