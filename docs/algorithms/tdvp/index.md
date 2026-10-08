@@ -50,12 +50,12 @@ resumed = tdvp.Artifact.load(ckpt_dir / 'tdvp.ckpt')
 summary, artifact = tdvp.run(resumed, H, opts)
 ```
 
-A finished run continues from any archived `artifacts/step_XX.ckpt` with new
+A finished run continues from any archived `artifacts/step_XXXXX.ckpt` with new
 options — here evolving from `t = 2.0` out to `t = 5.0` at a larger bond
 dimension:
 
 ```python
-state = tdvp.Artifact.load(ckpt_dir / 'artifacts' / 'step_40.ckpt')
+state = tdvp.Artifact.load(ckpt_dir / 'artifacts' / 'step_00040.ckpt')
 opts = tdvp.Options(dt=0.05, n_steps=100, max_bond=256,
                     checkpoint_dir=str(ckpt_dir))
 summary, artifact = tdvp.run(state, H, opts)
@@ -65,7 +65,13 @@ summary, artifact = tdvp.run(state, H, opts)
 number of additional steps, and `dt` must match the step the recovered history
 was built on. Starting from a step *before* the end of the history truncates it
 back to that step (with a warning) and recomputes forward, overwriting both
-`evolution.ckpt` and the affected `step_XX.ckpt` archives.
+`evolution.ckpt` and the affected `step_XXXXX.ckpt` archives.
+
+Not every step has to be archived. `save_artifacts_every` sets the stride, and
+because it is keyed on the absolute step index, a resumed run writes the same
+grid as an uninterrupted one. A run also stops on a grid point rather than
+between two, so its final state is always among the snapshots; see
+[Artifact](artifact.md).
 
 ## Update Schemes
 
