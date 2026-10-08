@@ -24,13 +24,14 @@ Example TOML block:
 
 ```toml
 [quench.algorithm]
-scheme       = "2s"
-dt           = 0.05
-n_steps      = 40
-order        = 2
-max_bond     = 64
-trunc_thresh = 1e-12
-krylov_dim   = 16
+scheme               = "2s"
+dt                   = 0.05
+n_steps              = 40
+order                = 2
+max_bond             = 64
+trunc_thresh         = 1e-12
+krylov_dim           = 16
+save_artifacts_every = 4
 ```
 
 ## Choosing `dt` and `max_bond`
