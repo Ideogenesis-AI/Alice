@@ -133,16 +133,17 @@ DMRG ground state at U = 2.0
 
      t          D(t)     E drift             N  |<psi0|psi>|      S_max   mult  states
 ----------------------------------------------------------------------------------------
- 0.150    0.73514320   +6.86e-13    6.00000000   0.911912709   1.283853     35      64
- 0.300    0.34184299   +1.75e-12    6.00000000   0.741226468   1.162415     35      64
- 0.450    0.18988092   +3.13e-12    6.00000000   0.630599153   1.120950     35      64
- 0.500    0.21791497   +3.74e-12    6.00000000   0.617098799   1.141494     35      64
+ 0.100    0.84842008   +5.90e-13    6.00000000   0.958415947   1.311771     35      64
+ 0.200    0.60045392   +2.00e-12    6.00000000   0.855843720   1.246085     35      64
+ 0.300    0.34184299   +3.51e-12    6.00000000   0.741226468   1.162415     35      64
+ 0.400    0.19948075   +5.52e-12    6.00000000   0.656067399   1.116853     35      64
+ 0.500    0.21791497   +7.27e-12    6.00000000   0.617098799   1.141494     35      64
 ```
 
-The double occupancy falls from 0.950 to 0.190 and rebounds to 0.218 —
+The double occupancy falls from 0.950 to 0.199 and rebounds to 0.218 —
 stronger repulsion suppressing the doubly-occupied configurations, then
 overshooting into an oscillation. Particle number stays exact, the energy of
-the evolving Hamiltonian holds to 4e-12, and the overlap with the initial state
+the evolving Hamiltonian holds to 7e-12, and the overlap with the initial state
 decays to 0.617, confirming the quench genuinely moved the state rather than
 only accumulating a phase.
 
@@ -156,19 +157,23 @@ uv run python examples/examples_tdvp/tdvp_hubbard_quench.py \
 ```text
      t          D(t)     E drift             N  |<psi0|psi>|      S_max   mult  states
 ----------------------------------------------------------------------------------------
- 0.150    0.53779226   +6.43e-13    6.00000000   1.000000000   1.132930     35      64
- 0.300    0.53779226   +1.33e-12    6.00000000   1.000000000   1.132930     35      64
+ 0.050    0.53779226   +4.78e-13    6.00000000   1.000000000   1.132930     35      64
+ 0.100    0.53779226   +1.06e-12    6.00000000   1.000000000   1.132930     35      64
+ 0.150    0.53779226   +1.55e-12    6.00000000   1.000000000   1.132930     35      64
+ 0.200    0.53779226   +2.09e-12    6.00000000   1.000000000   1.132930     35      64
+ 0.250    0.53779226   +2.60e-12    6.00000000   1.000000000   1.132930     35      64
+ 0.300    0.53779226   +3.20e-12    6.00000000   1.000000000   1.132930     35      64
 
 Eigenstate-phase check  (U_final == U_init)
   |<psi(0)|psi(t)>|   : 1.000000000000  (exact 1)
   phase    measured   : -0.183572399-0.983006192i
   phase    exp(-iEt)  : -0.183572399-0.983006192i
-  deviation           : 4.904e-14
+  deviation           : 1.104e-13
 ```
 
 Run in the hardest group, `Z2,SU2`, the state does not budge — double occupancy
 frozen to all ten digits — and the accumulated phase matches \(e^{-iEt}\) to
-4.9e-14. This verifies the propagator's sign through the full non-Abelian
+1.1e-13. This verifies the propagator's sign through the full non-Abelian
 machinery.
 
 ## Four-way comparison
@@ -179,6 +184,8 @@ uv run python examples/examples_tdvp/tdvp_hubbard_quench.py \
 ```
 
 ```text
+Symmetry-group comparison  (L = 6, t = 1.0, U 2.0 -> 6.0, t_final = 0.5, dt = 0.025)
+
   symmetry     <H(U_final)>             N             D    |overlap|   mult  states
 --------------------------------------------------------------------------------------
      U1,U1   -18.7450277022    6.00000000    0.21791497   0.61709880     64      64
@@ -189,9 +196,9 @@ uv run python examples/examples_tdvp/tdvp_hubbard_quench.py \
 Deviations from U1,U1
   symmetry           dE           dN           dD     max dn_j       max dS
 ----------------------------------------------------------------------------
-     Z2,U1    +1.05e-11    +6.84e-14    +2.89e-12     6.79e-13     3.59e-11
-    U1,SU2    +4.31e-12    -1.37e-12    -5.99e-14     2.18e-12     3.99e-11
-    Z2,SU2    +4.53e-12    -1.38e-12    -8.35e-13     5.00e-13     4.61e-11
+     Z2,U1    +1.03e-11    +1.44e-13    +2.90e-12     6.90e-13     3.59e-11
+    U1,SU2    +6.94e-12    -2.21e-12    -8.97e-14     2.32e-12     4.00e-11
+    Z2,SU2    +9.14e-12    -2.80e-12    -8.77e-13     7.40e-13     4.61e-11
 ```
 
 All four agree to roughly 1e-11, and that floor is the *initial state*, not the
