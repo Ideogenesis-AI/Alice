@@ -31,6 +31,22 @@ Both modes are particle-type agnostic: no `spin=`, `symmetry=`, or
 `particle_type=` argument is required. The `(Spc, Op)` pair returned by
 Nicole's `load_space` encodes all symmetry information.
 
+### Complex amplitudes
+
+Both modes honor `dtype`. Real-time evolution needs complex amplitudes, so a
+state intended for [tdvp.run](../../algorithms/tdvp/run.md) is built with
+`dtype=torch.complex128`:
+
+```python
+import torch
+
+mps = init_mps(20, Spc, Op, bond_dim=1, dtype=torch.complex128)
+```
+
+An existing real MPS — a DMRG ground state, say — is promoted in place with
+[`MPS.to_complex()`](mps.md) instead, which `tdvp.run` also does on its own
+if given a real state.
+
 ### Logic Overview
 
 The diagram below summarizes how `target_qn`, `config`, `Q[L]`, and

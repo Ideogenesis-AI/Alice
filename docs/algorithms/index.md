@@ -24,7 +24,19 @@ Finite-temperature thermodynamics via exponential cooling of the thermal density
 | [Summary](xtrg/summary.md) | XTRG output dataclass |
 | [run](xtrg/run.md) | Top-level XTRG entry point |
 
+## TDVP
+
+Real-time evolution under a Hamiltonian MPO, by projecting the Schrödinger equation onto the tangent space of the MPS manifold.
+
+| Symbol | Description |
+|--------|-------------|
+| [Overview](tdvp/index.md) | Update schemes, integrator order, the tangent-space projection, usage pattern |
+| [Options](tdvp/options.md) | TDVP run options |
+| [Summary](tdvp/summary.md) | TDVP output dataclass |
+| [Artifact](tdvp/artifact.md) | State snapshot at one time step |
+| [run](tdvp/run.md) | Top-level TDVP entry point |
+
 ## See Also
 
 - [API Reference](../api/index.md) — Network, Interaction, Geometry, Local Space, and Hamiltonian building blocks.
-- [Examples](../examples/index.md) — complete, runnable walkthroughs for both algorithms.
+- [Examples](../examples/index.md) — complete, runnable walkthroughs for every algorithm.

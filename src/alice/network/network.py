@@ -27,6 +27,8 @@ import math
 from nicole import Tensor, contract, einsum, decomp
 from nicole import serialize as _serialize_tensor, deserialize as _deserialize_tensor
 
+from .dtype import to_complex as _to_complex_tensor
+
 # Sentinel used to distinguish "caller passed nothing" from "caller passed None".
 # canonical() uses this so that trunc=None retains its natural decomp meaning
 # (no truncation), while an omitted argument triggers the max-bond-dim default.
@@ -340,6 +342,17 @@ class Network:
                 self._right_canon_site(i, trunc=trunc)
 
         self._center = target
+
+    def to_complex(self) -> None:
+        """Promote every site tensor to `complex128` in place.
+
+        Required before real-time evolution: Nicole contracts only operands
+        that share a dtype, so a complex state must be paired with a complex
+        Hamiltonian MPO. Tensors that are already complex are left untouched,
+        making the call idempotent and cheap to apply defensively.
+        """
+        for i, t in enumerate(self._tensors):
+            self._tensors[i] = _to_complex_tensor(t)
 
     def norm(self) -> float:
         """Compute the network norm without modifying the network.

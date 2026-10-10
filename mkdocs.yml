@@ -74,6 +74,12 @@ nav:
       - Summary: algorithms/xtrg/summary.md
       - Artifact: algorithms/xtrg/artifact.md
       - Launch: algorithms/xtrg/run.md
+    - TDVP:
+      - Overview: algorithms/tdvp/index.md
+      - Options: algorithms/tdvp/options.md
+      - Summary: algorithms/tdvp/summary.md
+      - Artifact: algorithms/tdvp/artifact.md
+      - Launch: algorithms/tdvp/run.md
   - API Reference:
     - Overview: api/index.md
     - Logging: api/logging.md
@@ -121,6 +127,11 @@ nav:
     - XTRG:
       - Free fermion: examples/xtrg/free-fermion.md
       - Hubbard model: examples/xtrg/hubbard.md
+    - TDVP:
+      - Free fermion: examples/tdvp/free-fermion.md
+      - Domain wall: examples/tdvp/domain-wall.md
+      - Hubbard model: examples/tdvp/hubbard.md
+      - Hubbard quench: examples/tdvp/hubbard-quench.md
     - AutoMPO from TOML: examples/autompo-toml.md
     - Extensions:
       - Custom geometry: examples/extensions/custom-geometry.md
