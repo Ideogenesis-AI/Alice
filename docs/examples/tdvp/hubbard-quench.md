@@ -98,7 +98,7 @@ tensor by tensor rather than with `copy.deepcopy`, which cannot pickle the
 
 ```python
 reference = MPS([state[i].clone() for i in range(L)], center=state.center)
-reference.to_complex()
+reference.to(dtype=torch.complex128)
 ```
 
 ## 3. Quench
