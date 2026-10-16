@@ -17,7 +17,7 @@ Top-level TDVP entry point.
     ```python
     reference = MPS([state[i].clone() for i in range(state.L)],
                     center=state.center)
-    reference.to_complex()
+    reference.to(dtype=torch.complex128)
     ```
 
 ## See Also
