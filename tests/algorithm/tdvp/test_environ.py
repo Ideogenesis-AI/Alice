@@ -596,30 +596,37 @@ class TestBuildRightEnvsWithCache:
 
 
 # ---------------------------------------------------------------------------
-# Complex promotion — specific to TDVP, absent from the DMRG original
+# Complex blocks — specific to TDVP, absent from the DMRG original
 # ---------------------------------------------------------------------------
 
 class TestComplexBoundaries:
-    """The boundary blocks must follow the state into complex arithmetic.
+    """The environment blocks must follow the state into complex arithmetic.
 
-    `left_env_boundary` and `right_env_boundary` build from `identity()`,
-    which is real. Nicole contracts only operands sharing one dtype, so a real
-    boundary paired with a complex state fails at the first sweep step.
+    `left_env_boundary` and `right_env_boundary` build from `identity()`, so
+    the seed block is real whatever the state; it is the first sweep step
+    that has to produce a complex block, and every later block inherits it.
     """
 
-    def test_left_boundary_is_complex(self, heisenberg_L2):
+    def test_left_boundary_turns_complex_on_the_first_step(self, heisenberg_L2):
         mps, mpo = heisenberg_L2
-        assert left_env_boundary(mps, mpo).dtype.is_complex
+        E = left_env_boundary(mps, mpo)
+        assert not E.dtype.is_complex
+        assert step_left_env(E, mps[0], mpo[0]).dtype.is_complex
 
-    def test_right_boundary_is_complex(self, heisenberg_L2):
+    def test_right_boundary_turns_complex_on_the_first_step(self, heisenberg_L2):
         mps, mpo = heisenberg_L2
-        assert right_env_boundary(mps, mpo).dtype.is_complex
+        E = right_env_boundary(mps, mpo)
+        assert not E.dtype.is_complex
+        assert step_right_env(E, mps[mps.L - 1], mpo[mps.L - 1]).dtype.is_complex
 
-    def test_boundary_stays_real_for_a_real_state(self, spin_space):
-        """A real state keeps real blocks: promotion is never gratuitous."""
+    def test_blocks_stay_real_for_a_real_state(self, spin_space):
+        """A real state keeps real blocks: the cast is never gratuitous."""
         real_mps, real_mpo = _real_heisenberg_L2(spin_space)
-        assert not left_env_boundary(real_mps, real_mpo).dtype.is_complex
-        assert not right_env_boundary(real_mps, real_mpo).dtype.is_complex
+        E = left_env_boundary(real_mps, real_mpo)
+        assert not step_left_env(E, real_mps[0], real_mpo[0]).dtype.is_complex
+        last = real_mps.L - 1
+        E = right_env_boundary(real_mps, real_mpo)
+        assert not step_right_env(E, real_mps[last], real_mpo[last]).dtype.is_complex
 
 
 def _real_heisenberg_L2(spin_space):
