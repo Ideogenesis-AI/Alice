@@ -87,6 +87,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
+import torch
 
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'tests' / 'diagonaliztn'))
@@ -309,7 +310,7 @@ def tdvp_hubbard_quench(
     # holding a `CGSpec` that cannot be pickled, so deepcopy fails outright
     # under SU(2).
     reference = MPS([state[i].clone() for i in range(L)], center=state.center)
-    reference.to_complex()
+    reference.to(dtype=torch.complex128)
 
     if verbose:
         print(f"DMRG ground state at U = {U_init}")
