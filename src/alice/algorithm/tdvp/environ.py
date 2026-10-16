@@ -42,9 +42,10 @@ Right environment at site `i` (`env_right[i]`) has axes
 `(c=bra_right, p=mpo_right, d=ket_right)` and accumulates sites `i+1…L-1`.
 `env_right[L-1]` is the trivial right boundary.
 
-Every block is complex-valued whenever the state is, because the boundary
-constructors promote the identity-derived tensor to match the MPS dtype and
-all later blocks inherit that dtype through contraction.
+Block dtypes are not uniform across an environment. The two trivial
+boundaries come from `identity` and hold real data even when the state is
+complex; every other block contracts the state in, and so is complex
+whenever the state is.
 """
 
 from __future__ import annotations
@@ -60,7 +61,6 @@ from nicole import deserialize as _deserialize_tensor
 from nicole import serialize as _serialize_tensor
 
 from alice.network import MPS, MPO
-from alice.network.dtype import to_complex
 
 logger = logging.getLogger(__name__)
 
@@ -371,20 +371,6 @@ def _load(fp: Path) -> Tensor:
 
 
 # ---------------------------------------------------------------------------
-# dtype helper
-# ---------------------------------------------------------------------------
-
-def _match_dtype(E: Tensor, reference: Tensor) -> Tensor:
-    """Promote `E` to complex when `reference` is complex.
-
-    Only promotion is ever needed: a real environment paired with a complex
-    state must be cast, while the reverse never arises because `run()`
-    promotes the state and the MPO up front.
-    """
-    return to_complex(E) if reference.dtype.is_complex else E
-
-
-# ---------------------------------------------------------------------------
 # Boundary constructors
 # ---------------------------------------------------------------------------
 
@@ -396,14 +382,12 @@ def left_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     `(a=bra_left, o=mpo_left, b=ket_left)`.
 
     The construction mirrors the boundary initialization in
-    `alice.network.observe._observe_mps`, with one addition: the result is
-    promoted to complex when the state is, since `identity` produces a real
-    tensor and Nicole contracts only operands sharing a dtype.
+    `alice.network.observe._observe_mps`.
 
     Parameters
     ----------
     mps:
-        The MPS whose left boundary index and dtype are used.
+        The MPS whose left boundary index is used.
     mpo:
         The MPO whose left boundary index is used.
 
@@ -421,7 +405,7 @@ def left_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     # Insert the MPO left-bond index at axis 1 (between the bra and ket indices).
     E.insert_index(1, direction=Direction.OUT, itag=mpo[0].itags[0])
     # E axes: (bra_left=a, mpo_left=o, ket_left=b)
-    return _match_dtype(E, mps[0])
+    return E
 
 
 def right_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
@@ -434,7 +418,7 @@ def right_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     Parameters
     ----------
     mps:
-        The MPS whose right boundary index and dtype are used.
+        The MPS whose right boundary index is used.
     mpo:
         The MPO whose right boundary index is used.
 
@@ -450,7 +434,7 @@ def right_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     # The MPO right boundary has direction IN (opposite to the left boundary OUT).
     E.insert_index(1, direction=Direction.IN, itag=mpo[L - 1].itags[1])
     # E axes: (bra_right=c, mpo_right=p, ket_right=d)
-    return _match_dtype(E, mps[L - 1])
+    return E
 
 
 # ---------------------------------------------------------------------------
