@@ -73,10 +73,10 @@ from nicole import Tensor, einsum
 def inner_product(v1: Tensor, v2: Tensor) -> complex:
     """Compute the inner product ⟨v1|v2⟩ = Σ_{all indices} conj(v1) * v2.
 
-    Works for tensors of any rank ≥ 2; the einsum pattern is built from the
-    actual number of indices so the helper serves the rank-2 bond tensor of
-    the zero-site update, the rank-3 site tensor of the 1-site update, and
-    the rank-4 bulk tensor of the 2-site update alike.
+    Works for tensors of any order ≥ 2; the einsum pattern is built from the
+    actual number of indices so the helper serves the 2nd-order bond tensor of
+    the zero-site update, the 3rd-order site tensor of the 1-site update, and
+    the 4th-order bulk tensor of the 2-site update alike.
 
     Unlike its DMRG counterpart, the result is always returned as `complex`:
     TDVP vectors carry physical phases, so dropping the imaginary part would

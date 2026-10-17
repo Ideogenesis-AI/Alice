@@ -57,7 +57,7 @@ from nicole import Tensor, einsum
 def _inner_product(v1: Tensor, v2: Tensor) -> complex:
     """Compute the inner product ⟨v1|v2⟩ = Σ_{all indices} conj(v1) * v2.
 
-    Works for tensors of any rank ≥ 2. The einsum pattern is built
+    Works for tensors of any order ≥ 2. The einsum pattern is built
     dynamically from the actual number of indices so that the helper is not
     tied to the 3-index MPS site-tensor convention.
 
