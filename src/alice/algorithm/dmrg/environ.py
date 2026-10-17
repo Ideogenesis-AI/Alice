@@ -18,7 +18,7 @@
 
 """DMRG environment block storage and transfer-matrix update functions.
 
-An environment block `E` is a rank-3 tensor with axes
+An environment block `E` is a 3rd-order tensor with axes
 `(bra_bond, mpo_bond, ket_bond)`. Two `Environment` instances are used per
 DMRG run — one for the left environments and one for the right environments.
 
@@ -365,7 +365,7 @@ def _load(fp: Path) -> Tensor:
 def left_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     """Build the trivial left boundary environment tensor.
 
-    Constructs a rank-3 tensor with all indices of dimension 1 representing
+    Constructs a 3rd-order tensor with all indices of dimension 1 representing
     the left boundary. The axes follow the convention
     `(a=bra_left, o=mpo_left, b=ket_left)`.
 
@@ -382,7 +382,7 @@ def left_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     Returns
     -------
     Tensor
-        Rank-3 boundary tensor with axes `(bra_left, mpo_left, ket_left)`.
+        3rd-order boundary tensor with axes `(bra_left, mpo_left, ket_left)`.
     """
     # Build a 2-index identity on the left (dim-1) bond of mps[0].
     # identity() returns a tensor with axes (IN, OUT) both carrying the
@@ -399,7 +399,7 @@ def left_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
 def right_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     """Build the trivial right boundary environment tensor.
 
-    Constructs a rank-3 tensor with all indices of dimension 1 representing
+    Constructs a 3rd-order tensor with all indices of dimension 1 representing
     the right boundary. The axes follow the convention
     `(c=bra_right, p=mpo_right, d=ket_right)`.
 
@@ -413,7 +413,7 @@ def right_env_boundary(mps: MPS, mpo: MPO) -> Tensor:
     Returns
     -------
     Tensor
-        Rank-3 boundary tensor with axes `(bra_right, mpo_right, ket_right)`.
+        3rd-order boundary tensor with axes `(bra_right, mpo_right, ket_right)`.
     """
     L = mps.L
     # Right bonds of the last site (dim-1 for OBC).

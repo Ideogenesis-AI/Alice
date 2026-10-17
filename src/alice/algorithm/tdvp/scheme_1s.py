@@ -154,7 +154,7 @@ def matvec_0s(C: Tensor, E_left: Tensor, E_right: Tensor) -> Tensor:
     # 'aob,bd,cod->ac'
     # contracted: b (ket_left), d (ket_right), o (shared MPO bond)
     # free:       a (bra_left), c (bra_right)
-    # Contracting C first keeps the intermediate at rank 3 rather than closing
+    # Contracting C first keeps the intermediate at 3rd order rather than closing
     # the two environments into a full bond-by-bond matrix.
     return einsum('aob,bd,cod->ac', E_left, C, E_right)
 

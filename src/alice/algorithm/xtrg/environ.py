@@ -18,7 +18,7 @@
 
 """XTRG environment block storage and transfer-matrix update functions.
 
-An environment block `E` is a rank-3 tensor with axes
+An environment block `E` is a 3rd-order tensor with axes
 `(c_bond, a_bond, b_bond)` where `c` is the bond of the compressed MPO C,
 `a` is the bond of factor MPO A, and `b` is the bond of factor MPO B.
 Two `Environment` instances are used per variational compression run — one
@@ -309,7 +309,7 @@ def _load(fp: Path) -> Tensor:
 def left_env_boundary(mpo_a: NormalMPO, mpo_b: NormalMPO, mpo_c: NormalMPO) -> Tensor:
     """Build the trivial left boundary environment tensor.
 
-    Constructs a rank-3 tensor with all indices of dimension 1 representing
+    Constructs a 3rd-order tensor with all indices of dimension 1 representing
     the left boundary. The axes follow the convention `(c, a, b)` =
     `(C_left, A_left, B_left)`.
 
@@ -329,7 +329,7 @@ def left_env_boundary(mpo_a: NormalMPO, mpo_b: NormalMPO, mpo_c: NormalMPO) -> T
     Returns
     -------
     Tensor
-        Rank-3 boundary tensor with axes `(C_left, A_left, B_left)`.
+        3rd-order boundary tensor with axes `(C_left, A_left, B_left)`.
     """
     # identity on C's left bond gives an IN/OUT index pair (both dim-1 for OBC).
     E = identity(mpo_c[0].indices[0])
@@ -344,7 +344,7 @@ def left_env_boundary(mpo_a: NormalMPO, mpo_b: NormalMPO, mpo_c: NormalMPO) -> T
 def right_env_boundary(mpo_a: NormalMPO, mpo_b: NormalMPO, mpo_c: NormalMPO) -> Tensor:
     """Build the trivial right boundary environment tensor.
 
-    Constructs a rank-3 tensor with all indices of dimension 1 representing
+    Constructs a 3rd-order tensor with all indices of dimension 1 representing
     the right boundary. The axes follow the convention `(d, p, q)` =
     `(C_right, A_right, B_right)`.
 
@@ -360,7 +360,7 @@ def right_env_boundary(mpo_a: NormalMPO, mpo_b: NormalMPO, mpo_c: NormalMPO) -> 
     Returns
     -------
     Tensor
-        Rank-3 boundary tensor with axes `(C_right, A_right, B_right)`.
+        3rd-order boundary tensor with axes `(C_right, A_right, B_right)`.
     """
     L = mpo_c.L
     # identity on C's right bond (dim-1 for OBC, direction OUT).
