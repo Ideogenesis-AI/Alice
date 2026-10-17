@@ -123,8 +123,8 @@ def _absorb_right(tensor: Tensor, iso: Tensor, axis: int) -> Tensor:
     Tensor
         `tensor` with axis `axis` replaced by the reduced bond.
     """
-    rank = len(tensor.indices)
-    perm = list(range(axis)) + [rank - 1] + list(range(axis, rank - 1))
+    order = len(tensor.indices)
+    perm = list(range(axis)) + [order - 1] + list(range(axis, order - 1))
     return contract(tensor, iso, axes=(axis, 0), perm=perm)
 
 
@@ -153,8 +153,8 @@ def _absorb_left(iso: Tensor, tensor: Tensor, axis: int) -> Tensor:
     Tensor
         `tensor` with axis `axis` replaced by the reduced bond.
     """
-    rank = len(tensor.indices)
-    perm = list(range(axis)) + [rank - 1] + list(range(axis, rank - 1))
+    order = len(tensor.indices)
+    perm = list(range(axis)) + [order - 1] + list(range(axis, order - 1))
     return contract(tensor, iso.conj(), axes=(axis, 0), perm=perm)
 
 
