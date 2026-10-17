@@ -22,6 +22,7 @@ Finite-temperature thermodynamics via exponential cooling of the thermal density
 | [Overview](xtrg/index.md) | Update schemes, temperature grid, usage pattern |
 | [Options](xtrg/options.md) | XTRG run options |
 | [Summary](xtrg/summary.md) | XTRG output dataclass |
+| [Artifact](xtrg/artifact.md) | Density-matrix snapshot at one cooling step |
 | [run](xtrg/run.md) | Top-level XTRG entry point |
 
 ## TDVP
