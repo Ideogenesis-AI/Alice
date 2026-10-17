@@ -88,6 +88,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import torch
+
 from alice.network import MPO, MPS, Network, observe
 
 from ..interface import AlgorithmOptions, AlgorithmSummary
@@ -656,15 +658,16 @@ def _promote_to_complex(mps: MPS, mpo: MPO) -> None:
     """Promote state and Hamiltonian to `complex128` in place, if needed.
 
     Real-time evolution multiplies by `exp(-i dt H)`, so a real state cannot
-    represent the result. Nicole also contracts only operands sharing one
-    dtype, so the MPO has to follow the state.
+    represent the result. A real MPO contracts against the complex state
+    perfectly well, but casting it once here saves re-casting every MPO site
+    at every step of the environment sweep.
     """
     promoted = []
     if not all(t.dtype.is_complex for t in mps):
-        mps.to_complex()
+        mps.to(dtype=torch.complex128)
         promoted.append('state')
     if not all(t.dtype.is_complex for t in mpo):
-        mpo.to_complex()
+        mpo.to(dtype=torch.complex128)
         promoted.append('Hamiltonian')
     if promoted:
         logger.info("  promoted %s to complex128 for real-time evolution",

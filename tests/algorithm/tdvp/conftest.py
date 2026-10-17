@@ -136,7 +136,7 @@ def _heisenberg_mpo(L: int):
     }
     interactions, spc, geo = build_interaction(cfg)
     mpo = build_hamiltonian(interactions, geo.L, spc)
-    mpo.to_complex()
+    mpo.to(dtype=torch.complex128)
     return mpo
 
 

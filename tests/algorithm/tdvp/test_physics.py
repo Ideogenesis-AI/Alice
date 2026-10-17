@@ -46,6 +46,7 @@ import math
 
 import numpy as np
 import pytest
+import torch
 
 from alice.algorithm import dmrg
 from alice.algorithm.tdvp import Artifact, Options, run
@@ -299,7 +300,7 @@ class TestEigenstatePhase:
     def test_overlap_magnitude_stays_at_one(self, ground_state):
         mps, mpo, _ = ground_state
         original = copy.deepcopy(mps)
-        original.to_complex()
+        original.to(dtype=torch.complex128)
         _, final = _evolve(mps, mpo, scheme='2s', dt=0.05, n_steps=20)
         assert abs(abs(mps_overlap(original, final.state)) - 1.0) < 1e-8
 
@@ -311,7 +312,7 @@ class TestEigenstatePhase:
         """
         mps, mpo, energy = ground_state
         original = copy.deepcopy(mps)
-        original.to_complex()
+        original.to(dtype=torch.complex128)
         t = 1.0
         _, final = _evolve(mps, mpo, scheme='2s', dt=0.05, n_steps=20)
 

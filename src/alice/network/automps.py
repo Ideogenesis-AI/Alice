@@ -521,7 +521,7 @@ def init_mps(
         Block dtype of the site tensors, `torch.float64` by default. Pass
         `torch.complex128` for a state to be evolved in real time by TDVP,
         which needs complex amplitudes; promoting an existing real MPS
-        afterwards is also possible via `MPS.to_complex()`.
+        afterwards is also possible via `MPS.to(dtype=torch.complex128)`.
 
     Returns
     -------

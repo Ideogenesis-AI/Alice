@@ -83,8 +83,8 @@ def _inner_product(v1: Tensor, v2: Tensor) -> complex:
     val = v.item()
     # Preserve the natural scalar type: return float for real-valued tensors and
     # complex for complex-valued tensors. Returning complex when the data is
-    # float64 would cause Nicole to promote tensors to complex128 in _axpy,
-    # producing a dtype mismatch on the subsequent contraction.
+    # float64 would promote the tensors to complex128 in _axpy, doubling the
+    # cost of every subsequent contraction on what is an entirely real path.
     return val * weight
 
 

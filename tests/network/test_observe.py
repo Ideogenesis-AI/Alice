@@ -23,6 +23,7 @@ from __future__ import annotations
 import math
 
 import pytest
+import torch
 
 from alice.network import MPS, MPO, observe, thermal_mpo
 
@@ -150,7 +151,7 @@ class TestObserveComplex:
         """Promoting the state to complex leaves the expectation value unchanged."""
         val_real = observe(mps_tensors, mpo_tensors)
         mps = MPS(mps_tensors, center=None)
-        mps.to_complex()
+        mps.to(dtype=torch.complex128)
         val_cplx = observe(mps, mpo_tensors)
         assert mps[0].dtype.is_complex
         assert math.isclose(val_cplx, val_real, rel_tol=1e-14)
@@ -159,7 +160,7 @@ class TestObserveComplex:
         """A complex-promoted observable on a real state gives the same value."""
         val_real = observe(mps_tensors, mpo_tensors)
         mpo = MPO(mpo_tensors)
-        mpo.to_complex()
+        mpo.to(dtype=torch.complex128)
         assert math.isclose(observe(mps_tensors, mpo), val_real, rel_tol=1e-14)
 
     def test_invariant_under_global_phase(self, mps_tensors, mpo_tensors):
@@ -170,7 +171,7 @@ class TestObserveComplex:
         flipping index directions.
         """
         mps = MPS(mps_tensors, center=None)
-        mps.to_complex()
+        mps.to(dtype=torch.complex128)
         val = observe(mps, mpo_tensors)
         # exp(i·0.927…) = 0.6 + 0.8i, a unit-modulus phase.
         mps[0] = mps[0] * (0.6 + 0.8j)
@@ -190,7 +191,7 @@ class TestObserveComplex:
         """The complex path also agrees for SU(2), exercising the Bridge weight."""
         val_real = observe(mps_tensors_su2, mpo_tensors_su2)
         mps = MPS(mps_tensors_su2, center=None)
-        mps.to_complex()
+        mps.to(dtype=torch.complex128)
         assert math.isclose(observe(mps, mpo_tensors_su2), val_real, rel_tol=1e-14)
 
 
@@ -248,7 +249,7 @@ class _ObserveThermalTests:
         H_mpo, Spc = hamiltonian
         rho = thermal_mpo(H_mpo, self._BETA, self._ORDER, Spc)
         E_real = observe(rho, H_mpo)
-        rho.to_complex()
+        rho.to(dtype=torch.complex128)
         assert math.isclose(observe(rho, H_mpo), E_real, rel_tol=1e-12)
 
     def test_raises_for_zero_observable(self, hamiltonian):

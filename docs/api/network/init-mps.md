@@ -44,8 +44,8 @@ mps = init_mps(20, Spc, Op, bond_dim=1, dtype=torch.complex128)
 ```
 
 An existing real MPS — a DMRG ground state, say — is promoted in place with
-[`MPS.to_complex()`](mps.md) instead, which `tdvp.run` also does on its own
-if given a real state.
+[`MPS.to(dtype=torch.complex128)`](network.md) instead, which `tdvp.run` also
+does on its own if given a real state.
 
 ### Logic Overview
 

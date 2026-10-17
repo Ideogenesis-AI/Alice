@@ -25,12 +25,11 @@ from typing import Sequence, Union
 
 from nicole import Direction, Tensor, einsum, identity
 
-from .dtype import to_complex as _to_complex
 from .network import MPS, MPO
 
 
 # ---------------------------------------------------------------------------
-# Complex-dtype helpers
+# Scalar extraction
 # ---------------------------------------------------------------------------
 
 # Tolerance on the imaginary part of an expectation value, relative to its
@@ -39,11 +38,6 @@ from .network import MPS, MPO
 # roundoff level, which is discarded; anything larger means the observable is
 # not Hermitian and is reported as an error rather than silently dropped.
 _IMAG_TOL = 1e-10
-
-
-def _needs_complex(*networks: Union[MPS, MPO, Sequence[Tensor]]) -> bool:
-    """Report whether any site tensor across `networks` carries complex blocks."""
-    return any(t.dtype.is_complex for net in networks for t in net)
 
 
 def _real_scalar(E: Tensor, label: str) -> float:
@@ -107,10 +101,9 @@ def observe(
       accumulates a small `(ρ_bond, O_bond)` environment, analogous to the
       MPS case.
 
-    Complex states (e.g. produced by real-time evolution) are supported: when
-    either the state or the observable carries complex blocks, the whole
-    contraction is promoted to `complex128`, and the imaginary part of the
-    final scalar is discarded provided it is at roundoff level.
+    Complex states (e.g. produced by real-time evolution) are supported, and
+    may be paired with a real observable. The imaginary part of the final
+    scalar is discarded provided it is at roundoff level.
 
     Parameters
     ----------
@@ -234,18 +227,9 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     E.squeeze(0)
     # E axes: (rho_left=a, O_left=b), both OUT and dim-1.
 
-    # Nicole's einsum requires all operands to share one dtype, so a complex
-    # density matrix or observable promotes the whole sweep — including the
-    # identity-derived boundary — to complex128.
-    cmplx = _needs_complex(rho, O_norm)
-    if cmplx:
-        E = _to_complex(E)
-
     for i in range(rho.L):
         # absorb rho and O into E; see Notes for letter definitions
-        R_i = _to_complex(rho[i]) if cmplx else rho[i]
-        O_i = _to_complex(O_norm[i]) if cmplx else O_norm[i]
-        E = einsum('ab,acrs,bdsr->cd', E, R_i, O_i)
+        E = einsum('ab,acrs,bdsr->cd', E, rho[i], O_norm[i])
 
     # E is now a 1×1 tensor at the right boundary.
     raw_num = _real_scalar(E, 'Tr[ρ O]')
@@ -325,20 +309,12 @@ def _observe_mps(
     E.insert_index(1, direction=Direction.OUT, itag=mpo[0].itags[0])
     # E axes: (bra_left, mpo_left, ket_left)
 
-    # Nicole's einsum requires all operands to share one dtype, so a complex
-    # state (as produced by real-time evolution) promotes the whole sweep —
-    # including the real-valued MPO and the identity-derived boundary — to
-    # complex128. The bra side is `conj()`, which conjugates the blocks of a
-    # complex tensor on top of flipping index directions, so ⟨ψ| is correct.
-    cmplx = _needs_complex(mps, mpo)
-    if cmplx:
-        E = _to_complex(E)
-
     for i in range(L):
-        # absorb bra, MPO, and ket into E; see Notes for letter definitions
-        ket = _to_complex(mps[i]) if cmplx else mps[i]
-        W = _to_complex(mpo[i]) if cmplx else mpo[i]
-        E = einsum('aob,acr,oprs,bds->cpd', E, ket.conj(), W, ket)
+        # absorb bra, MPO, and ket into E; see Notes for letter definitions.
+        # The bra side is `conj()`, which conjugates the blocks of a complex
+        # tensor on top of flipping index directions, so ⟨ψ| is correct.
+        ket = mps[i]
+        E = einsum('aob,acr,oprs,bds->cpd', E, ket.conj(), mpo[i], ket)
 
     # E is now a 1×1×1 tensor at the right boundary.
     return _real_scalar(E, '⟨ψ|O|ψ⟩')

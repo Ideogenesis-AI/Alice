@@ -14,6 +14,7 @@ Base class for 1D tensor network chains.
         - phys_dims
         - itag_prefix
         - canonical
+        - to
         - norm
         - normalize
         - serialize
