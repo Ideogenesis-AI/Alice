@@ -73,6 +73,7 @@ nav:
       - Options: algorithms/xtrg/options.md
       - Summary: algorithms/xtrg/summary.md
       - Artifact: algorithms/xtrg/artifact.md
+      - Lessons: algorithms/xtrg/lessons.md
       - Launch: algorithms/xtrg/run.md
     - TDVP:
       - Overview: algorithms/tdvp/index.md
