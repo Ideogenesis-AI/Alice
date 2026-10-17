@@ -11,7 +11,7 @@ Ground-state search via alternating sweep optimization of MPS tensors.
 | [Overview](dmrg/index.md) | Update schemes and usage pattern |
 | [Options](dmrg/options.md) | DMRG run options |
 | [Summary](dmrg/summary.md) | DMRG output dataclass |
-| [run](dmrg/run.md) | Top-level DMRG entry point |
+| [Launch](dmrg/run.md) | Top-level DMRG entry point |
 
 ## XTRG
 
@@ -23,7 +23,7 @@ Finite-temperature thermodynamics via exponential cooling of the thermal density
 | [Options](xtrg/options.md) | XTRG run options |
 | [Summary](xtrg/summary.md) | XTRG output dataclass |
 | [Artifact](xtrg/artifact.md) | Density-matrix snapshot at one cooling step |
-| [run](xtrg/run.md) | Top-level XTRG entry point |
+| [Launch](xtrg/run.md) | Top-level XTRG entry point |
 
 ## TDVP
 
@@ -35,7 +35,7 @@ Real-time evolution under a Hamiltonian MPO, by projecting the Schrödinger equa
 | [Options](tdvp/options.md) | TDVP run options |
 | [Summary](tdvp/summary.md) | TDVP output dataclass |
 | [Artifact](tdvp/artifact.md) | State snapshot at one time step |
-| [run](tdvp/run.md) | Top-level TDVP entry point |
+| [Launch](tdvp/run.md) | Top-level TDVP entry point |
 
 ## See Also
 
