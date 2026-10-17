@@ -195,8 +195,9 @@ class Options(AlgorithmOptions):
 
         Both are globally second order at equal cost — two consecutive
         `order=1` steps are exactly one `order=2` step of twice the size. The
-        difference is that every `order=2` snapshot sits at a symmetric point,
-        whereas `order=1` snapshots after an odd step carry first-order error.
+        difference is that every `order=2` snapshot lands at the end of a
+        complete forward-and-backward sweep pair, whereas `order=1` snapshots
+        after an odd step carry first-order error.
     max_bond:
         Maximum bond dimension. `None` means unlimited. Meaningful for `'2s'`
         only; the `'1s'` update never changes a bond dimension, so no

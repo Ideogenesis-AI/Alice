@@ -56,11 +56,12 @@ makes any *pair* of consecutive `order=1` steps symmetric. An `order=1` run of
 `2n` steps at `dt/2` therefore costs the same as, and agrees to roundoff with,
 an `order=2` run of `n` steps at `dt` — both are globally second order. What
 `order=2` buys is not accuracy per unit work but *where the accuracy lands*:
-every recorded step sits at a symmetric point with the center back at site 0,
-so observables and checkpoints are second-order accurate at every snapshot,
-whereas `order=1` snapshots taken after an odd step carry first-order error.
-Prefer `order=1` only when the per-step bookkeeping of `order=2` is a measured
-cost and the trajectory is sampled sparsely at even step counts.
+every recorded step ends a complete forward-and-backward sweep pair with the
+center back at site 0, so observables and checkpoints are second-order accurate
+at every snapshot, whereas `order=1` snapshots taken after an odd step carry
+first-order error. Prefer `order=1` only when the per-step bookkeeping of
+`order=2` is a measured cost and the trajectory is sampled sparsely at even
+step counts.
 
 Center movement
 ---------------

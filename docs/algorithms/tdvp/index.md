@@ -115,10 +115,10 @@ direction for `order=1`: two consecutive `order=1` steps of size `dt` are
 *exactly* one `order=2` step of size `2dt` — the same local exponentials in the
 same sequence, verified to 1e-9.
 
-The difference is where the snapshots land. Every `order=2` step ends at a
-symmetric point, whereas an `order=1` snapshot taken after an odd step carries
-first-order error. If observables are measured at every step rather than only
-at the end, prefer `order=2`.
+The difference is where the snapshots land. Every `order=2` step ends a complete
+forward-and-backward sweep pair, whereas an `order=1` snapshot taken after an
+odd step carries first-order error. If observables are measured at every step
+rather than only at the end, prefer `order=2`.
 
 Note that error scaling in `dt` is only observable on a *restricted* manifold.
 At full bond dimension the tangent-space projector is the identity, TDVP is
