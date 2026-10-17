@@ -23,6 +23,7 @@ Finite-temperature thermodynamics via exponential cooling of the thermal density
 | [Options](xtrg/options.md) | XTRG run options |
 | [Summary](xtrg/summary.md) | XTRG output dataclass |
 | [Artifact](xtrg/artifact.md) | Density-matrix snapshot at one cooling step |
+| [Lessons](xtrg/lessons.md) | Practical pitfalls, starting with the absolute truncation scale |
 | [Launch](xtrg/run.md) | Top-level XTRG entry point |
 
 ## TDVP
