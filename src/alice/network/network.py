@@ -20,10 +20,11 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import math
 
+import torch
 from nicole import Tensor, contract, einsum, decomp
 from nicole import serialize as _serialize_tensor, deserialize as _deserialize_tensor
 
@@ -340,6 +341,40 @@ class Network:
                 self._right_canon_site(i, trunc=trunc)
 
         self._center = target
+
+    def to(
+        self,
+        device: Optional[Union[str, torch.device]] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> None:
+        """Move every site tensor to `device` and cast it to `dtype`, in place.
+
+        Both arguments are optional and an omitted one leaves that aspect of
+        the tensors alone. `Tensor.to` returns the tensor itself when nothing
+        changes, so the call is idempotent and cheap to apply defensively —
+        promoting an already-complex state to `complex128` costs nothing.
+
+        Casting the blocks also casts the Bridge intertwiner weights, which
+        is what a generic symmetry group needs: the two must agree for the
+        tensor to contract.
+
+        Parameters
+        ----------
+        device:
+            Target device. If `None`, the current device is kept.
+        dtype:
+            Target block dtype, for instance `torch.complex128` ahead of
+            real-time evolution. If `None`, the current dtype is kept.
+
+        Raises
+        ------
+        ValueError
+            If `dtype` is real while the network is complex. Discarding the
+            imaginary part has to be asked for explicitly, per tensor, via
+            `Tensor.real`.
+        """
+        for i, t in enumerate(self._tensors):
+            self._tensors[i] = t.to(device=device, dtype=dtype)
 
     def norm(self) -> float:
         """Compute the network norm without modifying the network.

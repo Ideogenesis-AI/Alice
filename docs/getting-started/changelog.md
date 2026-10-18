@@ -1,5 +1,134 @@
 # Changelog
 
+## [0.3.0] - 2026-10-18
+
+**TDVP: Real-Time Evolution**
+
+Introduces TDVP (Time-Dependent Variational Principle), Alice's third algorithm alongside
+DMRG and XTRG: a real-time solver that evolves an MPS under `exp(-iHt)` by projecting the
+Schrödinger equation onto the tangent space of the MPS manifold and integrating by
+projector splitting. Two update schemes are available — 1-site at fixed bond dimension and
+2-site with SVD truncation — each driven by a Lanczos–Krylov matrix exponential and a
+first- or second-order symmetric integrator. The network layer gains complex amplitudes:
+`Network.to()`, a `dtype` keyword on `init_mps`, and an `observe` that contracts a complex
+state against a real observable. No breaking API changes.
+
+### TDVP Algorithm
+
+- New `alice.algorithm.tdvp` package exporting `Options`, `Summary`, `Artifact`, and
+  `run`, added to the `alice.algorithm` and top-level `alice` namespaces along with
+  `alice.xtrg`.
+- `tdvp.run(artifact, H, opts)` takes the starting state bundled with its `time` and
+  `step` in an `Artifact` and the Hamiltonian MPO separately, returning
+  `(Summary, Artifact)`. One full sweep is one time step; there is no inner convergence
+  loop and no `e_tol` analogue.
+- The tangent-space projector is never formed. Its positive terms are the single-site
+  evolutions of the sweep; its negative term is the zero-site **back-evolution** on each
+  bond at `-dt`, which cancels the double counting between consecutive terms and without
+  which the integrator loses even first-order consistency.
+- **1-site** (`'1s'`): exact, non-truncating splits; conserves norm and energy to roundoff
+  and holds every bond dimension fixed. **2-site** (`'2s'`, default): evolves the merged
+  two-site tensor and splits it by SVD under `max_bond`/`trunc_thresh`, so bonds adapt as
+  entanglement develops. `'1sp'` is accepted by `Options` and rejected by `run()` with
+  `NotImplementedError`.
+- The 1-site manifold has *fixed* bond dimension, so a quench from a product state stays a
+  product state forever while norm and energy stay conserved. `run()` warns at startup,
+  naming the bonds of dimension 1.
+- `order=2` (default, Lubich symmetric) and `order=1` (Lie-Trotter, with alternating
+  direction) are both globally second order at equal cost — two `order=1` steps of size
+  `dt` are exactly one `order=2` step of size `2dt`. The difference is that every
+  `order=2` snapshot lands at the end of a complete forward-and-backward sweep pair.
+
+### Krylov Exponential and Environments
+
+- New `krylov.py` computes `exp(-i dt H) v` by Lanczos with full re-orthogonalization,
+  exponentiating the tridiagonal exactly via `numpy.linalg.eigh` (no SciPy dependency).
+  It stops on happy breakdown, on `krylov_tol`, or at the `krylov_dim` cap, and reports
+  the error estimate back as `Summary.krylov_errors`.
+- New `environ.py` stores 3rd-order blocks shared by the 1-site, 2-site, and zero-site
+  effective Hamiltonians, so the zero-site update adds no storage. Disk spilling reuses
+  the DMRG/XTRG sliding-window-plus-async-I/O design.
+
+### Options, Summary, Artifact
+
+- `Options` exposes `scheme`, `dt` (may be negative), `n_steps`, `order`, `max_bond`,
+  `trunc_thresh`, `krylov_dim`, `krylov_tol`, `renormalize`, the environment cache triple,
+  `checkpoint_dir`, `artifacts_dir`, `save_artifacts`, and `save_artifacts_every`.
+  `renormalize` defaults to `False` so truncation norm loss stays visible.
+- `Summary` carries `times`, `energies`, `norms`, `max_bonds` (`n_steps + 1` entries),
+  `discarded_weights` and `krylov_errors` (`n_steps` entries), and the final `bond_dims`
+  profile — no state.
+- `Artifact` (`state`, `time`, `step`) is both input and output of `run()`, which is what
+  makes a resumed run indistinguishable from a fresh one.
+- `evolution.ckpt` and `tdvp.ckpt` are written atomically every step; `tdvp.ckpt` is
+  removed on success. A finished run continues from any archived
+  `artifacts/step_XXXXX.ckpt` under new options, and starting before the end of the
+  history truncates and recomputes it (with a `WARNING`). `n_steps` is the absolute step
+  index to stop at, counted from `t = 0`.
+- `save_artifacts_every` thins the archive on the absolute step index, so a stitched
+  trajectory lands on the same grid as an uninterrupted one. `run()` clamps `n_steps` down
+  to the last grid point and warns, since `tdvp.ckpt` is removed on success and an
+  off-grid endpoint would leave no snapshot of the final state.
+
+### Complex Amplitudes
+
+- New `Network.to(device, dtype)` casts and moves every site tensor in place, including
+  the Bridge intertwiner weights. Narrowing a complex network to a real dtype raises
+  `ValueError`.
+- `init_mps` gains a `dtype` keyword (default `torch.float64`), threaded through both the
+  product-state and random-MPS paths.
+- `tdvp.run` promotes a real state and a real MPO to `complex128` in place, logged at
+  INFO, so a DMRG ground state can be handed straight to a quench.
+- `observe` supports complex states, including against a real observable. Scalar
+  extraction moves into a shared `_real_scalar` helper that discards a roundoff-level
+  imaginary part and raises beyond it, and reads a boundary tensor with no data block as
+  an exactly vanishing expectation value.
+
+### Tests
+
+- Seven new test modules under `tests/algorithm/tdvp/` plus a shared `conftest.py`.
+  `test_physics.py` pins the algorithm against physics: the analytic single-particle
+  propagator with `dt²` convergence, norm/energy/charge conservation across both schemes
+  and orders, forward-backward reversibility, eigenstate phase winding, exactness at full
+  rank, and the frozen product state under `'1s'`.
+- New complex-dtype coverage in `test_network.py`, `test_observe.py`, and
+  `test_automps.py`, including SU(2), global-phase invariance, a non-Hermitian observable,
+  and a complex thermal density matrix.
+
+### Documentation
+
+- New `docs/algorithms/tdvp/` section (overview, `Options`, `Summary`, `Artifact`, `run`)
+  and four `docs/examples/tdvp/` walkthroughs, each validated against an analytic
+  reference or across symmetry groups.
+- Complex-state sections added to `observe.md` and `init-mps.md`, `to` rendered on
+  `network.md`, and TDVP added to the algorithms/examples indexes, `mkdocs.yml`, and the
+  README — where it also leaves the `Upcoming` list.
+- New `docs/algorithms/xtrg/lessons.md`: `trunc_thresh` is an absolute singular value
+  cutoff, and the squaring sweeps apply it to a product of unit-norm factors whose norm is
+  `2^(-N/2)` near infinite temperature, so a longer chain needs a proportionally smaller
+  threshold.
+- The algorithms index gains the XTRG `Artifact` row it was missing, and names every
+  algorithm's entry-point page `Launch` to match the sidebar.
+
+### Statistics
+
+- **1,211 tests** across 37 test modules (up from 979 / 30 modules in v0.2.8).
+- **80 commits** since v0.2.8.
+- **53 files changed**, 10,480 insertions, 43 deletions.
+- **34 source modules** in five subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`, `alice.algorithm.tdvp`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `observe` raises `ValueError` when the expectation value has a
+  non-negligible imaginary part, and returns `0.0` for a boundary tensor with no data
+  block where it previously raised `StopIteration`. `tdvp.run` mutates the `MPS` and `MPO`
+  it is given, promoting both to `complex128` in place.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.4.2.
+
+---
+
 ## [0.2.8] - 2026-09-22
 
 **N-Site Terms as Verbatim Windows**
@@ -1011,6 +1140,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.3.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.0
 [0.2.8]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.8
 [0.2.7]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.7
 [0.2.6]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.6

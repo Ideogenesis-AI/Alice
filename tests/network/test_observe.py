@@ -23,6 +23,7 @@ from __future__ import annotations
 import math
 
 import pytest
+import torch
 
 from alice.network import MPS, MPO, observe, thermal_mpo
 
@@ -125,6 +126,74 @@ class TestObserveMPS:
         zero_mpo = [W * 0.0 for W in mpo_tensors_su2]
         assert math.isclose(observe(mps_tensors_su2, zero_mpo), 0.0, abs_tol=1e-14)
 
+    def test_annihilated_sectors_give_zero(self, mps_tensors, mpo_tensors):
+        """An observable that annihilates every sector reports exactly zero.
+
+        A block-sparse contraction that keeps no sector leaves the boundary
+        tensor with no block at all, rather than a block holding zero. This
+        arises in practice from a number operator measured on a site that is
+        certainly empty, and must read as a vanishing expectation value.
+        """
+        annihilating = mpo_tensors[0].clone()
+        annihilating.data = {}
+        assert observe(mps_tensors, [annihilating] + list(mpo_tensors[1:])) == 0.0
+
+
+class TestObserveComplex:
+    """Tests for the complex-dtype path used by real-time evolution.
+
+    Nicole contracts only operands sharing one dtype, so `observe()` promotes
+    the whole sweep (MPO and identity boundary included) as soon as either
+    side carries complex blocks.
+    """
+
+    def test_complex_state_matches_real(self, mps_tensors, mpo_tensors):
+        """Promoting the state to complex leaves the expectation value unchanged."""
+        val_real = observe(mps_tensors, mpo_tensors)
+        mps = MPS(mps_tensors, center=None)
+        mps.to(dtype=torch.complex128)
+        val_cplx = observe(mps, mpo_tensors)
+        assert mps[0].dtype.is_complex
+        assert math.isclose(val_cplx, val_real, rel_tol=1e-14)
+
+    def test_complex_observable_matches_real(self, mps_tensors, mpo_tensors):
+        """A complex-promoted observable on a real state gives the same value."""
+        val_real = observe(mps_tensors, mpo_tensors)
+        mpo = MPO(mpo_tensors)
+        mpo.to(dtype=torch.complex128)
+        assert math.isclose(observe(mps_tensors, mpo), val_real, rel_tol=1e-14)
+
+    def test_invariant_under_global_phase(self, mps_tensors, mpo_tensors):
+        """⟨ψ|O|ψ⟩ is unchanged when |ψ⟩ picks up a global phase.
+
+        The check only passes if the bra side is genuinely conjugated, so it
+        pins down that `conj()` conjugates complex blocks rather than merely
+        flipping index directions.
+        """
+        mps = MPS(mps_tensors, center=None)
+        mps.to(dtype=torch.complex128)
+        val = observe(mps, mpo_tensors)
+        # exp(i·0.927…) = 0.6 + 0.8i, a unit-modulus phase.
+        mps[0] = mps[0] * (0.6 + 0.8j)
+        assert math.isclose(observe(mps, mpo_tensors), val, rel_tol=1e-12)
+
+    def test_non_hermitian_observable_raises(self, mps_tensors, mpo_tensors):
+        """A purely imaginary expectation value is reported, not silently halved.
+
+        Scaling the observable by `i` makes ⟨ψ|O|ψ⟩ purely imaginary, so
+        discarding the imaginary part would return a meaningless `0.0`.
+        """
+        skewed = [mpo_tensors[0] * 1j] + mpo_tensors[1:]
+        with pytest.raises(ValueError, match="not Hermitian"):
+            observe(mps_tensors, skewed)
+
+    def test_complex_state_matches_real_su2(self, mps_tensors_su2, mpo_tensors_su2):
+        """The complex path also agrees for SU(2), exercising the Bridge weight."""
+        val_real = observe(mps_tensors_su2, mpo_tensors_su2)
+        mps = MPS(mps_tensors_su2, center=None)
+        mps.to(dtype=torch.complex128)
+        assert math.isclose(observe(mps, mpo_tensors_su2), val_real, rel_tol=1e-14)
+
 
 # ---------------------------------------------------------------------------
 # Thermal (NormalMPO) observation path — Abelian and non-Abelian
@@ -174,6 +243,14 @@ class _ObserveThermalTests:
         E = observe(rho, H_mpo)
         E_scaled = observe(rho, scaled)
         assert math.isclose(E_scaled, c * E, rel_tol=1e-9)
+
+    def test_complex_density_matrix_matches_real(self, hamiltonian):
+        """Promoting ρ to complex leaves `Tr[ρ H] / Tr[ρ]` unchanged."""
+        H_mpo, Spc = hamiltonian
+        rho = thermal_mpo(H_mpo, self._BETA, self._ORDER, Spc)
+        E_real = observe(rho, H_mpo)
+        rho.to(dtype=torch.complex128)
+        assert math.isclose(observe(rho, H_mpo), E_real, rel_tol=1e-12)
 
     def test_raises_for_zero_observable(self, hamiltonian):
         """observe raises ValueError for an identically-zero observable.

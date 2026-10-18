@@ -450,6 +450,13 @@ class TestInitMpsProductState:
         nrm = mps.norm()
         assert abs(float(nrm) - 1.0) < 1e-10, f"norm = {float(nrm)}, expected 1"
 
+    def test_complex_dtype(self, spin_u1):
+        """dtype=complex128 produces a complex product state of unit norm."""
+        Spc, Op = spin_u1
+        mps = init_mps(8, Spc, Op, bond_dim=1, dtype=torch.complex128)
+        assert all(t.dtype == torch.complex128 for t in mps)
+        assert abs(mps.norm() - 1.0) < 1e-10
+
     def test_seed_reproducibility(self, spin_u1):
         """Product-state mode is deterministic (independent of seed)."""
         Spc, Op = spin_u1
@@ -521,6 +528,13 @@ class TestInitMpsRandom:
                 assert sector.charge in allowed, (
                     f"site {i}, charge {sector.charge} not in allowed set {allowed}"
                 )
+
+    def test_complex_dtype(self, spin_u1):
+        """dtype=complex128 survives the two-pass canonicalization in random mode."""
+        Spc, Op = spin_u1
+        mps = init_mps(8, Spc, Op, bond_dim=8, dtype=torch.complex128)
+        assert all(t.dtype == torch.complex128 for t in mps)
+        assert mps.center == 0
 
     def test_different_seeds_different_tensors(self, spin_u1):
         """Different seeds produce different random tensors."""

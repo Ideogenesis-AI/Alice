@@ -52,6 +52,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, Optional
 
+import torch
 from nicole import Direction, Tensor
 from nicole.index import Index, Sector
 
@@ -286,6 +287,7 @@ def _product_state_mps(
     Op: Dict[str, Tensor],
     cfg: list[int],
     Q: list,
+    dtype: torch.dtype = torch.float64,
 ) -> MPS:
     """Build a bond-dim-1 product-state MPS.
 
@@ -305,6 +307,8 @@ def _product_state_mps(
         Site sector indices (length L).
     Q:
         Bond charge sequence Q[0..L] from `_bond_charges`.
+    dtype:
+        Block dtype of the site tensors.
 
     Returns
     -------
@@ -326,6 +330,7 @@ def _product_state_mps(
         )
         t = Tensor.zeros(
             [l_idx, r_idx, Spc],
+            dtype=dtype,
             itags=[f'A{i:02d}', f'A{i + 1:02d}', f's{i:02d}'],
         )
         # There is exactly one admissible block (l_idx and r_idx each carry
@@ -351,6 +356,7 @@ def _random_mps(
     bond_dim: int,
     seed: int,
     target_qn,
+    dtype: torch.dtype = torch.float64,
 ) -> MPS:
     """Build a random MPS with group-derived bond sectors.
 
@@ -386,6 +392,8 @@ def _random_mps(
         Charge for the right boundary dummy index. Should equal Q[L] for a
         physically consistent MPS; may be overridden by the caller via
         `init_mps(target_qn=...)`.
+    dtype:
+        Block dtype of the site tensors.
 
     Returns
     -------
@@ -433,6 +441,7 @@ def _random_mps(
         r_idx = r_bnd if i == L - 1 else bulk.flip()
         t = Tensor.random(
             [l_idx, r_idx, Spc],
+            dtype=dtype,
             seed=seed + i,
             itags=[f'A{i:02d}', f'A{i + 1:02d}', f's{i:02d}'],
         )
@@ -460,6 +469,7 @@ def init_mps(
     config: Optional[list[int]] = None,
     target_qn=None,
     seed: int = 42,
+    dtype: torch.dtype = torch.float64,
 ) -> MPS:
     """Construct an initial MPS for DMRG.
 
@@ -507,6 +517,11 @@ def init_mps(
         not `Q_vac` (e.g. odd L), a WARNING is logged instead.
     seed:
         Base random seed used when `bond_dim>1`. Site `i` uses `seed+i`.
+    dtype:
+        Block dtype of the site tensors, `torch.float64` by default. Pass
+        `torch.complex128` for a state to be evolved in real time by TDVP,
+        which needs complex amplitudes; promoting an existing real MPS
+        afterwards is also possible via `MPS.to(dtype=torch.complex128)`.
 
     Returns
     -------
@@ -595,5 +610,5 @@ def init_mps(
             )
 
     if bond_dim == 1:
-        return _product_state_mps(L, Spc, Op, cfg, Q)
-    return _random_mps(L, Spc, Q, bond_dim, seed, effective_right)
+        return _product_state_mps(L, Spc, Op, cfg, Q, dtype)
+    return _random_mps(L, Spc, Q, bond_dim, seed, effective_right, dtype)

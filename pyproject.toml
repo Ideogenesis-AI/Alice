@@ -14,7 +14,7 @@ only-include = [
 
 [project]
 name = "alice-net"
-version = "0.2.8"
+version = "0.3.0"
 description = "Alice: collection of 1D tensor network algorithms"
 dynamic = ["readme"]
 requires-python = ">=3.11"
@@ -35,7 +35,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-  "nicole>=0.3.7",
+  "nicole>=0.4.2",
   "numpy>=2.0",
   "torch>=2.5",
 ]

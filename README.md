@@ -27,12 +27,15 @@ Ground-state search and optimization via alternating sweep optimization of MPS t
 
 Finite-temperature thermodynamics via exponential cooling of the thermal density matrix. Three update schemes drive the underlying variational MPO-MPO compression — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — solving a linear least-squares minimization at each step.
 
+### TDVP (Time-Dependent Variational Principle)
+
+Real-time evolution within the MPS manifold via tangent-space projection of the Schrödinger equation. Two update schemes are available — 1-site (fixed bond dimension) and 2-site (SVD truncation with bond growth) — each with a Krylov matrix-exponential solver and a first- or second-order symmetric integrator.
+
 ### Upcoming
 
 The following algorithms are planned for future releases. Contributions toward any of them are warmly welcomed — see the [Contributing](#contributing) section to get involved.
 
 - **tanTRG** (tangent-space Tensor Renormalization Group): finite-temperature simulations with linear cooling steps, offering high speed at moderate to high temperatures
-- **TDVP** (Time-Dependent Variational Principle): real-time evolution of quantum states within the MPS manifold, conserving energy and norm during time integration
 - **TaSK** (Tangent Space Krylov): dynamical properties and real-frequency spectral functions, computed by a Lanczos scheme projected onto the tangent space of the ground-state MPS
 
 

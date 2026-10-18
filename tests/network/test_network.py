@@ -185,6 +185,47 @@ class TestMPS:
         assert MPS(mps_tensors, center=1).center == 1
 
     # ------------------------------------------------------------------
+    # to()
+    # ------------------------------------------------------------------
+
+    def test_to_promotes_all_sites_to_complex(self, mps_tensors):
+        """to(dtype=complex128) casts every site tensor."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        assert all(not t.dtype.is_complex for t in mps)
+        mps.to(dtype=torch.complex128)
+        assert all(t.dtype == torch.complex128 for t in mps)
+
+    def test_to_complex_preserves_norm(self, mps_tensors):
+        """Promotion to complex is value-preserving."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        n_before = mps.norm()
+        mps.to(dtype=torch.complex128)
+        assert math.isclose(mps.norm(), n_before, rel_tol=1e-14)
+
+    def test_to_is_idempotent(self, mps_tensors):
+        """Casting to the dtype already in place leaves the tensors alone."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.to(dtype=torch.complex128)
+        first = [t for t in mps]
+        mps.to(dtype=torch.complex128)
+        # Same objects, so the second call did no work.
+        assert all(a is b for a, b in zip(first, mps))
+
+    def test_to_device_only_preserves_dtype(self, mps_tensors):
+        """A device-only move leaves the block dtype untouched."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.to(dtype=torch.complex128)
+        mps.to(device='cpu')
+        assert all(t.dtype == torch.complex128 for t in mps)
+
+    def test_to_real_dtype_on_complex_raises(self, mps_tensors):
+        """Discarding the imaginary part has to be asked for explicitly."""
+        mps = MPS([t.clone() for t in mps_tensors])
+        mps.to(dtype=torch.complex128)
+        with pytest.raises(ValueError):
+            mps.to(dtype=torch.float64)
+
+    # ------------------------------------------------------------------
     # norm()
     # ------------------------------------------------------------------
 

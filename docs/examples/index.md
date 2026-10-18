@@ -25,6 +25,15 @@ Finite-temperature thermodynamics via exponential cooling, with the three update
 - [Free fermion](xtrg/free-fermion.md) — spinless tight-binding chain, exact `log Z` comparison.
 - [Hubbard model](xtrg/hubbard.md) — spinful Hubbard chain with Z(2)×SU(2) symmetry.
 
+### TDVP
+
+Real-time evolution, each validated against an analytic reference or across symmetry groups.
+
+- [Free fermion](tdvp/free-fermion.md) — Gaussian wavepacket against the exact single-particle propagator; clean `dt²` convergence.
+- [Domain wall](tdvp/domain-wall.md) — many-body melting against the exact correlation matrix, with occupations *and* entanglement entropy.
+- [Hubbard model](tdvp/hubbard.md) — spinful melting at U = 0, Abelian versus SU(2), against twice the spinless result.
+- [Hubbard quench](tdvp/hubbard-quench.md) — interaction quench from a DMRG ground state, in all four symmetry groups.
+
 ### AutoMPO from TOML
 
 - [AutoMPO from TOML](autompo-toml.md) — loading TOML configs and calling `build_interaction`; multiple model variants.
