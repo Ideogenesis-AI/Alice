@@ -205,14 +205,60 @@ class TestFreeFermion1Site:
         assert errors[0] > errors[1] > errors[2]
 
 
+class TestFreeFermion1SitePlus:
+    """The 1-site-plus scheme on the same benchmark, with no warm-up.
+
+    This is the claim controlled bond expansion exists to support: starting
+    from the same product state that freezes `'1s'`, the expansion opens the
+    bonds as it goes and the particle propagates. The analytic occupations are
+    the reference, so the test is not merely that something moved.
+    """
+
+    def test_a_product_state_is_not_frozen(self, free_fermion):
+        """The counterpart of the `'1s'` trap, on the same state."""
+        mpo, n_obs, make_state = free_fermion
+        _, final = _evolve(make_state(), mpo, scheme='1sp', dt=0.02, n_steps=50)
+
+        occ = _occupations(final.state, n_obs)
+        assert occ[FREE_FERMION_SITE] < 0.5
+        assert occ[0] > 1e-4
+        assert min(bond_profile(final.state)) > 1
+
+    def test_particle_number_is_conserved(self, free_fermion):
+        """Expanding a bond must not create or destroy particles."""
+        mpo, n_obs, make_state = free_fermion
+        _, final = _evolve(make_state(), mpo, scheme='1sp', dt=0.02, n_steps=50)
+        assert abs(_occupations(final.state, n_obs).sum() - 1.0) < 1e-10
+
+    @pytest.mark.slow
+    def test_occupations_match_the_analytic_propagator(self, free_fermion):
+        """Accuracy comparable to `'2s'`, from the same starting point.
+
+        The single-particle sector needs only bond dimension 2, which the
+        expansion reaches within the first few steps, after which the error
+        left is the integrator's `dt²` — the same floor `'2s'` sits on.
+        """
+        mpo, n_obs, make_state = free_fermion
+        _, final = _evolve(make_state(), mpo, scheme='1sp', dt=0.01, n_steps=100)
+
+        occ = _occupations(final.state, n_obs)
+        assert np.allclose(occ, analytic_occupations(1.0), atol=1e-4)
+
+
 # ---------------------------------------------------------------------------
 # Symmetries and conservation laws
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize('scheme', ['1s', '2s'])
+@pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
 @pytest.mark.parametrize('order', [1, 2])
 class TestConservation:
-    """Quantities that `exp(-i H t)` leaves untouched."""
+    """Quantities that `exp(-i H t)` leaves untouched.
+
+    `'1sp'` is included because the expansion is the one step that rewrites
+    tensors outside the local update: it re-expresses the center tensor in a
+    widened basis and rebuilds the environment over it, and an error in either
+    would show up here as drifting energy.
+    """
 
     def test_norm(self, heisenberg_L6, scheme, order):
         mps, mpo = heisenberg_L6
