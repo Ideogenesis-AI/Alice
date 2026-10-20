@@ -55,6 +55,8 @@ def _opts(**kwargs):
         'trunc_thresh': 1e-12,
         'krylov_dim': 16,
         'krylov_tol': 1e-12,
+        'expand_k': 4,
+        'expand_alpha': None,
     }
     base.update(kwargs)
     return SimpleNamespace(**base)
@@ -80,7 +82,7 @@ def _backward_envs(mps, mpo):
 # Half sweeps
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize('scheme', ['1s', '2s'])
+@pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
 class TestHalfSweeps:
     """Tests for a single forward or backward half-sweep."""
 
@@ -128,7 +130,7 @@ class TestHalfSweeps:
 # Full time steps
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize('scheme', ['1s', '2s'])
+@pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
 @pytest.mark.parametrize('order', [1, 2])
 class TestTimeStep:
     """Tests for `time_step` across both schemes and both orders."""
@@ -167,6 +169,12 @@ class TestTimeStep:
         half-sweep of `-dt`: the local exponentials have to be undone in the
         opposite order from which they were applied. For `order=2` the step is
         symmetric, so `S(-dt)` is already its own inverse.
+
+        `'1s'` and `'2s'` traverse the same tangent spaces whichever way they
+        sweep, so they invert to roundoff. `'1sp'` picks its expanded tangent
+        space from the state it starts in, so the reverse sweep expands into a
+        different subspace than the forward one did and only inverts to the
+        integration error — see `TestExpansionReversibility` for its scaling.
         """
         mps, mpo = heisenberg_L6
         mps.canonical(0)
@@ -179,7 +187,9 @@ class TestTimeStep:
                   _opts(scheme=scheme, order=order, dt=-0.05), forward=False)
 
         from .conftest import mps_overlap
-        assert abs(abs(mps_overlap(original, mps)) - 1.0) < 1e-8
+        tol = 1e-4 if scheme == '1sp' else 1e-8
+        assert abs(abs(mps_overlap(original, mps)) - 1.0) < tol
+
 
     def test_does_not_change_the_chain_length(self, heisenberg_L6, scheme, order):
         mps, mpo = heisenberg_L6
@@ -188,6 +198,35 @@ class TestTimeStep:
         env_left, env_right = _forward_envs(mps, mpo)
         time_step(mps, mpo, env_left, env_right, _opts(scheme=scheme, order=order))
         assert mps.L == 6
+
+
+class TestExpansionReversibility:
+    """How far `'1sp'` is from exactly reversible, and why that is the integrator.
+
+    A forward-then-reverse pair returns the state only up to the discrepancy
+    between the two expanded tangent spaces the two directions choose. That
+    discrepancy is an integration error rather than a leak, so it has to vanish
+    with the step size; if it did not, something would be losing weight.
+    """
+
+    def test_deviation_shrinks_quadratically_with_dt(self, heisenberg_L6):
+        from .conftest import mps_overlap
+
+        errors = []
+        for dt in (0.05, 0.025):
+            mps, mpo = heisenberg_L6
+            mps.canonical(0)
+            mps.normalize()
+            original = copy.deepcopy(mps)
+
+            env_left, env_right = _forward_envs(mps, mpo)
+            time_step(mps, mpo, env_left, env_right, _opts(scheme='1sp', dt=dt))
+            time_step(mps, mpo, env_left, env_right,
+                      _opts(scheme='1sp', dt=-dt), forward=False)
+            errors.append(abs(abs(mps_overlap(original, mps)) - 1.0))
+
+        # Halving dt must cut the overlap deviation by close to four.
+        assert errors[1] < errors[0] / 3.0
 
 
 class TestCenterBookkeeping:
@@ -285,6 +324,79 @@ class TestBondDynamics:
         env_left, env_right = _forward_envs(mps, mpo)
         _, lost = time_step(mps, mpo, env_left, env_right, _opts(scheme='1s'))
         assert lost == 0.0
+
+    def test_1sp_can_grow_a_bond(self, heisenberg_L6):
+        """What `'1sp'` exists for: bond adaptation without a 2-site step."""
+        mps, mpo = heisenberg_L6
+        mps.canonical(0)
+        mps.normalize()
+        before = bond_profile(mps)
+        env_left, env_right = _forward_envs(mps, mpo)
+        time_step(mps, mpo, env_left, env_right, _opts(scheme='1sp'))
+        assert max(bond_profile(mps)) > max(before)
+
+    def test_1sp_respects_max_bond(self, heisenberg_L6):
+        """Expansion is bounded by the truncating split, not left to run away."""
+        mps, mpo = heisenberg_L6
+        mps.canonical(0)
+        mps.normalize()
+        env_left, env_right = _forward_envs(mps, mpo)
+        for _ in range(2):
+            time_step(mps, mpo, env_left, env_right,
+                      _opts(scheme='1sp', max_bond=3))
+        for i in range(mps.L - 1):
+            for sector in mps[i].indices[1].sectors:
+                assert sector.dim <= 3
+
+    def test_1sp_reports_a_discarded_weight(self, heisenberg_L6):
+        mps, mpo = heisenberg_L6
+        mps.canonical(0)
+        mps.normalize()
+        env_left, env_right = _forward_envs(mps, mpo)
+        _, lost = time_step(mps, mpo, env_left, env_right,
+                            _opts(scheme='1sp', max_bond=1))
+        assert lost > 0.0
+
+    def test_1sp_with_no_expansion_reproduces_1s(self, heisenberg_L6):
+        """`expand_k=0` leaves nothing to expand, so the scheme collapses to `'1s'`.
+
+        The expansion preserves the state exactly, so this is an identity of
+        the trajectory and not merely of the bond profile.
+        """
+        from .conftest import mps_overlap
+
+        mps_a, mpo = heisenberg_L6
+        mps_a.canonical(0)
+        mps_a.normalize()
+        mps_b = copy.deepcopy(mps_a)
+
+        env_left, env_right = _forward_envs(mps_a, mpo)
+        for _ in range(2):
+            time_step(mps_a, mpo, env_left, env_right, _opts(scheme='1s'))
+
+        env_left, env_right = _forward_envs(mps_b, mpo)
+        for _ in range(2):
+            time_step(mps_b, mpo, env_left, env_right,
+                      _opts(scheme='1sp', expand_k=0))
+
+        assert bond_profile(mps_a) == bond_profile(mps_b)
+        assert abs(abs(mps_overlap(mps_a, mps_b)) - 1.0) < 1e-10
+
+    def test_1sp_opens_a_frozen_product_state(self, product_state_L4):
+        """The trap `'1s'` cannot escape: every bond starts at dimension 1.
+
+        A 1-site update cannot transport correlation across a dimension-1
+        bond, so `'1s'` holds a product state fixed forever. `'1sp'` is the
+        1-site scheme that can open those bonds, which is the whole reason it
+        is worth having for dynamics.
+        """
+        mps, mpo = product_state_L4
+        mps.canonical(0)
+        mps.normalize()
+        env_left, env_right = _forward_envs(mps, mpo)
+        for _ in range(3):
+            time_step(mps, mpo, env_left, env_right, _opts(scheme='1sp'))
+        assert max(bond_profile(mps)) > 1
 
 
 # ---------------------------------------------------------------------------
