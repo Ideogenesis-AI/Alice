@@ -26,8 +26,9 @@ the tangent space of the variational manifold:
 and integrating the result by projector splitting. Each local update is a
 Krylov matrix exponential (`krylov.py`) applied to the effective Hamiltonian
 assembled from the environment blocks (`environ.py`), with the 1-site and
-2-site updates defined in `scheme_1s.py` and `scheme_2s.py` and ordered into
-sweeps by `sweep.py`.
+2-site updates defined in `scheme_1s.py` and `scheme_2s.py`, the bond
+expansion that the 1-site-plus scheme prepends to the former in
+`complement.py`, and all of them ordered into sweeps by `sweep.py`.
 
 `run()` operates purely on state: it takes a starting MPS (bundled with its
 `time` and `step` in an `Artifact`) and advances it by `opts.dt` repeatedly.
@@ -76,6 +77,15 @@ and across a bond of dimension 1 it cannot transport correlation at all. A
 product state has every bond at dimension 1, so a `'1s'` quench from one does
 not evolve — silently, since the conserved quantities stay conserved. `run()`
 warns when it is handed such a state.
+
+`'1sp'` sits between the two. Before each 1-site update it widens the bond
+ahead of it with up to `expand_k` directions drawn from the complement of
+the current bond space, so bonds adapt as they do under `'2s'` while the
+local exponential stays 1-site. It is the scheme to reach for when `'2s'` is
+too expensive at the bond dimension the state wants, at the price of exact
+time reversibility: the expansion is chosen from the state it starts from, so
+a forward and a backward step do not span the same tangent space. That
+deviation enters at the order of the integrator error and vanishes with `dt`.
 """
 
 from __future__ import annotations
@@ -121,7 +131,7 @@ _SCHEME_ALIASES: dict[str, str] = {
     'one-site-plus': '1sp',
 }
 
-_IMPLEMENTED_SCHEMES = {'1s', '2s'}
+_IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 
 def _resolve_scheme(alias: str) -> str:
@@ -176,6 +186,11 @@ class Options(AlgorithmOptions):
           conserves norm and energy to roundoff, but holds every bond
           dimension fixed. See the module docstring for the product-state
           trap this creates.
+        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: 1-site update on a
+          bond widened beforehand by controlled bond expansion. Adapts bond
+          dimensions like `'2s'` at close to 1-site cost, bounded by
+          `expand_k` directions per bond per half-sweep, and so escapes the
+          product-state trap as well.
     dt:
         Time increment per step. May be negative to evolve backwards, which
         is how a run is reversed to check accumulated error.
@@ -200,11 +215,12 @@ class Options(AlgorithmOptions):
         after an odd step carry first-order error.
     max_bond:
         Maximum bond dimension. `None` means unlimited. Meaningful for `'2s'`
-        only; the `'1s'` update never changes a bond dimension, so no
-        truncation is applied there at all.
+        and `'1sp'`, the two schemes whose bonds can grow; the `'1s'` update
+        never changes a bond dimension, so no truncation is applied there at
+        all.
     trunc_thresh:
         Singular value truncation threshold (relative to the largest singular
-        value per charge sector). As for `max_bond`, `'2s'` only.
+        value per charge sector). As for `max_bond`, `'2s'` and `'1sp'` only.
     expand_k:
         Maximum number of complement directions added to each bond per local
         update. Only used when `scheme = '1sp'`. Larger values let the bond
@@ -345,7 +361,7 @@ class Summary(AlgorithmSummary):
         Largest bond dimension of the state at each recorded step.
     discarded_weights:
         Discarded weight at the mid-chain bond for each step performed
-        (`'2s'` only; `0.0` entries for `'1s'`).
+        (`'2s'` and `'1sp'`; `0.0` entries for `'1s'`, which never truncates).
     krylov_errors:
         Largest local Krylov error estimate over each step performed. A value
         approaching `Options.krylov_tol` from above across many steps means
@@ -705,7 +721,8 @@ def _warn_frozen_bonds(mps: MPS) -> None:
         "scheme '1s' cannot grow bond dimensions, and bond(s) %s%s have "
         "dimension 1; no correlation can cross them, so the dynamics there "
         "will be frozen while norm and energy stay conserved. Use scheme "
-        "'2s', or warm up with '2s' until every bond has opened.",
+        "'2s' or '1sp', or warm up with one of them until every bond has "
+        "opened.",
         shown, more,
     )
 
@@ -875,6 +892,10 @@ def run(
     logger.info("  final time        : %.6g", t_final)
     logger.info("  max bond dim      : %s", max_bond_str)
     logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
+    if opts.scheme == '1sp':
+        alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'full'
+        logger.info("  expand k          : %d", opts.expand_k)
+        logger.info("  expand alpha      : %s", alpha_str)
     logger.info("  krylov dim        : %d", opts.krylov_dim)
     logger.info("  krylov tol        : %.2e", opts.krylov_tol)
     logger.info("  renormalize       : %s", opts.renormalize)
