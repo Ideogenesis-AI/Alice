@@ -62,10 +62,19 @@ Each bond end projects out its own kept space, and the two ends call for
 different tensors. On the neighbor side the site tensor itself is used: it is
 exactly isometric there, and its row (or column) space is the full space the
 complement has to avoid for the expanded neighbor to stay isometric. On the
-center side the isometric factor of the SVD of Θ is used instead of the center
-tensor, which spans the same space but is not orthonormal — and `M M†` is a
-projector only for an isometry. DMRG uses the raw site tensor at both ends,
-which costs it nothing because Davidson overwrites the center tensor anyway.
+center side a 1-site split of the center tensor supplies an orthonormal basis
+of the same space the center tensor spans, since `M M†` is a projector only for
+an isometry and in a TDVP sweep the center tensor is not one. DMRG uses the raw
+site tensor at both ends, which costs it nothing because Davidson overwrites
+the center tensor anyway.
+
+What must *not* be used on the center side is the isometric factor of Θ, even
+though it is orthonormal and spans the center tensor's column space. Untruncated
+it spans more: `decomp` keeps every sector at full dimension regardless of rank,
+so that factor can cover the entire (bond, physical) space and project the
+complement away entirely, leaving Θ'_disc at roundoff where a real complement
+exists. The split of the center tensor alone cannot overreach that way, its
+internal bond being the bond itself.
 
 Index convention (shared with `environ.py`, `scheme_1s.py`, `scheme_2s.py`):
 
@@ -90,10 +99,15 @@ from typing import Optional, Tuple
 from nicole import Tensor, decomp, einsum, oplus
 
 from .environ import step_left_env, step_right_env
+from .scheme_1s import split_backward, split_forward
 from .scheme_2s import build_bulk
 
 # Temporary itag assigned to the truncated internal bond in _cheap_factors.
 _TRUNC_ITAG: str = '_cbe_trunc_'
+
+# Itag assigned to the internal bond of the center tensor's own split, kept
+# distinct from _TRUNC_ITAG so that a projection can carry both at once.
+_CENTER_ITAG: str = '_cbe_center_'
 
 # Itag assigned to the complement bond produced by the SVD of Θ'_disc.
 _COMPLEMENT_ITAG: str = '_cbe_comp_'
@@ -111,14 +125,56 @@ _CBE_TOL: float = 1e-10
 # Private helpers
 # ---------------------------------------------------------------------------
 
+def _center_isometry_forward(M_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's column space for a forward sweep.
+
+    Returns the isometric factor of the 1-site forward split of the center
+    tensor, which spans exactly what the center tensor spans over its
+    (left bond, physical) indices — the kept space the left end of the bond has
+    to project out. The bond tensor the split also produces is discarded; it is
+    the non-orthonormal part that makes the center tensor itself unusable here.
+
+    Parameters
+    ----------
+    M_i:
+        Center tensor, axes `(ket_left, ket_right, phys)`.
+
+    Returns
+    -------
+    Tensor
+        Left-isometric tensor with axes `(ket_left, internal, phys)`.
+    """
+    A, _C = split_forward(M_i, _CENTER_ITAG)
+    return A
+
+
+def _center_isometry_backward(M_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's row space for a backward sweep.
+
+    Mirror of `_center_isometry_forward`, over the (right bond, physical)
+    indices.
+
+    Parameters
+    ----------
+    M_i:
+        Center tensor, axes `(ket_left, ket_right, phys)`.
+
+    Returns
+    -------
+    Tensor
+        Right-isometric tensor with axes `(internal, ket_right, phys)`.
+    """
+    _C, B = split_backward(M_i, _CENTER_ITAG)
+    return B
+
+
 def _cheap_factors_forward(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor, Tensor]:
-    """Factorize Θ for a forward sweep, isometric on the center side.
+    """Factorize Θ for a forward sweep.
 
     The pair is a cheap factored form of Θ whose internal bond is at most
     `alpha`, which is what makes the half-applications of H below scale with
-    `alpha` instead of the full bond dimension. The singular values are kept on
-    the right factor so that the left one — the center side of a forward sweep —
-    comes out isometric and can serve as that end's kept-space projector.
+    `alpha` instead of the full bond dimension. The direction of the split
+    follows the sweep, as in the 2-site scheme.
 
     Parameters
     ----------
@@ -132,8 +188,7 @@ def _cheap_factors_forward(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor,
     Returns
     -------
     Tensor
-        `A` with axes `(ket_left, internal_α, phys_i)`, left-isometric. Its
-        column space is that of the center tensor, orthonormalized.
+        `A` with axes `(ket_left, internal_α, phys_i)`, left-isometric.
     Tensor
         `R = S·Vh` with axes `(internal_α, ket_right, phys_{i+1})`.
     """
@@ -151,11 +206,11 @@ def _cheap_factors_forward(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor,
 
 
 def _cheap_factors_backward(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor, Tensor]:
-    """Factorize Θ for a backward sweep, isometric on the center side.
+    """Factorize Θ for a backward sweep.
 
     Mirror of `_cheap_factors_forward`: the singular values stay on the left
-    factor so that the right one — the center side of a backward sweep — is
-    isometric.
+    factor, so the isometric factor is the one facing the sweep's direction of
+    travel.
 
     Parameters
     ----------
@@ -171,8 +226,7 @@ def _cheap_factors_backward(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor
     Tensor
         `L = U·S` with axes `(ket_left, internal_α, phys_{i-1})`.
     Tensor
-        `B` with axes `(internal_α, ket_right, phys_i)`, right-isometric. Its
-        row space is that of the center tensor, orthonormalized.
+        `B` with axes `(internal_α, ket_right, phys_i)`, right-isometric.
     """
     trunc = {'nkeep': alpha} if alpha is not None else None
     # mode='LV' → L = U·S carries the singular values and B is right-isometric.
@@ -445,12 +499,11 @@ def expand_forward(
     The orthogonality center sits at site i; `M_i1` is right-isometric. The
     procedure is:
 
-    1. Truncated SVD of Θ = M_i ⊗ M_i1 → cheap factors (bond α), left-isometric
-       on the center side.
+    1. Truncated SVD of Θ = M_i ⊗ M_i1 → cheap factors (bond α).
     2. Factored half-application of H: `left_half` from E_left and the left
        factor; `right_half` from E_right and the right factor.
-    3. Discarded-space projection: the left half against the isometric factor,
-       the right half against the right-isometric `M_i1` itself.
+    3. Discarded-space projection: the left half against the orthonormalized
+       center tensor, the right half against the right-isometric `M_i1` itself.
     4. SVD of Θ'_disc → N_R, the new left-bond vectors for M_i1.
     5. Expansion of M_i1 via `oplus`, and exact fill-in of the center tensor.
     6. Expansion of the right environment at site i from E_right[i+1].
@@ -493,11 +546,12 @@ def expand_forward(
     lh = _left_half(E_left_i,   A, W_i)
     rh = _right_half(E_right_i1, R, W_i1)
 
-    # Step 3: discarded-space projection. The right end projects against M_i1
-    # rather than against the factor of Θ: only M_i1 spans the whole kept row
-    # space, and the complement must miss all of it for the expanded neighbor
-    # to stay isometric — which is what makes the fill-in below exact.
-    lh_disc = _project_complement_left(lh,  A)
+    # Step 3: discarded-space projection. Each end projects against the tensor
+    # that spans exactly its own kept space: the orthonormalized center tensor
+    # on the left, and M_i1 itself on the right, whose whole row space the
+    # complement must miss for the expanded neighbor to stay isometric — which
+    # is what makes the fill-in below exact.
+    lh_disc = _project_complement_left(lh,  _center_isometry_forward(M_i))
     rh_disc = _project_complement_right(rh, M_i1)
 
     # A saturated bond has nothing to expand into; leave it as it is and hand
@@ -537,11 +591,10 @@ def expand_backward(
     `M_im1` is left-isometric, so the complement expands the left bond of the
     center and the right bond of its neighbor:
 
-    1. Truncated SVD of Θ = M_im1 ⊗ M_i → cheap factors (bond α),
-       right-isometric on the center side.
+    1. Truncated SVD of Θ = M_im1 ⊗ M_i → cheap factors (bond α).
     2. Factored half-application of H using E_left[i-1] and E_right[i].
-    3. Discarded-space projection: the right half against the isometric factor,
-       the left half against the left-isometric `M_im1` itself.
+    3. Discarded-space projection: the right half against the orthonormalized
+       center tensor, the left half against the left-isometric `M_im1` itself.
     4. SVD of Θ'_disc → N_L, the new right-bond vectors for M_im1.
     5. Expansion of M_im1 via `oplus`, and exact fill-in of the center tensor.
     6. Expansion of the left environment at site i from E_left[i-1].
@@ -586,9 +639,10 @@ def expand_backward(
 
     # Step 3: discarded-space projection. Mirroring the forward sweep, the left
     # end projects against M_im1, whose column space is the whole kept space
-    # the complement has to miss.
+    # the complement has to miss, and the center end against its own tensor
+    # orthonormalized.
     lh_disc = _project_complement_left(lh,  M_im1)
-    rh_disc = _project_complement_right(rh, B)
+    rh_disc = _project_complement_right(rh, _center_isometry_backward(M_i))
 
     # A saturated bond has nothing to expand into; leave it as it is and hand
     # back the environment the 1-site step would have used anyway.
