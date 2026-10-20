@@ -16,23 +16,31 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Half-sweep orchestration for 1-site and 2-site TDVP.
+"""Half-sweep orchestration for 1-site, 2-site and 1-site-plus TDVP.
 
 This module is a thin coordination layer. `forward_sweep` and `backward_sweep`
 are scheme-aware dispatchers: they inspect `opts.scheme` and delegate to the
 appropriate private implementation (`_forward_1s`, `_backward_1s`,
-`_forward_2s`, `_backward_2s`). `time_step` composes them into one time step
-according to `opts.order`.
+`_forward_2s`, `_backward_2s`, `_forward_1sp`, `_backward_1sp`). `time_step`
+composes them into one time step according to `opts.order`.
 
 Each per-scheme implementation is a sequential loop that handles only:
 
-- deciding the order of sites (1-site) or bonds (2-site) to visit,
+- deciding the order of sites (1-site, 1-site-plus) or bonds (2-site) to visit,
 - moving the orthogonality center,
 - routing environment updates through the `Environment` instances.
 
-All local computation is delegated to pure functions in `scheme_1s` and
-`scheme_2s`, which are the natural units of work for future parallel or
-distributed execution.
+All local computation is delegated to pure functions in `scheme_1s`,
+`scheme_2s` and `complement`, which are the natural units of work for future
+parallel or distributed execution.
+
+The 1-site-plus half-sweeps are the 1-site ones with a bond expansion spliced
+in ahead of every local evolution, so they reuse `scheme_1s` in full and differ
+only in what they hand it: a site tensor living on a bond widened by up to
+`k_expand` complement directions, an environment that is exact in that widened
+basis, and a `trunc` passed to the split, which `'1s'` leaves at `None`. The
+expansion itself leaves the state untouched, so a `'1sp'` sweep with
+`expand_k=0` is a `'1s'` sweep.
 
 A sweep *is* a time step
 ------------------------
@@ -86,6 +94,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 from alice.network import MPS, MPO
 
+from .complement import expand_backward, expand_forward
 from .environ import Environment, step_left_env, step_right_env
 from .scheme_1s import (
     absorb_backward,
@@ -144,7 +153,7 @@ def time_step(
         Largest Krylov error estimate over all local evolutions in the step.
     float
         Largest discarded weight at the mid-chain bond over the step
-        (2-site only; `0.0` for 1-site).
+        (`'2s'` and `'1sp'`; `0.0` for `'1s'`, which never truncates).
     """
     if opts.order == 2:
         half = 0.5 * opts.dt
@@ -171,12 +180,13 @@ def forward_sweep(
 ) -> Tuple[float, float]:
     """Perform a left-to-right (forward) half-sweep over `dt`.
 
-    Dispatches to the 1-site or 2-site implementation based on `opts.scheme`.
+    Dispatches to the 1-site, 2-site or 1-site-plus implementation based on
+    `opts.scheme`.
 
     Before this call `mps.center` must be `0`. After it:
     - `mps.center == mps.L - 1`.
-    - `env_left[i]` is populated for `i = 1, …, L-1` (1-site) or
-      `i = 1, …, L-2` (2-site).
+    - `env_left[i]` is populated for `i = 1, …, L-1` (`'1s'`, `'1sp'`) or
+      `i = 1, …, L-2` (`'2s'`).
 
     Parameters
     ----------
@@ -200,7 +210,8 @@ def forward_sweep(
     float
         Largest Krylov error estimate over the half-sweep.
     float
-        Discarded weight at the mid-chain bond (2-site only; `0.0` for 1-site).
+        Discarded weight at the mid-chain bond (`'2s'` and `'1sp'`; `0.0` for
+        `'1s'`).
 
     Raises
     ------
@@ -214,11 +225,14 @@ def forward_sweep(
             f"found {mps.center}; a TDVP sweep must visit every site"
         )
 
-    trunc, krylov_opts = _unpack_opts(opts)
+    trunc, krylov_opts, cbe_opts = _unpack_opts(opts)
     if opts.scheme == '1s':
         return _forward_1s(mps, mpo, env_left, env_right, krylov_opts, dt), 0.0
     if opts.scheme == '2s':
         return _forward_2s(mps, mpo, env_left, env_right, trunc, krylov_opts, dt)
+    if opts.scheme == '1sp':
+        return _forward_1sp(mps, mpo, env_left, env_right, trunc, krylov_opts, dt,
+                            **cbe_opts)
     raise NotImplementedError(f"forward_sweep: unknown scheme {opts.scheme!r}")
 
 
@@ -232,12 +246,13 @@ def backward_sweep(
 ) -> Tuple[float, float]:
     """Perform a right-to-left (backward) half-sweep over `dt`.
 
-    Dispatches to the 1-site or 2-site implementation based on `opts.scheme`.
+    Dispatches to the 1-site, 2-site or 1-site-plus implementation based on
+    `opts.scheme`.
 
     Before this call `mps.center` must be `mps.L - 1`. After it:
     - `mps.center == 0`.
-    - `env_right[i]` is populated for `i = 0, …, L-2` (1-site) or
-      `i = 1, …, L-2` (2-site).
+    - `env_right[i]` is populated for `i = 0, …, L-2` (`'1s'`, `'1sp'`) or
+      `i = 1, …, L-2` (`'2s'`).
 
     Parameters
     ----------
@@ -260,7 +275,8 @@ def backward_sweep(
     float
         Largest Krylov error estimate over the half-sweep.
     float
-        Discarded weight at the mid-chain bond (2-site only; `0.0` for 1-site).
+        Discarded weight at the mid-chain bond (`'2s'` and `'1sp'`; `0.0` for
+        `'1s'`).
 
     Raises
     ------
@@ -273,11 +289,14 @@ def backward_sweep(
             f"{mps.L - 1}, found {mps.center}; a TDVP sweep must visit every site"
         )
 
-    trunc, krylov_opts = _unpack_opts(opts)
+    trunc, krylov_opts, cbe_opts = _unpack_opts(opts)
     if opts.scheme == '1s':
         return _backward_1s(mps, mpo, env_left, env_right, krylov_opts, dt), 0.0
     if opts.scheme == '2s':
         return _backward_2s(mps, mpo, env_left, env_right, trunc, krylov_opts, dt)
+    if opts.scheme == '1sp':
+        return _backward_1sp(mps, mpo, env_left, env_right, trunc, krylov_opts, dt,
+                             **cbe_opts)
     raise NotImplementedError(f"backward_sweep: unknown scheme {opts.scheme!r}")
 
 
@@ -286,7 +305,7 @@ def backward_sweep(
 # ---------------------------------------------------------------------------
 
 def _unpack_opts(opts: Options):
-    """Extract the truncation dict and Krylov keyword-args from `opts`."""
+    """Extract the truncation dict, Krylov keyword-args and CBE opts from `opts`."""
     trunc: Optional[dict] = {'thresh': opts.trunc_thresh}
     if opts.max_bond is not None:
         trunc['nkeep'] = opts.max_bond
@@ -294,7 +313,11 @@ def _unpack_opts(opts: Options):
         'max_krylov': opts.krylov_dim,
         'tol': opts.krylov_tol,
     }
-    return trunc, krylov_opts
+    cbe_opts = {
+        'k_expand': opts.expand_k,
+        'alpha': opts.expand_alpha,
+    }
+    return trunc, krylov_opts, cbe_opts
 
 
 # ---------------------------------------------------------------------------
@@ -523,5 +546,190 @@ def _backward_2s(
             )
             err_max = max(err_max, err_site)
             logger.debug("    back-evolve site %d krylov err = %.4e", i, err_site)
+
+    return err_max, dw
+
+
+# ---------------------------------------------------------------------------
+# 1-site-plus implementations
+# ---------------------------------------------------------------------------
+
+def _forward_1sp(
+    mps: MPS,
+    mpo: MPO,
+    env_left: Environment,
+    env_right: Environment,
+    trunc: Optional[dict],
+    krylov_opts: dict,
+    dt: float,
+    k_expand: int,
+    alpha: Optional[int],
+) -> Tuple[float, float]:
+    """Forward (left-to-right) half-sweep for 1-site-plus TDVP.
+
+    `_forward_1s` with an expansion of bond `(i, i+1)` spliced in before each
+    local evolution. At every site `i < L-1`:
+
+    1. `expand_forward` widens the bond by up to `k_expand` complement
+       directions, leaving the state unchanged and returning a right
+       environment that is exact in the widened basis.
+    2. The expanded site tensor is evolved forward by `dt` — a 1-site step,
+       but over a tangent space that now reaches into the complement.
+    3. The truncating split cuts the bond back to `max_bond`/`trunc_thresh`,
+       keeping whichever directions the evolution actually populated.
+    4. The exposed bond tensor is evolved *backward* by `dt` and absorbed into
+       the expanded neighbor, which returns the stored bond to the truncated
+       dimension and moves the center to `i+1`.
+
+    The rightmost site has no neighbor to expand into and is evolved as in
+    `'1s'`, without a back-evolution.
+
+    After this call:
+    - `mps.center == mps.L - 1`.
+    - `env_left[i]` is populated for `i = 1, …, L-1`.
+    """
+    L = mps.L
+    err_max = 0.0
+    dw = 0.0
+    center_bond = L // 2 - 1
+    w = len(str(L - 1))
+
+    for i in range(L - 1):
+        E_left = env_left.fetch(i)
+
+        # Expand bond (i, i+1). env_right.fetch(i+1) spans sites i+2, …, L-1,
+        # none of which this sweep has touched yet.
+        M_i_exp, M_i1_exp, E_right_exp = expand_forward(
+            mps[i], mps[i + 1],
+            mpo[i], mpo[i + 1],
+            E_left, env_right.fetch(i + 1),
+            k_expand, alpha,
+        )
+
+        # Forward evolution of the expanded site tensor.
+        M, err_site = evolve_1site(
+            M_i_exp, mpo[i], E_left, E_right_exp, dt, krylov_opts
+        )
+
+        # Measure the discarded weight once, at the mid-chain bond.
+        # `discarded_weight` bipartitions its argument into axes (0, 2) against
+        # the rest, which for a site tensor is (ket_left, phys) against the
+        # right bond — the cut the forward split is about to make.
+        if i == center_bond:
+            dw = discarded_weight(M, trunc)
+            logger.debug("    discarded weight = %.4e", dw)
+
+        # The expansion grew this bond, so the split truncates it back.
+        itag = mps._bond_itag(i + 1)
+        mps[i], C = split_site_forward(M, itag, trunc)
+        env_left[i + 1] = step_left_env(E_left, mps[i], mpo[i])
+
+        # Backward evolution of the bond tensor removes the double counting.
+        # C is rectangular here: its left axis carries the truncated bond that
+        # env_left[i+1] was just built over, its right axis the expanded bond
+        # that E_right_exp lives on.
+        C, err_bond = evolve_bond(
+            C, env_left.fetch(i + 1), E_right_exp, -dt, krylov_opts
+        )
+        mps[i + 1] = absorb_forward(C, M_i1_exp)
+        mps._center = i + 1
+
+        err_max = max(err_max, err_site, err_bond)
+        logger.debug("  site %*d / %d  krylov err = %.4e", w, i, L - 1, err_site)
+        logger.debug("    bond %d krylov err = %.4e", i + 1, err_bond)
+
+    # Rightmost site: no bond to its right, so nothing to expand and no
+    # back-evolution.
+    mps[L - 1], err_site = evolve_1site(
+        mps[L - 1], mpo[L - 1], env_left.fetch(L - 1), env_right.fetch(L - 1),
+        dt, krylov_opts,
+    )
+
+    err_max = max(err_max, err_site)
+    logger.debug("  site %*d / %d  krylov err = %.4e", w, L - 1, L - 1, err_site)
+
+    return err_max, dw
+
+
+def _backward_1sp(
+    mps: MPS,
+    mpo: MPO,
+    env_left: Environment,
+    env_right: Environment,
+    trunc: Optional[dict],
+    krylov_opts: dict,
+    dt: float,
+    k_expand: int,
+    alpha: Optional[int],
+) -> Tuple[float, float]:
+    """Backward (right-to-left) half-sweep for 1-site-plus TDVP.
+
+    Mirror image of `_forward_1sp`: bond `(i-1, i)` is expanded, the left
+    isometry gives way to a right one, and the bond tensor is absorbed into
+    site `i-1`. Site `0` is evolved last, without an expansion.
+
+    After this call:
+    - `mps.center == 0`.
+    - `env_right[i]` is populated for `i = 0, …, L-2`.
+    """
+    L = mps.L
+    err_max = 0.0
+    dw = 0.0
+    center_bond = L // 2 - 1
+    w = len(str(L - 1))
+
+    for i in range(L - 1, 0, -1):
+        E_right = env_right.fetch(i)
+
+        # Expand bond (i-1, i). env_left.fetch(i-1) spans sites 0, …, i-2,
+        # none of which this sweep has touched yet.
+        M_i_exp, M_im1_exp, E_left_exp = expand_backward(
+            mps[i], mps[i - 1],
+            mpo[i], mpo[i - 1],
+            env_left.fetch(i - 1), E_right,
+            k_expand, alpha,
+        )
+
+        # Forward evolution of the expanded site tensor.
+        M, err_site = evolve_1site(
+            M_i_exp, mpo[i], E_left_exp, E_right, dt, krylov_opts
+        )
+
+        # Measure the discarded weight once, at the mid-chain bond. The
+        # backward split cuts the left bond off instead of the right one, so
+        # the two bonds are swapped before handing the tensor over: that
+        # presents the same bipartition from the other side, and hence the
+        # same singular values, to a helper that always merges axes (0, 2).
+        if i - 1 == center_bond:
+            dw = discarded_weight(M.permute([1, 0, 2]), trunc)
+            logger.debug("    discarded weight = %.4e", dw)
+
+        # The expansion grew this bond, so the split truncates it back.
+        itag = mps._bond_itag(i)
+        C, mps[i] = split_site_backward(M, itag, trunc)
+        env_right[i - 1] = step_right_env(E_right, mps[i], mpo[i])
+
+        # Backward evolution of the bond tensor removes the double counting.
+        # C is rectangular here: its right axis carries the truncated bond that
+        # env_right[i-1] was just built over, its left axis the expanded bond
+        # that E_left_exp lives on.
+        C, err_bond = evolve_bond(
+            C, E_left_exp, env_right.fetch(i - 1), -dt, krylov_opts
+        )
+        mps[i - 1] = absorb_backward(M_im1_exp, C)
+        mps._center = i - 1
+
+        err_max = max(err_max, err_site, err_bond)
+        logger.debug("  site %*d / %d  krylov err = %.4e", w, i, L - 1, err_site)
+        logger.debug("    bond %d krylov err = %.4e", i, err_bond)
+
+    # Leftmost site: no bond to its left, so nothing to expand and no
+    # back-evolution.
+    mps[0], err_site = evolve_1site(
+        mps[0], mpo[0], env_left.fetch(0), env_right.fetch(0), dt, krylov_opts
+    )
+
+    err_max = max(err_max, err_site)
+    logger.debug("  site %*d / %d  krylov err = %.4e", w, 0, L - 1, err_site)
 
     return err_max, dw
