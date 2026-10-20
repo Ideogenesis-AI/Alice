@@ -18,7 +18,10 @@
 
 """1-site TDVP update scheme, including the zero-site back-evolution.
 
-This module contains all operations specific to the 1-site update:
+This module contains all operations specific to a 1-site update, which the
+1-site-plus scheme reuses in full: it differs only in what it feeds them — a
+site tensor on a bond widened by `complement.py`, an environment exact in that
+widened basis, and a `trunc` passed to the splits.
 
 - `matvec_1s` / `evolve_1site`: apply `exp(-i·dt·H_eff)` to a single site
   tensor, where `H_eff = E_left ⊗ W ⊗ E_right`.
@@ -39,13 +42,16 @@ even first-order consistency, so `evolve_bond` is not optional.
 The 2-site update scheme lives in `scheme_2s.py`; it reuses `evolve_1site` for
 its own back-evolution and only needs its own forward step and splits.
 
-Bond dimensions do not grow under the 1-site scheme. The splits here are
-exact (no truncation): the 1-site tangent space cannot grow the bond, so
-discarding singular values would lose norm without buying any variational
-freedom. Use the 2-site scheme when the bond dimension has to adapt.
+Bond dimensions do not grow under the 1-site scheme, and its splits are
+therefore called without truncation: the 1-site tangent space cannot grow a
+bond, so discarding singular values would lose norm without buying any
+variational freedom. Use the 2-site or the 1-site-plus scheme when the bond
+dimension has to adapt. The splits still take an optional `trunc`, because
+1-site-plus arrives at them with a bond the complement expansion has just
+widened and needs it cut back; nothing else in this module truncates.
 
-Being exact, a split reports the attainable rank, which near a chain edge can
-fall below the nominal bond dimension — `dim_left · d` caps it there. The
+Called exactly, a split reports the attainable rank, which near a chain edge
+can fall below the nominal bond dimension — `dim_left · d` caps it there. The
 first sweep therefore trims any such over-sized bond, losing nothing because
 those states carried no weight, after which the profile is a fixed point.
 
@@ -54,8 +60,8 @@ scheme cannot transport any correlation at all. A product state has every
 bond at dimension 1, so starting a `1s` quench from one freezes the dynamics
 entirely, and a state only partly grown by a short `2s` warm-up stays frozen
 across whichever bonds have not yet opened — silently, since norm and energy
-remain conserved throughout. Quench from a product state with `2s`, or warm up
-until every bond has opened before switching.
+remain conserved throughout. Quench from a product state with `2s` or `1sp`,
+or warm up with one of them until every bond has opened before switching.
 
 Index convention (shared with `environ.py`)
 --------------------------------------------
@@ -92,7 +98,7 @@ of sweep direction. The split helpers normalize to this orientation so that
 from __future__ import annotations
 
 from functools import partial
-from typing import Tuple
+from typing import Optional, Tuple
 
 from nicole import Tensor, contract, decomp, einsum
 
@@ -239,7 +245,11 @@ def evolve_bond(
     return lanczos_expv(mv, C, dt, **krylov_opts)
 
 
-def split_forward(M: Tensor, itag: str) -> Tuple[Tensor, Tensor]:
+def split_forward(
+    M: Tensor,
+    itag: str,
+    trunc: Optional[dict] = None,
+) -> Tuple[Tensor, Tensor]:
     """Peel a left isometry off a site tensor for a forward sweep step.
 
     Decomposes `M` as `A · C` with `A` left-isometric. The evolved site tensor
@@ -253,6 +263,10 @@ def split_forward(M: Tensor, itag: str) -> Tuple[Tensor, Tensor]:
         Evolved site tensor with axes `(ket_left, ket_right, phys)`.
     itag:
         itag for the new bond shared by `A` and `C`.
+    trunc:
+        Truncation options forwarded to `decomp` (`nkeep`, `thresh`). `None`
+        (the default, and what `'1s'` always passes) splits exactly; `'1sp'`
+        passes the run's truncation to cut the expanded bond back.
 
     Returns
     -------
@@ -261,11 +275,12 @@ def split_forward(M: Tensor, itag: str) -> Tuple[Tensor, Tensor]:
     Tensor
         Bond tensor `C` with axes `(new_bond, ket_right)` — axis 0 faces the
         left environment that `A` updates, axis 1 faces the right environment.
+        Under `'1sp'` the two axes sit on different bonds: the new one is
+        truncated, while `ket_right` is still the expanded bond the neighbor
+        carries, which is what keeps the zero-site step exact.
     """
     # cols = right bond only → LV gives isometry with axes (new_bond, left, phys).
-    # trunc=None: the 1-site scheme never grows a bond, so there is nothing to
-    # truncate; any rank below the nominal bond dimension is exact.
-    C, A = decomp(M, axes=1, flow='<<', mode='LV', trunc=None)
+    C, A = decomp(M, axes=1, flow='<<', mode='LV', trunc=trunc)
 
     A.permute([1, 0, 2], in_place=True)
     A.retag(1, itag)
@@ -277,7 +292,11 @@ def split_forward(M: Tensor, itag: str) -> Tuple[Tensor, Tensor]:
     return A, C
 
 
-def split_backward(M: Tensor, itag: str) -> Tuple[Tensor, Tensor]:
+def split_backward(
+    M: Tensor,
+    itag: str,
+    trunc: Optional[dict] = None,
+) -> Tuple[Tensor, Tensor]:
     """Peel a right isometry off a site tensor for a backward sweep step.
 
     Mirror image of `split_forward`: decomposes `M` as `C · B` with `B`
@@ -289,18 +308,23 @@ def split_backward(M: Tensor, itag: str) -> Tuple[Tensor, Tensor]:
         Evolved site tensor with axes `(ket_left, ket_right, phys)`.
     itag:
         itag for the new bond shared by `C` and `B`.
+    trunc:
+        Truncation options forwarded to `decomp` (`nkeep`, `thresh`). `None`
+        (the default) splits exactly; see `split_forward`.
 
     Returns
     -------
     Tensor
         Bond tensor `C` with axes `(ket_left, new_bond)` — axis 0 faces the
         left environment, axis 1 faces the right environment that `B` updates.
+        Under `'1sp'`, `ket_left` is the expanded bond and the new one is
+        truncated.
     Tensor
         Right-isometric `B` with axes `(new_bond, ket_right, phys)`.
     """
     # rows = left bond only → LV gives isometry with axes (new_bond, right, phys),
     # already in MPS axis order.
-    C, B = decomp(M, axes=0, flow='<<', mode='LV', trunc=None)
+    C, B = decomp(M, axes=0, flow='<<', mode='LV', trunc=trunc)
 
     B.retag(0, itag)
 
