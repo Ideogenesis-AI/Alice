@@ -112,12 +112,13 @@ _CENTER_ITAG: str = '_cbe_center_'
 # Itag assigned to the complement bond produced by the SVD of Θ'_disc.
 _COMPLEMENT_ITAG: str = '_cbe_comp_'
 
-# Relative size below which a discarded part counts as roundoff rather than as a
-# genuine complement direction. A saturated bond — one whose dimension already
-# equals `dim_outer · d` on either end — has no complement at all, and the
-# remainder left by the projection there is pure noise. Keeping such directions
-# would be worse than useless: they are not orthogonal to the kept space, so the
-# expanded neighbor would stop being isometric and the state would move.
+# Relative size below which the doubly-discarded tensor counts as roundoff
+# rather than as a genuine complement direction. A saturated bond — one whose
+# dimension already equals `dim_outer · d` on either end — has no complement at
+# all, and neither has a bond H cannot yet act across. What the SVD returns
+# there is noise, or in the exactly vanishing case an arbitrary unit vector
+# lying in the kept space, and either would stop the expanded neighbor from
+# being isometric and move the state.
 _CBE_TOL: float = 1e-10
 
 
@@ -344,35 +345,70 @@ def _project_complement_right(right_half: Tensor, B: Tensor) -> Tensor:
     return right_half - proj
 
 
-def _has_complement(half: Tensor, half_disc: Tensor) -> bool:
-    """Report whether a projected half holds a genuine complement direction.
+def _discarded_bulk(left_half_disc: Tensor, right_half_disc: Tensor) -> Tensor:
+    """Contract the two discarded halves into the doubly-discarded Θ'_disc.
 
     Parameters
     ----------
-    half:
-        Half-application of H before the projection.
-    half_disc:
-        What the projection left of it.
+    left_half_disc:
+        Discarded left half with axes `(bra_left=a, internal=α, mpo_mid=p, phys_bra=r)`.
+    right_half_disc:
+        Discarded right half with axes `(internal=α, mpo_mid=p, bra_right=c, phys_bra=u)`.
+
+    Returns
+    -------
+    Tensor
+        Θ'_disc with axes `(a, c, r, u)`, the standard 2-site bond tensor
+        convention.
+    """
+    return einsum('aαpr,αpcu->acru', left_half_disc, right_half_disc)
+
+
+def _has_complement(left_half: Tensor, right_half: Tensor, theta_disc: Tensor) -> bool:
+    """Report whether Θ'_disc holds a genuine complement direction.
+
+    The test has to be made on Θ'_disc rather than on the two discarded halves
+    separately. Each half can keep a sizable remainder while their contraction
+    cancels it: the surviving sectors of one need not pair with those of the
+    other, and then the doubly-discarded tensor vanishes even though neither
+    projection removed much. That happens wherever H cannot yet act across the
+    bond — on a product state, at every bond away from the excitation.
+
+    It matters because the SVD cannot report it. Handed an exactly zero block,
+    `decomp` returns a unit-norm singular vector anyway, and the threshold is
+    taken relative to Θ'_disc itself and so scales away with it. The vectors
+    that come back lie in the kept space rather than its complement, and
+    `oplus`-ing them would duplicate a kept direction, destroy the neighbor's
+    isometry, and move the state.
+
+    Parameters
+    ----------
+    left_half:
+        Left half-application of H, before the projection.
+    right_half:
+        Right half-application of H, before the projection.
+    theta_disc:
+        The doubly-discarded tensor built from the projected halves.
 
     Returns
     -------
     bool
-        `True` when the remainder is large enough to be signal rather than
-        roundoff.
+        `True` when Θ'_disc is large enough to be signal rather than roundoff.
     """
-    return half_disc.norm() > _CBE_TOL * half.norm()
+    # `‖lh‖ · ‖rh‖` bounds what the contraction could have produced had nothing
+    # been projected out, which is the scale a relative test needs: the norm of
+    # Θ'_disc alone carries the magnitude of H and of the state.
+    return theta_disc.norm() > _CBE_TOL * left_half.norm() * right_half.norm()
 
 
 def _complement_vectors(
-    left_half_disc: Tensor,
-    right_half_disc: Tensor,
+    theta_disc: Tensor,
     k_expand: int,
     flow: str,
 ) -> Tuple[Tensor, Tensor]:
-    """Extract complement vectors from the discarded 2-site outer product.
+    """Extract complement vectors from the doubly-discarded 2-site tensor.
 
-    Contracts the two discarded halves into the "doubly-discarded" 2-site tensor
-    Θ'_disc and decomposes it by truncated SVD. Both singular-vector factors are
+    Decomposes Θ'_disc by truncated SVD. Both singular-vector factors are
     isometric; a sweep expands the neighbor with the one facing it and fills the
     center tensor in exactly, so each direction consumes only one of the two.
 
@@ -388,10 +424,9 @@ def _complement_vectors(
 
     Parameters
     ----------
-    left_half_disc:
-        Discarded left half with axes `(bra_left=a, internal=α, mpo_mid=p, phys_bra=r)`.
-    right_half_disc:
-        Discarded right half with axes `(internal=α, mpo_mid=p, bra_right=c, phys_bra=u)`.
+    theta_disc:
+        Doubly-discarded tensor with axes `(a, c, r, u)`, from
+        `_discarded_bulk`. Must hold a complement — see `_has_complement`.
     k_expand:
         Maximum number of complement vectors to extract (nkeep for the SVD).
     flow:
@@ -407,10 +442,6 @@ def _complement_vectors(
         N_R with axes `(k=new_bond, bra_right=c, phys=u)` — right-isometric, the
         new left-bond vectors for site i+1.
     """
-    # Contract the two discarded halves into Θ'_disc.
-    # Axes (a, c, r, u) match the standard 2-site bond tensor convention.
-    theta_disc = einsum('aαpr,αpcu->acru', left_half_disc, right_half_disc)
-
     # SVD with axes=[0, 2] fuses (a, r) as left and (c, u) as right. The
     # threshold drops directions that only exist because `k_expand` asks for
     # more than the complement holds; `nkeep` alone would hand back roundoff
@@ -553,16 +584,18 @@ def expand_forward(
     # is what makes the fill-in below exact.
     lh_disc = _project_complement_left(lh,  _center_isometry_forward(M_i))
     rh_disc = _project_complement_right(rh, M_i1)
+    theta_disc = _discarded_bulk(lh_disc, rh_disc)
 
-    # A saturated bond has nothing to expand into; leave it as it is and hand
-    # back the environment the 1-site step would have used anyway.
-    if not (_has_complement(lh, lh_disc) and _has_complement(rh, rh_disc)):
+    # A bond with no complement — saturated, or simply out of H's reach from
+    # the current state — has nothing to expand into; leave it as it is and
+    # hand back the environment the 1-site step would have used anyway.
+    if not _has_complement(lh, rh, theta_disc):
         return M_i, M_i1, step_right_env(E_right_i1, M_i1, W_i1)
 
     # Step 4: complement vectors from the SVD of Θ'_disc. Only N_R is used: the
     # center tensor is filled in exactly rather than padded with N_L.
     # flow='<<' gives N_R a new-bond direction matching M_i1's left bond.
-    _N_L, N_R = _complement_vectors(lh_disc, rh_disc, k_expand, flow='<<')
+    _N_L, N_R = _complement_vectors(theta_disc, k_expand, flow='<<')
 
     # Step 5: expand M_i1's left bond (axis 0), then re-express Θ in that basis.
     M_i1_exp = oplus(M_i1, N_R, axes=[0])
@@ -643,16 +676,17 @@ def expand_backward(
     # orthonormalized.
     lh_disc = _project_complement_left(lh,  M_im1)
     rh_disc = _project_complement_right(rh, _center_isometry_backward(M_i))
+    theta_disc = _discarded_bulk(lh_disc, rh_disc)
 
-    # A saturated bond has nothing to expand into; leave it as it is and hand
-    # back the environment the 1-site step would have used anyway.
-    if not (_has_complement(lh, lh_disc) and _has_complement(rh, rh_disc)):
+    # A bond with no complement has nothing to expand into; leave it as it is
+    # and hand back the environment the 1-site step would have used anyway.
+    if not _has_complement(lh, rh, theta_disc):
         return M_i, M_im1, step_left_env(E_left_im1, M_im1, W_im1)
 
     # Step 4: complement vectors. Only N_L is used here, for the same reason
     # N_R alone is used in the forward sweep.
     # flow='>>' gives N_L a new-bond direction matching M_im1's right bond.
-    N_L, _N_R = _complement_vectors(lh_disc, rh_disc, k_expand, flow='>>')
+    N_L, _N_R = _complement_vectors(theta_disc, k_expand, flow='>>')
 
     # Step 5: expand M_im1's right bond (axis 1), then re-express Θ in that basis.
     M_im1_exp = oplus(M_im1, N_L, axes=[1])
