@@ -42,6 +42,8 @@ import torch
 from nicole import einsum, load_space
 
 from alice.algorithm.tdvp.complement import (
+    _center_isometry_backward,
+    _center_isometry_forward,
     _cheap_factors_backward,
     _cheap_factors_forward,
     _complement_vectors,
@@ -136,29 +138,31 @@ def _local_energy(M, W, E_left, E_right) -> complex:
 def _forward_pieces(mps, mpo, site_i=FWD_SITE, alpha=None):
     """Assemble the intermediate quantities of a forward expansion at `site_i`.
 
-    Returns `(env_left, env_right, theta, A, lh, rh)` with the center at
-    `site_i`, where `A` is the left-isometric factor of Θ.
+    Returns `(env_left, env_right, theta, Q, lh, rh)` with the center at
+    `site_i`, where `Q` is the center-side projector: the orthonormalized
+    column space of the center tensor.
     """
     env_left, env_right = _envs_at(mps, mpo, site_i)
     theta = build_bulk(mps[site_i], mps[site_i + 1])
     A, R = _cheap_factors_forward(theta, alpha)
     lh = _left_half(env_left[site_i], A, mpo[site_i])
     rh = _right_half(env_right[site_i + 1], R, mpo[site_i + 1])
-    return env_left, env_right, theta, A, lh, rh
+    return env_left, env_right, theta, _center_isometry_forward(mps[site_i]), lh, rh
 
 
 def _backward_pieces(mps, mpo, site_i=BWD_SITE, alpha=None):
     """Assemble the intermediate quantities of a backward expansion at `site_i`.
 
-    Returns `(env_left, env_right, theta, B, lh, rh)` with the center at
-    `site_i`, where `B` is the right-isometric factor of Θ.
+    Returns `(env_left, env_right, theta, Q, lh, rh)` with the center at
+    `site_i`, where `Q` is the center-side projector: the orthonormalized row
+    space of the center tensor.
     """
     env_left, env_right = _envs_at(mps, mpo, site_i)
     theta = build_bulk(mps[site_i - 1], mps[site_i])
     L, B = _cheap_factors_backward(theta, alpha)
     lh = _left_half(env_left[site_i - 1], L, mpo[site_i - 1])
     rh = _right_half(env_right[site_i], B, mpo[site_i])
-    return env_left, env_right, theta, B, lh, rh
+    return env_left, env_right, theta, _center_isometry_backward(mps[site_i]), lh, rh
 
 
 @pytest.fixture
@@ -192,7 +196,7 @@ def heisenberg_su2_L4():
 # ---------------------------------------------------------------------------
 
 class TestCheapFactors:
-    """Tests for the SVD that feeds the halves and the center-side projector."""
+    """Tests for the SVD that feeds the two half-applications of H."""
 
     def test_ranks(self, heisenberg_L6):
         """Both factors are rank-3 site-shaped tensors, either way round."""
@@ -220,29 +224,29 @@ class TestCheapFactors:
         assert _tensor_norm(diff) < 1e-10 * max(_tensor_norm(theta), 1.0)
 
     def test_forward_factor_is_left_isometric(self, heisenberg_L6):
-        """The forward sweep's center-side factor is an isometry."""
+        """The forward sweep's factor facing the sweep is an isometry."""
         mps, _ = heisenberg_L6
         A, _ = _cheap_factors_forward(build_bulk(mps[FWD_SITE], mps[FWD_SITE + 1]), alpha=None)
         assert _isometry_error(A, left=True) < 1e-9
 
     def test_backward_factor_is_right_isometric(self, heisenberg_L6):
-        """The backward sweep's center-side factor is an isometry."""
+        """The backward sweep's factor facing the sweep is an isometry."""
         mps, _ = heisenberg_L6
         _, B = _cheap_factors_backward(build_bulk(mps[FWD_SITE], mps[FWD_SITE + 1]), alpha=None)
         assert _isometry_error(B, left=False) < 1e-9
 
-    def test_center_side_factor_spans_center_tensor(self, heisenberg_L6):
-        """A spans exactly the column space of the forward center tensor.
+    def test_the_factor_can_span_more_than_the_center_tensor(self, heisenberg_L6):
+        """Untruncated, the isometric factor of Θ overreaches the kept space.
 
-        The right-isometric neighbor has full row rank, so Θ keeps every column
-        direction of `mps[i]`: A is that same space, orthonormalized, which is
-        why it can replace the center tensor in the projector.
+        `decomp` keeps every charge sector at full dimension whatever its rank,
+        so the factor's internal bond can exceed the MPS bond. That is why it
+        cannot serve as the center-side projector, however orthonormal it is:
+        projecting with it would remove directions the complement needs.
         """
-        mps, mpo = heisenberg_L6
-        _, _, _, A, _, _ = _forward_pieces(mps, mpo)
-        # Projecting mps[FWD_SITE] onto A's column space must leave it unchanged.
-        remainder = mps[FWD_SITE] - einsum('xbz,xcz,acr->abr', mps[FWD_SITE], A.conj(), A)
-        assert _tensor_norm(remainder) < 1e-10 * max(_tensor_norm(mps[FWD_SITE]), 1.0)
+        mps, _ = heisenberg_L6
+        theta = build_bulk(mps[FWD_SITE], mps[FWD_SITE + 1])
+        A, _ = _cheap_factors_forward(theta, alpha=None)
+        assert A.indices[1].dim > mps[FWD_SITE].indices[1].dim
 
     def test_alpha_truncation(self, heisenberg_L6):
         """The internal bond honors `alpha` when it is below the current bond."""
@@ -256,6 +260,46 @@ class TestCheapFactors:
         theta = build_bulk(mps[FWD_SITE], mps[FWD_SITE + 1])
         A, _ = _cheap_factors_forward(theta, alpha=None)
         assert A.indices[1].dim <= mps[FWD_SITE].indices[0].dim * mps[FWD_SITE].indices[2].dim
+
+
+# ---------------------------------------------------------------------------
+# _center_isometry_forward / _center_isometry_backward
+# ---------------------------------------------------------------------------
+
+class TestCenterIsometry:
+    """Tests for the orthonormal basis that projects the center end."""
+
+    def test_forward_is_left_isometric(self, heisenberg_L6):
+        mps, mpo = heisenberg_L6
+        _envs_at(mps, mpo, FWD_SITE)
+        assert _isometry_error(_center_isometry_forward(mps[FWD_SITE]), left=True) < 1e-9
+
+    def test_backward_is_right_isometric(self, heisenberg_L6):
+        mps, mpo = heisenberg_L6
+        _envs_at(mps, mpo, BWD_SITE)
+        assert _isometry_error(_center_isometry_backward(mps[BWD_SITE]), left=False) < 1e-9
+
+    def test_forward_spans_the_center_tensor(self, heisenberg_L6):
+        """The basis covers the center tensor exactly — no more, no less.
+
+        Both halves of that matter. Spanning less would leave kept directions
+        in the complement, which `oplus` would then duplicate; spanning more
+        would project away directions the complement is made of.
+        """
+        mps, mpo = heisenberg_L6
+        _envs_at(mps, mpo, FWD_SITE)
+        M, Q = mps[FWD_SITE], _center_isometry_forward(mps[FWD_SITE])
+        remainder = M - einsum('xbz,xcz,acr->abr', M, Q.conj(), Q)
+        assert _tensor_norm(remainder) < 1e-10 * max(_tensor_norm(M), 1.0)
+        assert Q.indices[1].dim == M.indices[1].dim
+
+    def test_backward_spans_the_center_tensor(self, heisenberg_L6):
+        mps, mpo = heisenberg_L6
+        _envs_at(mps, mpo, BWD_SITE)
+        M, Q = mps[BWD_SITE], _center_isometry_backward(mps[BWD_SITE])
+        remainder = M - einsum('axz,bxz,bcu->acu', M, Q.conj(), Q)
+        assert _tensor_norm(remainder) < 1e-10 * max(_tensor_norm(M), 1.0)
+        assert Q.indices[0].dim == M.indices[0].dim
 
 
 # ---------------------------------------------------------------------------
