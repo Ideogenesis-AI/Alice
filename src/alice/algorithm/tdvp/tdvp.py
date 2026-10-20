@@ -205,6 +205,16 @@ class Options(AlgorithmOptions):
     trunc_thresh:
         Singular value truncation threshold (relative to the largest singular
         value per charge sector). As for `max_bond`, `'2s'` only.
+    expand_k:
+        Maximum number of complement directions added to each bond per local
+        update. Only used when `scheme = '1sp'`. Larger values let the bond
+        profile adapt faster at higher cost; `4` is a typical starting point,
+        and `0` reduces the scheme to `'1s'`.
+    expand_alpha:
+        Internal bond dimension of the cheap factorization of Θ inside the
+        expansion, which is what keeps the complement search cheaper than a
+        2-site step. Only used when `scheme = '1sp'`. `None` keeps the full
+        bond, making the search exact but no cheaper than `'2s'` per bond.
     krylov_dim:
         Maximum Krylov subspace dimension per local exponential. The solver
         stops earlier on happy breakdown or once `krylov_tol` is met.
@@ -273,6 +283,8 @@ class Options(AlgorithmOptions):
     order: int = 2
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-12
+    expand_k: int = 4
+    expand_alpha: Optional[int] = None
     krylov_dim: int = 16
     krylov_tol: float = 1e-12
     renormalize: bool = False
