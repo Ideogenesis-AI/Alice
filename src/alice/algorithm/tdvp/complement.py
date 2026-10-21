@@ -112,13 +112,14 @@ _CENTER_ITAG: str = '_cbe_center_'
 # Itag assigned to the complement bond produced by the SVD of Θ'_disc.
 _COMPLEMENT_ITAG: str = '_cbe_comp_'
 
-# Relative size below which the doubly-discarded tensor counts as roundoff
-# rather than as a genuine complement direction. A saturated bond — one whose
-# dimension already equals `dim_outer · d` on either end — has no complement at
-# all, and neither has a bond H cannot yet act across. What the SVD returns
-# there is noise, or in the exactly vanishing case an arbitrary unit vector
-# lying in the kept space, and either would stop the expanded neighbor from
-# being isometric and move the state.
+# Relative size below which a complement direction counts as roundoff rather
+# than as signal. A saturated bond — one whose dimension already equals
+# `dim_outer · d` on either end — has no complement at all, and neither has a
+# bond H cannot yet act across. What the SVD returns there is noise, or in the
+# exactly vanishing case an arbitrary unit vector lying in the kept space, and
+# either would stop the expanded neighbor from being isometric and move the
+# state. The tolerance is taken against `_noise_floor`, never against Θ'_disc
+# itself.
 _CBE_TOL: float = 1e-10
 
 
@@ -364,7 +365,37 @@ def _discarded_bulk(left_half_disc: Tensor, right_half_disc: Tensor) -> Tensor:
     return einsum('aαpr,αpcu->acru', left_half_disc, right_half_disc)
 
 
-def _has_complement(left_half: Tensor, right_half: Tensor, theta_disc: Tensor) -> bool:
+def _noise_floor(left_half: Tensor, right_half: Tensor) -> float:
+    """Absolute size below which a complement direction is cancellation noise.
+
+    Θ'_disc is a difference of quantities of size `‖lh‖ · ‖rh‖`, so that
+    product, not Θ'_disc, sets the scale at which its own entries stop being
+    meaningful. Anything the SVD reports below this floor was manufactured by
+    the subtraction and carries no direction: such vectors are not orthogonal
+    to the kept space, and in measured cases overlap it completely.
+
+    The floor is deliberately shared by `_has_complement` and
+    `_complement_vectors`. A relative threshold cannot do this job — taken
+    against Θ'_disc it shrinks with exactly the quantity whose smallness is
+    the thing to detect, which lets a bond whose complement is pure noise pass
+    every test and expand on garbage.
+
+    Parameters
+    ----------
+    left_half:
+        Left half-application of H, before the projection.
+    right_half:
+        Right half-application of H, before the projection.
+
+    Returns
+    -------
+    float
+        Absolute threshold on `‖Θ'_disc‖` and on its singular values.
+    """
+    return _CBE_TOL * left_half.norm() * right_half.norm()
+
+
+def _has_complement(theta_disc: Tensor, floor: float) -> bool:
     """Report whether Θ'_disc holds a genuine complement direction.
 
     The test has to be made on Θ'_disc rather than on the two discarded halves
@@ -375,36 +406,31 @@ def _has_complement(left_half: Tensor, right_half: Tensor, theta_disc: Tensor) -
     bond — on a product state, at every bond away from the excitation.
 
     It matters because the SVD cannot report it. Handed an exactly zero block,
-    `decomp` returns a unit-norm singular vector anyway, and the threshold is
-    taken relative to Θ'_disc itself and so scales away with it. The vectors
-    that come back lie in the kept space rather than its complement, and
-    `oplus`-ing them would duplicate a kept direction, destroy the neighbor's
-    isometry, and move the state.
+    `decomp` returns a unit-norm singular vector anyway. The vectors that come
+    back lie in the kept space rather than its complement, and `oplus`-ing them
+    would duplicate a kept direction, destroy the neighbor's isometry, and move
+    the state.
 
     Parameters
     ----------
-    left_half:
-        Left half-application of H, before the projection.
-    right_half:
-        Right half-application of H, before the projection.
     theta_disc:
         The doubly-discarded tensor built from the projected halves.
+    floor:
+        Absolute threshold from `_noise_floor`.
 
     Returns
     -------
     bool
         `True` when Θ'_disc is large enough to be signal rather than roundoff.
     """
-    # `‖lh‖ · ‖rh‖` bounds what the contraction could have produced had nothing
-    # been projected out, which is the scale a relative test needs: the norm of
-    # Θ'_disc alone carries the magnitude of H and of the state.
-    return theta_disc.norm() > _CBE_TOL * left_half.norm() * right_half.norm()
+    return theta_disc.norm() > floor
 
 
 def _complement_vectors(
     theta_disc: Tensor,
     k_expand: int,
     flow: str,
+    floor: float,
 ) -> Tuple[Tensor, Tensor]:
     """Extract complement vectors from the doubly-discarded 2-site tensor.
 
@@ -432,6 +458,10 @@ def _complement_vectors(
     flow:
         Arrow-flow string passed to `decomp`. Use `'<<'` for a forward sweep and
         `'>>'` for a backward sweep.
+    floor:
+        Absolute threshold from `_noise_floor`. Singular values below it are
+        dropped, so the new bond can come back smaller than `k_expand` — or
+        empty, which the caller must treat as no complement.
 
     Returns
     -------
@@ -442,14 +472,15 @@ def _complement_vectors(
         N_R with axes `(k=new_bond, bra_right=c, phys=u)` — right-isometric, the
         new left-bond vectors for site i+1.
     """
-    # SVD with axes=[0, 2] fuses (a, r) as left and (c, u) as right. The
-    # threshold drops directions that only exist because `k_expand` asks for
-    # more than the complement holds; `nkeep` alone would hand back roundoff
-    # vectors, which do not lie in the complement and would spoil the isometry
-    # of the expanded neighbor.
+    # SVD with axes=[0, 2] fuses (a, r) as left and (c, u) as right. `nkeep`
+    # caps the expansion; `thresh` is what keeps it honest, since a bond whose
+    # complement holds fewer than `k_expand` directions still has singular
+    # values to report and they are cancellation noise, lying in the kept space
+    # rather than in the complement. Asking for four directions where one
+    # exists is the ordinary case, not an edge case.
     U, _S, Vh = decomp(
         theta_disc, axes=[0, 2], mode='SVD',
-        trunc={'nkeep': k_expand, 'thresh': _CBE_TOL * theta_disc.norm()},
+        trunc={'nkeep': k_expand, 'thresh': floor},
         flow=flow, itag=_COMPLEMENT_ITAG,
     )
     # After decomp + unmerge: U has axes (a, r, k); permute to (a, k, r).
@@ -589,13 +620,19 @@ def expand_forward(
     # A bond with no complement — saturated, or simply out of H's reach from
     # the current state — has nothing to expand into; leave it as it is and
     # hand back the environment the 1-site step would have used anyway.
-    if not _has_complement(lh, rh, theta_disc):
+    floor = _noise_floor(lh, rh)
+    if not _has_complement(theta_disc, floor):
         return M_i, M_i1, step_right_env(E_right_i1, M_i1, W_i1)
 
     # Step 4: complement vectors from the SVD of Θ'_disc. Only N_R is used: the
     # center tensor is filled in exactly rather than padded with N_L.
     # flow='<<' gives N_R a new-bond direction matching M_i1's left bond.
-    _N_L, N_R = _complement_vectors(theta_disc, k_expand, flow='<<')
+    _N_L, N_R = _complement_vectors(theta_disc, k_expand, flow='<<', floor=floor)
+
+    # Everything the SVD offered sat below the floor, which leaves no direction
+    # worth adding even though Θ'_disc as a whole cleared it.
+    if N_R.indices[0].dim == 0:
+        return M_i, M_i1, step_right_env(E_right_i1, M_i1, W_i1)
 
     # Step 5: expand M_i1's left bond (axis 0), then re-express Θ in that basis.
     M_i1_exp = oplus(M_i1, N_R, axes=[0])
@@ -680,13 +717,18 @@ def expand_backward(
 
     # A bond with no complement has nothing to expand into; leave it as it is
     # and hand back the environment the 1-site step would have used anyway.
-    if not _has_complement(lh, rh, theta_disc):
+    floor = _noise_floor(lh, rh)
+    if not _has_complement(theta_disc, floor):
         return M_i, M_im1, step_left_env(E_left_im1, M_im1, W_im1)
 
     # Step 4: complement vectors. Only N_L is used here, for the same reason
     # N_R alone is used in the forward sweep.
     # flow='>>' gives N_L a new-bond direction matching M_im1's right bond.
-    N_L, _N_R = _complement_vectors(theta_disc, k_expand, flow='>>')
+    N_L, _N_R = _complement_vectors(theta_disc, k_expand, flow='>>', floor=floor)
+
+    # Every direction fell below the floor, as in the forward sweep.
+    if N_L.indices[1].dim == 0:
+        return M_i, M_im1, step_left_env(E_left_im1, M_im1, W_im1)
 
     # Step 5: expand M_im1's right bond (axis 1), then re-express Θ in that basis.
     M_im1_exp = oplus(M_im1, N_L, axes=[1])
