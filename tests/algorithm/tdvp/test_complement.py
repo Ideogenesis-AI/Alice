@@ -52,6 +52,7 @@ from alice.algorithm.tdvp.complement import (
     _fill_center_forward,
     _has_complement,
     _left_half,
+    _noise_floor,
     _project_complement_left,
     _project_complement_right,
     _right_half,
@@ -405,7 +406,8 @@ class TestProjectComplement:
         _, _, _, A, lh, rh = _forward_pieces(mps, mpo)
         lh_disc = _project_complement_left(lh, A)
         rh_disc = _project_complement_right(rh, mps[FWD_SITE + 1])
-        assert _has_complement(lh, rh, _discarded_bulk(lh_disc, rh_disc))
+        assert _has_complement(_discarded_bulk(lh_disc, rh_disc),
+                               _noise_floor(lh, rh))
 
     def test_no_complement_on_saturated_bond(self, heisenberg_L4):
         """A saturated bond leaves nothing but roundoff behind.
@@ -417,28 +419,32 @@ class TestProjectComplement:
         _, _, _, A, lh, rh = _forward_pieces(mps, mpo, site_i=1)
         lh_disc = _project_complement_left(lh, A)
         rh_disc = _project_complement_right(rh, mps[2])
-        assert not _has_complement(lh, rh, _discarded_bulk(lh_disc, rh_disc))
+        assert not _has_complement(_discarded_bulk(lh_disc, rh_disc),
+                                   _noise_floor(lh, rh))
 
     def test_vanishing_doubly_discarded_is_declined(self, heisenberg_L6):
-        """The test is made on Θ'_disc, which the SVD alone cannot report.
+        """The test is made on Θ'_disc, which an unthresholded SVD cannot report.
 
         Handed an exactly zero tensor, `decomp` returns a unit-norm singular
-        vector regardless, and the threshold is relative to Θ'_disc and so
-        scales away with it. Those vectors lie in the kept space rather than
-        its complement, and `oplus`-ing them would duplicate a kept direction
-        and move the state. Each half can also be sizable while their
-        contraction cancels, so testing the halves instead would not catch it.
+        vector regardless. Those vectors lie in the kept space rather than its
+        complement, and `oplus`-ing them would duplicate a kept direction and
+        move the state. Each half can also be sizable while their contraction
+        cancels, so testing the halves instead would not catch it.
         """
         mps, mpo = heisenberg_L6
         _, _, _, Q, lh, rh = _forward_pieces(mps, mpo)
         theta_disc = _discarded_bulk(_project_complement_left(lh, Q),
                                      _project_complement_right(rh, mps[FWD_SITE + 1]))
         vanished = theta_disc - theta_disc
+        floor = _noise_floor(lh, rh)
 
-        assert not _has_complement(lh, rh, vanished)
-        # And the SVD really does hand back a direction where there is none.
-        _, N_R = _complement_vectors(vanished, 2, flow='<<')
-        assert _tensor_norm(N_R) > 0.5
+        assert not _has_complement(vanished, floor)
+        # Without the floor the SVD hands back a direction where there is none.
+        _, unfiltered = _complement_vectors(vanished, 2, flow='<<', floor=0.0)
+        assert _tensor_norm(unfiltered) > 0.5
+        # With it, nothing survives, which is the second line of defense.
+        _, filtered = _complement_vectors(vanished, 2, flow='<<', floor=floor)
+        assert filtered.indices[0].dim == 0
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +458,8 @@ class TestComplementVectors:
         _, _, _, A, lh, rh = _forward_pieces(mps, mpo, site_i)
         lh_disc = _project_complement_left(lh, A)
         rh_disc = _project_complement_right(rh, mps[site_i + 1])
-        return _complement_vectors(_discarded_bulk(lh_disc, rh_disc), k_expand, flow=flow)
+        return _complement_vectors(_discarded_bulk(lh_disc, rh_disc), k_expand,
+                                   flow=flow, floor=_noise_floor(lh, rh))
 
     def test_ranks(self, heisenberg_L6):
         """N_L is (bra_left, k, phys) and N_R is (k, bra_right, phys)."""
