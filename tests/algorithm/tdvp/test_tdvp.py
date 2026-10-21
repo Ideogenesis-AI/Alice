@@ -33,7 +33,7 @@ import pytest
 from alice.algorithm import tdvp
 from alice.algorithm.tdvp import Artifact, Options, Summary, run
 
-from .conftest import mps_overlap
+from .conftest import bond_profile, mps_overlap
 
 
 # ---------------------------------------------------------------------------
@@ -50,10 +50,10 @@ class TestOptions:
         assert opts.dt == 0.05
 
     @pytest.mark.parametrize('alias,expected', [
-        ('1s', '1s'), ('2s', '2s'),
-        ('1-site', '1s'), ('2-site', '2s'),
-        ('one-site', '1s'), ('two-site', '2s'),
-        ('1S', '1s'), ('Two-Site', '2s'),
+        ('1s', '1s'), ('2s', '2s'), ('1sp', '1sp'),
+        ('1-site', '1s'), ('2-site', '2s'), ('1-site-plus', '1sp'),
+        ('one-site', '1s'), ('two-site', '2s'), ('one-site-plus', '1sp'),
+        ('1S', '1s'), ('Two-Site', '2s'), ('One-Site-Plus', '1sp'),
     ])
     def test_scheme_aliases(self, alias, expected):
         assert Options(scheme=alias).scheme == expected
@@ -62,16 +62,22 @@ class TestOptions:
         with pytest.raises(ValueError):
             Options(scheme='3s')
 
-    def test_unimplemented_scheme_is_accepted_but_not_run(self, start):
-        """`1sp`/CBE is a known name, so `Options` keeps it round-trippable.
+    def test_every_recognized_scheme_is_implemented(self):
+        """`run`'s not-implemented guard is now unreachable, and must stay so.
 
-        Rejecting it only at `run` means a TOML file naming a future scheme
-        still loads; the refusal arrives when it would actually be used.
+        It exists so that a TOML file naming a scheme Alice knows by name but
+        cannot yet run still loads, with the refusal arriving only when the
+        scheme is used. With `'1sp'` implemented there is no such name left,
+        and adding one is a deliberate act that should fail here first.
         """
-        assert Options(scheme='1sp').scheme == '1sp'
-        state, mpo = start
-        with pytest.raises(NotImplementedError):
-            run(state, mpo, Options(scheme='1sp', n_steps=1))
+        from alice.algorithm.tdvp.tdvp import _IMPLEMENTED_SCHEMES, _SCHEME_ALIASES
+        assert set(_SCHEME_ALIASES.values()) == _IMPLEMENTED_SCHEMES
+
+    def test_expansion_defaults(self):
+        """`expand_k` must default to something usable without being tuned."""
+        opts = Options()
+        assert opts.expand_k == 4
+        assert opts.expand_alpha is None
 
     @pytest.mark.parametrize('order', [0, 3, -1])
     def test_bad_order_is_rejected(self, order):
@@ -105,7 +111,8 @@ class TestOptions:
         assert Options(n_steps=5, save_artifacts_every=2).n_steps == 5
 
     def test_toml_roundtrip(self, tmp_path):
-        opts = Options(scheme='1s', dt=0.02, n_steps=8, order=1, max_bond=64,
+        opts = Options(scheme='1sp', dt=0.02, n_steps=8, order=1, max_bond=64,
+                       expand_k=6, expand_alpha=3,
                        krylov_dim=12, renormalize=True, save_artifacts_every=2)
         path = tmp_path / 'tdvp.toml'
         opts.to_toml(path, section='tdvp')
@@ -222,7 +229,7 @@ class TestRun:
         assert max(abs(e - initial) for e in summary.energies) < 1e-9
         assert max(abs(n - 1.0) for n in summary.norms) < 1e-10
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     @pytest.mark.parametrize('order', [1, 2])
     def test_runs_for_every_scheme_and_order(self, start, scheme, order):
         state, mpo = start
@@ -443,13 +450,81 @@ class TestFrozenBonds:
                 Options(scheme='1s', n_steps=1, save_artifacts=False))
         assert any('bond' in r.message.lower() for r in caplog.records)
 
-    def test_no_warning_for_2s(self, product_state_L4, caplog):
+    @pytest.mark.parametrize('scheme', ['2s', '1sp'])
+    def test_no_warning_for_the_growing_schemes(self, product_state_L4, caplog, scheme):
         mps, mpo = product_state_L4
         import logging
         with caplog.at_level(logging.WARNING):
             run(Artifact(state=mps, time=0.0, step=0), mpo,
-                Options(scheme='2s', n_steps=1, save_artifacts=False))
+                Options(scheme=scheme, n_steps=1, save_artifacts=False))
         assert not any('frozen' in r.message.lower() for r in caplog.records)
+
+
+class TestExpansionDriver:
+    """`'1sp'` through the full driver rather than a bare sweep.
+
+    What the driver adds over `sweep.py` is the environment fetch windows,
+    the per-step bookkeeping, and the resume path; each has to cope with a
+    bond profile that changes under it.
+    """
+
+    def test_reports_the_bond_growth_it_achieved(self, product_state_L4):
+        """The summary must show the bonds opening, not a frozen profile."""
+        mps, mpo = product_state_L4
+        summary, final = run(
+            Artifact(state=mps, time=0.0, step=0), mpo,
+            Options(scheme='1sp', dt=0.05, n_steps=6, save_artifacts=False),
+        )
+        assert summary.max_bonds[0] == 1
+        assert summary.max_bonds[-1] > 1
+        assert summary.bond_dims == bond_profile(final.state)
+
+    def test_records_a_discarded_weight_per_step(self, start):
+        """Truncation now happens under `'1sp'`, so it must be reported."""
+        state, mpo = start
+        summary, _ = run(state, mpo, Options(
+            scheme='1sp', n_steps=3, max_bond=2, save_artifacts=False))
+        assert len(summary.discarded_weights) == 3
+        assert all(dw >= 0.0 for dw in summary.discarded_weights)
+
+    def test_respects_max_bond(self, product_state_L4):
+        state = Artifact(state=product_state_L4[0], time=0.0, step=0)
+        _, final = run(state, product_state_L4[1], Options(
+            scheme='1sp', dt=0.05, n_steps=8, max_bond=2, expand_k=4,
+            save_artifacts=False))
+        assert max(bond_profile(final.state)) <= 2
+
+    def test_logs_the_expansion_settings(self, start, caplog):
+        """A run has to be reconstructable from its own log."""
+        state, mpo = start
+        import logging
+        with caplog.at_level(logging.INFO):
+            run(state, mpo, Options(scheme='1sp', n_steps=1, expand_k=3,
+                                    save_artifacts=False))
+        assert 'expand k' in caplog.text
+        assert 'expand alpha' in caplog.text
+
+    def test_resume_reproduces_an_uninterrupted_run(self, product_state_L4, tmp_path):
+        """A `'1sp'` run split in two must land on the same state.
+
+        Harder than the fixed-rank case: the resumed run rebuilds its
+        environments at whatever bond profile the first half left behind, and
+        then has to make the same expansion decisions from there.
+        """
+        mps, mpo = product_state_L4
+        state = Artifact(state=mps, time=0.0, step=0)
+
+        _, direct = run(copy.deepcopy(state), mpo, Options(
+            scheme='1sp', dt=0.05, n_steps=6, save_artifacts=False))
+
+        _, half = run(copy.deepcopy(state), mpo, Options(
+            scheme='1sp', dt=0.05, n_steps=3, save_artifacts=False,
+            checkpoint_dir=str(tmp_path)))
+        _, resumed = run(half, mpo, Options(
+            scheme='1sp', dt=0.05, n_steps=6, save_artifacts=False,
+            checkpoint_dir=str(tmp_path)))
+
+        assert abs(abs(mps_overlap(direct.state, resumed.state)) - 1.0) < 1e-12
 
 
 class TestPackageExports:

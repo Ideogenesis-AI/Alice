@@ -30,6 +30,7 @@ n_steps              = 40
 order                = 2
 max_bond             = 64
 trunc_thresh         = 1e-12
+expand_k             = 4
 krylov_dim           = 16
 save_artifacts_every = 4
 ```
@@ -49,6 +50,29 @@ larger `max_bond`.
 Entanglement grows roughly linearly in time after a quench, so the bond
 dimension needed grows exponentially. This, not the step size, is what sets the
 reachable time horizon.
+
+## Choosing `expand_k`
+
+`expand_k` matters only for `scheme='1sp'`, where it caps how many directions a
+bond may gain per local update. The cap is an upper bound and frequently not
+the binding one: what a bond receives is however many directions its complement
+holds above the scale the discarded-space projection cancelled on, and for a
+short-range Hamiltonian that is typically one or two. The default of 4 leaves
+room without usually being reached.
+
+Too small a value is visible as a `max_bonds` history that climbs step by step
+over a stretch where the physics is not changing that fast, and as observables
+that improve when `expand_k` is raised at fixed `max_bond` and `dt`. Too large
+a value costs a slightly bigger SVD per update and changes nothing else — if
+raising it does not move the answer, the complement, not the cap, was the
+limit. Setting `expand_k = 0` disables the expansion and reproduces `'1s'`
+exactly, which is a useful control when attributing an error to the expansion
+rather than to the integrator.
+
+`expand_alpha` rarely needs setting. It truncates the two-site tensor the
+complement search is built from, which is what keeps the search cheaper than a
+2-site step; `None` leaves the bond intact, making the search exact and the
+step no cheaper than `'2s'`.
 
 ## See Also
 

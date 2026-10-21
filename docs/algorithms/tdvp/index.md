@@ -8,7 +8,7 @@ tangent space of the MPS manifold at the current state.
 
 | Symbol | Description |
 |--------|-------------|
-| [Options](options.md) | Run options: scheme, time step, step count, integrator order, bond dimension, caching, artifacts |
+| [Options](options.md) | Run options: scheme, time step, step count, integrator order, bond dimension, bond expansion, caching, artifacts |
 | [Summary](summary.md) | Evolution history: times, energies, norms, bond dimensions, discarded weights |
 | [Artifact](artifact.md) | State snapshot at one time step |
 | [run](run.md) | Top-level entry point |
@@ -79,9 +79,7 @@ between two, so its final state is always among the snapshots; see
 |------|-------|-------------|
 | `'1s'` | `'1-site'`, `'one-site'` | 1-site update; **cannot** change bond dimension |
 | `'2s'` | `'2-site'`, `'two-site'` | 2-site update with SVD truncation; grows bonds as entanglement develops |
-
-`'1sp'` is accepted by `Options` for forward compatibility but rejected by
-`run()` with `NotImplementedError`.
+| `'1sp'` | `'1-site-plus'`, `'one-site-plus'` | Update on a bond widened beforehand by controlled bond expansion; grows bonds with SVD truncation as `'2s'` does, at close to 1-site cost |
 
 !!! warning "The 1-site scheme cannot grow bonds"
 
@@ -96,12 +94,52 @@ between two, so its final state is always among the snapshots; see
     ```text
     scheme '1s' cannot grow bond dimensions, and bond(s) 0, 4 have dimension
     1; no correlation can cross them, so the dynamics there will be frozen
-    while norm and energy stay conserved. Use scheme '2s', or warm up with
-    '2s' until every bond has opened.
+    while norm and energy stay conserved. Use scheme '2s' or '1sp', or warm up
+    with one of them until every bond has opened.
     ```
 
     Start from a state whose bonds are already open, or use `'2s'` (the
-    default).
+    default) or `'1sp'`.
+
+## Controlled Bond Expansion
+
+`'1sp'` widens the bond ahead of each update before evolving over it, so the
+rank adapts as it does under `'2s'` while every local exponential stays 1-site
+sized. The widening comes from the complement of the space the bond currently
+spans: `H` is applied to a cheaply factored two-site tensor, the part of the
+result the current bond already covers is projected out, and up to `expand_k`
+directions are taken from what is left. Those are the directions the next step
+can flow into. The split that follows truncates the bond back under
+`max_bond`/`trunc_thresh`, as in `'2s'`.
+
+| Option | Meaning |
+|--------|---------|
+| `expand_k` | Cap on the directions added to a bond per local update. `4` is a reasonable default; `0` reduces the scheme to `'1s'` |
+| `expand_alpha` | Internal bond of the cheap factorization, which is what keeps the search below 2-site cost. `None` keeps the full bond |
+
+`expand_k` is a cap rather than a request. A bond gains however many directions
+its complement actually holds, which is often fewer: directions whose singular
+value falls below the scale the projection cancelled on are discarded, because
+they are products of that cancellation and do not lie in the complement at all.
+For a short-range Hamiltonian the genuine count is small — one or two per update
+on the free-fermion benchmarks — so raising `expand_k` past it changes nothing.
+A bond profile still climbs steadily, since the cap applies to one bond in one
+half-sweep rather than to the trajectory.
+
+The scheme escapes the frozen-product-state trap above: a bond of dimension 1
+has a complement like any other, so a quench from a product state evolves. On
+the melting domain wall it matches `'2s'` to 9e-05 against the exact Gaussian
+solution while carrying a smaller bond profile, since it only ever adds
+directions the complement offers.
+
+!!! note "`'1sp'` is not exactly time-reversible"
+
+    The expansion is chosen from the state it starts out in, so a forward step
+    and a backward step do not widen the bond into the same subspace, and
+    reversing a run does not return the initial state to roundoff the way `'1s'`
+    and `'2s'` do. The deviation enters at the order of the integrator error and
+    falls as `dt²`, so it is bounded by the accuracy already being asked for;
+    use `'2s'` where exact reversibility is the point of the calculation.
 
 ## Integrator Order
 
