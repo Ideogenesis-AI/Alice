@@ -1,5 +1,127 @@
 # Changelog
 
+## [0.3.1] - 2026-10-21
+
+**TDVP: The 1-Site-Plus Scheme**
+
+Implements `'1sp'`, the third TDVP update scheme, which v0.3.0 accepted in `Options` and
+rejected in `run()`. Before each local update it widens the bond ahead of it with up to
+`expand_k` directions drawn from the complement of the space that bond currently spans,
+evolves over the widened space, and truncates back — so the rank adapts as it does under
+`'2s'` while every local exponential stays 1-site sized. It is an adaptive-rank scheme of
+the `'2s'` kind at close to 1-site cost, and it is free of the frozen-product-state trap.
+No breaking API changes.
+
+### The 1-Site-Plus Scheme
+
+- `run()` accepts `scheme='1sp'` and `_IMPLEMENTED_SCHEMES` now holds all three schemes,
+  so the `NotImplementedError` v0.3.0 raised is gone.
+- Where `'1s'` and `'2s'` split one fixed tangent-space projector, `'1sp'` rebuilds the
+  space it projects onto at each bond out of the state it finds there, as the sweep
+  reaches it.
+- Its irreversibility is structural: the expansion is chosen from the state the step
+  begins in, so forward and backward steps do not widen the bond into the same subspace.
+  The deviation enters at the order of the integrator error and falls as `dt²`.
+- `expand_k = 0` empties the complement and degenerates a `'1sp'` sweep into a `'1s'`
+  sweep exactly, which separates an error in the expansion from one in the integrator.
+- A bond of dimension 1 has a complement like any other, so a quench from a product state
+  evolves. The frozen-bond warning now recommends `'2s'` or `'1sp'`.
+
+### Complement Isometry
+
+- New `alice.algorithm.tdvp.complement` with `expand_forward`/`expand_backward`. Following
+  DMRG's `'1sp'` scheme, `H` is applied independently from the left and the right to a
+  cheaply factored 2-site tensor, the kept subspace is projected out of each half, and the
+  SVD of the doubly-discarded outer product supplies the new basis vectors.
+- **Exact state preservation**: only the neighbor is expanded by `oplus`, and the center
+  tensor is filled in by projecting Θ onto the expanded neighbor basis, which is exact
+  because the expanded basis contains the old one. Expanding both tensors would move the
+  state.
+- **Exact expanded environment**: built by a single `step_*_env` call over the expanded
+  neighbor, keeping the cross blocks a block-diagonal assembly would drop. DMRG can afford
+  to drop them for an initial guess; here a perturbed `H_eff` perturbs the trajectory.
+- **Orthonormal projectors**: the neighbor side projects against the site tensor, which is
+  isometric there; the center side uses a 1-site split of the center tensor, since
+  `M M†` is a projector only for an isometry. The isometric factor of Θ must not be used,
+  as `decomp` keeps every sector at full dimension and that factor can span the whole
+  (bond, physical) space and project the complement away entirely.
+- `expand_k` is a cap, not a request: a bond gains however many directions its complement
+  actually holds, typically one or two per update for a short-range Hamiltonian.
+- Directions below `1e-10` times `‖lh‖·‖rh‖` are cancellation artifacts, lie in the kept
+  space, and are dropped — a relative threshold cannot do this job, shrinking with exactly
+  the quantity whose smallness is the thing to detect. The same absolute floor gates
+  Θ'_disc as a whole, which is where the test must be made: two discarded halves can each
+  keep a sizable remainder while their contraction cancels it, and the SVD returns a
+  unit-norm vector from a zero block regardless.
+- A bond with no complement — saturated, or out of `H`'s reach — is left alone, with the
+  environment the 1-site step would have used handed back.
+
+### Sweeps and Options
+
+- New `_forward_1sp`/`_backward_1sp` half-sweeps in `sweep.py`, reusing every piece of
+  local arithmetic from `scheme_1s`. Each site expands the bond ahead of it, evolves,
+  splits with truncation under `max_bond`/`trunc_thresh`, then back-evolves the bond
+  tensor and absorbs it into the expanded neighbor; the far-end site takes no expansion
+  and no back-evolution.
+- The zero-site step spans two bonds rather than one: `C` is rectangular, truncated bond
+  on one axis and expanded bond on the other, which is what keeps it exact.
+- `split_forward`/`split_backward` gain an optional `trunc` forwarded to `decomp`,
+  defaulting to `None`; `'1s'` always passes `None` and nothing else in `scheme_1s`
+  truncates.
+- `tdvp.Options` gains `expand_k` (default `4`) and `expand_alpha` (default `None`), used
+  only by `'1sp'`; `max_bond` and `trunc_thresh` now apply to `'1sp'` as well, and
+  `Summary.discarded_weights` is populated by it. `run()` logs both settings at startup.
+- The expansion-option guidance across all three algorithms is now `round(sqrt(max_bond))`
+  rather than a bare `4`.
+
+### Tests
+
+- New `tests/algorithm/tdvp/test_complement.py` covering the cheap factors, the
+  center-side orthonormalization, the half contractions reassembling `H·Θ̃`, the
+  discarded-space projections, complement detection on a bond that has one, a saturated
+  bond, and a vanishing doubly-discarded tensor, and the expansion end to end — bond
+  growth, state preservation, unchanged effective energy and norm, neighbor isometry, the
+  fill-in matching zero padding, chain edges, and `alpha` truncation. `TestNonAbelian`
+  repeats the core cases on an SU(2) Heisenberg chain.
+- New `TestTruncatingSplits` in `test_scheme_1s.py`, `TestExpansionReversibility` and
+  bond-growth coverage in `test_sweep.py`, `TestFreeFermion1SitePlus` and
+  `TestMeltingDomainWall` in `test_physics.py` with a `domain_wall` fixture and its exact
+  reference, and `TestExpansionDriver` in `test_tdvp.py` covering achieved growth, the
+  logged settings, and a resumed run reproducing an uninterrupted one.
+
+### Documentation
+
+- `docs/algorithms/tdvp/index.md` gains a **Controlled Bond Expansion** section with the
+  option table, why `expand_k` is a cap, the escape from the frozen-product-state trap,
+  and an admonition on the scheme not being exactly time-reversible; the scheme table
+  lists `'1sp'` in place of the forward-compatibility note.
+- `docs/algorithms/tdvp/options.md` gains a **Choosing `expand_k`** section.
+- New `docs/examples/tdvp/scheme-comparison.md` and
+  `examples/examples_tdvp/tdvp_scheme_comparison.py`: the three schemes on one
+  free-fermion quench from a half-filled product state, scored against the exact
+  correlation matrix, with `expand_k` and `dt` scans. `'1s'` stays frozen at bond
+  dimension 1 with every conservation law intact; `'1sp'` and `'2s'` both land within
+  9e-05 of the Gaussian solution, `'1sp'` on a smaller bond profile.
+
+### Statistics
+
+- **1,313 tests** across 38 test modules (up from 1,211 / 37 modules in v0.3.0).
+- **30 commits** since v0.3.0.
+- **17 files changed**, 3,109 insertions, 84 deletions.
+- **35 source modules** in five subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`, `alice.algorithm.tdvp`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `tdvp.run` no longer raises `NotImplementedError` for
+  `scheme='1sp'`. `tdvp.Options` gains two fields, `expand_k` and `expand_alpha`, so
+  positional construction past `trunc_thresh` shifts. The frozen-bond warning text now
+  recommends `'2s'` or `'1sp'`.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.4.2.
+
+---
+
 ## [0.3.0] - 2026-10-18
 
 **TDVP: Real-Time Evolution**
@@ -1140,6 +1262,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.3.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.0
 [0.2.8]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.8
 [0.2.7]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.7

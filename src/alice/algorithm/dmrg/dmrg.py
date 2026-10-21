@@ -158,12 +158,13 @@ class Options(AlgorithmOptions):
     expand_k:
         Maximum number of complement vectors added to each bond end per CBE
         step. Only used when `scheme = '1sp'`. Larger values give a richer
-        expanded space at higher cost; `4` is a typical starting point.
+        expanded space at higher cost. A typical choice is `round(sqrt(max_bond))`.
     expand_alpha:
         Internal bond dimension used when forming the cheap 2-site tensor
         Θ̃ = truncated SVD of M[i] ⊗ M[i+1] inside the CBE expansion.
         Only used when `scheme = '1sp'`. `None` keeps the full bond (no
-        additional truncation beyond the existing bond dimension).
+        additional truncation beyond the existing bond dimension). A typical
+        choice is `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     checkpoint_dir:
         Directory to write checkpoint files into. A `dmrg.ckpt` file
         (PyTorch format, loadable via `dmrg.Summary.load`) is written after

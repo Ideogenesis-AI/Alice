@@ -26,8 +26,11 @@ the tangent space of the variational manifold:
 and integrating the result by projector splitting. Each local update is a
 Krylov matrix exponential (`krylov.py`) applied to the effective Hamiltonian
 assembled from the environment blocks (`environ.py`), with the 1-site and
-2-site updates defined in `scheme_1s.py` and `scheme_2s.py` and ordered into
-sweeps by `sweep.py`.
+2-site updates defined in `scheme_1s.py` and `scheme_2s.py`, the bond
+expansion the 1-site-plus scheme is built around in `complement.py`, and all
+of them ordered into sweeps by `sweep.py`. The splitting is of one fixed
+projector under `'1s'` and `'2s'`; under `'1sp'` the projected space is rebuilt
+from the current state at each bond as the sweep reaches it.
 
 `run()` operates purely on state: it takes a starting MPS (bundled with its
 `time` and `step` in an `Artifact`) and advances it by `opts.dt` repeatedly.
@@ -76,6 +79,19 @@ and across a bond of dimension 1 it cannot transport correlation at all. A
 product state has every bond at dimension 1, so a `'1s'` quench from one does
 not evolve — silently, since the conserved quantities stay conserved. `run()`
 warns when it is handed such a state.
+
+`'1sp'` is what to reach for when `'2s'` is too expensive at the bond dimension
+the state wants. It widens the bond ahead of each update with up to `expand_k`
+directions drawn from the complement of the space that bond currently spans,
+then evolves over the widened space, so the rank adapts as it does under `'2s'`
+while the local exponential stays 1-site sized. Cost and name are all it shares
+with `'1s'`. It adapts the rank, truncates, and reports a discarded weight, and
+it inherits neither the exact conservation nor the exact reversibility that
+make `'1s'` worth having; group it with `'2s'` when reasoning about what it
+guarantees. Its irreversibility is structural rather than incidental: the
+expansion is chosen from the state the step begins in, so forward and backward
+steps do not span the same space. That deviation enters at the order of the
+integrator error and vanishes with `dt`.
 """
 
 from __future__ import annotations
@@ -121,7 +137,7 @@ _SCHEME_ALIASES: dict[str, str] = {
     'one-site-plus': '1sp',
 }
 
-_IMPLEMENTED_SCHEMES = {'1s', '2s'}
+_IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 
 def _resolve_scheme(alias: str) -> str:
@@ -176,6 +192,14 @@ class Options(AlgorithmOptions):
           conserves norm and energy to roundoff, but holds every bond
           dimension fixed. See the module docstring for the product-state
           trap this creates.
+        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: update on a bond
+          widened beforehand by controlled bond expansion, by up to
+          `expand_k` directions per bond per half-sweep. An adaptive-rank
+          scheme of the `'2s'` kind, truncation and discarded weight
+          included, at close to 1-site cost, and so free of the
+          product-state trap. It is not a `'1s'` run with an extra step:
+          norm and energy are conserved only to truncation error, and the
+          trajectory is not exactly reversible.
     dt:
         Time increment per step. May be negative to evolve backwards, which
         is how a run is reversed to check accumulated error.
@@ -200,11 +224,23 @@ class Options(AlgorithmOptions):
         after an odd step carry first-order error.
     max_bond:
         Maximum bond dimension. `None` means unlimited. Meaningful for `'2s'`
-        only; the `'1s'` update never changes a bond dimension, so no
-        truncation is applied there at all.
+        and `'1sp'`, the two schemes whose bonds can grow; the `'1s'` update
+        never changes a bond dimension, so no truncation is applied there at
+        all.
     trunc_thresh:
         Singular value truncation threshold (relative to the largest singular
-        value per charge sector). As for `max_bond`, `'2s'` only.
+        value per charge sector). As for `max_bond`, `'2s'` and `'1sp'` only.
+    expand_k:
+        Maximum number of complement directions added to each bond per local
+        update. Only used when `scheme = '1sp'`. Larger values let the bond
+        profile adapt faster at higher cost. A typical choice is
+        `round(sqrt(max_bond))`. `0` reduces the scheme to `'1s'`.
+    expand_alpha:
+        Internal bond dimension of the cheap factorization of Θ inside the
+        expansion, which is what keeps the complement search cheaper than a
+        2-site step. Only used when `scheme = '1sp'`. `None` keeps the full
+        bond, making the search exact but no cheaper than `'2s'` per bond. A
+        typical choice is `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     krylov_dim:
         Maximum Krylov subspace dimension per local exponential. The solver
         stops earlier on happy breakdown or once `krylov_tol` is met.
@@ -273,6 +309,8 @@ class Options(AlgorithmOptions):
     order: int = 2
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-12
+    expand_k: int = 4
+    expand_alpha: Optional[int] = None
     krylov_dim: int = 16
     krylov_tol: float = 1e-12
     renormalize: bool = False
@@ -333,7 +371,7 @@ class Summary(AlgorithmSummary):
         Largest bond dimension of the state at each recorded step.
     discarded_weights:
         Discarded weight at the mid-chain bond for each step performed
-        (`'2s'` only; `0.0` entries for `'1s'`).
+        (`'2s'` and `'1sp'`; `0.0` entries for `'1s'`, which never truncates).
     krylov_errors:
         Largest local Krylov error estimate over each step performed. A value
         approaching `Options.krylov_tol` from above across many steps means
@@ -693,7 +731,8 @@ def _warn_frozen_bonds(mps: MPS) -> None:
         "scheme '1s' cannot grow bond dimensions, and bond(s) %s%s have "
         "dimension 1; no correlation can cross them, so the dynamics there "
         "will be frozen while norm and energy stay conserved. Use scheme "
-        "'2s', or warm up with '2s' until every bond has opened.",
+        "'2s' or '1sp', or warm up with one of them until every bond has "
+        "opened.",
         shown, more,
     )
 
@@ -863,6 +902,10 @@ def run(
     logger.info("  final time        : %.6g", t_final)
     logger.info("  max bond dim      : %s", max_bond_str)
     logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
+    if opts.scheme == '1sp':
+        alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'full'
+        logger.info("  expand k          : %d", opts.expand_k)
+        logger.info("  expand alpha      : %s", alpha_str)
     logger.info("  krylov dim        : %d", opts.krylov_dim)
     logger.info("  krylov tol        : %.2e", opts.krylov_tol)
     logger.info("  renormalize       : %s", opts.renormalize)

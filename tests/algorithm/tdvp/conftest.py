@@ -299,12 +299,76 @@ def free_fermion(fermion_space):
     return mpo, n_obs, make_state
 
 
-def analytic_occupations(t: float) -> np.ndarray:
-    """Exact site occupations of the one-particle tight-binding chain at `t`.
+@pytest.fixture(scope='session')
+def domain_wall(fermion_space, free_fermion):
+    """Half-filled domain wall on the same chain as `free_fermion`.
 
-    The open-chain single-particle eigenbasis is
-    `phi_k(j) = sqrt(2/(L+1)) sin(pi k (j+1)/(L+1))` with energies
-    `eps_k = -2 t cos(pi k/(L+1))`, so the propagator needs no diagonalization.
+    `|1…1 0…0⟩` on the left and right halves. The Hamiltonian and the
+    occupation observables are the ones `free_fermion` already built; only the
+    initial state differs, and with it the bond dimension the exact state
+    needs: this one melts into a state whose bonds climb all the way to full
+    rank, where the single-particle state stays at dimension 2 forever.
+
+    Returns
+    -------
+    tuple
+        `(mpo, n_obs, make_state)`, as for `free_fermion`.
+    """
+    from alice.network import init_mps
+
+    _, ops = fermion_space
+    mpo, n_obs, _ = free_fermion
+    L = FREE_FERMION_L
+    cfg = {
+        'geometry': {'lattice': 'chain', 'lx': L, 'bcx': 'OBC', 'n2x': True},
+        'model': {
+            'category': 'fermionic', 'label': 'FreeFermion',
+            'symmetry': 'U1', 't': FREE_FERMION_T,
+        },
+    }
+    _, spc, _ = build_interaction(cfg)
+
+    def make_state():
+        """Fresh complex product state with the left half filled."""
+        config = [1] * (L // 2) + [0] * (L // 2)
+        return init_mps(L, spc, ops, bond_dim=1, config=config,
+                        dtype=torch.complex128)
+
+    return mpo, n_obs, make_state
+
+
+def _single_particle_propagator(t: float) -> np.ndarray:
+    """Build `exp(-i h t)` for the open tight-binding chain in closed form.
+
+    The eigenbasis is `phi_k(j) = sqrt(2/(L+1)) sin(pi k (j+1)/(L+1))` with
+    energies `eps_k = -2 t cos(pi k/(L+1))`, so no diagonalization is needed.
+
+    Parameters
+    ----------
+    t:
+        Evolution time.
+
+    Returns
+    -------
+    numpy.ndarray
+        The `L x L` propagator.
+    """
+    L = FREE_FERMION_L
+    k = np.arange(1, L + 1)[:, None]
+    j = np.arange(L)[None, :]
+    phi = np.sqrt(2.0 / (L + 1)) * np.sin(np.pi * k * (j + 1) / (L + 1))
+    eps = -2.0 * FREE_FERMION_T * np.cos(np.pi * k[:, 0] / (L + 1))
+    return phi.T @ (np.exp(-1j * eps * t)[:, None] * phi)
+
+
+def analytic_domain_wall_occupations(t: float) -> np.ndarray:
+    """Exact site occupations of the melting domain wall at `t`.
+
+    A product state of fermions stays Gaussian, so the equal-time correlation
+    matrix `C_{jk} = ⟨c†_j c_k⟩` evolves as `C(t) = U(t) C(0) U(t)†` with
+    `U = exp(-i h t)` and `C(0)` diagonal in the occupations. The site
+    occupations are its diagonal — a many-particle reference that still owes
+    nothing to tensor networks.
 
     Parameters
     ----------
@@ -317,12 +381,28 @@ def analytic_occupations(t: float) -> np.ndarray:
         Occupation of each site, length `FREE_FERMION_L`.
     """
     L = FREE_FERMION_L
-    k = np.arange(1, L + 1)[:, None]
-    j = np.arange(L)[None, :]
-    phi = np.sqrt(2.0 / (L + 1)) * np.sin(np.pi * k * (j + 1) / (L + 1))
-    eps = -2.0 * FREE_FERMION_T * np.cos(np.pi * k[:, 0] / (L + 1))
-    amp = phi.T @ (np.exp(-1j * eps * t) * phi[:, FREE_FERMION_SITE])
-    return np.abs(amp) ** 2
+    U = _single_particle_propagator(t)
+    occ0 = np.array([1.0] * (L // 2) + [0.0] * (L // 2))
+    return np.real(np.diag(U @ np.diag(occ0) @ U.conj().T))
+
+
+def analytic_occupations(t: float) -> np.ndarray:
+    """Exact site occupations of the one-particle tight-binding chain at `t`.
+
+    One particle stays in the single-particle sector, so the occupations are
+    the squared amplitudes of the propagator's column at the starting site.
+
+    Parameters
+    ----------
+    t:
+        Evolution time.
+
+    Returns
+    -------
+    numpy.ndarray
+        Occupation of each site, length `FREE_FERMION_L`.
+    """
+    return np.abs(_single_particle_propagator(t)[:, FREE_FERMION_SITE]) ** 2
 
 
 # ---------------------------------------------------------------------------

@@ -277,6 +277,97 @@ class TestSplits:
 
 
 # ---------------------------------------------------------------------------
+# Truncating splits
+# ---------------------------------------------------------------------------
+
+class TestTruncatingSplits:
+    """Tests for the `trunc` argument, which only `'1sp'` ever passes.
+
+    The obligations are the ones `'1s'` already relies on — an isometry on one
+    side, the bond tensor oriented for `matvec_0s` on the other — plus the new
+    one that the bond really is cut and the loss is measurable. The isometry
+    matters most: `'1sp'` stores the truncated factor straight into the state
+    and builds the next environment from it.
+    """
+
+    def test_forward_isometry_survives_truncation(self, heisenberg_L6):
+        mps, _ = heisenberg_L6
+        mps.canonical(3)
+        A, _ = split_forward(mps[3], mps._bond_itag(4), {'nkeep': 2})
+        gram = einsum('abr,acr->bc', A.conj(), A)
+        for block in gram.data.values():
+            assert torch.allclose(
+                block, torch.eye(block.shape[0], dtype=block.dtype), atol=1e-12
+            )
+
+    def test_backward_isometry_survives_truncation(self, heisenberg_L6):
+        mps, _ = heisenberg_L6
+        mps.canonical(3)
+        _, B = split_backward(mps[3], mps._bond_itag(3), {'nkeep': 2})
+        gram = einsum('abr,cbr->ac', B.conj(), B)
+        for block in gram.data.values():
+            assert torch.allclose(
+                block, torch.eye(block.shape[0], dtype=block.dtype), atol=1e-12
+            )
+
+    def test_nkeep_caps_every_sector(self, heisenberg_L6):
+        """`nkeep` is per charge sector, so the test has to be too."""
+        mps, _ = heisenberg_L6
+        mps.canonical(3)
+        A, C = split_forward(mps[3], mps._bond_itag(4), {'nkeep': 1})
+        for sector in A.indices[1].sectors:
+            assert sector.dim <= 1
+        assert C.indices[0].dim == A.indices[1].dim
+
+    def test_bond_tensor_keeps_its_orientation(self, heisenberg_L6):
+        """Truncation touches the new bond only, not the axis the neighbor shares.
+
+        This asymmetry is what `'1sp'` depends on: the zero-site step closes
+        the truncated axis against the rebuilt environment and the untouched
+        axis against the expanded one.
+        """
+        mps, _ = heisenberg_L6
+        mps.canonical(3)
+        _, C = split_forward(mps[3], mps._bond_itag(4), {'nkeep': 1})
+        assert C.indices[1].dim == mps[3].indices[1].dim
+
+    def test_truncation_costs_weight(self, heisenberg_L6):
+        """The isometry carries none of the norm, so the bond tensor loses it."""
+        mps, _ = heisenberg_L6
+        mps.canonical(3)
+        _, C_exact = split_forward(mps[3], mps._bond_itag(4))
+        _, C_cut = split_forward(mps[3], mps._bond_itag(4), {'nkeep': 1})
+        assert C_cut.norm() < C_exact.norm()
+
+    def test_loss_matches_the_reported_discarded_weight(self, heisenberg_L6):
+        """What the forward split drops is what `scheme_2s.discarded_weight` reports.
+
+        The sweep reads the 1-site truncation error through the 2-site helper,
+        which bipartitions its argument into axes `(0, 2)` against the rest —
+        for a site tensor that is exactly the forward split's cut.
+        """
+        from alice.algorithm.tdvp.scheme_2s import discarded_weight
+
+        mps, _ = heisenberg_L6
+        mps.canonical(3)
+        trunc = {'nkeep': 1}
+        _, C = split_forward(mps[3], mps._bond_itag(4), trunc)
+        lost = 1.0 - (C.norm() / mps[3].norm()) ** 2
+        assert abs(discarded_weight(mps[3], trunc) - lost) < 1e-9
+
+    def test_backward_loss_matches_the_swapped_bipartition(self, heisenberg_L6):
+        """The backward cut is read off the same helper with the bonds swapped."""
+        from alice.algorithm.tdvp.scheme_2s import discarded_weight
+
+        mps, _ = heisenberg_L6
+        mps.canonical(3)
+        trunc = {'nkeep': 1}
+        C, _ = split_backward(mps[3], mps._bond_itag(3), trunc)
+        lost = 1.0 - (C.norm() / mps[3].norm()) ** 2
+        assert abs(discarded_weight(mps[3].permute([1, 0, 2]), trunc) - lost) < 1e-9
+
+
+# ---------------------------------------------------------------------------
 # Local evolutions
 # ---------------------------------------------------------------------------
 

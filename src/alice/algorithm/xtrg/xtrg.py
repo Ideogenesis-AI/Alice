@@ -206,7 +206,7 @@ class Options(AlgorithmOptions):
     expand_k:
         Maximum number of complement vectors added to each bond end per CBE
         step. Only used when `scheme = '1sp'`. Larger values give a richer
-        expanded space at higher cost; `4` is a typical starting point.
+        expanded space at higher cost. A typical choice is `round(sqrt(max_bond))`.
     expand_alpha:
         Internal connector-bond dimension used by the cheap per-operand SVD
         compression inside the CBE expansion (Eq. 13 of arXiv:2510.25022).
