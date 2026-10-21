@@ -55,6 +55,7 @@ from alice.network import observe
 from .conftest import (
     FREE_FERMION_L,
     FREE_FERMION_SITE,
+    analytic_domain_wall_occupations,
     analytic_occupations,
     bond_profile,
     mps_overlap,
@@ -243,6 +244,70 @@ class TestFreeFermion1SitePlus:
 
         occ = _occupations(final.state, n_obs)
         assert np.allclose(occ, analytic_occupations(1.0), atol=1e-4)
+
+
+class TestMeltingDomainWall:
+    """Bond expansion on a state whose bonds genuinely have to climb.
+
+    The single-particle benchmark above cannot test `expand_k` at all: one
+    particle has Schmidt rank exactly 2 at every bond for all time, so the
+    complement holds a single direction and every `expand_k >= 1` does the
+    same work. A melting domain wall runs its bonds up to full rank instead,
+    which is where asking for more directions than the complement holds has
+    to stay safe — and where it did not, until the SVD threshold was tied to
+    the scale of the halves rather than to Θ'_disc itself.
+
+    Product states of fermions stay Gaussian, so the reference is still
+    analytic: the equal-time correlation matrix evolves as `C(t) = U C(0) U†`.
+    """
+
+    # One run shared by the three tests below; `dt` is coarse because the
+    # bond profile and the conservation laws are what is under test, not the
+    # last digit of the occupations.
+    DT = 0.1
+    N_STEPS = 10
+
+    @pytest.fixture(scope='class')
+    @classmethod
+    def melted(cls, domain_wall):
+        """Evolve the domain wall once with the default `expand_k`."""
+        mpo, n_obs, make_state = domain_wall
+        _, final = _evolve(make_state(), mpo, scheme='1sp',
+                           dt=cls.DT, n_steps=cls.N_STEPS, expand_k=4)
+        return final.state, n_obs
+
+    def test_bonds_climb_to_full_rank(self, melted):
+        """Every bond leaves dimension 1 and reaches what the state needs."""
+        state, _ = melted
+        assert bond_profile(state) == [2, 4, 8, 16, 8, 4, 2]
+
+    def test_occupations_match_the_correlation_matrix(self, melted):
+        """The melted profile agrees with the exact Gaussian solution."""
+        state, n_obs = melted
+        exact = analytic_domain_wall_occupations(self.DT * self.N_STEPS)
+        assert np.allclose(_occupations(state, n_obs), exact, atol=5e-3)
+
+    def test_half_filling_survives(self, melted):
+        """Four particles in, four particles out."""
+        state, n_obs = melted
+        assert abs(_occupations(state, n_obs).sum() - 4.0) < 1e-10
+
+    def test_overshooting_expand_k_stays_exact(self, domain_wall):
+        """Asking for far more directions than exist must change nothing.
+
+        The regression this guards: surplus directions came back as
+        cancellation noise lying inside the kept space, which broke the
+        expanded neighbor's isometry and left the state growing without
+        bound — the norm reached 1e17 here before the threshold was fixed,
+        while `expand_k = 1` stayed exact throughout.
+        """
+        mpo, n_obs, make_state = domain_wall
+        _, final = _evolve(make_state(), mpo, scheme='1sp',
+                           dt=self.DT, n_steps=self.N_STEPS, expand_k=16)
+
+        assert abs(final.state.norm() - 1.0) < 1e-10
+        exact = analytic_domain_wall_occupations(self.DT * self.N_STEPS)
+        assert np.allclose(_occupations(final.state, n_obs), exact, atol=5e-3)
 
 
 # ---------------------------------------------------------------------------
