@@ -30,7 +30,8 @@ n_steps              = 40
 order                = 2
 max_bond             = 64
 trunc_thresh         = 1e-12
-expand_k             = 4
+expand_k             = 8
+expand_alpha         = 8
 krylov_dim           = 16
 save_artifacts_every = 4
 ```
@@ -57,8 +58,8 @@ reachable time horizon.
 bond may gain per local update. The cap is an upper bound and frequently not
 the binding one: what a bond receives is however many directions its complement
 holds above the scale the discarded-space projection cancelled on, and for a
-short-range Hamiltonian that is typically one or two. The default of 4 leaves
-room without usually being reached.
+short-range Hamiltonian that is typically one or two. A typical choice for the
+cap is `round(sqrt(max_bond))`.
 
 Too small a value is visible as a `max_bonds` history that climbs step by step
 over a stretch where the physics is not changing that fast, and as observables
@@ -69,10 +70,10 @@ limit. Setting `expand_k = 0` disables the expansion and reproduces `'1s'`
 exactly, which is a useful control when attributing an error to the expansion
 rather than to the integrator.
 
-`expand_alpha` rarely needs setting. It truncates the two-site tensor the
-complement search is built from, which is what keeps the search cheaper than a
-2-site step; `None` leaves the bond intact, making the search exact and the
-step no cheaper than `'2s'`.
+`expand_alpha` truncates the two-site tensor the complement search is built
+from, which is what keeps the search cheaper than a 2-site step; `None` leaves
+the bond intact, making the search exact and the step no cheaper than `'2s'`.
+A typical choice is `round(sqrt(max_bond))`, the same scale as `expand_k`.
 
 ## See Also
 
