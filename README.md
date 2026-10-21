@@ -29,7 +29,7 @@ Finite-temperature thermodynamics via exponential cooling of the thermal density
 
 ### TDVP (Time-Dependent Variational Principle)
 
-Real-time evolution within the MPS manifold via tangent-space projection of the Schrödinger equation. Two update schemes are available — 1-site (fixed bond dimension) and 2-site (SVD truncation with bond growth) — each with a Krylov matrix-exponential solver and a first- or second-order symmetric integrator.
+Real-time evolution within the MPS manifold via tangent-space projection of the Schrödinger equation. Three update schemes are available — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — each with a Krylov matrix-exponential solver and a first- or second-order symmetric integrator.
 
 ### Upcoming
 
