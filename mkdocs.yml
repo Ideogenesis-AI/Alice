@@ -133,6 +133,7 @@ nav:
       - Domain wall: examples/tdvp/domain-wall.md
       - Hubbard model: examples/tdvp/hubbard.md
       - Hubbard quench: examples/tdvp/hubbard-quench.md
+      - Scheme comparison: examples/tdvp/scheme-comparison.md
     - AutoMPO from TOML: examples/autompo-toml.md
     - Extensions:
       - Custom geometry: examples/extensions/custom-geometry.md
