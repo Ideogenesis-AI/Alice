@@ -34,13 +34,18 @@ All local computation is delegated to pure functions in `scheme_1s`,
 `scheme_2s` and `complement`, which are the natural units of work for future
 parallel or distributed execution.
 
-The 1-site-plus half-sweeps are the 1-site ones with a bond expansion spliced
-in ahead of every local evolution, so they reuse `scheme_1s` in full and differ
-only in what they hand it: a site tensor living on a bond widened by up to
-`k_expand` complement directions, an environment that is exact in that widened
-basis, and a `trunc` passed to the split, which `'1s'` leaves at `None`. The
-expansion itself leaves the state untouched, so a `'1sp'` sweep with
-`expand_k=0` is a `'1s'` sweep.
+The 1-site-plus half-sweeps reuse `scheme_1s` for every piece of local
+arithmetic, a 1-site-sized update being the same arithmetic whatever space it
+is carried out on. That reuse is where the kinship ends. `'1s'` integrates on a
+manifold of fixed rank, and its sweep is an exact splitting of one fixed
+tangent-space projector; `'1sp'` assembles the space it projects onto afresh at
+every bond out of the state it finds there, truncates each bond it has widened,
+and carries the resulting discarded weight. It is a scheme of the `'2s'` kind
+whose local exponential happens to be 1-site sized, and the expectations that
+make `'1s'` worth having — fixed rank, nothing discarded, reversibility to
+roundoff — do not transfer to it. The single point where the two coincide is
+`expand_k = 0`: the complement is then empty, the rank stops moving, and a
+`'1sp'` sweep degenerates to a `'1s'` sweep.
 
 A sweep *is* a time step
 ------------------------
@@ -567,22 +572,26 @@ def _forward_1sp(
 ) -> Tuple[float, float]:
     """Forward (left-to-right) half-sweep for 1-site-plus TDVP.
 
-    `_forward_1s` with an expansion of bond `(i, i+1)` spliced in before each
-    local evolution. At every site `i < L-1`:
+    At every site `i < L-1`:
 
-    1. `expand_forward` widens the bond by up to `k_expand` complement
+    1. `expand_forward` widens bond `(i, i+1)` by up to `k_expand` complement
        directions, leaving the state unchanged and returning a right
        environment that is exact in the widened basis.
-    2. The expanded site tensor is evolved forward by `dt` — a 1-site step,
-       but over a tangent space that now reaches into the complement.
+    2. The expanded site tensor is evolved forward by `dt`. The step is 1-site
+       sized, but the space it is taken in was built from the current state at
+       this bond and is neither the fixed-rank tangent space of `'1s'` nor the
+       same space the neighboring bonds will use.
     3. The truncating split cuts the bond back to `max_bond`/`trunc_thresh`,
        keeping whichever directions the evolution actually populated.
     4. The exposed bond tensor is evolved *backward* by `dt` and absorbed into
        the expanded neighbor, which returns the stored bond to the truncated
-       dimension and moves the center to `i+1`.
+       dimension and moves the center to `i+1`. Unlike the zero-site step of
+       `'1s'`, which removes the double counting of one bond space, this one
+       spans two: `C` is rectangular, the truncated bond on one axis and the
+       expanded bond on the other.
 
-    The rightmost site has no neighbor to expand into and is evolved as in
-    `'1s'`, without a back-evolution.
+    The rightmost site has no neighbor to expand into, so it is evolved on the
+    bond it already has and takes no back-evolution.
 
     After this call:
     - `mps.center == mps.L - 1`.

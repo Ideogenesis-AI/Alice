@@ -19,7 +19,7 @@
 """CBE complement isometry for 1-site-plus TDVP.
 
 Implements the controlled bond expansion (CBE) step used by the 1-site-plus
-scheme. Before each 1-site evolution, a complement isometry is computed from a
+scheme. Before each local evolution, a complement isometry is computed from a
 cheap, factored approximation of the 2-site gradient: H is applied
 independently from the left and right to a truncated 2-site tensor; the current
 (kept) subspace is projected out from each half; the resulting

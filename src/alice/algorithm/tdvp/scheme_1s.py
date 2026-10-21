@@ -18,10 +18,12 @@
 
 """1-site TDVP update scheme, including the zero-site back-evolution.
 
-This module contains all operations specific to a 1-site update, which the
-1-site-plus scheme reuses in full: it differs only in what it feeds them — a
-site tensor on a bond widened by `complement.py`, an environment exact in that
-widened basis, and a `trunc` passed to the splits.
+This module holds the operations a 1-site-sized update is assembled from. The
+1-site-plus scheme calls all of them, handing them a site tensor on a bond
+widened by `complement.py`, an environment exact in that widened basis, and a
+`trunc` for the splits. That is a sharing of arithmetic and not of structure:
+`'1sp'` is an adaptive-rank scheme of the `'2s'` kind, and nothing said below
+about what the 1-site scheme preserves applies to it. See `sweep.py`.
 
 - `matvec_1s` / `evolve_1site`: apply `exp(-i·dt·H_eff)` to a single site
   tensor, where `H_eff = E_left ⊗ W ⊗ E_right`.

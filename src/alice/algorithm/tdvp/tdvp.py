@@ -27,8 +27,10 @@ and integrating the result by projector splitting. Each local update is a
 Krylov matrix exponential (`krylov.py`) applied to the effective Hamiltonian
 assembled from the environment blocks (`environ.py`), with the 1-site and
 2-site updates defined in `scheme_1s.py` and `scheme_2s.py`, the bond
-expansion that the 1-site-plus scheme prepends to the former in
-`complement.py`, and all of them ordered into sweeps by `sweep.py`.
+expansion the 1-site-plus scheme is built around in `complement.py`, and all
+of them ordered into sweeps by `sweep.py`. The splitting is of one fixed
+projector under `'1s'` and `'2s'`; under `'1sp'` the projected space is rebuilt
+from the current state at each bond as the sweep reaches it.
 
 `run()` operates purely on state: it takes a starting MPS (bundled with its
 `time` and `step` in an `Artifact`) and advances it by `opts.dt` repeatedly.
@@ -78,14 +80,18 @@ product state has every bond at dimension 1, so a `'1s'` quench from one does
 not evolve — silently, since the conserved quantities stay conserved. `run()`
 warns when it is handed such a state.
 
-`'1sp'` sits between the two. Before each 1-site update it widens the bond
-ahead of it with up to `expand_k` directions drawn from the complement of
-the current bond space, so bonds adapt as they do under `'2s'` while the
-local exponential stays 1-site. It is the scheme to reach for when `'2s'` is
-too expensive at the bond dimension the state wants, at the price of exact
-time reversibility: the expansion is chosen from the state it starts from, so
-a forward and a backward step do not span the same tangent space. That
-deviation enters at the order of the integrator error and vanishes with `dt`.
+`'1sp'` is what to reach for when `'2s'` is too expensive at the bond dimension
+the state wants. It widens the bond ahead of each update with up to `expand_k`
+directions drawn from the complement of the space that bond currently spans,
+then evolves over the widened space, so the rank adapts as it does under `'2s'`
+while the local exponential stays 1-site sized. Cost and name are all it shares
+with `'1s'`. It adapts the rank, truncates, and reports a discarded weight, and
+it inherits neither the exact conservation nor the exact reversibility that
+make `'1s'` worth having; group it with `'2s'` when reasoning about what it
+guarantees. Its irreversibility is structural rather than incidental: the
+expansion is chosen from the state the step begins in, so forward and backward
+steps do not span the same space. That deviation enters at the order of the
+integrator error and vanishes with `dt`.
 """
 
 from __future__ import annotations
@@ -186,11 +192,14 @@ class Options(AlgorithmOptions):
           conserves norm and energy to roundoff, but holds every bond
           dimension fixed. See the module docstring for the product-state
           trap this creates.
-        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: 1-site update on a
-          bond widened beforehand by controlled bond expansion. Adapts bond
-          dimensions like `'2s'` at close to 1-site cost, bounded by
-          `expand_k` directions per bond per half-sweep, and so escapes the
-          product-state trap as well.
+        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: update on a bond
+          widened beforehand by controlled bond expansion, by up to
+          `expand_k` directions per bond per half-sweep. An adaptive-rank
+          scheme of the `'2s'` kind, truncation and discarded weight
+          included, at close to 1-site cost, and so free of the
+          product-state trap. It is not a `'1s'` run with an extra step:
+          norm and energy are conserved only to truncation error, and the
+          trajectory is not exactly reversible.
     dt:
         Time increment per step. May be negative to evolve backwards, which
         is how a run is reversed to check accumulated error.
