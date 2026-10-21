@@ -114,8 +114,8 @@ can flow into. The split that follows truncates the bond back under
 
 | Option | Meaning |
 |--------|---------|
-| `expand_k` | Cap on the directions added to a bond per local update. `4` is a reasonable default; `0` reduces the scheme to `'1s'` |
-| `expand_alpha` | Internal bond of the cheap factorization, which is what keeps the search below 2-site cost. `None` keeps the full bond |
+| `expand_k` | Cap on the directions added to a bond per local update. A typical choice is `round(sqrt(max_bond))`; `0` reduces the scheme to `'1s'` |
+| `expand_alpha` | Internal bond of the cheap factorization, which is what keeps the search below 2-site cost. A typical choice is `round(sqrt(max_bond))`, as for `expand_k`; `None` keeps the full bond |
 
 `expand_k` is a cap rather than a request. A bond gains however many directions
 its complement actually holds, which is often fewer: directions whose singular
