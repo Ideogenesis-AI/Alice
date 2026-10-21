@@ -476,7 +476,7 @@ def _complement_vectors(
     # caps the expansion; `thresh` is what keeps it honest, since a bond whose
     # complement holds fewer than `k_expand` directions still has singular
     # values to report and they are cancellation noise, lying in the kept space
-    # rather than in the complement. Asking for four directions where one
+    # rather than in the complement. Asking for `k_expand` directions where one
     # exists is the ordinary case, not an edge case.
     U, _S, Vh = decomp(
         theta_disc, axes=[0, 2], mode='SVD',
