@@ -162,6 +162,34 @@ degeneracy-weighted entropy to 1.3e-04, with particle number exact and energy
 conserved to 9.4e-15. The SU(2) representation stores 32 multiplets where the
 state count is 60.
 
+## Bond expansion under a non-Abelian group
+
+`--scheme 1sp` is worth more here than on the spinless chain. The local space
+is four-dimensional, so a 2-site tensor is correspondingly larger and keeping
+the local exponential 1-site sized saves more. The complement is assembled in
+whatever basis the state is carried in, which means that under SU(2) the
+directions it adds are *multiplets* and `--expand-k` is a count of multiplets
+just as `--bond-dim` is:
+
+```bash
+uv run python examples/examples_tdvp/tdvp_hubbard.py \
+    --symmetry U1,SU2 --L 6 --time 0.5 --scheme 1sp
+```
+
+| `scheme` | max \|n_j - exact\| | max \|S - exact\| | multiplets | states |
+|----------|-------------------|-----------------|------------|--------|
+| `'1sp'`  | 8.464e-05         | 1.197e-04       | 28         | 52     |
+| `'2s'`   | 5.959e-05         | 1.295e-04       | 32         | 60     |
+
+Comparable accuracy on both quantities from a state carrying 28 multiplets
+rather than 32. Note that the two savings compose: SU(2) stores 52 states as 28
+multiplets, and the expansion is what kept the count at 28 instead of 32 in the
+first place.
+
+The default `expand_k=4` therefore admits more states per bond here than it
+would under `U1,U1`, since each multiplet it adds stands for \(2S+1\) states.
+Raise it when the bond profile looks capped rather than converged.
+
 ## Cross-symmetry agreement at finite U
 
 Switching on \(U\) removes the analytic reference but enables a different
@@ -192,6 +220,29 @@ Every observable agrees to machine precision between two tensor structures that
 share nothing — one carries intertwiners, the other does not. The state counts
 match because it is the same state; the multiplet counts are what each group
 actually stores, and SU(2) needs 61 against 104 summed over all bonds.
+
+`--compare-symmetries` honors `--scheme`, and the comparison is noticeably
+looser under `'1sp'` — the same run agrees to 1.6e-08 rather than 3.2e-14:
+
+```text
+Abelian vs non-Abelian  (L = 6, t = 1.0, U = 4.0, t_final = 1.0, dt = 0.025, scheme = 1sp)
+
+              quantity             U1,U1            U1,SU2    difference
+--------------------------------------------------------------------------
+                energy     -0.0000000000      0.0000000000     -1.04e-13
+       particle number      6.0000000000      6.0000000000     -3.11e-14
+      double occupancy      2.7778095954      2.7778095820     +1.34e-08
+       max |delta n_j|                                          1.63e-08
+         max |delta S|                                          1.04e-08
+```
+
+This is expected rather than a bug, and it is specific to the expansion. Which
+complement directions a bond receives depends on the basis the state is carried
+in, and the two groups do not make identical choices, so the truncation that
+follows differs slightly and the trajectories separate at that level. The
+quantities protected by symmetry rather than by the expansion — energy and
+particle number — still agree to 1e-13. Use `'2s'` when cross-group agreement
+is itself the measurement.
 
 ## See Also
 
