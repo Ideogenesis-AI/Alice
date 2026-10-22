@@ -57,6 +57,7 @@ class TestOptions:
         assert opts.tau_0 == 2 ** -12
         assert opts.n_steps == 20
         assert opts.n_sweeps == 4
+        assert opts.trunc_thresh == 1e-12
         assert opts.z_tol == 1e-10
         assert opts.save_artifacts is True
         assert opts.save_artifacts_since == 0

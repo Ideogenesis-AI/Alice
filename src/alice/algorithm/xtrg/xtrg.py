@@ -254,7 +254,7 @@ class Options(AlgorithmOptions):
     n_steps: int = 20
     taylor_order: int = 10
     max_bond: Optional[int] = None
-    trunc_thresh: float = 1e-15
+    trunc_thresh: float = 1e-12
     n_sweeps: int = 4
     z_tol: float = 1e-10
     env_cache_dir: Optional[str] = None
