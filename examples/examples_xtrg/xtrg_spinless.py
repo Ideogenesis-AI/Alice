@@ -101,7 +101,7 @@ def xtrg_spinless(
     taylor_order: int = 10,
     max_bond: Optional[int] = None,
     sweeps: int = 4,
-    trunc_thresh: float = 1e-15,
+    trunc_thresh: float = 1e-12,
     expand_k: int = 4,
     expand_alpha: Optional[int] = None,
     env_cache_dir: Optional[str] = None,
@@ -146,7 +146,7 @@ def xtrg_spinless(
     sweeps:
         Number of full variational sweeps per cooling step.
     trunc_thresh:
-        SVD truncation threshold (default: `1e-15`).
+        Relative SVD truncation threshold (default: `1e-12`).
     expand_k:
         Maximum number of complement vectors added per bond end in the
         `'1sp'` scheme (default: 4). Ignored for `'1s'` and `'2s'`.
@@ -345,8 +345,8 @@ def _parse_args():
         help='variational sweeps per cooling step (default: 4)',
     )
     p.add_argument(
-        '--trunc-thresh', type=float, default=1e-15, metavar='THR',
-        help='SVD truncation threshold (default: 1e-15)',
+        '--trunc-thresh', type=float, default=1e-12, metavar='THR',
+        help='relative SVD truncation threshold (default: 1e-12)',
     )
     p.add_argument(
         '--expand-k', type=int, default=4, metavar='K',
