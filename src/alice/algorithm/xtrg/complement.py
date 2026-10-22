@@ -580,7 +580,9 @@ def expand_forward(
     left_half = left_partial(E_left_i, A_i_reduced, B_i_reduced)
     right_half = right_partial(E_right_j, A_j_reduced, B_j_reduced)
 
-    left_disc = _project_complement_left(left_half, C_i)
+    # C_j is right-isometric and projects with itself; C_i is the center and has
+    # to be orthonormalized first, `C C†` being a projector only for an isometry.
+    left_disc = _project_complement_left(left_half, _center_isometry_forward(C_i))
     right_disc = _project_complement_right(right_half, C_j)
 
     N_R = _new_direction_right(left_disc, right_disc, k_expand)
@@ -664,8 +666,10 @@ def expand_backward(
     left_half = left_partial(E_left_im1, A_im1_reduced, B_im1_reduced)
     right_half = right_partial(E_right_i, A_i_reduced, B_i_reduced)
 
+    # C_im1 is left-isometric and projects with itself; C_i is the center and
+    # has to be orthonormalized first.
     left_disc = _project_complement_left(left_half, C_im1)
-    right_disc = _project_complement_right(right_half, C_i)
+    right_disc = _project_complement_right(right_half, _center_isometry_backward(C_i))
 
     N_L = _new_direction_left(left_disc, right_disc, k_expand)
 
