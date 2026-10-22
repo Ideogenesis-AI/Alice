@@ -169,8 +169,13 @@ class Options(AlgorithmOptions):
         controls growth; a no-op for 1-site beyond the initial compaction,
         since its local update never changes bond dimension).
     trunc_thresh:
-        Singular value truncation threshold (relative to the largest singular
-        value per charge sector).
+        Relative singular value truncation threshold: a singular value is
+        discarded when it falls below `trunc_thresh × ‖C‖`, where `‖C‖` is
+        the Frobenius norm of the tensor being decomposed. Being relative,
+        the same value carries over between chain lengths and temperatures —
+        the absolute cutoff handed to Nicole is derived from the local scale
+        once per half-sweep (see `sweep._Truncation`). `0.0` disables
+        threshold truncation, leaving `max_bond` in charge.
     n_sweeps:
         Maximum number of full variational sweeps (forward + backward) per
         squaring step. A sweep may stop early once `z_tol` is satisfied.
@@ -650,6 +655,12 @@ def _fit_mpo(
         (0.0 for 1-site scheme).
     """
     L = mpo_a.L
+    # `thresh` is relative here, as it is inside the sweeps. The `compact()`
+    # calls below are the one place it can be used as-is: `compact()` extracts
+    # the Frobenius norm into log_scale and normalizes the site tensors before
+    # its truncating sweep, so its cutoff already acts on a unit-scale
+    # spectrum. The sweeps in between do not have that luxury and measure the
+    # local scale for themselves (see `sweep._Truncation`).
     trunc: Optional[dict] = {'thresh': opts.trunc_thresh}
     if opts.max_bond is not None:
         trunc['nkeep'] = opts.max_bond
@@ -962,7 +973,7 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     else:
         logger.info("  beta_max          : %.6g", opts.tau_0 * 2 ** opts.n_steps)
     logger.info("  max bond dim      : %s", max_bond_str)
-    logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
+    logger.info("  trunc thresh      : %.2e  (relative)", opts.trunc_thresh)
     logger.info("  sweeps / step     : %d", opts.n_sweeps)
     logger.info("  fit conv thresh   : %.2e", opts.z_tol)
     logger.info("  taylor order      : %d", opts.taylor_order)
