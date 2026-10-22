@@ -553,6 +553,21 @@ class TestInitMpsRandom:
         mps2 = init_mps(8, Spc, Op, bond_dim=8, seed=42)
         assert mps1.bond_dims == mps2.bond_dims
 
+    @pytest.mark.parametrize('space_fixture', [
+        'spin_u1', 'spin_su2', 'ferm_u1', 'ferm_z2', 'band_u1su2',
+    ])
+    def test_norm_is_one(self, space_fixture, request):
+        """Random MPS comes back normalized, as the product state does.
+
+        Random blocks give the state a norm that grows with L and bond_dim, so
+        without the explicit normalization the two modes of the same function
+        would disagree on the scale of what they return.
+        """
+        Spc, Op = request.getfixturevalue(space_fixture)
+        mps = init_mps(8, Spc, Op, bond_dim=8)
+        nrm = float(mps.norm())
+        assert abs(nrm - 1.0) < 1e-10, f"norm = {nrm}, expected 1"
+
 
 # ---------------------------------------------------------------------------
 # Regression tests: odd-L random MPS
