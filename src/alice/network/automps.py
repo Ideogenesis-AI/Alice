@@ -398,7 +398,7 @@ def _random_mps(
     Returns
     -------
     MPS
-        Right-canonical random MPS with center 0.
+        Normalized right-canonical random MPS with center 0.
 
     Raises
     ------
@@ -475,6 +475,10 @@ def _random_mps(
             "boundaries. Use bond_dim=1 with an explicit config=, or "
             "scheme='1sp' to grow the bond dimension from a product state."
         )
+
+    # Random blocks give the state an arbitrary norm that grows with L and
+    # bond_dim. The product-state path returns a unit vector; so does this one.
+    mps.normalize()
 
     return mps
 
