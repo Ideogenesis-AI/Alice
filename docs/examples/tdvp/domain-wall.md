@@ -77,6 +77,30 @@ summary, artifact = tdvp.run(
     wrong. The script accepts `--scheme 1s` precisely so the trap can be
     observed: the occupation error climbs to 0.42 while \(\chi\) stays at 1.
 
+!!! tip "`scheme='1sp'` is the way out of it"
+
+    The 1-site-plus scheme widens each bond before updating it, drawing up to
+    `expand_k` directions from the complement of the space that bond currently
+    spans. The rank adapts as it does under `'2s'`, but every local
+    exponential stays 1-site sized. It melts this wall from the same product
+    state:
+
+    | `scheme` | max \|n_j - exact\| | max \|S - exact\| | \(\chi\) |
+    |----------|-------------------|-----------------|----------|
+    | `'1s'`   | 4.211e-01         | 7.115e-01       | 1        |
+    | `'1sp'`  | 9.048e-05         | 4.719e-04       | 40       |
+    | `'2s'`   | 9.138e-05         | 2.478e-04       | 53       |
+
+    All at \(L = 16\), \(t_{\text{final}} = 2\), `dt=0.05`, and `expand_k=4`.
+    `'1sp'` matches `'2s'` on the occupations while carrying \(\chi = 40\)
+    against 53 — but its entropy error is about twice as large, which is the
+    honest trade: the entropy is the quantity most sensitive to the Schmidt
+    directions a capped expansion never added.
+
+    `expand_k` is a third error source on top of truncation and `dt`, and the
+    one to suspect when the error stops responding to either. `--bond-scan`
+    accepts `--scheme 1sp` so this can be checked directly.
+
 ## 3. Compare against the Gaussian reference
 
 ```python
@@ -164,6 +188,13 @@ Note that \(\chi\) stops tracking `max_bond` at 64: the exact rank needed is
 This is the practical lesson for any TDVP run: a plateau under increasing
 `max_bond` means the bond dimension is no longer the limit, and further
 accuracy has to come from `dt`.
+
+Under `--scheme 1sp` the same scan carries one more candidate, since `expand_k`
+caps how fast the bond profile can follow the entanglement. A plateau that
+*also* survives halving `dt` is pointing at the expansion rather than the
+integrator, and `expand_k` is what to raise. `--bond-scan` rejects `--scheme
+1s` outright: with every bond pinned at 1, each row of the table would be
+identical.
 
 ## See Also
 
