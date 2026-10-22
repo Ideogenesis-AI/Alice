@@ -1378,6 +1378,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#choosing-expand_k" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing expand_k
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3121,6 +3132,8 @@
       
         
       
+        
+      
     
     
     
@@ -3267,6 +3280,34 @@
     
   
     Hubbard quench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/tdvp/scheme-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheme comparison
   
 
     
@@ -3567,6 +3608,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#choosing-expand_k" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing expand_k
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3634,17 +3686,19 @@
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_bond</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">trunc_thresh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">krylov_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">krylov_tol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">renormalize</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">env_cache_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">env_async_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">env_window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">artifacts_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">save_artifacts</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">save_artifacts_every</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">expand_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">expand_alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">krylov_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">krylov_tol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">renormalize</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">env_cache_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">env_async_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">env_window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">artifacts_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">save_artifacts</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">save_artifacts_every</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3689,6 +3743,14 @@ configuration. Use <code>Options.from_toml</code> to load from a TOML section, o
   conserves norm and energy to roundoff, but holds every bond
   dimension fixed. See the module docstring for the product-state
   trap this creates.</li>
+<li><code>'1sp'</code> / <code>'1-site-plus'</code> / <code>'one-site-plus'</code>: update on a bond
+  widened beforehand by controlled bond expansion, by up to
+  <code>expand_k</code> directions per bond per half-sweep. An adaptive-rank
+  scheme of the <code>'2s'</code> kind, truncation and discarded weight
+  included, at close to 1-site cost, and so free of the
+  product-state trap. It is not a <code>'1s'</code> run with an extra step:
+  norm and energy are conserved only to truncation error, and the
+  trajectory is not exactly reversible.</li>
 </ul>
               </div>
             </td>
@@ -3770,8 +3832,9 @@ after an odd step carry first-order error.</p>
             <td>
               <div class="doc-md-description">
                 <p>Maximum bond dimension. <code>None</code> means unlimited. Meaningful for <code>'2s'</code>
-only; the <code>'1s'</code> update never changes a bond dimension, so no
-truncation is applied there at all.</p>
+and <code>'1sp'</code>, the two schemes whose bonds can grow; the <code>'1s'</code> update
+never changes a bond dimension, so no truncation is applied there at
+all.</p>
               </div>
             </td>
             <td>
@@ -3788,11 +3851,50 @@ truncation is applied there at all.</p>
             <td>
               <div class="doc-md-description">
                 <p>Singular value truncation threshold (relative to the largest singular
-value per charge sector). As for <code>max_bond</code>, <code>'2s'</code> only.</p>
+value per charge sector). As for <code>max_bond</code>, <code>'2s'</code> and <code>'1sp'</code> only.</p>
               </div>
             </td>
             <td>
                   <code>1e-12</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>expand_k</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Maximum number of complement directions added to each bond per local
+update. Only used when <code>scheme = '1sp'</code>. Larger values let the bond
+profile adapt faster at higher cost. A typical choice is
+<code>round(sqrt(max_bond))</code>. <code>0</code> reduces the scheme to <code>'1s'</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>4</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>expand_alpha</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Internal bond dimension of the cheap factorization of Θ inside the
+expansion, which is what keeps the complement search cheaper than a
+2-site step. Only used when <code>scheme = '1sp'</code>. <code>None</code> keeps the full
+bond, making the search exact but no cheaper than <code>'2s'</code> per bond. A
+typical choice is <code>expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -4042,8 +4144,10 @@ clamping happens when <code>save_artifacts</code> is <code>False</code>.</p>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">order</span><span class="w">                </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">max_bond</span><span class="w">             </span><span class="o">=</span><span class="w"> </span><span class="mi">64</span>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">trunc_thresh</span><span class="w">         </span><span class="o">=</span><span class="w"> </span><span class="mf">1e-12</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">krylov_dim</span><span class="w">           </span><span class="o">=</span><span class="w"> </span><span class="mi">16</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">save_artifacts_every</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">expand_k</span><span class="w">             </span><span class="o">=</span><span class="w"> </span><span class="mi">8</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">expand_alpha</span><span class="w">         </span><span class="o">=</span><span class="w"> </span><span class="mi">8</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">krylov_dim</span><span class="w">           </span><span class="o">=</span><span class="w"> </span><span class="mi">16</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">save_artifacts_every</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span>
 </span></code></pre></div>
 <h2 id="choosing-dt-and-max_bond">Choosing <code>dt</code> and <code>max_bond</code><a class="headerlink" href="#choosing-dt-and-max_bond" title="Permanent link">&para;</a></h2>
 <p>The two parameters fail in opposite directions and are best converged
@@ -4057,6 +4161,25 @@ larger <code>max_bond</code>.</p>
 <p>Entanglement grows roughly linearly in time after a quench, so the bond
 dimension needed grows exponentially. This, not the step size, is what sets the
 reachable time horizon.</p>
+<h2 id="choosing-expand_k">Choosing <code>expand_k</code><a class="headerlink" href="#choosing-expand_k" title="Permanent link">&para;</a></h2>
+<p><code>expand_k</code> matters only for <code>scheme='1sp'</code>, where it caps how many directions a
+bond may gain per local update. The cap is an upper bound and frequently not
+the binding one: what a bond receives is however many directions its complement
+holds above the scale the discarded-space projection cancelled on, and for a
+short-range Hamiltonian that is typically one or two. A typical choice for the
+cap is <code>round(sqrt(max_bond))</code>.</p>
+<p>Too small a value is visible as a <code>max_bonds</code> history that climbs step by step
+over a stretch where the physics is not changing that fast, and as observables
+that improve when <code>expand_k</code> is raised at fixed <code>max_bond</code> and <code>dt</code>. Too large
+a value costs a slightly bigger SVD per update and changes nothing else — if
+raising it does not move the answer, the complement, not the cap, was the
+limit. Setting <code>expand_k = 0</code> disables the expansion and reproduces <code>'1s'</code>
+exactly, which is a useful control when attributing an error to the expansion
+rather than to the integrator.</p>
+<p><code>expand_alpha</code> truncates the two-site tensor the complement search is built
+from, which is what keeps the search cheaper than a 2-site step; <code>None</code> leaves
+the bond intact, making the search exact and the step no cheaper than <code>'2s'</code>.
+A typical choice is <code>round(sqrt(max_bond))</code>, the same scale as <code>expand_k</code>.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../summary/">Summary</a> — evolution history.</li>
@@ -4085,7 +4208,7 @@ reachable time horizon.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 8, 2026 07:04:56 UTC"><span class="timeago" datetime="2026-10-08T07:04:56+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 8, 2026 07:04:56 UTC">2026-10-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 21, 2026 07:28:14 UTC"><span class="timeago" datetime="2026-10-21T07:28:14+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 21, 2026 07:28:14 UTC">2026-10-21</span>
   </span>
 
     

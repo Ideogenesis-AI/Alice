@@ -3110,6 +3110,8 @@
       
         
       
+        
+      
     
     
     
@@ -3256,6 +3258,34 @@
     
   
     Hubbard quench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/tdvp/scheme-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheme comparison
   
 
     
@@ -3862,7 +3892,7 @@ caching is enabled.</p>
               <div class="doc-md-description">
                 <p>Maximum number of complement vectors added to each bond end per CBE
 step. Only used when <code>scheme = '1sp'</code>. Larger values give a richer
-expanded space at higher cost; <code>4</code> is a typical starting point.</p>
+expanded space at higher cost. A typical choice is <code>round(sqrt(max_bond))</code>.</p>
               </div>
             </td>
             <td>

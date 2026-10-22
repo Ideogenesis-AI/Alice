@@ -3110,6 +3110,8 @@
       
         
       
+        
+      
     
     
     
@@ -3256,6 +3258,34 @@
     
   
     Hubbard quench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../examples/tdvp/scheme-comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheme comparison
   
 
     
@@ -3852,7 +3882,7 @@ relevant when <code>env_cache_dir</code> is set.</p>
               <div class="doc-md-description">
                 <p>Maximum number of complement vectors added to each bond end per CBE
 step. Only used when <code>scheme = '1sp'</code>. Larger values give a richer
-expanded space at higher cost; <code>4</code> is a typical starting point.</p>
+expanded space at higher cost. A typical choice is <code>round(sqrt(max_bond))</code>.</p>
               </div>
             </td>
             <td>
@@ -3871,7 +3901,8 @@ expanded space at higher cost; <code>4</code> is a typical starting point.</p>
                 <p>Internal bond dimension used when forming the cheap 2-site tensor
 Θ̃ = truncated SVD of M[i] ⊗ M[i+1] inside the CBE expansion.
 Only used when <code>scheme = '1sp'</code>. <code>None</code> keeps the full bond (no
-additional truncation beyond the existing bond dimension).</p>
+additional truncation beyond the existing bond dimension). A typical
+choice is <code>expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))</code>.</p>
               </div>
             </td>
             <td>
