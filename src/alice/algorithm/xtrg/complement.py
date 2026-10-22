@@ -60,6 +60,10 @@ from .scheme_2s import left_partial, right_partial
 _BOND_ITAG_A: str = '_cbe_bond_a_'
 _BOND_ITAG_B: str = '_cbe_bond_b_'
 
+# Itag assigned to the internal bond of the center tensor's own split, kept
+# distinct from the connector itags so that a projection can carry both at once.
+_CENTER_ITAG: str = '_cbe_center_'
+
 # Itag assigned to the complement bond produced by the SVD of Θ'_disc.
 _COMPLEMENT_ITAG: str = '_cbe_comp_'
 
@@ -215,6 +219,60 @@ def _reduce_operands(
     B_far_reduced = _absorb_left(iso_b, B_far, axis=0)
 
     return A_near_reduced, A_far_reduced, B_near_reduced, B_far_reduced
+
+
+# ---------------------------------------------------------------------------
+# Orthonormal basis of the center tensor's kept space
+# ---------------------------------------------------------------------------
+
+def _center_isometry_forward(C_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's column space for a forward sweep.
+
+    Returns the isometric factor of a 1-site split of the center tensor, which
+    spans exactly what the center tensor spans over its `(left, phys_in,
+    phys_out)` axes — the kept space the left end of the bond has to project
+    out. The bond tensor the split also produces is discarded; it is the
+    non-orthonormal part that makes the center tensor itself unusable here.
+
+    Parameters
+    ----------
+    C_i:
+        Center tensor, axes `(left, right, phys_in, phys_out)`.
+
+    Returns
+    -------
+    Tensor
+        Left-isometric tensor, axes `(left, internal, phys_in, phys_out)`.
+    """
+    # cols = own right bond only → LV gives the isometry with axes
+    # (internal, left, phys_in, phys_out); restore the MPO axis order.
+    _C, A = decomp(C_i, axes=1, flow='<<', mode='LV')
+    A.permute([1, 0, 2, 3], in_place=True)
+    A.retag(1, _CENTER_ITAG)
+    return A
+
+
+def _center_isometry_backward(C_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's row space for a backward sweep.
+
+    Mirror of `_center_isometry_forward`, over the `(right, phys_in, phys_out)`
+    axes.
+
+    Parameters
+    ----------
+    C_i:
+        Center tensor, axes `(left, right, phys_in, phys_out)`.
+
+    Returns
+    -------
+    Tensor
+        Right-isometric tensor, axes `(internal, right, phys_in, phys_out)`.
+    """
+    # rows = own left bond only → LV gives the isometry with axes
+    # (internal, right, phys_in, phys_out), already in MPO axis order.
+    _C, B = decomp(C_i, axes=0, flow='<<', mode='LV')
+    B.retag(0, _CENTER_ITAG)
+    return B
 
 
 # ---------------------------------------------------------------------------
