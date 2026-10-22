@@ -399,6 +399,13 @@ def _random_mps(
     -------
     MPS
         Right-canonical random MPS with center 0.
+
+    Raises
+    ------
+    ValueError
+        If the canonicalization empties every bond, which happens when the
+        sector set derived from the center-bond charge does not reach the
+        charges the bonds near the boundaries need.
     """
     group = Spc.group
     Q_c = Q[L // 2]
@@ -453,6 +460,22 @@ def _random_mps(
     # leftmost bonds undercompressed after a single right-to-left pass.
     mps.canonical(L - 1)
     mps.canonical(0)
+
+    # A bond whose sectors are all charge-forbidden is emptied by the
+    # canonicalization rather than reported, and every bond collapses with it.
+    # The depth-2 sector set is taken around the center-bond charge alone, so a
+    # charge path that wanders further than two fusion steps from it leaves the
+    # bonds near the boundaries with nothing allowed. Returning that object
+    # would defer the failure to the first solver that tries to use it.
+    if min(mps.bond_dims) == 0:
+        raise ValueError(
+            f"init_mps: could not build a random MPS with bond_dim={bond_dim} "
+            f"for target_qn={target_qn!r} at L={L}; the depth-2 sector set "
+            "around the center-bond charge does not cover the bonds near the "
+            "boundaries. Use bond_dim=1 with an explicit config=, or "
+            "scheme='1sp' to grow the bond dimension from a product state."
+        )
+
     return mps
 
 
@@ -534,6 +557,11 @@ def init_mps(
         If `bond_dim < 1`, if an explicit `config` has the wrong length, or if
         an explicit `target_qn` is not reachable for the given `L` and physical
         space (i.e. auto-config's charge path ends at a different sector).
+
+        Also when `bond_dim>1` cannot realize a reachable `target_qn`: the bond
+        sectors are chosen around the center-bond charge only, and a charge
+        path that strays from it leaves the bonds near the boundaries empty.
+        `bond_dim=1` is unaffected and remains available for those sectors.
 
     Examples
     --------
