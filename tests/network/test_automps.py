@@ -604,6 +604,44 @@ class TestInitMpsOddL:
 
 
 # ---------------------------------------------------------------------------
+# Regression tests: random mode that cannot realize a reachable target_qn
+# ---------------------------------------------------------------------------
+
+class TestInitMpsEmptyBonds:
+    """Tests for the guard against a random MPS whose bonds are all empty.
+
+    The bond sectors of the random mode are taken from a depth-2 BFS around the
+    center-bond charge alone, so a charge path that strays further than two
+    fusion steps from it leaves the bonds near the boundaries with no allowed
+    sector. The canonicalization then empties every bond. The sector itself is
+    reachable — `bond_dim=1` builds it — so the random mode has to say that it
+    could not, rather than return an object with no blocks and zero norm.
+    """
+
+    @pytest.mark.parametrize('L, target_qn', [(13, -3), (10, -4), (16, 4)])
+    def test_unrealizable_target_qn_raises(self, ferm_u1, L, target_qn):
+        """ValueError rather than an all-zero MPS."""
+        Spc, Op = ferm_u1
+        with pytest.raises(ValueError, match="could not build a random MPS"):
+            init_mps(L, Spc, Op, bond_dim=16, seed=0, target_qn=target_qn)
+
+    @pytest.mark.parametrize('L, target_qn', [(13, -3), (10, -4), (16, 4)])
+    def test_product_state_still_builds_the_same_sector(self, ferm_u1, L, target_qn):
+        """`bond_dim=1` is unaffected, which is what the error message advises."""
+        Spc, Op = ferm_u1
+        mps = init_mps(L, Spc, Op, bond_dim=1, seed=0, target_qn=target_qn)
+        assert min(mps.bond_dims) == 1
+        assert abs(float(mps.norm()) - 1.0) < 1e-10
+
+    def test_realizable_target_qn_unaffected(self, ferm_u1):
+        """A target the random mode can realize still builds, with full bonds."""
+        Spc, Op = ferm_u1
+        mps = init_mps(13, Spc, Op, bond_dim=16, seed=0, target_qn=-1)
+        assert min(mps.bond_dims) > 0
+        assert float(mps.norm()) > 1e-10
+
+
+# ---------------------------------------------------------------------------
 # Tests for the target_qn parameter
 # ---------------------------------------------------------------------------
 
