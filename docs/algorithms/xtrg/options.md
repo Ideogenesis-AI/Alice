@@ -34,7 +34,7 @@ n_sweeps     = 4
 
 ## See Also
 
-- [Lessons](lessons.md) — why `trunc_thresh` tightens with chain length.
+- [Lessons](lessons.md) — the scale `trunc_thresh` is measured against.
 - [Summary](summary.md) — thermodynamic history.
 - [Artifact](artifact.md) — density-matrix snapshots.
 - [run](run.md) — pass `Options` here.
