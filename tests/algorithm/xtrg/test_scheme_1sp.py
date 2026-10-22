@@ -20,12 +20,15 @@
 
 from __future__ import annotations
 
+import torch
 from nicole import einsum
 
 from alice.network.thermal import NormalMPO, thermal_mpo
 from alice.algorithm.xtrg.complement import (
     _absorb_left,
     _absorb_right,
+    _center_isometry_backward,
+    _center_isometry_forward,
     _compress_bond,
     _new_direction_left,
     _new_direction_right,
@@ -107,6 +110,23 @@ def _tensor_norm(T) -> float:
     """Frobenius norm of a Nicole `Tensor` via its block data."""
     total = sum(v.pow(2).sum().item() for v in T.data.values())
     return total ** 0.5
+
+
+def _isometry_error(T, left: bool) -> float:
+    """Largest deviation of an MPO tensor's Gram matrix from the identity.
+
+    With `left=True` the tensor is contracted over its left bond and both
+    physical indices, testing `T† T = I`; otherwise over its right bond and
+    both physical indices, testing `T T† = I`.
+    """
+    gram = (einsum('xdzw,xczw->dc', T.conj(), T) if left
+            else einsum('axyz,bxyz->ab', T.conj(), T))
+    err = 0.0
+    for block in gram.data.values():
+        mat = block.reshape(block.shape[0], block.shape[1])
+        eye = torch.eye(mat.shape[0], dtype=mat.dtype)
+        err = max(err, (mat - eye).abs().max().item())
+    return err
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +244,60 @@ class TestReduceOperands:
 
 
 # ---------------------------------------------------------------------------
+# _center_isometry_forward / _center_isometry_backward
+# ---------------------------------------------------------------------------
+
+class TestCenterIsometry:
+    """Tests for the orthonormal basis that projects the center end."""
+
+    def test_forward_is_left_isometric(self, spinless_fermion_L4):
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _build_rho_and_c(mpo, spc)
+        _build_envs_forward_upto(rho, mpo_c, site_i=1)
+        assert _isometry_error(_center_isometry_forward(mpo_c[1]), left=True) < 1e-9
+
+    def test_backward_is_right_isometric(self, spinless_fermion_L4):
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _build_rho_and_c(mpo, spc)
+        _build_envs_backward_upto(rho, mpo_c, site_i=2)
+        assert _isometry_error(_center_isometry_backward(mpo_c[2]), left=False) < 1e-9
+
+    def test_center_tensor_is_not_isometric(self, spinless_fermion_L4):
+        """The center tensor itself fails the test its factor passes.
+
+        It carries the singular values, so `C† C = Λ²` rather than the identity.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _build_rho_and_c(mpo, spc)
+        _build_envs_forward_upto(rho, mpo_c, site_i=1)
+        assert _isometry_error(mpo_c[1], left=True) > 1e-6
+
+    def test_forward_spans_the_center_tensor(self, spinless_fermion_L4):
+        """The basis covers the center tensor exactly — no more, no less.
+
+        Both halves of that matter. Spanning less would leave kept directions
+        in the complement, which `oplus` would then duplicate; spanning more
+        would project away directions the complement is made of.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _build_rho_and_c(mpo, spc)
+        _build_envs_forward_upto(rho, mpo_c, site_i=1)
+        C, Q = mpo_c[1], _center_isometry_forward(mpo_c[1])
+        remainder = C - einsum('xdzw,xbzw,cbrs->cdrs', C, Q.conj(), Q)
+        assert _tensor_norm(remainder) < 1e-10 * max(_tensor_norm(C), 1.0)
+        assert Q.indices[1].dim == C.indices[1].dim
+
+    def test_backward_spans_the_center_tensor(self, spinless_fermion_L4):
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _build_rho_and_c(mpo, spc)
+        _build_envs_backward_upto(rho, mpo_c, site_i=2)
+        C, Q = mpo_c[2], _center_isometry_backward(mpo_c[2])
+        remainder = C - einsum('cxyz,wxyz,wdrs->cdrs', C, Q.conj(), Q)
+        assert _tensor_norm(remainder) < 1e-10 * max(_tensor_norm(C), 1.0)
+        assert Q.indices[0].dim == C.indices[0].dim
+
+
+# ---------------------------------------------------------------------------
 # left_partial / right_partial (reused from scheme_2s) with reduced operands
 # ---------------------------------------------------------------------------
 
@@ -326,6 +400,76 @@ class TestProjectComplement:
         assert norm_disc <= norm_full + 1e-9, (
             f"Discarded norm {norm_disc:.6f} exceeds original norm {norm_full:.6f}"
         )
+
+    def test_left_projection_idempotent(self, spinless_fermion_L4):
+        """Projecting twice equals projecting once — the hallmark of a projector.
+
+        The center-side basis is what makes this hold at the site the sweep is
+        updating, where the tensor carries the singular values.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        lh, _, mpo_c = self._setup(mpo, spc, alpha=None)
+        A = _center_isometry_forward(mpo_c[1])
+        once = _project_complement_left(lh, A)
+        twice = _project_complement_left(once, A)
+        assert _tensor_norm(twice - once) < 1e-9 * max(_tensor_norm(once), 1.0)
+
+    def test_center_tensor_is_not_a_projector(self, spinless_fermion_L4):
+        """The center tensor fails the idempotence its isometric factor passes.
+
+        `C C†` is a projector only for an isometry, so projecting with the raw
+        center tensor leaves a component of the kept space in the complement.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        lh, _, mpo_c = self._setup(mpo, spc, alpha=None)
+        once = _project_complement_left(lh, mpo_c[1])
+        twice = _project_complement_left(once, mpo_c[1])
+        assert _tensor_norm(twice - once) > 1e-6 * _tensor_norm(once)
+
+    def test_left_discarded_orthogonal_to_center_space(self, spinless_fermion_L4):
+        """The discarded left half has no component along what the center spans.
+
+        Projecting with the center tensor fails this, which is the substance of
+        the bug: the expansion then draws directions the bond already carries.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        lh, _, mpo_c = self._setup(mpo, spc, alpha=None)
+        A = _center_isometry_forward(mpo_c[1])
+        lh_disc = _project_complement_left(lh, A)
+        # The unprojected half does overlap the kept space, so the assertion
+        # below is about the projection rather than about an empty half.
+        assert _tensor_norm(einsum('cdrs,cpqrs->dpq', A.conj(), lh)) > 1e-3
+        overlap = einsum('cdrs,cpqrs->dpq', A.conj(), lh_disc)
+        assert _tensor_norm(overlap) < 1e-8
+
+    def test_right_projection_idempotent(self, spinless_fermion_L4):
+        """Same for the right projector, built from the isometric factor B."""
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _build_rho_and_c(mpo, spc)
+        _, env_right = _build_envs_backward_upto(rho, mpo_c, site_i=2)
+        _, A_i_r, _, B_i_r = _reduce_operands(
+            rho[1], rho[2], rho[1], rho[2], alpha=2,
+        )
+        rh = right_partial(env_right[2], A_i_r, B_i_r)
+        B = _center_isometry_backward(mpo_c[2])
+        once = _project_complement_right(rh, B)
+        twice = _project_complement_right(once, B)
+        assert _tensor_norm(twice - once) < 1e-9 * max(_tensor_norm(once), 1.0)
+
+    def test_right_discarded_orthogonal_to_center_space(self, spinless_fermion_L4):
+        """Mirror of the left case, over the center tensor's row space."""
+        mpo, spc, _ = spinless_fermion_L4
+        rho, mpo_c = _build_rho_and_c(mpo, spc)
+        _, env_right = _build_envs_backward_upto(rho, mpo_c, site_i=2)
+        _, A_i_r, _, B_i_r = _reduce_operands(
+            rho[1], rho[2], rho[1], rho[2], alpha=2,
+        )
+        rh = right_partial(env_right[2], A_i_r, B_i_r)
+        B = _center_isometry_backward(mpo_c[2])
+        rh_disc = _project_complement_right(rh, B)
+        assert _tensor_norm(einsum('eduv,dpquv->epq', B.conj(), rh)) > 1e-3
+        overlap = einsum('eduv,dpquv->epq', B.conj(), rh_disc)
+        assert _tensor_norm(overlap) < 1e-8
 
 
 # ---------------------------------------------------------------------------
