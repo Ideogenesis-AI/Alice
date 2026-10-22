@@ -462,7 +462,9 @@ def expand_forward(
     rh = _right_half(E_right_i1, M_tilde_i1, W_i1)
 
     # Step 3: discarded-space projection using the original (non-truncated) tensors.
-    lh_disc = _project_complement_left(lh,  M_i)
+    # M_i1 is right-isometric and projects with itself; M_i is the center and
+    # has to be orthonormalized first, `M M†` being a projector only for an isometry.
+    lh_disc = _project_complement_left(lh,  _center_isometry_forward(M_i))
     rh_disc = _project_complement_right(rh, M_i1)
 
     # Step 4: complement vectors from SVD of Θ'_disc.
@@ -540,9 +542,11 @@ def expand_backward(
     lh = _left_half(E_left_im1, M_tilde_im1, W_im1)
     rh = _right_half(E_right_i,  M_tilde_i,  W_i)
 
-    # Step 3: discarded-space projection using the original tensors.
+    # Step 3: discarded-space projection using the original tensors. M_im1 is
+    # left-isometric and projects with itself; M_i is the center and has to be
+    # orthonormalized first.
     lh_disc = _project_complement_left(lh,   M_im1)
-    rh_disc = _project_complement_right(rh,  M_i)
+    rh_disc = _project_complement_right(rh,  _center_isometry_backward(M_i))
 
     # Step 4: complement vectors.
     # N_L: new right-bond vectors for M_im1.
