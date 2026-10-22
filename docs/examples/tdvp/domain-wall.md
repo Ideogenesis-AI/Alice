@@ -75,7 +75,7 @@ summary, artifact = tdvp.run(
     the whole way while the wall never melts. `run()` warns about the
     dimension-1 bonds at startup, but nothing in the trajectory itself looks
     wrong. The script accepts `--scheme 1s` precisely so the trap can be
-    observed: the occupation error climbs to 0.47 while \(\chi\) stays at 1.
+    observed: the occupation error climbs to 0.42 while \(\chi\) stays at 1.
 
 ## 3. Compare against the Gaussian reference
 
