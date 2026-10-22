@@ -61,6 +61,12 @@ Two further things this example shows:
   state therefore does not evolve at all — silently, since the norm and the
   energy stay perfectly conserved. This is why `Options.scheme` defaults to
   `'2s'`, and why `run()` warns when a `1s` run starts from such a state.
+- **The way out of it.** `--scheme 1sp` widens each bond before updating it,
+  so the rank adapts as it does under `'2s'` while every local exponential
+  stays 1-site sized. It melts the wall from the same product state, truncates
+  and reports discarded weight like `'2s'`, and `--bond-scan` accepts it
+  alongside. See `tdvp_scheme_comparison.py` for the three schemes measured
+  against each other on exactly this quench.
 
 Run from the repository root:
 
@@ -69,6 +75,7 @@ Run from the repository root:
     uv run python examples/examples_tdvp/tdvp_domainwall.py --bond-dim 256
     uv run python examples/examples_tdvp/tdvp_domainwall.py --bond-scan
     uv run python examples/examples_tdvp/tdvp_domainwall.py --scheme 1s
+    uv run python examples/examples_tdvp/tdvp_domainwall.py --scheme 1sp --expand-k 8
     uv run python examples/examples_tdvp/tdvp_domainwall.py --checkpoint-dir /tmp/tdvp_ckpt
     uv run python examples/examples_tdvp/tdvp_domainwall.py --help
 """
@@ -172,6 +179,8 @@ def tdvp_domainwall(
     order: int = 2,
     bond_dim: int = 128,
     trunc_thresh: float = 1e-12,
+    expand_k: int = 4,
+    expand_alpha: Optional[int] = None,
     krylov_dim: int = 16,
     snapshots: int = 6,
     checkpoint_dir: Optional[str] = None,
@@ -192,8 +201,9 @@ def tdvp_domainwall(
     dt:
         Time step.
     scheme:
-        `'2s'` (default) or `'1s'`. The 1-site scheme cannot grow a bond, so
-        from this product state it does not evolve; see the module docstring.
+        `'2s'` (default), `'1s'`, or `'1sp'`. The 1-site scheme cannot grow a
+        bond, so from this product state it does not evolve; `'1sp'` can, and
+        does so at 1-site cost. See the module docstring.
     order:
         Integrator order, `1` or `2`.
     bond_dim:
@@ -201,6 +211,14 @@ def tdvp_domainwall(
         here, since the entanglement grows without bound as the wall melts.
     trunc_thresh:
         SVD truncation threshold.
+    expand_k:
+        Complement directions added per bond per local update, for `'1sp'`.
+        Ignored by the other schemes. This caps how fast the bond profile can
+        follow the growing entanglement, so too small a value shows up as an
+        error floor that more `bond_dim` does not lift.
+    expand_alpha:
+        Internal bond of the cheap factorization inside the expansion, for
+        `'1sp'`. `None` keeps the full bond.
     krylov_dim:
         Maximum Krylov subspace dimension for the local propagators.
     snapshots:
@@ -232,6 +250,9 @@ def tdvp_domainwall(
         print(f"Light cone     : x0 +/- 2t  =>  front reaches "
               f"+/-{2 * t * time:g} sites by t = {time:g}")
         print(f"Scheme         : {scheme}   order = {order}")
+        if scheme in ('1sp', '1-site-plus', 'one-site-plus'):
+            alpha_str = str(expand_alpha) if expand_alpha is not None else 'full'
+            print(f"  expand_k     : {expand_k}   expand_alpha : {alpha_str}")
         print(f"Time step      : {dt}   total time = {time}")
         print(f"Bond dim       : {bond_dim}   trunc thresh = {trunc_thresh:.1e}")
         print()
@@ -239,6 +260,7 @@ def tdvp_domainwall(
             print("NOTE: every bond of a product state has dimension 1 and the")
             print("      1-site scheme cannot grow one, so this run will not")
             print("      evolve. Norm and energy stay conserved regardless.")
+            print("      Use '2s' or '1sp' to actually melt the wall.")
             print()
 
     n_total = max(1, round(time / dt))
@@ -251,6 +273,8 @@ def tdvp_domainwall(
         order=order,
         max_bond=bond_dim,
         trunc_thresh=trunc_thresh,
+        expand_k=expand_k,
+        expand_alpha=expand_alpha,
         krylov_dim=krylov_dim,
         checkpoint_dir=checkpoint_dir,
         env_cache_dir=env_cache_dir,
@@ -338,7 +362,10 @@ def bond_scan(
     t: float = 1.0,
     time: float = 2.0,
     dt: float = 0.05,
+    scheme: str = '2s',
     order: int = 2,
+    expand_k: int = 4,
+    expand_alpha: Optional[int] = None,
     bonds: Tuple[int, ...] = (4, 8, 16, 32, 64),
 ) -> None:
     """Report the error against the exact result as the bond dimension grows.
@@ -352,6 +379,11 @@ def bond_scan(
     dimension to confirm that the floor is indeed the time step and not a
     limitation of the state.
 
+    Under `'1sp'` there is a third source, since `expand_k` caps how fast the
+    bond profile can follow the entanglement. A scan whose plateau does not
+    drop when `dt` is halved is pointing at the expansion rather than the
+    integrator; raise `expand_k` to tell the two apart.
+
     Parameters
     ----------
     L:
@@ -362,11 +394,32 @@ def bond_scan(
         Total evolution time, held fixed across the scan.
     dt:
         Time step, held fixed across the scan.
+    scheme:
+        `'2s'` (default) or `'1sp'`. `'1s'` would hold every bond at 1 and
+        make the scan meaningless.
     order:
         Integrator order.
+    expand_k:
+        Complement directions added per bond per local update, for `'1sp'`.
+    expand_alpha:
+        Internal bond of the cheap factorization inside the expansion, for
+        `'1sp'`. `None` keeps the full bond.
     bonds:
         Maximum bond dimensions to try.
+
+    Raises
+    ------
+    ValueError
+        If `scheme` is `'1s'`, which holds every bond at 1 whatever `bonds`
+        says.
     """
+    if scheme in ('1s', '1-site', 'one-site'):
+        raise ValueError(
+            "bond_scan needs a scheme whose bonds can grow; '1s' holds every "
+            "bond of this product state at dimension 1 regardless of "
+            "max_bond, so every row would be identical. Use '2s' or '1sp'"
+        )
+
     mpo, n_obs, spc, ops = _build_system(L, t)
     _, occ = _domain_wall_state(L, spc, ops)
 
@@ -375,7 +428,7 @@ def bond_scan(
     s_exact = [exact_entropy(M, ell) for ell in range(1, L)]
 
     print(f"Bond-dimension convergence  (L = {L}, t_final = {time}, "
-          f"dt = {dt}, order = {order})")
+          f"dt = {dt}, scheme = {scheme}, order = {order})")
     print("Reference: exact free-fermion correlation matrix")
     print()
     print(f"{'max_bond':>9}  {'chi':>4}  {'max |n_j - exact|':>19}  "
@@ -387,8 +440,9 @@ def bond_scan(
         mps, _ = _domain_wall_state(L, spc, ops)
         summary, artifact = tdvp.run(
             tdvp.Artifact(state=mps, time=0.0, step=0), mpo,
-            tdvp.Options(scheme='2s', dt=step, n_steps=round(time / step),
-                         order=order, max_bond=max_bond, save_artifacts=False),
+            tdvp.Options(scheme=scheme, dt=step, n_steps=round(time / step),
+                         order=order, max_bond=max_bond, expand_k=expand_k,
+                         expand_alpha=expand_alpha, save_artifacts=False),
         )
         num = mps_occupations(artifact.state, n_obs)
         s_err = max(abs(mps_entropy(artifact.state, ell) - s_exact[ell - 1])
@@ -414,6 +468,11 @@ def bond_scan(
     print("dominates, then flattens onto a plateau. The plateau is the")
     print("integrator's O(dt^2): more bond dimension buys nothing there, and")
     print("only a smaller time step helps, as the last row shows.")
+    if scheme in ('1sp', '1-site-plus', 'one-site-plus'):
+        print()
+        print(f"If the last row did not improve, expand_k = {expand_k} is the")
+        print("binding constraint rather than dt: the bonds never reached the")
+        print("rank the melting asked for. Raise it and run the scan again.")
 
 
 # ---------------------------------------------------------------------------
@@ -433,6 +492,7 @@ def _parse_args():
             "  uv run python examples/examples_tdvp/tdvp_domainwall.py --bond-dim 256\n"
             "  uv run python examples/examples_tdvp/tdvp_domainwall.py --bond-scan\n"
             "  uv run python examples/examples_tdvp/tdvp_domainwall.py --scheme 1s\n"
+            "  uv run python examples/examples_tdvp/tdvp_domainwall.py --scheme 1sp --expand-k 8\n"
             "  uv run python examples/examples_tdvp/tdvp_domainwall.py --checkpoint-dir /tmp/tdvp_ckpt"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -445,15 +505,22 @@ def _parse_args():
                    help='total evolution time (default: 3.0)')
     p.add_argument('--dt', type=float, default=0.05, metavar='DT',
                    help='time step (default: 0.05)')
-    p.add_argument('--scheme', choices=['1s', '2s'], default='2s',
-                   help='TDVP update scheme; 1s cannot grow bonds and so is '
-                        'frozen from a product state (default: 2s)')
+    p.add_argument('--scheme', choices=['1s', '2s', '1sp'], default='2s',
+                   help='TDVP update scheme: 2s (2-site, default), 1s '
+                        '(1-site, frozen from a product state since it cannot '
+                        'grow bonds), or 1sp (1-site-plus / CBE)')
     p.add_argument('--order', type=int, choices=[1, 2], default=2,
                    help='integrator order (default: 2)')
     p.add_argument('--bond-dim', type=int, default=128, metavar='D',
                    help='maximum bond dimension (default: 128)')
     p.add_argument('--trunc-thresh', type=float, default=1e-12, metavar='THR',
                    help='SVD truncation threshold (default: 1e-12)')
+    p.add_argument('--expand-k', type=int, default=4, metavar='K',
+                   help="complement directions per bond per update, for '1sp' "
+                        '(default: 4)')
+    p.add_argument('--expand-alpha', type=int, default=None, metavar='A',
+                   help='internal bond of the cheap factorization inside the '
+                        "'1sp' expansion (default: full bond)")
     p.add_argument('--krylov-dim', type=int, default=16, metavar='K',
                    help='maximum Krylov subspace dimension (default: 16)')
     p.add_argument('--snapshots', type=int, default=6, metavar='K',
@@ -467,7 +534,8 @@ def _parse_args():
     p.add_argument('--bond-scan', action='store_true',
                    help='run the bond-dimension convergence scan instead of a '
                         'single evolution; defaults to a shorter chain and '
-                        'time since it performs six full evolutions')
+                        'time since it performs six full evolutions, and '
+                        'requires a scheme whose bonds can grow')
     p.add_argument('--quiet', action='store_true',
                    help='suppress per-run output')
     p.add_argument('--quiet-log', action='store_true',
@@ -488,7 +556,10 @@ if __name__ == '__main__':
             t=args.t,
             time=min(args.time, 2.0),
             dt=args.dt,
+            scheme=args.scheme,
             order=args.order,
+            expand_k=args.expand_k,
+            expand_alpha=args.expand_alpha,
         )
     else:
         tdvp_domainwall(
@@ -500,6 +571,8 @@ if __name__ == '__main__':
             order=args.order,
             bond_dim=args.bond_dim,
             trunc_thresh=args.trunc_thresh,
+            expand_k=args.expand_k,
+            expand_alpha=args.expand_alpha,
             krylov_dim=args.krylov_dim,
             snapshots=args.snapshots,
             checkpoint_dir=args.checkpoint_dir,
