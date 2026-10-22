@@ -62,6 +62,10 @@ from .scheme_2s import build_bulk, split_forward
 # Temporary itag assigned to the truncated internal bond in _cheap_factors.
 _TRUNC_ITAG: str = '_cbe_trunc_'
 
+# Itag assigned to the internal bond of the center tensor's own split, kept
+# distinct from _TRUNC_ITAG so that a projection can carry both at once.
+_CENTER_ITAG: str = '_cbe_center_'
+
 # Itag assigned to the complement bond produced by the SVD of Θ'_disc.
 _COMPLEMENT_ITAG: str = '_cbe_comp_'
 
@@ -69,6 +73,56 @@ _COMPLEMENT_ITAG: str = '_cbe_comp_'
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _center_isometry_forward(M_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's column space for a forward sweep.
+
+    Returns the isometric factor of a 1-site split of the center tensor, which
+    spans exactly what the center tensor spans over its (left bond, physical)
+    indices — the kept space the left end of the bond has to project out. The
+    bond tensor the split also produces is discarded; it is the non-orthonormal
+    part that makes the center tensor itself unusable here.
+
+    Parameters
+    ----------
+    M_i:
+        Center tensor, axes `(ket_left, ket_right, phys)`.
+
+    Returns
+    -------
+    Tensor
+        Left-isometric tensor with axes `(ket_left, internal, phys)`.
+    """
+    # cols = right bond only → LV gives the isometry with axes
+    # (internal, ket_left, phys); restore MPS axis order.
+    _C, A = decomp(M_i, axes=1, flow='<<', mode='LV')
+    A.permute([1, 0, 2], in_place=True)
+    A.retag(1, _CENTER_ITAG)
+    return A
+
+
+def _center_isometry_backward(M_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's row space for a backward sweep.
+
+    Mirror of `_center_isometry_forward`, over the (right bond, physical)
+    indices.
+
+    Parameters
+    ----------
+    M_i:
+        Center tensor, axes `(ket_left, ket_right, phys)`.
+
+    Returns
+    -------
+    Tensor
+        Right-isometric tensor with axes `(internal, ket_right, phys)`.
+    """
+    # rows = left bond only → LV gives the isometry with axes
+    # (internal, ket_right, phys), already in MPS axis order.
+    _C, B = decomp(M_i, axes=0, flow='<<', mode='LV')
+    B.retag(0, _CENTER_ITAG)
+    return B
+
 
 def _cheap_factors(
     M_i: Tensor,
