@@ -30,6 +30,7 @@ import pytest
 from alice.algorithm.xtrg import Artifact, Options, Summary, run
 from alice.algorithm.xtrg import xtrg as _xtrg_module
 from alice.algorithm.xtrg.xtrg import _compute_observables, _fit_mpo
+from alice.network import build_hamiltonian, build_interaction
 from alice.network.thermal import thermal_mpo
 
 
@@ -191,6 +192,65 @@ class TestFitMpoZTol:
 
         for lz_early, lz_full in zip(summary_early.log_z, summary_full.log_z):
             assert math.isclose(lz_early, lz_full, rel_tol=1e-8, abs_tol=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# Relative truncation threshold
+# ---------------------------------------------------------------------------
+
+def _free_fermion_chain(L: int):
+    """Build a spinless free-fermion chain of length `L` with its exact log Z."""
+    cfg = {
+        'geometry': {'lattice': 'chain', 'lx': L, 'bcx': 'OBC', 'n2x': True},
+        'model': {
+            'category': 'fermionic',
+            'label': 'FreeFermion',
+            'symmetry': 'U1',
+            't': 1.0,
+        },
+    }
+    interactions, spc, geo = build_interaction(cfg)
+    mpo = build_hamiltonian(interactions, geo.L, spc)
+    eps = [-2.0 * math.cos(k * math.pi / (L + 1)) for k in range(1, L + 1)]
+
+    def exact_log_z(beta: float) -> float:
+        return sum(math.log1p(math.exp(-beta * e)) for e in eps)
+
+    return mpo, spc, exact_log_z
+
+
+class TestChainLengthPortability:
+    """Tests that one `trunc_thresh` holds its accuracy across chain lengths."""
+
+    def _cool(self, L: int):
+        """Cool a length-L chain and report per-site log Z error and max bond."""
+        mpo, spc, exact_log_z = _free_fermion_chain(L)
+        opts = Options(
+            scheme='2s', tau_0=2 ** -6, n_steps=3, taylor_order=6,
+            max_bond=None, trunc_thresh=1e-6, save_artifacts=False,
+        )
+        summary, artifact = run(_initial_state(mpo, spc, opts), opts)
+        err = abs(summary.log_z[-1] - exact_log_z(summary.betas[-1])) / L
+        return err, max(artifact.rho.bond_dims)
+
+    def test_accuracy_does_not_degrade_with_length(self):
+        """Per-site log Z error stays flat from L=4 to L=10.
+
+        The scale of the fitted product falls like `2^{-L/2}`, so an absolute
+        cutoff tightens with every added site: the same `trunc_thresh` costs
+        two orders of magnitude in accuracy here, and visibly starves the
+        bond dimension.
+        """
+        err_short, bond_short = self._cool(4)
+        err_long, bond_long = self._cool(10)
+
+        assert err_long < 1e-9, f"per-site log Z error {err_long:.3e} at L=10"
+        assert err_long < 10 * err_short, (
+            f"error grew from {err_short:.3e} at L=4 to {err_long:.3e} at L=10"
+        )
+        assert bond_long >= bond_short, (
+            f"max bond fell from {bond_short} at L=4 to {bond_long} at L=10"
+        )
 
 
 # ---------------------------------------------------------------------------
