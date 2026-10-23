@@ -20,9 +20,12 @@
 
 from __future__ import annotations
 
+import torch
 from nicole import einsum
 
 from alice.algorithm.dmrg.complement import (
+    _center_isometry_backward,
+    _center_isometry_forward,
     _cheap_factors,
     _complement_vectors,
     _left_half,
@@ -72,6 +75,70 @@ def _tensor_norm(T) -> float:
     return total ** 0.5
 
 
+def _envs_at(mps, mpo, center):
+    """Canonicalize `mps` to `center` and return exact environment blocks.
+
+    The right blocks are built first, while the state is still right-canonical;
+    moving the center to `center` afterwards only touches sites `0 … center`, so
+    every `env_right[j]` with `j >= center` stays exact. The left blocks are
+    then stepped up from the boundary over the now left-isometric tensors.
+    """
+    mps.canonical(0)
+    env_right = Environment(mps.L)
+    build_right_envs(mps, mpo, env_right)
+
+    mps.canonical(center)
+    env_left = Environment(mps.L)
+    env_left[0] = left_env_boundary(mps, mpo)
+    for j in range(center):
+        env_left[j + 1] = step_left_env(env_left[j], mps[j], mpo[j])
+
+    return env_left, env_right
+
+
+def _forward_halves(mps, mpo, site_i):
+    """Return `(lh, rh, A)` for a forward expansion of bond `(site_i, site_i+1)`.
+
+    `A` is the center-side projector: the orthonormalized column space of the
+    center tensor, which sits at `site_i` after the call.
+    """
+    env_left, env_right = _envs_at(mps, mpo, site_i)
+    M_tilde_i, M_tilde_i1 = _cheap_factors(mps[site_i], mps[site_i + 1], alpha=None)
+    lh = _left_half(env_left[site_i], M_tilde_i, mpo[site_i])
+    rh = _right_half(env_right[site_i + 1], M_tilde_i1, mpo[site_i + 1])
+    return lh, rh, _center_isometry_forward(mps[site_i])
+
+
+def _backward_halves(mps, mpo, site_i):
+    """Return `(lh, rh, B)` for a backward expansion of bond `(site_i-1, site_i)`.
+
+    `B` is the center-side projector: the orthonormalized row space of the
+    center tensor, which sits at `site_i` after the call.
+    """
+    env_left, env_right = _envs_at(mps, mpo, site_i)
+    M_tilde_im1, M_tilde_i = _cheap_factors(mps[site_i - 1], mps[site_i], alpha=None)
+    lh = _left_half(env_left[site_i - 1], M_tilde_im1, mpo[site_i - 1])
+    rh = _right_half(env_right[site_i], M_tilde_i, mpo[site_i])
+    return lh, rh, _center_isometry_backward(mps[site_i])
+
+
+def _isometry_error(T, left: bool) -> float:
+    """Largest deviation of a site tensor's Gram matrix from the identity.
+
+    With `left=True` the tensor is contracted over its left bond and physical
+    index, testing `T† T = I`; otherwise over its right bond and physical index,
+    testing `T T† = I`.
+    """
+    gram = (einsum('abr,acr->bc', T.conj(), T) if left
+            else einsum('bcu,dcu->bd', T.conj(), T))
+    err = 0.0
+    for block in gram.data.values():
+        mat = block.reshape(block.shape[0], block.shape[1])
+        eye = torch.eye(mat.shape[0], dtype=mat.dtype)
+        err = max(err, (mat - eye).abs().max().item())
+    return err
+
+
 # ---------------------------------------------------------------------------
 # _cheap_factors
 # ---------------------------------------------------------------------------
@@ -111,6 +178,56 @@ class TestCheapFactors:
         original_bond_dim = mps[1].indices[1].dim
         M_tilde_i, _ = _cheap_factors(mps[1], mps[2], alpha=None)
         assert M_tilde_i.indices[1].dim <= original_bond_dim
+
+
+# ---------------------------------------------------------------------------
+# _center_isometry_forward / _center_isometry_backward
+# ---------------------------------------------------------------------------
+
+class TestCenterIsometry:
+    """Tests for the orthonormal basis that projects the center end."""
+
+    def test_forward_is_left_isometric(self, heisenberg_L4):
+        mps, _ = heisenberg_L4
+        mps.canonical(1)
+        assert _isometry_error(_center_isometry_forward(mps[1]), left=True) < 1e-9
+
+    def test_backward_is_right_isometric(self, heisenberg_L4):
+        mps, _ = heisenberg_L4
+        mps.canonical(2)
+        assert _isometry_error(_center_isometry_backward(mps[2]), left=False) < 1e-9
+
+    def test_center_tensor_is_not_isometric(self, heisenberg_L4):
+        """The center tensor itself fails the test its factor passes.
+
+        This is the whole reason the factor is taken: the center tensor carries
+        the singular values, so `M† M = Λ²` rather than the identity.
+        """
+        mps, _ = heisenberg_L4
+        mps.canonical(1)
+        assert _isometry_error(mps[1], left=True) > 1e-6
+
+    def test_forward_spans_the_center_tensor(self, heisenberg_L4):
+        """The basis covers the center tensor exactly — no more, no less.
+
+        Both halves of that matter. Spanning less would leave kept directions
+        in the complement, which `oplus` would then duplicate; spanning more
+        would project away directions the complement is made of.
+        """
+        mps, _ = heisenberg_L4
+        mps.canonical(1)
+        M, Q = mps[1], _center_isometry_forward(mps[1])
+        remainder = M - einsum('xbz,xcz,acr->abr', M, Q.conj(), Q)
+        assert _tensor_norm(remainder) < 1e-10 * max(_tensor_norm(M), 1.0)
+        assert Q.indices[1].dim == M.indices[1].dim
+
+    def test_backward_spans_the_center_tensor(self, heisenberg_L4):
+        mps, _ = heisenberg_L4
+        mps.canonical(2)
+        M, Q = mps[2], _center_isometry_backward(mps[2])
+        remainder = M - einsum('axz,bxz,bcu->acu', M, Q.conj(), Q)
+        assert _tensor_norm(remainder) < 1e-10 * max(_tensor_norm(M), 1.0)
+        assert Q.indices[0].dim == M.indices[0].dim
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +382,62 @@ class TestProjectComplement:
         assert norm_disc <= norm_full + 1e-9, (
             f"Discarded norm {norm_disc:.6f} exceeds original norm {norm_full:.6f}"
         )
+
+    def test_left_projection_idempotent(self, heisenberg_L4):
+        """Projecting twice equals projecting once — the hallmark of a projector.
+
+        The center-side basis is what makes this hold at the site the sweep is
+        optimizing, where the site tensor carries the singular values.
+        """
+        mps, mpo = heisenberg_L4
+        lh, _, A = _forward_halves(mps, mpo, site_i=1)
+        once = _project_complement_left(lh, A)
+        twice = _project_complement_left(once, A)
+        assert _tensor_norm(twice - once) < 1e-9 * max(_tensor_norm(once), 1.0)
+
+    def test_right_projection_idempotent(self, heisenberg_L4):
+        """Same for the right projector, built from the isometric factor B."""
+        mps, mpo = heisenberg_L4
+        _, rh, B = _backward_halves(mps, mpo, site_i=2)
+        once = _project_complement_right(rh, B)
+        twice = _project_complement_right(once, B)
+        assert _tensor_norm(twice - once) < 1e-9 * max(_tensor_norm(once), 1.0)
+
+    def test_center_tensor_is_not_a_projector(self, heisenberg_L4):
+        """The center tensor fails the idempotence its isometric factor passes.
+
+        `M M†` is a projector only for an isometry, so projecting with the raw
+        center tensor leaves a component of the kept space in the complement.
+        """
+        mps, mpo = heisenberg_L4
+        lh, _, _A = _forward_halves(mps, mpo, site_i=1)
+        once = _project_complement_left(lh, mps[1])
+        twice = _project_complement_left(once, mps[1])
+        assert _tensor_norm(twice - once) > 1e-6 * _tensor_norm(once)
+
+    def test_left_discarded_orthogonal_to_center_space(self, heisenberg_L4):
+        """The discarded left half has no component along what the center spans.
+
+        Projecting with the center tensor fails this, which is the substance of
+        the bug: the expansion then draws directions the bond already carries.
+        """
+        mps, mpo = heisenberg_L4
+        lh, _, A = _forward_halves(mps, mpo, site_i=1)
+        lh_disc = _project_complement_left(lh, A)
+        # The unprojected half does overlap the kept space, so the assertion
+        # below is about the projection rather than about an empty half.
+        assert _tensor_norm(einsum('abr,aαpr->bαp', A.conj(), lh)) > 1e-3
+        overlap = einsum('abr,aαpr->bαp', A.conj(), lh_disc)
+        assert _tensor_norm(overlap) < 1e-9
+
+    def test_right_discarded_orthogonal_to_center_space(self, heisenberg_L4):
+        """Mirror of the left case, over the center tensor's row space."""
+        mps, mpo = heisenberg_L4
+        _, rh, B = _backward_halves(mps, mpo, site_i=2)
+        rh_disc = _project_complement_right(rh, B)
+        assert _tensor_norm(einsum('bcu,αpcu->αpb', B.conj(), rh)) > 1e-3
+        overlap = einsum('bcu,αpcu->αpb', B.conj(), rh_disc)
+        assert _tensor_norm(overlap) < 1e-9
 
 
 # ---------------------------------------------------------------------------

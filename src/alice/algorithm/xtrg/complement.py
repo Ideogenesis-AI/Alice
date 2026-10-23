@@ -30,6 +30,10 @@ A-chain, `B_j` for the B-chain), each compressing only its own bond. This
 never forms any object of size O(D²) — the key cost saving over a direct
 2-site join.
 
+Both ends project with an isometry, `C C†` being a projector only for one. The
+neighbor side is one already; the center side is not, carrying the singular
+values, so a 1-site split supplies an orthonormal basis of the space it spans.
+
 Index convention (shared with `environ.py`, `scheme_1s.py`, `scheme_2s.py`):
 
 - `a, b, c, d` — virtual bond indices of the compressed MPO C.
@@ -59,6 +63,10 @@ from .scheme_2s import left_partial, right_partial
 # Itags assigned to the cheaply reduced A- and B-chain connector bonds.
 _BOND_ITAG_A: str = '_cbe_bond_a_'
 _BOND_ITAG_B: str = '_cbe_bond_b_'
+
+# Itag assigned to the internal bond of the center tensor's own split, kept
+# distinct from the connector itags so that a projection can carry both at once.
+_CENTER_ITAG: str = '_cbe_center_'
 
 # Itag assigned to the complement bond produced by the SVD of Θ'_disc.
 _COMPLEMENT_ITAG: str = '_cbe_comp_'
@@ -218,58 +226,112 @@ def _reduce_operands(
 
 
 # ---------------------------------------------------------------------------
+# Orthonormal basis of the center tensor's kept space
+# ---------------------------------------------------------------------------
+
+def _center_isometry_forward(C_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's column space for a forward sweep.
+
+    Returns the isometric factor of a 1-site split of the center tensor, which
+    spans exactly what the center tensor spans over its `(left, phys_in,
+    phys_out)` axes — the kept space the left end of the bond has to project
+    out. The bond tensor the split also produces is discarded; it is the
+    non-orthonormal part that makes the center tensor itself unusable here.
+
+    Parameters
+    ----------
+    C_i:
+        Center tensor, axes `(left, right, phys_in, phys_out)`.
+
+    Returns
+    -------
+    Tensor
+        Left-isometric tensor, axes `(left, internal, phys_in, phys_out)`.
+    """
+    # cols = own right bond only → LV gives the isometry with axes
+    # (internal, left, phys_in, phys_out); restore the MPO axis order.
+    _C, A = decomp(C_i, axes=1, flow='<<', mode='LV')
+    A.permute([1, 0, 2, 3], in_place=True)
+    A.retag(1, _CENTER_ITAG)
+    return A
+
+
+def _center_isometry_backward(C_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's row space for a backward sweep.
+
+    Mirror of `_center_isometry_forward`, over the `(right, phys_in, phys_out)`
+    axes.
+
+    Parameters
+    ----------
+    C_i:
+        Center tensor, axes `(left, right, phys_in, phys_out)`.
+
+    Returns
+    -------
+    Tensor
+        Right-isometric tensor, axes `(internal, right, phys_in, phys_out)`.
+    """
+    # rows = own left bond only → LV gives the isometry with axes
+    # (internal, right, phys_in, phys_out), already in MPO axis order.
+    _C, B = decomp(C_i, axes=0, flow='<<', mode='LV')
+    B.retag(0, _CENTER_ITAG)
+    return B
+
+
+# ---------------------------------------------------------------------------
 # Kept-subspace projection (Eq. 12)
 # ---------------------------------------------------------------------------
 
-def _project_complement_left(left_half: Tensor, C_i: Tensor) -> Tensor:
-    """Project `left_half` onto the complement of the current `C_i` subspace.
+def _project_complement_left(left_half: Tensor, A: Tensor) -> Tensor:
+    """Project `left_half` onto the complement of the kept left subspace.
 
-    `C_i` is (approximately) left-isometric — `C_i† C_i = I` on its right
-    bond — so the projector onto its `(left, phys_in, phys_out)` column
-    space is `P_L = C_i C_i†`. The discarded part is `(I − P_L) left_half`.
+    `A` is left-isometric — `A† A = I` on its right bond — so the projector
+    onto its `(left, phys_in, phys_out)` column space is `P_L = A A†`. The
+    discarded part is `(I − P_L) left_half`.
 
     Parameters
     ----------
     left_half:
         Tensor with axes `(c, p, q, r, s)` = (C_left, A_connector,
         B_connector, phys_in, phys_out).
-    C_i:
-        Compressed-MPO tensor at site i, axes `(c, d, r, s)` = (left, right,
-        phys_in, phys_out).
+    A:
+        Left-isometric tensor spanning the kept space, axes `(c, d, r, s)` =
+        (left, internal, phys_in, phys_out).
 
     Returns
     -------
     Tensor
         Discarded component of `left_half`, same axes as `left_half`.
     """
-    # proj[c,p,q,r,s] = Σ_{x,z,w,d} left_half[x,p,q,z,w] · C_i*[x,d,z,w] · C_i[c,d,r,s]
-    proj = einsum('xpqzw,xdzw,cdrs->cpqrs', left_half, C_i.conj(), C_i)
+    # proj[c,p,q,r,s] = Σ_{x,z,w,d} left_half[x,p,q,z,w] · A*[x,d,z,w] · A[c,d,r,s]
+    proj = einsum('xpqzw,xdzw,cdrs->cpqrs', left_half, A.conj(), A)
     return left_half - proj
 
 
-def _project_complement_right(right_half: Tensor, C_j: Tensor) -> Tensor:
-    """Project `right_half` onto the complement of the current `C_j` subspace.
+def _project_complement_right(right_half: Tensor, B: Tensor) -> Tensor:
+    """Project `right_half` onto the complement of the kept right subspace.
 
-    `C_j` is (approximately) right-isometric — `C_j† C_j = I` on its left
-    bond — so the projector onto its `(right, phys_in, phys_out)` row space
-    is `P_R = C_j† C_j`. The discarded part is `(I − P_R) right_half`.
+    `B` is right-isometric — `B B† = I` on its left bond — so the projector
+    onto its `(right, phys_in, phys_out)` row space is `P_R = B† B`. The
+    discarded part is `(I − P_R) right_half`.
 
     Parameters
     ----------
     right_half:
         Tensor with axes `(d, p, q, u, v)` = (C_right, A_connector,
         B_connector, phys_in, phys_out).
-    C_j:
-        Compressed-MPO tensor at site j, axes `(d, e, u, v)` = (left, right,
-        phys_in, phys_out).
+    B:
+        Right-isometric tensor spanning the kept space, axes `(e, d, u, v)` =
+        (internal, right, phys_in, phys_out).
 
     Returns
     -------
     Tensor
         Discarded component of `right_half`, same axes as `right_half`.
     """
-    # proj[d,p,q,u,v] = Σ_{x,y,z,w} right_half[x,p,q,y,z] · C_j*[w,x,y,z] · C_j[w,d,u,v]
-    proj = einsum('xpqyz,wxyz,wduv->dpquv', right_half, C_j.conj(), C_j)
+    # proj[d,p,q,u,v] = Σ_{x,y,z,w} right_half[x,p,q,y,z] · B*[w,x,y,z] · B[w,d,u,v]
+    proj = einsum('xpqyz,wxyz,wduv->dpquv', right_half, B.conj(), B)
     return right_half - proj
 
 
@@ -473,8 +535,8 @@ def expand_forward(
     2. Factored half-contractions: `left_half` from `E_left_i` and the
        (compressed) `A_i`, `B_i`; `right_half` from `E_right_j` and the
        (compressed) `A_j`, `B_j`.
-    3. Discarded-space projection of each half using the original `C_i`,
-       `C_j` (Eq. 12).
+    3. Discarded-space projection of each half, against `C_j` itself and
+       against an orthonormal basis of what `C_i` spans (Eq. 12).
     4. Truncated SVD of the joined discarded halves → `N_R`, the new
        left-bond directions for `C_j` (Eq. 14).
     5. Exact fill-in at site i using the *uncompressed* `A_j`, `B_j`, `C_j`,
@@ -522,7 +584,9 @@ def expand_forward(
     left_half = left_partial(E_left_i, A_i_reduced, B_i_reduced)
     right_half = right_partial(E_right_j, A_j_reduced, B_j_reduced)
 
-    left_disc = _project_complement_left(left_half, C_i)
+    # C_j is right-isometric and projects with itself; C_i is the center and has
+    # to be orthonormalized first, `C C†` being a projector only for an isometry.
+    left_disc = _project_complement_left(left_half, _center_isometry_forward(C_i))
     right_disc = _project_complement_right(right_half, C_j)
 
     N_R = _new_direction_right(left_disc, right_disc, k_expand)
@@ -558,7 +622,8 @@ def expand_backward(
     2. Factored half-contractions: `left_half` from `E_left_im1` and the
        (compressed) `A_im1`, `B_im1`; `right_half` from `E_right_i` and the
        (compressed) `A_i`, `B_i`.
-    3. Discarded-space projection using the original `C_im1`, `C_i` (Eq. 12).
+    3. Discarded-space projection against `C_im1` itself and against an
+       orthonormal basis of what `C_i` spans (Eq. 12).
     4. Truncated SVD of the joined discarded halves → `N_L`, the new
        right-bond directions for `C_im1` (Eq. 14).
     5. Exact fill-in at site i using the *uncompressed* `A_im1`, `B_im1`,
@@ -606,8 +671,10 @@ def expand_backward(
     left_half = left_partial(E_left_im1, A_im1_reduced, B_im1_reduced)
     right_half = right_partial(E_right_i, A_i_reduced, B_i_reduced)
 
+    # C_im1 is left-isometric and projects with itself; C_i is the center and
+    # has to be orthonormalized first.
     left_disc = _project_complement_left(left_half, C_im1)
-    right_disc = _project_complement_right(right_half, C_i)
+    right_disc = _project_complement_right(right_half, _center_isometry_backward(C_i))
 
     N_L = _new_direction_left(left_disc, right_disc, k_expand)
 

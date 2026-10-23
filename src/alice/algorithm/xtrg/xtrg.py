@@ -169,22 +169,31 @@ class Options(AlgorithmOptions):
         controls growth; a no-op for 1-site beyond the initial compaction,
         since its local update never changes bond dimension).
     trunc_thresh:
-        Singular value truncation threshold (relative to the largest singular
-        value per charge sector).
+        Relative singular value truncation threshold: a singular value is
+        discarded when it falls below `trunc_thresh × ‖C‖`, where `‖C‖` is
+        the Frobenius norm of the tensor being decomposed. Being relative,
+        the same value carries over between chain lengths and temperatures —
+        the absolute cutoff handed to Nicole is derived from the local scale
+        once per half-sweep (see `sweep._Truncation`). `0.0` disables
+        threshold truncation, leaving `max_bond` in charge.
     n_sweeps:
         Maximum number of full variational sweeps (forward + backward) per
         squaring step. A sweep may stop early once `z_tol` is satisfied.
     z_tol:
-        Convergence tolerance for the inner variational fit: sweeping stops
-        early once `|‖C‖ − ‖C_prev‖| < z_tol`, where `‖C‖` is the Frobenius
-        norm of the compressed density matrix (proportional to the
-        partition function Z) measured at the orthogonality center after
-        each full sweep. Plays the same structural role as DMRG's `e_tol`,
-        but tracks fit convergence via ‖C‖ rather than energy, since the
-        local update here is an exact least-squares projection (no
-        eigenproblem): at that optimum `⟨C, A·B⟩ = ‖C‖²`, so
-        `‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²` and `‖A·B‖` is fixed across sweeps,
-        making `‖C‖` convergence equivalent to residual convergence.
+        Relative convergence tolerance for the inner variational fit:
+        sweeping stops early once `|‖C‖ − ‖C_prev‖| < z_tol × ‖C_prev‖`,
+        where `‖C‖` is the Frobenius norm of the compressed density matrix
+        (proportional to the partition function Z) measured at the
+        orthogonality center after each full sweep. The criterion is
+        relative for the same reason `trunc_thresh` is: `‖C‖` itself shrinks
+        exponentially with chain length, so an absolute comparison would
+        declare any long chain converged after a single sweep. Plays the
+        same structural role as DMRG's `e_tol`, but tracks fit convergence
+        via ‖C‖ rather than energy, since the local update here is an exact
+        least-squares projection (no eigenproblem): at that optimum
+        `⟨C, A·B⟩ = ‖C‖²`, so `‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²` and `‖A·B‖` is
+        fixed across sweeps, making `‖C‖` convergence equivalent to residual
+        convergence.
     env_cache_dir:
         Root directory for environment disk caching. When set, `run()`
         creates a unique subdirectory inside it (first 8 hex characters of a
@@ -245,7 +254,7 @@ class Options(AlgorithmOptions):
     n_steps: int = 20
     taylor_order: int = 10
     max_bond: Optional[int] = None
-    trunc_thresh: float = 1e-15
+    trunc_thresh: float = 1e-12
     n_sweeps: int = 4
     z_tol: float = 1e-10
     env_cache_dir: Optional[str] = None
@@ -650,6 +659,12 @@ def _fit_mpo(
         (0.0 for 1-site scheme).
     """
     L = mpo_a.L
+    # `thresh` is relative here, as it is inside the sweeps. The `compact()`
+    # calls below are the one place it can be used as-is: `compact()` extracts
+    # the Frobenius norm into log_scale and normalizes the site tensors before
+    # its truncating sweep, so its cutoff already acts on a unit-scale
+    # spectrum. The sweeps in between do not have that luxury and measure the
+    # local scale for themselves (see `sweep._Truncation`).
     trunc: Optional[dict] = {'thresh': opts.trunc_thresh}
     if opts.max_bond is not None:
         trunc['nkeep'] = opts.max_bond
@@ -703,11 +718,19 @@ def _fit_mpo(
             # ⟨C, A·B⟩ = ‖C‖² at the optimum, so ‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²
             # and ‖A·B‖ is fixed across sweeps. No extra contraction needed —
             # `norm()` just reads the already-isometric center tensor.
+            #
+            # The comparison is relative: ‖C‖ ≈ ‖A·B‖ is exponentially small
+            # in L (the operands are unit-norm, so squaring them costs a
+            # factor ≈ d^{-L/2} at high temperature), and an absolute
+            # tolerance would be met trivially on any long chain after the
+            # first sweep. A zero prev_norm cannot happen for a physical ρ,
+            # but would make the test vacuous, so it never stops early.
             norm = mpo_c.norm()
-            if prev_norm is not None and abs(norm - prev_norm) < opts.z_tol:
+            if prev_norm is not None and prev_norm != 0.0 \
+                    and abs(norm - prev_norm) < opts.z_tol * abs(prev_norm):
                 logger.debug(
-                    "  fit converged after %d sweep(s) (Δ‖C‖=%.3e)",
-                    sweep_idx + 1, abs(norm - prev_norm),
+                    "  fit converged after %d sweep(s) (Δ‖C‖/‖C‖=%.3e)",
+                    sweep_idx + 1, abs(norm - prev_norm) / abs(prev_norm),
                 )
                 break
             prev_norm = norm
@@ -962,9 +985,9 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     else:
         logger.info("  beta_max          : %.6g", opts.tau_0 * 2 ** opts.n_steps)
     logger.info("  max bond dim      : %s", max_bond_str)
-    logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
+    logger.info("  trunc thresh      : %.2e  (relative)", opts.trunc_thresh)
     logger.info("  sweeps / step     : %d", opts.n_sweeps)
-    logger.info("  fit conv thresh   : %.2e", opts.z_tol)
+    logger.info("  fit conv thresh   : %.2e  (relative)", opts.z_tol)
     logger.info("  taylor order      : %d", opts.taylor_order)
     if opts.scheme == '1sp':
         alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'no compression'

@@ -32,6 +32,14 @@ is used to reduce the internal bond to at most α ≤ b, giving compact factors
 M̃[i] and M̃[i+1]. The subsequent half-applications and projections then scale
 with α instead of b.
 
+Both ends project with an isometry, `M M†` being a projector only for one. The
+neighbor side is one already; the center side is not, carrying the singular
+values, so a 1-site split of it supplies an orthonormal basis of the space it
+spans. The isometric factor of Θ will not do in its place: `decomp` keeps every
+sector at full dimension regardless of rank, so that factor can span the whole
+(bond, physical) space and annihilate the complement, whereas the split of the
+center tensor cannot overreach, its internal bond being the bond itself.
+
 Index convention (shared with `environ.py`, `scheme_1s.py`, `scheme_2s.py`):
 
 - `a, b, c, d` — virtual bond indices of the MPS (bra or ket side).
@@ -62,6 +70,10 @@ from .scheme_2s import build_bulk, split_forward
 # Temporary itag assigned to the truncated internal bond in _cheap_factors.
 _TRUNC_ITAG: str = '_cbe_trunc_'
 
+# Itag assigned to the internal bond of the center tensor's own split, kept
+# distinct from _TRUNC_ITAG so that a projection can carry both at once.
+_CENTER_ITAG: str = '_cbe_center_'
+
 # Itag assigned to the complement bond produced by the SVD of Θ'_disc.
 _COMPLEMENT_ITAG: str = '_cbe_comp_'
 
@@ -69,6 +81,56 @@ _COMPLEMENT_ITAG: str = '_cbe_comp_'
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _center_isometry_forward(M_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's column space for a forward sweep.
+
+    Returns the isometric factor of a 1-site split of the center tensor, which
+    spans exactly what the center tensor spans over its (left bond, physical)
+    indices — the kept space the left end of the bond has to project out. The
+    bond tensor the split also produces is discarded; it is the non-orthonormal
+    part that makes the center tensor itself unusable here.
+
+    Parameters
+    ----------
+    M_i:
+        Center tensor, axes `(ket_left, ket_right, phys)`.
+
+    Returns
+    -------
+    Tensor
+        Left-isometric tensor with axes `(ket_left, internal, phys)`.
+    """
+    # cols = right bond only → LV gives the isometry with axes
+    # (internal, ket_left, phys); restore MPS axis order.
+    _C, A = decomp(M_i, axes=1, flow='<<', mode='LV')
+    A.permute([1, 0, 2], in_place=True)
+    A.retag(1, _CENTER_ITAG)
+    return A
+
+
+def _center_isometry_backward(M_i: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's row space for a backward sweep.
+
+    Mirror of `_center_isometry_forward`, over the (right bond, physical)
+    indices.
+
+    Parameters
+    ----------
+    M_i:
+        Center tensor, axes `(ket_left, ket_right, phys)`.
+
+    Returns
+    -------
+    Tensor
+        Right-isometric tensor with axes `(internal, ket_right, phys)`.
+    """
+    # rows = left bond only → LV gives the isometry with axes
+    # (internal, ket_right, phys), already in MPS axis order.
+    _C, B = decomp(M_i, axes=0, flow='<<', mode='LV')
+    B.retag(0, _CENTER_ITAG)
+    return B
+
 
 def _cheap_factors(
     M_i: Tensor,
@@ -157,53 +219,55 @@ def _right_half(E_right: Tensor, M_trunc: Tensor, W: Tensor) -> Tensor:
     return einsum('cqd,αdv,pquv->αpcu', E_right, M_trunc, W)
 
 
-def _project_complement_left(left_half: Tensor, M_i: Tensor) -> Tensor:
-    """Project left_half onto the complement of the current M_i subspace.
+def _project_complement_left(left_half: Tensor, A: Tensor) -> Tensor:
+    """Project left_half onto the complement of the kept left subspace.
 
-    M_i is left-isometric (M̂† M̂ = I_b), so the projector onto its column space
-    is P_L = M_i M_i†, acting on the joint (bra_left, phys_bra) indices of
+    `A` is left-isometric (A† A = I_b), so the projector onto its column space
+    is P_L = A A†, acting on the joint (bra_left, phys_bra) indices of
     left_half. The discarded part is (I − P_L) left_half.
 
     Parameters
     ----------
     left_half:
         Tensor with axes `(bra_left=a, internal=α, mpo_mid=p, phys_bra=r)`.
-    M_i:
-        Original left-isometric site tensor at i with axes `(ket_left=a, ket_right=b, phys=r)`.
+    A:
+        Left-isometric tensor spanning the kept space, axes
+        `(ket_left=a, internal=b, phys=r)`.
 
     Returns
     -------
     Tensor
         Discarded component of left_half, same axes as left_half.
     """
-    # proj[a,α,p,r] = Σ_{b,x,z} left_half[x,α,p,z] · M_i*[x,b,z] · M_i[a,b,r]
-    # left_half and M_i* share x and z → contract them first (intermediate b·α·p).
-    proj = einsum('xαpz,xbz,abr->aαpr', left_half, M_i.conj(), M_i)
+    # proj[a,α,p,r] = Σ_{b,x,z} left_half[x,α,p,z] · A*[x,b,z] · A[a,b,r]
+    # left_half and A* share x and z → contract them first (intermediate b·α·p).
+    proj = einsum('xαpz,xbz,abr->aαpr', left_half, A.conj(), A)
     return left_half - proj
 
 
-def _project_complement_right(right_half: Tensor, M_i1: Tensor) -> Tensor:
-    """Project right_half onto the complement of the current M_i1 subspace.
+def _project_complement_right(right_half: Tensor, B: Tensor) -> Tensor:
+    """Project right_half onto the complement of the kept right subspace.
 
-    M_i1 is right-isometric (M̂ M̂† = I_b), so the projector onto its row space
-    is P_R = M_i1† M_i1, acting on the joint (bra_right, phys_bra) indices of
+    `B` is right-isometric (B B† = I_b), so the projector onto its row space
+    is P_R = B† B, acting on the joint (bra_right, phys_bra) indices of
     right_half. The discarded part is (I − P_R) right_half.
 
     Parameters
     ----------
     right_half:
         Tensor with axes `(internal=α, mpo_mid=p, bra_right=c, phys_bra=u)`.
-    M_i1:
-        Original right-isometric site tensor at i+1 with axes `(ket_left=b, ket_right=c, phys=u)`.
+    B:
+        Right-isometric tensor spanning the kept space, axes
+        `(internal=b, ket_right=c, phys=u)`.
 
     Returns
     -------
     Tensor
         Discarded component of right_half, same axes as right_half.
     """
-    # proj[α,p,c,u] = Σ_{b,x,z} right_half[α,p,x,z] · M_i1*[b,x,z] · M_i1[b,c,u]
-    # right_half and M_i1* share x and z → contract them first (intermediate b·α·p).
-    proj = einsum('αpxz,bxz,bcu->αpcu', right_half, M_i1.conj(), M_i1)
+    # proj[α,p,c,u] = Σ_{b,x,z} right_half[α,p,x,z] · B*[b,x,z] · B[b,c,u]
+    # right_half and B* share x and z → contract them first (intermediate b·α·p).
+    proj = einsum('αpxz,bxz,bcu->αpcu', right_half, B.conj(), B)
     return right_half - proj
 
 
@@ -359,13 +423,14 @@ def expand_forward(
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Compute the CBE complement and expand bond (i, i+1) for a forward sweep.
 
-    The orthogonality center sits at site i (M_i left-isometric, M_i1
-    right-isometric). The procedure is:
+    The orthogonality center sits at site i, so M_i is the center tensor and
+    M_i1 is right-isometric. The procedure is:
 
     1. Truncated SVD of Θ = M_i ⊗ M_i1 → cheap factors M̃_i, M̃_i1 (bond α).
     2. Factored half-application of H: `left_half` from E_left and M̃_i;
        `right_half` from E_right and M̃_i1.
-    3. Discarded-space projection of each half using original M_i and M_i1.
+    3. Discarded-space projection of each half, against M_i1 itself and against
+       an orthonormal basis of what M_i spans.
     4. SVD of Θ'_disc → N_L (new right-bond vectors for M_i) and
        N_R (new left-bond vectors for M_i1).
     5. Expansion of M_i and M_i1 via `oplus`.
@@ -374,7 +439,7 @@ def expand_forward(
     Parameters
     ----------
     M_i:
-        Left-isometric MPS tensor at site i, axes `(ket_left, ket_right, phys)`.
+        Center tensor at site i, axes `(ket_left, ket_right, phys)`.
     M_i1:
         Right-isometric MPS tensor at site i+1, axes `(ket_left, ket_right, phys)`.
     W_i:
@@ -408,7 +473,9 @@ def expand_forward(
     rh = _right_half(E_right_i1, M_tilde_i1, W_i1)
 
     # Step 3: discarded-space projection using the original (non-truncated) tensors.
-    lh_disc = _project_complement_left(lh,  M_i)
+    # M_i1 is right-isometric and projects with itself; M_i is the center and
+    # has to be orthonormalized first, `M M†` being a projector only for an isometry.
+    lh_disc = _project_complement_left(lh,  _center_isometry_forward(M_i))
     rh_disc = _project_complement_right(rh, M_i1)
 
     # Step 4: complement vectors from SVD of Θ'_disc.
@@ -445,7 +512,8 @@ def expand_backward(
 
     1. Truncated SVD of Θ = M_im1 ⊗ M_i → cheap M̃_im1, M̃_i (bond α).
     2. Factored half-application of H using E_left[i-1] and E_right[i].
-    3. Discarded-space projection using original M_im1 and M_i.
+    3. Discarded-space projection against M_im1 itself and against an
+       orthonormal basis of what M_i spans.
     4. SVD of Θ'_disc → N_L (new right-bond vectors for M_im1), N_R (new left-bond for M_i).
     5. Expansion of M_i left bond and M_im1 right bond via `oplus`.
     6. Expansion of the left environment at site i from E_left[i-1].
@@ -453,7 +521,7 @@ def expand_backward(
     Parameters
     ----------
     M_i:
-        MPS tensor at site i (right-isometric or center), axes `(ket_left, ket_right, phys)`.
+        Center tensor at site i, axes `(ket_left, ket_right, phys)`.
     M_im1:
         Left-isometric MPS tensor at site i-1, axes `(ket_left, ket_right, phys)`.
     W_i:
@@ -486,9 +554,11 @@ def expand_backward(
     lh = _left_half(E_left_im1, M_tilde_im1, W_im1)
     rh = _right_half(E_right_i,  M_tilde_i,  W_i)
 
-    # Step 3: discarded-space projection using the original tensors.
+    # Step 3: discarded-space projection using the original tensors. M_im1 is
+    # left-isometric and projects with itself; M_i is the center and has to be
+    # orthonormalized first.
     lh_disc = _project_complement_left(lh,   M_im1)
-    rh_disc = _project_complement_right(rh,  M_i)
+    rh_disc = _project_complement_right(rh,  _center_isometry_backward(M_i))
 
     # Step 4: complement vectors.
     # N_L: new right-bond vectors for M_im1.

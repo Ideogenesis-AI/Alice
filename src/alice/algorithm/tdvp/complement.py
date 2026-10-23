@@ -64,9 +64,7 @@ exactly isometric there, and its row (or column) space is the full space the
 complement has to avoid for the expanded neighbor to stay isometric. On the
 center side a 1-site split of the center tensor supplies an orthonormal basis
 of the same space the center tensor spans, since `M M†` is a projector only for
-an isometry and in a TDVP sweep the center tensor is not one. DMRG uses the raw
-site tensor at both ends, which costs it nothing because Davidson overwrites
-the center tensor anyway.
+an isometry and in a TDVP sweep the center tensor is not one.
 
 What must *not* be used on the center side is the isometric factor of Θ, even
 though it is orthonormal and spans the center tensor's column space. Untruncated

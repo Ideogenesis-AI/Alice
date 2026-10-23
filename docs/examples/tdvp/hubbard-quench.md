@@ -113,7 +113,9 @@ summary, artifact = tdvp.run(
 ```
 
 Unlike a product-state quench, `scheme='1s'` is usable here — the ground state
-already has open bonds for the 1-site manifold to rotate within.
+already has open bonds for the 1-site manifold to rotate within. `'1sp'` is
+likewise free to spend its expansion on the rank the quench actually asks for,
+rather than on opening bonds that should never have been closed.
 
 ## Running the script
 
@@ -176,6 +178,18 @@ frozen to all ten digits — and the accumulated phase matches \(e^{-iEt}\) to
 1.1e-13. This verifies the propagator's sign through the full non-Abelian
 machinery.
 
+!!! tip "The eigenstate limit is also the test for `scheme='1sp'`"
+
+    The expansion widens a bond and then truncates it back, and an eigenstate
+    has to come through both operations untouched. Adding `--scheme 1sp` to the
+    run above holds the overlap at 1.000000000000 with a phase deviation of
+    6.7e-14 and a discarded weight of exactly zero, so the widening and the
+    cutting cancel as they should.
+
+    This is the check worth running after touching the expansion, because the
+    other two catch nothing: energy conservation and cross-symmetry agreement
+    would both look healthy while the expansion quietly shed part of the state.
+
 ## Four-way comparison
 
 ```bash
@@ -205,6 +219,12 @@ All four agree to roughly 1e-11, and that floor is the *initial state*, not the
 evolution: each group runs its own DMRG to a finite `e_tol`, so the four
 starting points already differ at that level and TDVP merely carries the
 difference forward. Tightening `e_tol` tightens the whole table.
+
+`--compare-symmetries` honors `--scheme`, but keep `'2s'` when the agreement
+itself is the measurement. Under `'1sp'` the floor rises by several orders of
+magnitude, because which complement directions a bond receives depends on the
+basis the state is carried in and the groups do not choose identically — see
+[the same effect on the melting example](hubbard.md#cross-symmetry-agreement-at-finite-u).
 
 ## See Also
 

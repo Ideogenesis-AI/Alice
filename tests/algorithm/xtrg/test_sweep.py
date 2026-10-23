@@ -20,13 +20,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from alice.network.thermal import NormalMPO, thermal_mpo
 from alice.algorithm.xtrg.environ import (
     Environment,
     build_right_envs,
     left_env_boundary,
 )
-from alice.algorithm.xtrg.sweep import backward_sweep, forward_sweep
+from alice.algorithm.xtrg.sweep import _Truncation, backward_sweep, forward_sweep
 from alice.algorithm.xtrg.xtrg import Options, _fit_mpo
 
 
@@ -55,6 +57,32 @@ def _make_envs(rho, mpo_c, scheme='1s'):
     env_left[0] = left_env_boundary(rho, rho, mpo_c)
     build_right_envs(rho, rho, mpo_c, env_right)
     return env_left, env_right
+
+
+def _rescaled(rho, factor):
+    """Copy `rho` with every site tensor scaled by `factor`.
+
+    Scaling the site tensors rather than `log_scale` is what makes this a test
+    of the truncation scale: the sweeps read the tensor data and never the
+    tracked scale, so the fitted product changes magnitude by `factor^(2L)`
+    while still describing the same operator up to a constant.
+    """
+    return NormalMPO(
+        [t * factor for t in rho],
+        log_scale=rho.log_scale,
+        bc=rho.bc,
+        center=rho.center,
+    )
+
+
+def _sweep_once(rho, scheme, opts):
+    """Run one full sweep on a fresh mpo_c; return its bond dims and the dw."""
+    mpo_c = NormalMPO.from_mpo(rho)
+    mpo_c.canonical(0)
+    env_left, env_right = _make_envs(rho, mpo_c, scheme=scheme)
+    forward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
+    dw = backward_sweep(rho, rho, mpo_c, env_left, env_right, opts)
+    return list(mpo_c.bond_dims), dw
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +237,110 @@ class TestBackwardSweep:
             f"1sp trace={trace_1sp:.10g} vs. 2s trace={trace_2s:.10g}, "
             f"rel err={rel_err:.2e}"
         )
+
+
+class _StubRef:
+    """Stand-in for the tensor `_Truncation` measures; it only reads the norm."""
+
+    def __init__(self, norm):
+        self._norm = norm
+        self.reads = 0
+
+    def norm(self):
+        self.reads += 1
+        return self._norm
+
+
+class TestTruncation:
+    """Tests for the per-sweep resolution of the relative threshold."""
+
+    def test_thresh_scaled_by_reference_norm(self):
+        """`thresh` comes out multiplied by the norm; `nkeep` is untouched."""
+        trunc = _Truncation({'thresh': 1e-8, 'nkeep': 16})
+        assert trunc.at(_StubRef(4.0)) == {'thresh': 4e-8, 'nkeep': 16}
+
+    def test_scale_fixed_on_first_use(self):
+        """Later bonds reuse the first scale and never read another norm."""
+        trunc = _Truncation({'thresh': 1e-8})
+        first = trunc.at(_StubRef(4.0))
+        later = _StubRef(1e3)
+        assert trunc.at(later) == first
+        assert later.reads == 0
+
+    def test_zero_thresh_needs_no_scale(self):
+        """Nothing to resolve without a relative threshold, so nothing is read."""
+        trunc = _Truncation({'thresh': 0.0, 'nkeep': 8})
+        ref = _StubRef(4.0)
+        assert trunc.at(ref) == {'thresh': 0.0, 'nkeep': 8}
+        assert ref.reads == 0
+
+    @pytest.mark.parametrize('norm', [0.0, float('inf'), float('nan')])
+    def test_degenerate_scale_drops_the_threshold(self, norm):
+        """With no scale to measure against, only `nkeep` survives."""
+        assert _Truncation({'thresh': 1e-8, 'nkeep': 8}).at(_StubRef(norm)) == {'nkeep': 8}
+        assert _Truncation({'thresh': 1e-8}).at(_StubRef(norm)) is None
+
+
+class TestTruncationScale:
+    """Tests that `trunc_thresh` is measured relative to the local scale."""
+
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
+    def test_truncation_is_scale_invariant(self, scheme, spinless_fermion_L4):
+        """Rescaling the operands leaves bond dims and discarded weight alone.
+
+        An absolute cutoff fails here: the fitted product carries a factor
+        `factor^(2L)`, so a threshold that trims the tail of the spectrum at
+        `factor = 1` would wipe out the whole spectrum at `factor = 1e-2`.
+        Measuring the scale too early fails too, since `mpo_c` starts every
+        fit at unit norm, where the rescaling leaves no trace.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        rho, _ = _setup_compression(mpo, spc)
+        opts = Options(
+            scheme=scheme, max_bond=8, trunc_thresh=1e-6,
+            expand_k=2, expand_alpha=2,
+        )
+
+        dims, dw = _sweep_once(rho, scheme, opts)
+        dims_small, dw_small = _sweep_once(_rescaled(rho, 1e-2), scheme, opts)
+        dims_large, dw_large = _sweep_once(_rescaled(rho, 1e2), scheme, opts)
+
+        assert dims_small == dims, f"{dims_small} != {dims} under a 1e-2 rescaling"
+        assert dims_large == dims, f"{dims_large} != {dims} under a 1e2 rescaling"
+        assert dw_small == pytest.approx(dw, abs=1e-12)
+        assert dw_large == pytest.approx(dw, abs=1e-12)
+
+    def test_threshold_actually_truncates(self, spinless_fermion_L4):
+        """A loose relative threshold cuts bonds a zero threshold would keep.
+
+        Guards the test above against passing trivially: scale invariance is
+        uninteresting if the threshold never removes anything.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        rho, _ = _setup_compression(mpo, spc)
+        base = {'scheme': '2s', 'max_bond': 16}
+
+        dims_loose, _ = _sweep_once(rho, '2s', Options(**base, trunc_thresh=1e-3))
+        dims_zero, _ = _sweep_once(rho, '2s', Options(**base, trunc_thresh=0.0))
+
+        assert all(a <= b for a, b in zip(dims_loose, dims_zero))
+        assert sum(dims_loose) < sum(dims_zero)
+
+    def test_zero_threshold_truncates_only_by_max_bond(self, spinless_fermion_L4):
+        """With `trunc_thresh = 0.0`, `max_bond` is the only limit in force."""
+        mpo, spc, _ = spinless_fermion_L4
+        rho, _ = _setup_compression(mpo, spc)
+        max_bond = 4
+
+        dims_capped, _ = _sweep_once(
+            rho, '2s', Options(scheme='2s', max_bond=max_bond, trunc_thresh=0.0),
+        )
+        dims_free, _ = _sweep_once(
+            rho, '2s', Options(scheme='2s', max_bond=None, trunc_thresh=0.0),
+        )
+
+        assert all(d <= max_bond for d in dims_capped)
+        assert dims_capped == [min(d, max_bond) for d in dims_free]
 
 
 class TestFullFit:

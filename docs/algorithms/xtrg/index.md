@@ -85,7 +85,7 @@ across the grid.
 
 ## See Also
 
-- [Lessons](lessons.md) — truncation scale, and choosing `trunc_thresh` on long chains.
+- [Lessons](lessons.md) — truncation scale, and why `trunc_thresh` is relative.
 - [xtrg.run](run.md) — full parameter reference.
 - [NormalMPO](../../api/network/normal-mpo.md) — the density matrix representation.
 - [thermal_mpo](../../api/network/thermal-mpo.md) — used to build the initial `Artifact`.

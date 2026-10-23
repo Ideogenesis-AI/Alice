@@ -66,6 +66,13 @@ the degeneracies before taking `-Σ p log p`; `mps_entropy` does this, and
 without it the SU(2) entropy comes out low by a factor approaching two while
 still looking like a perfectly plausible number.
 
+`--scheme 1sp` inherits all of this. Its complement is assembled in whatever
+basis the state is carried in, so under SU(2) the directions it adds are
+multiplets and `--expand-k` is a count of multiplets like `--bond-dim` —
+which is also why the same `--expand-k` buys more states there than under
+`U1,U1`. The two groups must still agree, and `--compare-symmetries` checks
+that under whichever scheme it is given.
+
 Only the `U1,*` groups are offered here. Under `Z2,*` the even-parity sector
 is two-dimensional, merging |0⟩ with |↑↓⟩ into one sector, so a site
 configuration cannot name them apart and this initial state cannot be built.
@@ -80,6 +87,7 @@ Run from the repository root:
     uv run python examples/examples_tdvp/tdvp_hubbard.py --U 4.0
     uv run python examples/examples_tdvp/tdvp_hubbard.py --L 8 --time 1.5
     uv run python examples/examples_tdvp/tdvp_hubbard.py --scheme 1s
+    uv run python examples/examples_tdvp/tdvp_hubbard.py --scheme 1sp --expand-k 8
     uv run python examples/examples_tdvp/tdvp_hubbard.py --help
 """
 
@@ -210,6 +218,8 @@ def tdvp_hubbard(
     order: int = 2,
     bond_dim: int = 128,
     trunc_thresh: float = 1e-12,
+    expand_k: int = 4,
+    expand_alpha: Optional[int] = None,
     krylov_dim: int = 16,
     snapshots: int = 4,
     checkpoint_dir: Optional[str] = None,
@@ -236,14 +246,23 @@ def tdvp_hubbard(
     dt:
         Time step.
     scheme:
-        `'2s'` (default) or `'1s'`. As always `'1s'` cannot grow a bond and so
-        is frozen from this product state.
+        `'2s'` (default), `'1s'`, or `'1sp'`. As always `'1s'` cannot grow a
+        bond and so is frozen from this product state; `'1sp'` grows one at
+        1-site cost and is the cheaper way to melt this wall, which matters
+        more here than in the spinless case because the physical dimension is
+        4 and the 2-site tensor correspondingly larger.
     order:
         Integrator order, `1` or `2`.
     bond_dim:
         Maximum bond dimension, counted in multiplets.
     trunc_thresh:
         SVD truncation threshold.
+    expand_k:
+        Complement directions added per bond per local update, for `'1sp'`.
+        Counted in multiplets under the SU(2) groups, as `bond_dim` is.
+    expand_alpha:
+        Internal bond of the cheap factorization inside the expansion, for
+        `'1sp'`. `None` keeps the full bond.
     krylov_dim:
         Maximum Krylov subspace dimension.
     snapshots:
@@ -284,6 +303,10 @@ def tdvp_hubbard(
         print("Initial state  : |" + ' '.join(
             '2' if j < L // 2 else '0' for j in range(L)) + ">  (total spin 0)")
         print(f"Scheme         : {scheme}   order = {order}")
+        if scheme in ('1sp', '1-site-plus', 'one-site-plus'):
+            alpha_str = str(expand_alpha) if expand_alpha is not None else 'full'
+            print(f"  expand_k     : {expand_k} multiplets"
+                  f"   expand_alpha : {alpha_str}")
         print(f"Time step      : {dt}   total time = {time}")
         print(f"Bond dim       : {bond_dim} multiplets")
         if exact_available:
@@ -304,6 +327,8 @@ def tdvp_hubbard(
         order=order,
         max_bond=bond_dim,
         trunc_thresh=trunc_thresh,
+        expand_k=expand_k,
+        expand_alpha=expand_alpha,
         krylov_dim=krylov_dim,
         checkpoint_dir=checkpoint_dir,
         env_cache_dir=env_cache_dir,
@@ -415,8 +440,11 @@ def compare_symmetries(
     U: float = 0.0,
     time: float = 1.0,
     dt: float = 0.025,
+    scheme: str = '2s',
     order: int = 2,
     bond_dim: int = 128,
+    expand_k: int = 4,
+    expand_alpha: Optional[int] = None,
 ) -> None:
     """Run the same quench under both symmetry groups and compare.
 
@@ -438,20 +466,29 @@ def compare_symmetries(
         Total evolution time.
     dt:
         Time step.
+    scheme:
+        TDVP update scheme, shared by both runs. `'1s'` would freeze both and
+        make them agree trivially.
     order:
         Integrator order.
     bond_dim:
         Maximum bond dimension in multiplets.
+    expand_k:
+        Complement directions added per bond per local update, for `'1sp'`.
+    expand_alpha:
+        Internal bond of the cheap factorization inside the expansion, for
+        `'1sp'`. `None` keeps the full bond.
     """
     print(f"Abelian vs non-Abelian  (L = {L}, t = {t}, U = {U}, "
-          f"t_final = {time}, dt = {dt})")
+          f"t_final = {time}, dt = {dt}, scheme = {scheme})")
     print()
 
     out = {}
     for symmetry in _VALID_SYMMETRIES:
         summary, artifact = tdvp_hubbard(
-            L=L, t=t, U=U, symmetry=symmetry, time=time, dt=dt,
-            order=order, bond_dim=bond_dim, verbose=False,
+            L=L, t=t, U=U, symmetry=symmetry, time=time, dt=dt, scheme=scheme,
+            order=order, bond_dim=bond_dim, expand_k=expand_k,
+            expand_alpha=expand_alpha, verbose=False,
         )
         mpo, n_obs, d_obs, _, _, _ = _build_system(L, t, U, symmetry)
         out[symmetry] = {
@@ -507,7 +544,8 @@ def _parse_args():
             "  uv run python examples/examples_tdvp/tdvp_hubbard.py --symmetry U1,SU2\n"
             "  uv run python examples/examples_tdvp/tdvp_hubbard.py --compare-symmetries\n"
             "  uv run python examples/examples_tdvp/tdvp_hubbard.py --U 4.0\n"
-            "  uv run python examples/examples_tdvp/tdvp_hubbard.py --L 8 --time 1.5"
+            "  uv run python examples/examples_tdvp/tdvp_hubbard.py --L 8 --time 1.5\n"
+            "  uv run python examples/examples_tdvp/tdvp_hubbard.py --scheme 1sp --expand-k 8"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -526,14 +564,21 @@ def _parse_args():
                    help='total evolution time (default: 1.0)')
     p.add_argument('--dt', type=float, default=0.025, metavar='DT',
                    help='time step (default: 0.025)')
-    p.add_argument('--scheme', choices=['1s', '2s'], default='2s',
-                   help='TDVP update scheme (default: 2s)')
+    p.add_argument('--scheme', choices=['1s', '2s', '1sp'], default='2s',
+                   help='TDVP update scheme: 2s (2-site, default), 1s '
+                        '(1-site), or 1sp (1-site-plus / CBE)')
     p.add_argument('--order', type=int, choices=[1, 2], default=2,
                    help='integrator order (default: 2)')
     p.add_argument('--bond-dim', type=int, default=128, metavar='D',
                    help='maximum bond dimension in multiplets (default: 128)')
     p.add_argument('--trunc-thresh', type=float, default=1e-12, metavar='THR',
                    help='SVD truncation threshold (default: 1e-12)')
+    p.add_argument('--expand-k', type=int, default=4, metavar='K',
+                   help="complement multiplets per bond per update, for '1sp' "
+                        '(default: 4)')
+    p.add_argument('--expand-alpha', type=int, default=None, metavar='A',
+                   help='internal bond of the cheap factorization inside the '
+                        "'1sp' expansion (default: full bond)")
     p.add_argument('--krylov-dim', type=int, default=16, metavar='K',
                    help='maximum Krylov subspace dimension (default: 16)')
     p.add_argument('--snapshots', type=int, default=4, metavar='K',
@@ -565,8 +610,11 @@ if __name__ == '__main__':
             U=args.U,
             time=args.time,
             dt=args.dt,
+            scheme=args.scheme,
             order=args.order,
             bond_dim=args.bond_dim,
+            expand_k=args.expand_k,
+            expand_alpha=args.expand_alpha,
         )
     else:
         tdvp_hubbard(
@@ -580,6 +628,8 @@ if __name__ == '__main__':
             order=args.order,
             bond_dim=args.bond_dim,
             trunc_thresh=args.trunc_thresh,
+            expand_k=args.expand_k,
+            expand_alpha=args.expand_alpha,
             krylov_dim=args.krylov_dim,
             snapshots=args.snapshots,
             checkpoint_dir=args.checkpoint_dir,

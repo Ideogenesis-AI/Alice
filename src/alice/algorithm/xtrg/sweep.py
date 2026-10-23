@@ -33,12 +33,23 @@ After a backward sweep:
 - `mpo_c.center == 0`.
 - `env_right[i]` is populated for `i = 0, …, L-2` (1-site / 1-site-plus)
   or `i = 1, …, L-2` (2-site).
+
+`Options.trunc_thresh` is relative, while Nicole's `thresh` mode compares bare
+singular values. `_Truncation` reconciles the two by scaling the threshold
+with the norm of the tensor it is about to truncate.
+
+The sweeps fit `C ≈ A·B` on unit-norm internal tensors, so that norm is
+`‖A·B‖_F ≈ d^{-L/2}` while hot, climbing toward `1` as the run cools. Measuring
+it keeps the cutoff scale-free in both chain length and β.
 """
 
 from __future__ import annotations
 
 import logging
+import math
 from typing import TYPE_CHECKING, Optional, Tuple
+
+from nicole import Tensor
 
 from alice.network.thermal import NormalMPO
 
@@ -150,8 +161,75 @@ def backward_sweep(
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _unpack_opts(opts: Options) -> Tuple[Optional[dict], dict]:
-    """Build the truncation dict and CBE keyword-args from `opts`."""
+class _Truncation:
+    """Truncation options whose relative `thresh` is resolved once per sweep.
+
+    The norm of `C` drifts by well under a factor of two over a half-sweep,
+    and only ever grows as the variational fit tightens, so measuring it at
+    every bond is needless work. The first tensor the half-sweep decomposes
+    sets the scale for all of them, and carrying the smallest norm of the
+    sweep, it makes the cutoff err on the side of keeping.
+
+    Resolution is deferred to the first `at()` call rather than done at
+    construction because, on the opening half-sweep of a fit, `mpo_c` is still
+    the unit-norm copy of `mpo_a` it was initialized from. Only after the
+    first local update does it sit on the `‖A·B‖` scale the cutoff must track.
+    """
+
+    def __init__(self, trunc: Optional[dict]) -> None:
+        self._trunc = trunc
+        # Without a relative threshold there is nothing to resolve: the
+        # options are already absolute (`nkeep` alone, or nothing at all).
+        self._pending = bool(trunc.get('thresh', 0.0)) if trunc is not None else False
+
+    def at(self, ref: Tensor) -> Optional[dict]:
+        """Return options for `decomp`, fixing the scale to `ref` on first use.
+
+        In canonical form `ref` carries the full Frobenius norm of `C`, so
+        `thresh × ‖ref‖` is the absolute cutoff that discards exactly those
+        singular values holding less than `thresh` of the state's weight —
+        regardless of how far squaring the unit-norm operands has pushed that
+        norm away from `1`.
+
+        Parameters
+        ----------
+        ref:
+            Tensor about to be decomposed. Read only on the first call, and
+            only when a relative threshold is in force.
+
+        Returns
+        -------
+        Optional[dict]
+            Truncation options with an absolute `thresh`, or `None` when
+            nothing limits the bond.
+        """
+        if not self._pending:
+            return self._trunc
+
+        resolved = dict(self._trunc)
+        norm = ref.norm()
+        if norm == 0.0 or not math.isfinite(norm):
+            # No scale to measure against. Drop the threshold rather than
+            # compare bare singular values to a relative number, which for a
+            # non-finite norm would wipe out the whole spectrum.
+            del resolved['thresh']
+            self._trunc = resolved or None
+        else:
+            resolved['thresh'] *= norm
+            self._trunc = resolved
+        # The threshold is now resolved, so we can stop waiting for it.
+        self._pending = False
+        # Return the resolved options.
+        return self._trunc
+
+
+def _unpack_opts(opts: Options) -> Tuple[_Truncation, dict]:
+    """Build the truncation options and CBE keyword-args from `opts`.
+
+    The `thresh` entry holds the *relative* threshold, as everywhere else in
+    the algorithm; `_Truncation` turns it into the absolute cutoff Nicole
+    expects once the half-sweep reveals the local scale.
+    """
     trunc: Optional[dict] = {'thresh': opts.trunc_thresh}
     if opts.max_bond is not None:
         trunc['nkeep'] = opts.max_bond
@@ -159,7 +237,7 @@ def _unpack_opts(opts: Options) -> Tuple[Optional[dict], dict]:
         'k_expand': opts.expand_k,
         'alpha': opts.expand_alpha,
     }
-    return trunc, cbe_opts
+    return _Truncation(trunc), cbe_opts
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +250,7 @@ def _forward_1s(
     mpo_c: NormalMPO,
     env_left: Environment,
     env_right: Environment,
-    trunc: Optional[dict],
+    trunc: _Truncation,
 ) -> None:
     """Forward half-sweep for the 1-site scheme.
 
@@ -191,8 +269,10 @@ def _forward_1s(
         mpo_c[i] = local_update_1s(E_left, mpo_a[i], mpo_b[i], E_right)
         logger.debug("  [forward 1s] site %*d / %d", w, i, L - 1)
 
-        # Move orthogonality center one step to the right.
-        mpo_c.canonical(i + 1, trunc=trunc)
+        # Move orthogonality center one step to the right. The freshly
+        # updated site is the center, so it carries the norm the relative
+        # cutoff is measured against.
+        mpo_c.canonical(i + 1, trunc=trunc.at(mpo_c[i]))
 
         # Update left environment for the next site from the new left-isometric tensor.
         env_left[i + 1] = step_left_env(E_left, mpo_a[i], mpo_b[i], mpo_c[i])
@@ -210,7 +290,7 @@ def _backward_1s(
     mpo_c: NormalMPO,
     env_left: Environment,
     env_right: Environment,
-    trunc: Optional[dict],
+    trunc: _Truncation,
 ) -> None:
     """Backward half-sweep for the 1-site scheme.
 
@@ -229,8 +309,10 @@ def _backward_1s(
         mpo_c[i] = local_update_1s(E_left, mpo_a[i], mpo_b[i], E_right)
         logger.debug("  [backward 1s] site %*d / %d", w, i, L - 1)
 
-        # Move orthogonality center one step to the left.
-        mpo_c.canonical(i - 1, trunc=trunc)
+        # Move orthogonality center one step to the left. The freshly
+        # updated site is the center, so it carries the norm the relative
+        # cutoff is measured against.
+        mpo_c.canonical(i - 1, trunc=trunc.at(mpo_c[i]))
 
         # Update right environment for the next site.
         env_right[i - 1] = step_right_env(E_right, mpo_a[i], mpo_b[i], mpo_c[i])
@@ -252,7 +334,7 @@ def _forward_2s(
     mpo_c: NormalMPO,
     env_left: Environment,
     env_right: Environment,
-    trunc: Optional[dict],
+    trunc: _Truncation,
 ) -> None:
     """Forward half-sweep for the 2-site scheme.
 
@@ -274,7 +356,7 @@ def _forward_2s(
         logger.debug("  [forward 2s] sites %s / %d", pair, L - 1)
 
         itag = mpo_c._bond_itag(i + 1)
-        mpo_c[i], mpo_c[i + 1] = split_forward(theta, itag, trunc)
+        mpo_c[i], mpo_c[i + 1] = split_forward(theta, itag, trunc.at(theta))
         mpo_c._center = i + 1
 
         # Update the left environment for the next bond (not needed after the last).
@@ -288,7 +370,7 @@ def _backward_2s(
     mpo_c: NormalMPO,
     env_left: Environment,
     env_right: Environment,
-    trunc: Optional[dict],
+    trunc: _Truncation,
 ) -> float:
     """Backward half-sweep for the 2-site scheme.
 
@@ -316,13 +398,17 @@ def _backward_2s(
         pair = f"({i}, {i + 1})".center(pair_w)
         logger.debug("  [backward 2s] sites %s / %d", pair, L - 1)
 
+        # Shared by the trial SVD and the real split so that the reported
+        # weight is the one actually discarded.
+        bond_trunc = trunc.at(theta)
+
         # Measure discarded weight once at the center bond.
         if i == center_bond:
-            dw = discarded_weight(theta, trunc)
+            dw = discarded_weight(theta, bond_trunc)
             logger.debug("    discarded weight = %.4e", dw)
 
         itag = mpo_c._bond_itag(i + 1)
-        mpo_c[i], mpo_c[i + 1] = split_backward(theta, itag, trunc)
+        mpo_c[i], mpo_c[i + 1] = split_backward(theta, itag, bond_trunc)
         mpo_c._center = i
 
         # Update the right environment for the next bond (not needed after the last).
@@ -342,7 +428,7 @@ def _forward_1sp(
     mpo_c: NormalMPO,
     env_left: Environment,
     env_right: Environment,
-    trunc: Optional[dict],
+    trunc: _Truncation,
     k_expand: int,
     alpha: Optional[int],
 ) -> None:
@@ -374,7 +460,7 @@ def _forward_1sp(
         # Store the expanded tensors then move the center (truncates expanded bond).
         mpo_c[i] = C_i_exp
         mpo_c[i + 1] = C_j_exp
-        mpo_c.canonical(i + 1, trunc=trunc)
+        mpo_c.canonical(i + 1, trunc=trunc.at(C_i_exp))
 
         # Update the left environment for the next site from the now-truncated C_i.
         env_left[i + 1] = step_left_env(E_left, mpo_a[i], mpo_b[i], mpo_c[i])
@@ -392,7 +478,7 @@ def _backward_1sp(
     mpo_c: NormalMPO,
     env_left: Environment,
     env_right: Environment,
-    trunc: Optional[dict],
+    trunc: _Truncation,
     k_expand: int,
     alpha: Optional[int],
 ) -> float:
@@ -428,16 +514,17 @@ def _backward_1sp(
         )
         logger.debug("  [backward 1sp] site %*d / %d", w, i, L - 1)
 
-        # Measure the discarded weight once at the center bond.
+        # Measure the discarded weight once at the center bond, under the
+        # same options the split below applies.
         if i - 1 == center_bond:
             theta = build_bulk(C_im1_exp, C_i_exp)
-            dw = discarded_weight(theta, trunc)
+            dw = discarded_weight(theta, trunc.at(theta))
             logger.debug("    discarded weight = %.4e", dw)
 
         # Store the expanded tensors then move the center (truncates expanded bond).
         mpo_c[i] = C_i_exp
         mpo_c[i - 1] = C_im1_exp
-        mpo_c.canonical(i - 1, trunc=trunc)
+        mpo_c.canonical(i - 1, trunc=trunc.at(C_i_exp))
 
         # Update the right environment for the next site from the now-truncated C_i.
         env_right[i - 1] = step_right_env(E_right, mpo_a[i], mpo_b[i], mpo_c[i])

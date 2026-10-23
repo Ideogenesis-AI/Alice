@@ -84,6 +84,28 @@ summary, artifact = tdvp.run(
     tdvp.Artifact(state=state, time=0.0, step=0), hamiltonian, opts)
 ```
 
+All three schemes run here, and this is the one example where that is
+uninteresting in itself — the initial state already has the bond dimension the
+exact state needs, so nothing is asking to grow. That makes it the place to
+check that `'1sp'` adds nothing when nothing is needed: the complement of an
+already-exact bond holds no direction above `trunc_thresh`, so the expansion
+finds nothing to keep and the bond stays at 2.
+
+| `scheme` | max \|n_j - exact\| at \(t = 3\) | \(\chi\) |
+|----------|-------------------------------|----------|
+| `'1s'`   | 2.397e-05                     | 2        |
+| `'1sp'`  | 2.397e-05                     | 2        |
+| `'2s'`   | 9.438e-06                     | 2        |
+
+`'1sp'` reproduces `'1s'` to every digit, which is the expected result and the
+reason to run it: an expansion that leaked error would show up here against a
+closed-form reference with no truncation to hide behind. The `'2s'` advantage is
+not bond dimension — all three stay at 2 — but the local step, which evolves a
+two-site tensor and so commits a smaller splitting error per sweep.
+
+See [scheme comparison](scheme-comparison.md) for the case where the expansion
+has real work to do.
+
 ## 5. Compare with the exact propagator
 
 ```python
