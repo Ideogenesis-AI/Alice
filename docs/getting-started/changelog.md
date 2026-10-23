@@ -1,5 +1,126 @@
 # Changelog
 
+## [0.3.2] - 2026-10-24
+
+**Truncation Scale and Kept-Space Projection**
+
+A correctness release on two pieces v0.3.0 and v0.3.1 built. The controlled bond expansion
+in DMRG and XTRG projected the center end of a bond with the center tensor itself, for
+which `M M†` is not a projector, so part of the space the bond already carried leaked back
+into the complement it was meant to be orthogonal to. XTRG's `trunc_thresh` and `z_tol`
+were absolute numbers compared against a quantity that shrinks like `d^{-L/2}`, which made
+the cutoff exponentially more aggressive with every site added and the fit-convergence test
+satisfied before the fit had done anything. Both are now measured against the scale they
+live on. `init_mps` also stops handing back a random MPS with every bond empty, and the
+four TDVP example scripts accept `'1sp'`. No breaking API changes, but `trunc_thresh` is
+now read relatively and its default moves from `1e-15` to `1e-12`.
+
+### The Kept-Space Projection
+
+- New `_center_isometry_forward` / `_center_isometry_backward` in
+  `alice.algorithm.dmrg.complement` and `alice.algorithm.xtrg.complement` return the
+  isometric factor of a 1-site split of the center tensor, which spans exactly what the
+  center tensor spans. `P = M M†` is a projector only for an isometry: the neighbor end of
+  the bond is one, the center end carries the singular values and is not.
+- The isometric factor of Θ will not serve in its place — `decomp` keeps every sector at
+  full dimension regardless of rank, so it can span the whole (bond, physical) space and
+  annihilate the complement. TDVP already had this right; its docstring's aside about DMRG
+  getting away with the raw site tensor is gone.
+- **DMRG**: converged energies unchanged, still matching the 2-site scheme to twelve
+  digits, reached one sweep earlier. **XTRG**: the expansion grows bonds more
+  conservatively, so the spinless `L = 10` run ends at `1.2e-06` relative error in log Z
+  rather than `1.1e-07` — both far below the `1.6e-03` of the plain 1-site scheme, and a
+  smaller `trunc_thresh` recovers it.
+- The projector helpers take their second argument as `A` / `B` after the role it plays,
+  with docstrings stating the isometry each one satisfies.
+
+### Relative Truncation and Fit Convergence in XTRG
+
+- `trunc_thresh` is now relative: a singular value is discarded below
+  `trunc_thresh × ‖C‖`, the Frobenius norm of the tensor being decomposed. New
+  `_Truncation` in `sweep.py` resolves it into the absolute cutoff Nicole's `thresh` mode
+  expects by measuring the norm of the first tensor a half-sweep decomposes. One
+  measurement suffices — `‖C‖` grows by well under a factor of two over a sweep, and the
+  first tensor carries the smallest norm, so the cutoff errs on the side of keeping.
+- Resolution is deferred to first use because `mpo_c` opens a fit as the unit-norm copy of
+  `mpo_a`. A zero or non-finite norm drops the threshold and leaves `max_bond` in charge;
+  `0.0` is passed through. The backward 2-site half-sweep shares one resolved set of
+  options between the trial SVD and the real split. The `compact()` calls in `_fit_mpo`
+  take the relative number as it stands, normalizing before they truncate.
+- **The default moves from `1e-15` to `1e-12`.** Read relatively, `1e-15` kept 599 states
+  where `1e-12` kept 377 on an uncapped free-fermion chain, both on the same `1e-10`
+  accuracy floor in the per-site log Z.
+- `z_tol` now compares `|‖C‖ − ‖C_prev‖| < z_tol × ‖C_prev‖`. Absolute, it was satisfied
+  trivially on a long chain and stopped the inner fit after its first sweep. A vanishing
+  `prev_norm` never stops early. `run()` labels both thresholds `(relative)`.
+
+### Random MPS Initialization
+
+- `init_mps` with `bond_dim > 1` draws bond sectors from a depth-2 search around the
+  center-bond charge alone, so a charge path that strays further leaves the boundary bonds
+  with no allowed sector and the canonicalization empties the chain. That object was
+  returned as a usable MPS and failed far from its cause, as a zero-norm Davidson guess;
+  it now raises `ValueError` naming `bond_dim`, `target_qn`, and `L`, and pointing at
+  `bond_dim=1` with an explicit `config=` or `scheme='1sp'`.
+- The random MPS is normalized before return, matching the product-state path, instead of
+  carrying whatever norm its blocks happened to have.
+
+### Examples and Documentation
+
+- `tdvp_freefermion.py`, `tdvp_domainwall.py`, `tdvp_hubbard.py`, and
+  `tdvp_hubbard_quench.py` accept `scheme='1sp'` with `expand_k` and `expand_alpha`, scan
+  modes included; the domain-wall bond scan refuses `'1s'`, whose bonds stay at dimension
+  1 whatever `max_bond` says. The XTRG examples follow the new `trunc_thresh` default.
+- `docs/algorithms/xtrg/lessons.md` is rewritten around the relative cutoff: what the
+  threshold is compared against, where the conversion happens, why the scale needs
+  converting, the same reasoning for `z_tol`, and an admonition that relative is not an
+  error bound.
+- The four TDVP example pages document `'1sp'`: a three-scheme table on the free-fermion
+  page; a tip beside the frozen-`'1s'` warning on the domain-wall page, where `'1sp'`
+  matches the 2-site occupation error on a smaller bond profile (and the quoted
+  frozen-`'1s'` error is corrected from `0.47` to the measured `0.421`); a section on
+  `expand_k` counting multiplets under SU(2) on the Hubbard page; and the eigenstate limit
+  on the quench page, confirmed to `6.7e-14` at zero discarded weight.
+
+### Tests
+
+- New `TestCenterIsometry` in the DMRG and XTRG `test_scheme_1sp.py`: isometry of the
+  factor, the space it spans, axis order and itags, the center tensor demonstrably not an
+  isometry, each projection idempotent (which it was not before), and the discarded halves
+  orthogonal to the kept space, with guards against assertions passing on a numerically
+  zero half.
+- New `TestTruncation` and `TestTruncationScale` in `tests/algorithm/xtrg/test_sweep.py`
+  cover `_Truncation` directly and check that scaling a density matrix by four orders of
+  magnitude leaves the bonds and the reported discarded weight unchanged in all three
+  schemes.
+- New `TestChainLengthPortability` in `test_xtrg.py` cools a spinless chain at four and at
+  ten sites under identical options against the exact single-particle log Z, holding the
+  error flat where it used to lose two orders of magnitude.
+- New `TestInitMpsEmptyBonds` and `test_norm_is_one` in `tests/network/test_automps.py`.
+
+### Statistics
+
+- **1,357 tests** across 38 test modules (up from 1,313 in v0.3.1; no new modules).
+- **30 commits** since v0.3.1.
+- **24 files changed**, 1,364 insertions, 184 deletions.
+- **35 source modules** in five subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.xtrg`, `alice.algorithm.tdvp` (unchanged from
+  v0.3.1).
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `xtrg.Options.trunc_thresh` is read relatively and defaults to
+  `1e-12`, so a value tuned against the old absolute meaning will truncate far more than
+  it used to. `z_tol` is read relative to `‖C_prev‖`, so long-chain runs will use more of
+  their `n_sweeps` budget. DMRG and XTRG `'1sp'` expand bonds more conservatively at a
+  fixed `expand_k`. `init_mps` with `bond_dim > 1` raises `ValueError` for a `target_qn`
+  whose charge path strays from the center-bond sector, and the random mode returns a
+  normalized MPS.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.4.2.
+
+---
+
 ## [0.3.1] - 2026-10-21
 
 **TDVP: The 1-Site-Plus Scheme**
@@ -1262,6 +1383,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.3.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.2
 [0.3.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.0
 [0.2.8]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.2.8
