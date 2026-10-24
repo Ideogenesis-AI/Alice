@@ -3989,6 +3989,10 @@ afterwards is also possible via <code>MPS.to(dtype=torch.complex128)</code>.</p>
                 <p>If <code>bond_dim &lt; 1</code>, if an explicit <code>config</code> has the wrong length, or if
 an explicit <code>target_qn</code> is not reachable for the given <code>L</code> and physical
 space (i.e. auto-config's charge path ends at a different sector).</p>
+<p>Also when <code>bond_dim&gt;1</code> cannot realize a reachable <code>target_qn</code>: the bond
+sectors are chosen around the center-bond charge only, and a charge
+path that strays from it leaves the bonds near the boundaries empty.
+<code>bond_dim=1</code> is unaffected and remains available for those sectors.</p>
               </div>
             </td>
           </tr>

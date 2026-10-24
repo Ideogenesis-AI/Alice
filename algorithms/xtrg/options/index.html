@@ -3641,7 +3641,7 @@
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">n_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">taylor_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_bond</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">trunc_thresh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-15</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">trunc_thresh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">n_sweeps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">z_tol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-10</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">env_cache_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -3771,12 +3771,17 @@ since its local update never changes bond dimension).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Singular value truncation threshold (relative to the largest singular
-value per charge sector).</p>
+                <p>Relative singular value truncation threshold: a singular value is
+discarded when it falls below <code>trunc_thresh × ‖C‖</code>, where <code>‖C‖</code> is
+the Frobenius norm of the tensor being decomposed. Being relative,
+the same value carries over between chain lengths and temperatures —
+the absolute cutoff handed to Nicole is derived from the local scale
+once per half-sweep (see <code>sweep._Truncation</code>). <code>0.0</code> disables
+threshold truncation, leaving <code>max_bond</code> in charge.</p>
               </div>
             </td>
             <td>
-                  <code>1e-15</code>
+                  <code>1e-12</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3805,16 +3810,20 @@ squaring step. A sweep may stop early once <code>z_tol</code> is satisfied.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Convergence tolerance for the inner variational fit: sweeping stops
-early once <code>|‖C‖ − ‖C_prev‖| &lt; z_tol</code>, where <code>‖C‖</code> is the Frobenius
-norm of the compressed density matrix (proportional to the
-partition function Z) measured at the orthogonality center after
-each full sweep. Plays the same structural role as DMRG's <code>e_tol</code>,
-but tracks fit convergence via ‖C‖ rather than energy, since the
-local update here is an exact least-squares projection (no
-eigenproblem): at that optimum <code>⟨C, A·B⟩ = ‖C‖²</code>, so
-<code>‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²</code> and <code>‖A·B‖</code> is fixed across sweeps,
-making <code>‖C‖</code> convergence equivalent to residual convergence.</p>
+                <p>Relative convergence tolerance for the inner variational fit:
+sweeping stops early once <code>|‖C‖ − ‖C_prev‖| &lt; z_tol × ‖C_prev‖</code>,
+where <code>‖C‖</code> is the Frobenius norm of the compressed density matrix
+(proportional to the partition function Z) measured at the
+orthogonality center after each full sweep. The criterion is
+relative for the same reason <code>trunc_thresh</code> is: <code>‖C‖</code> itself shrinks
+exponentially with chain length, so an absolute comparison would
+declare any long chain converged after a single sweep. Plays the
+same structural role as DMRG's <code>e_tol</code>, but tracks fit convergence
+via ‖C‖ rather than energy, since the local update here is an exact
+least-squares projection (no eigenproblem): at that optimum
+<code>⟨C, A·B⟩ = ‖C‖²</code>, so <code>‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²</code> and <code>‖A·B‖</code> is
+fixed across sweeps, making <code>‖C‖</code> convergence equivalent to residual
+convergence.</p>
               </div>
             </td>
             <td>
@@ -4051,7 +4060,7 @@ Must be <code>&gt;= 0</code>.</p>
 </span></code></pre></div>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../lessons/">Lessons</a> — why <code>trunc_thresh</code> tightens with chain length.</li>
+<li><a href="../lessons/">Lessons</a> — the scale <code>trunc_thresh</code> is measured against.</li>
 <li><a href="../summary/">Summary</a> — thermodynamic history.</li>
 <li><a href="../artifact/">Artifact</a> — density-matrix snapshots.</li>
 <li><a href="../run/">run</a> — pass <code>Options</code> here.</li>
@@ -4078,7 +4087,7 @@ Must be <code>&gt;= 0</code>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 17, 2026 08:02:25 UTC"><span class="timeago" datetime="2026-10-17T08:02:25+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 17, 2026 08:02:25 UTC">2026-10-17</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 22, 2026 15:34:02 UTC"><span class="timeago" datetime="2026-10-22T15:34:02+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 22, 2026 15:34:02 UTC">2026-10-22</span>
   </span>
 
     
