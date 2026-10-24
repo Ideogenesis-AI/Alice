@@ -273,3 +273,28 @@ class TestContainerAndIO:
         payload['version'] = 2
         with pytest.raises(ValueError, match='Unsupported serialization version'):
             iNetwork.deserialize(payload)
+
+
+# ---------------------------------------------------------------------------
+# Rendering
+# ---------------------------------------------------------------------------
+
+class TestRepr:
+
+    def test_imps_repr_marks_repetition(self, spin_space):
+        text = repr(_imps(spin_space, 3))
+        assert 'Infinite Matrix Product State (iMPS)' in text
+        assert '···' in text
+        assert 'cell:   3' in text
+
+    def test_impo_repr(self, spin_space):
+        text = repr(_impo(spin_space, 2))
+        assert 'Infinite Matrix Product Operator (iMPO)' in text
+
+    def test_inetwork_repr_is_compact(self, spin_space):
+        # The bare base class has no diagram renderer; it falls back to the
+        # one-line form that reports all N bonds.
+        imps = _imps(spin_space, 3)
+        text = repr(iNetwork(list(imps), itag_prefix='A'))
+        assert text.startswith('iNetwork(N=3,')
+        assert text.count('-') == 2
