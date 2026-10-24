@@ -25,6 +25,7 @@ from .network import (
     build_interaction,
     build_hamiltonian,
     MPS, MPO, Network,
+    iMPS, iMPO, iNetwork,
     init_mps,
     observe,
 )
@@ -42,10 +43,14 @@ __all__ = [
     # high-level entry points
     'build_interaction',
     'build_hamiltonian',
-    # tensor network objects
+    # finite tensor network
     'MPS',
     'MPO',
     'Network',
+    # infinite tensor network
+    'iMPS',
+    'iMPO',
+    'iNetwork',
     # initializers
     'init_mps',
     # measurement

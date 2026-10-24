@@ -26,6 +26,7 @@ from .interaction import (
     build_interaction,
 )
 from .network import MPS, MPO, Network
+from .infinite import iMPS, iMPO, iNetwork
 from .automps import init_mps
 from .observe import observe
 from .autompo import build_hamiltonian
@@ -42,6 +43,10 @@ __all__ = [
     'MPS',
     'MPO',
     'Network',
+    # infinite network
+    'iMPS',
+    'iMPO',
+    'iNetwork',
     # automps
     'init_mps',
     # observe
