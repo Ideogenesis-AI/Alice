@@ -145,27 +145,37 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     logger.info("─" * 60)
     logger.info("")
 
-    if n2x:
-        logger.info(" NN interaction (N2X):")
+    def _emit(dist: int, labels: List[str], heading: str) -> None:
+        """Append every bond of range `dist`, honoring the boundary condition."""
+        logger.info(heading)
         pairs = []
-        for si in range(L - 1):
+        for si in range(L - dist):
             interactions.append(Interaction2Site(
-                label=['NN', 'N2X'],
+                label=list(labels),
                 leading_site=si,
-                terminal_site=si + 1,
+                terminal_site=si + dist,
             ))
-            pairs.append(f"({si:02d},{si+1:02d})")
+            pairs.append(f"({si:02d},{si+dist:02d})")
         _log_pairs(pairs)
 
         if bcx == 'PBC':
             logger.info("")
-            logger.info(" PBC interaction at X edge:")
-            interactions.append(Interaction2Site(
-                label=['NN', 'PBC', 'N2X'],
-                leading_site=0,
-                terminal_site=L - 1,
-            ))
-            _log_pairs([f"({0:02d},{L-1:02d})"])
+            logger.info(f" PBC interaction at X edge (range {dist}):")
+            pairs = []
+            for si in range(L - dist, L):
+                # Normalize so that leading_site < terminal_site, which is
+                # what Interaction2Site and build_hamiltonian require.
+                lo, hi = sorted(((si + dist) % L, si))
+                interactions.append(Interaction2Site(
+                    label=[*labels, 'PBC'],
+                    leading_site=lo,
+                    terminal_site=hi,
+                ))
+                pairs.append(f"({lo:02d},{hi:02d})")
+            _log_pairs(pairs)
+
+    if n2x:
+        _emit(1, ['NN', 'N2X'], " NN interaction (N2X):")
 
     interactions.sort(key=lambda x: x.leading_site)
 
