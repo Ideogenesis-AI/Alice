@@ -175,3 +175,45 @@ class TestChainNNN:
         nnn = {(i.leading_site, i.terminal_site) for i in intrs if 'NNN' in i.label}
         assert nn  == {(k, k + 1) for k in range(5)}
         assert nnn == {(k, k + 2) for k in range(4)}
+
+
+# ---------------------------------------------------------------------------
+# Infinite boundary conditions
+# ---------------------------------------------------------------------------
+
+class TestChainIBC:
+    """Bonds of an infinite chain unit cell, which may reach past the cell."""
+
+    @pytest.mark.parametrize("lx", [1, 2, 5, 10])
+    def test_ibc_bond_count(self, lx):
+        """An IBC unit cell of lx sites produces exactly lx NN bonds."""
+        intrs = intrcmap_1dchain(_geo(lx=lx, bcx='IBC'))
+        assert len(intrs) == lx
+
+    def test_ibc_bonds_reach_past_the_cell(self):
+        """4-site IBC cell: bonds are (0,1), (1,2), (2,3) and (3,4)."""
+        intrs = intrcmap_1dchain(_geo(lx=4, bcx='IBC'))
+        bonds = {(i.leading_site, i.terminal_site) for i in intrs}
+        assert bonds == {(0, 1), (1, 2), (2, 3), (3, 4)}
+
+    def test_ibc_single_site_cell(self):
+        """A 1-site cell carries the single bond (0, 1) into the next cell."""
+        intrs = intrcmap_1dchain(_geo(lx=1, bcx='IBC'))
+        assert [(i.leading_site, i.terminal_site) for i in intrs] == [(0, 1)]
+
+    def test_ibc_nnn_bonds(self):
+        """3-site IBC cell with n3x: NNN bonds are (0,2), (1,3) and (2,4)."""
+        intrs = intrcmap_1dchain(_geo(lx=3, bcx='IBC', n2x=False, n3x=True))
+        bonds = {(i.leading_site, i.terminal_site) for i in intrs}
+        assert bonds == {(0, 2), (1, 3), (2, 4)}
+
+    def test_ibc_labels_carry_no_pbc_marker(self):
+        """IBC bonds are plain bulk bonds; no bond is tagged 'PBC'."""
+        for intr in intrcmap_1dchain(_geo(lx=5, bcx='IBC')):
+            assert set(intr.label) == {'NN', 'N2X'}
+
+    def test_ibc_leading_site_within_cell(self):
+        """Every IBC bond starts inside the unit cell."""
+        lx = 5
+        for intr in intrcmap_1dchain(_geo(lx=lx, bcx='IBC')):
+            assert 0 <= intr.leading_site < lx
