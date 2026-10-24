@@ -221,6 +221,14 @@ class TestSeparateFromFinite:
         imps = _imps(spin_space, 2)
         assert not isinstance(imps, MPS)
 
+    def test_dmrg_rejects_infinite_input(self, spin_space):
+        from alice import dmrg
+
+        imps = _imps(spin_space, 2)
+        impo = _impo(spin_space, 2)
+        with pytest.raises(TypeError, match='idmrg.run'):
+            dmrg.run(imps, impo)
+
 
 # ---------------------------------------------------------------------------
 # Container protocol, device, serialization
