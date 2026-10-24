@@ -115,9 +115,10 @@ def build_traversal(
 def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     """Generate an interaction map for a 1D chain.
 
-    Produces nearest-neighbor (NN) bonds along the chain and, when
-    `bcx='PBC'`, a single periodic bond connecting the two ends.
-    Coupling constants are not set; `cpl` is `0.0` on all returned objects.
+    Produces nearest-neighbor (NN) and, optionally, next-nearest-neighbor
+    (NNN) bonds along the chain, together with the wrap-around bonds of each
+    range when `bcx='PBC'`. Coupling constants are not set; `cpl` is `0.0`
+    on all returned objects.
 
     Parameters
     ----------
@@ -127,6 +128,7 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
 
         - `bcx` — boundary condition (`'OBC'` or `'PBC'`).
         - `n2x` — include NN bonds (default `True`).
+        - `n3x` — include NNN bonds (default `False`).
 
     Returns
     -------
@@ -137,6 +139,7 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     L   = geo.lx
     bcx = geo.cfg.get('bcx', 'OBC').upper()
     n2x = bool(geo.cfg.get('n2x', True))
+    n3x = bool(geo.cfg.get('n3x', False))
 
     interactions: List[Interaction2Site] = []
 
@@ -176,6 +179,11 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
 
     if n2x:
         _emit(1, ['NN', 'N2X'], " NN interaction (N2X):")
+
+    if n3x:
+        if n2x:
+            logger.info("")
+        _emit(2, ['NNN', 'N3X'], " NNN interaction (N3X):")
 
     interactions.sort(key=lambda x: x.leading_site)
 
