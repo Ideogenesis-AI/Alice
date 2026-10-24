@@ -116,9 +116,20 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     """Generate an interaction map for a 1D chain.
 
     Produces nearest-neighbor (NN) and, optionally, next-nearest-neighbor
-    (NNN) bonds along the chain, together with the wrap-around bonds of each
-    range when `bcx='PBC'`. Coupling constants are not set; `cpl` is `0.0`
-    on all returned objects.
+    (NNN) bonds along the chain. Coupling constants are not set; `cpl` is
+    `0.0` on all returned objects.
+
+    Three boundary conditions are supported:
+
+    - `'OBC'` — bonds stay inside `[0, L)`, so the chain has open ends.
+    - `'PBC'` — bonds additionally wrap from the right end back to the left,
+      normalized so that `leading_site < terminal_site`.
+    - `'IBC'` — the `L` sites form one unit cell of an infinite chain. Every
+      site leads a bond, and a `terminal_site` at or beyond `L` denotes a
+      site in the *next* unit cell; `build_ihamiltonian` folds those back
+      modulo `L` when it lays out the operator-string channels. Unlike PBC
+      these are not wrap-around bonds within a finite ring: site `L-1` is
+      bonded to site `0` of the following cell, not to site `0` of its own.
 
     Parameters
     ----------
@@ -126,7 +137,7 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
         Fully-resolved geometry struct for the 1D chain. Relevant config
         keys (read from `geo.cfg`):
 
-        - `bcx` — boundary condition (`'OBC'` or `'PBC'`).
+        - `bcx` — boundary condition (`'OBC'`, `'PBC'`, or `'IBC'`).
         - `n2x` — include NN bonds (default `True`).
         - `n3x` — include NNN bonds (default `False`).
 
@@ -152,7 +163,10 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
         """Append every bond of range `dist`, honoring the boundary condition."""
         logger.info(heading)
         pairs = []
-        for si in range(L - dist):
+        # IBC lets the terminal index run past the cell; the extra bonds are
+        # exactly the ones that couple this cell to the next one.
+        last = L if bcx == 'IBC' else L - dist
+        for si in range(last):
             interactions.append(Interaction2Site(
                 label=list(labels),
                 leading_site=si,
