@@ -217,3 +217,10 @@ class TestChainIBC:
         lx = 5
         for intr in intrcmap_1dchain(_geo(lx=lx, bcx='IBC')):
             assert 0 <= intr.leading_site < lx
+
+    def test_unknown_bcx_rejected(self):
+        """An unrecognized boundary condition is an error, not a silent OBC."""
+        geo = _geo(lx=5)
+        geo.cfg['bcx'] = 'ABC'
+        with pytest.raises(ValueError, match='bcx'):
+            intrcmap_1dchain(geo)
