@@ -30,6 +30,7 @@ from .infinite import iMPS, iMPO, iNetwork
 from .automps import init_mps
 from .observe import observe
 from .autompo import build_hamiltonian
+from .autoimpo import boundary_vectors, build_ihamiltonian, window_mpo
 from .thermal import NormalMPO, thermal_mpo
 
 __all__ = [
@@ -53,6 +54,10 @@ __all__ = [
     'observe',
     # autompo
     'build_hamiltonian',
+    # autoimpo
+    'build_ihamiltonian',
+    'boundary_vectors',
+    'window_mpo',
     # thermal
     'NormalMPO',
     'thermal_mpo',

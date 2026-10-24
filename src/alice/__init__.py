@@ -24,6 +24,7 @@ from .network import (
     Interaction, Interaction1Site, Interaction2Site, InteractionNSite,
     build_interaction,
     build_hamiltonian,
+    build_ihamiltonian,
     MPS, MPO, Network,
     iMPS, iMPO, iNetwork,
     init_mps,
@@ -43,6 +44,7 @@ __all__ = [
     # high-level entry points
     'build_interaction',
     'build_hamiltonian',
+    'build_ihamiltonian',
     # finite tensor network
     'MPS',
     'MPO',
