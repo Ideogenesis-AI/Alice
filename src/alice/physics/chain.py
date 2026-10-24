@@ -146,11 +146,19 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     List[Interaction2Site]
         Interaction objects sorted by `leading_site`. Tensor fields are
         `None`; `cpl` is `0.0`.
+
+    Raises
+    ------
+    ValueError
+        If `bcx` is not one of `'OBC'`, `'PBC'`, or `'IBC'`.
     """
     L   = geo.lx
     bcx = geo.cfg.get('bcx', 'OBC').upper()
     n2x = bool(geo.cfg.get('n2x', True))
     n3x = bool(geo.cfg.get('n3x', False))
+
+    if bcx not in ('OBC', 'PBC', 'IBC'):
+        raise ValueError(f"bcx must be 'OBC', 'PBC', or 'IBC', got '{bcx}'")
 
     interactions: List[Interaction2Site] = []
 
