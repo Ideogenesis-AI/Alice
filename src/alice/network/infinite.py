@@ -444,7 +444,19 @@ class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics conventio
         cls = _registry[cls_name]
 
         tensors = [_deserialize_tensor(d, device=device) for d in data["tensors"]]
-        return cls(tensors, center=data["center"], itag_prefix=data["itag_prefix"])
+        net = cls(tensors, center=data["center"], itag_prefix=data["itag_prefix"])
+        # Only an iMPS writes these keys, and only once it has been gauge
+        # fixed; restoring them saves a checkpointed run from re-converging.
+        matrices = data.get("bond_matrices")
+        if matrices is not None:
+            net._bond_matrices = [
+                _deserialize_tensor(d, device=device) for d in matrices
+            ]
+            net._left_isos = [
+                _deserialize_tensor(d, device=device)
+                for d in data["left_isometries"]
+            ]
+        return net
 
 
 class iMPS(iNetwork):  # noqa: N801 — physics convention
@@ -810,6 +822,44 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             )
         ]
         return sorted(values, reverse=True)
+
+    # ------------------------------------------------------------------
+    # Device, dtype and serialization
+    # ------------------------------------------------------------------
+
+    def to(
+        self,
+        device: Optional[Union[str, torch.device]] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> None:
+        """Move the unit cell and its gauge, in place.
+
+        Extends `iNetwork.to` so that a gauge-fixed state keeps `AL` and the
+        bond matrices on the same device as the tensors they multiply.
+        """
+        super().to(device=device, dtype=dtype)
+        if self._bond_matrices is not None:
+            self._bond_matrices = [
+                c.to(device=device, dtype=dtype) for c in self._bond_matrices
+            ]
+            self._left_isos = [
+                a.to(device=device, dtype=dtype) for a in self._left_isos
+            ]
+
+    def serialize(self) -> dict:
+        """Extend the base payload with the gauge, when the state has one."""
+        data = super().serialize()
+        if self._bond_matrices is None:
+            data["bond_matrices"] = None
+            data["left_isometries"] = None
+        else:
+            data["bond_matrices"] = [
+                _serialize_tensor(c) for c in self._bond_matrices
+            ]
+            data["left_isometries"] = [
+                _serialize_tensor(a) for a in self._left_isos
+            ]
+        return data
 
 
 class iMPO(iNetwork):  # noqa: N801 — physics convention
