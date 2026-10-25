@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import pytest
 import torch
-from nicole import Direction, Tensor
+from nicole import Direction, Tensor, einsum
 from nicole.index import Index, Sector
 
 from alice.network import MPS, iMPO, iMPS, iNetwork
@@ -58,6 +58,43 @@ def _imps(spin_space, N, sectors=(-1, 0, 1), dim=2, seed=0):
         for i in range(N)
     ]
     return iMPS(tensors)
+
+
+def _gaugeable_imps(spin_space, N, width=2, dim=2, seed=1):
+    """Build a random iMPS whose unit cell can actually be gauge fixed.
+
+    `_imps` gives every bond the same charges, which for a spin-1/2 physical
+    space makes the transfer operator bipartite: the physical charges are
+    odd, so a bond charge reachable at even positions is not reachable at
+    odd ones. Here bond `k` carries only charges of parity `k`, which is
+    what a physical state looks like and what lets the power iteration
+    converge. `N` must be even for the cell to close.
+    """
+    Spc, _ = spin_space
+    def bond(k):
+        charges = tuple(
+            q for q in range(-2 * width, 2 * width + 1) if (q - k) % 2 == 0
+        )
+        return _bond(Spc.group, charges, dim=dim)
+
+    return iMPS([
+        Tensor.random(
+            [bond(i), bond(i + 1).flip(), Spc],
+            seed=seed * 10 + i,
+            itags=[f'A{i % N:02d}', f'A{(i + 1) % N:02d}', f's{i:02d}'],
+        )
+        for i in range(N)
+    ])
+
+
+def _deviation_from_identity(gram):
+    """Return the largest entry by which `gram` misses the identity."""
+    worst = 0.0
+    for blk in gram.data.values():
+        mat = blk.reshape(blk.shape[0], blk.shape[1], -1)[:, :, 0]
+        eye = torch.eye(mat.shape[0], dtype=mat.dtype, device=mat.device)
+        worst = max(worst, float((mat - eye).abs().max()))
+    return worst
 
 
 def _impo(spin_space, N, sectors=(0,), dim=3, seed=100):
@@ -281,6 +318,85 @@ class TestContainerAndIO:
         payload['version'] = 2
         with pytest.raises(ValueError, match='Unsupported serialization version'):
             iNetwork.deserialize(payload)
+
+
+# ---------------------------------------------------------------------------
+# Canonical form
+# ---------------------------------------------------------------------------
+
+class TestCanonicalForm:
+    """`canonical` must leave the three defining relations exactly satisfied."""
+
+    @pytest.mark.parametrize('N', [2, 4, 6])
+    def test_isometries_are_orthonormal(self, spin_space, N):
+        imps = _gaugeable_imps(spin_space, N)
+        imps.canonical()
+        for i in range(N):
+            left = imps.left_isometries()[i]
+            right = imps.right_isometries()[i]
+            assert _deviation_from_identity(
+                einsum('las,lbs->ab', left.conj(), left)
+            ) < 1e-10
+            assert _deviation_from_identity(
+                einsum('als,bls->ab', right.conj(), right)
+            ) < 1e-10
+
+    @pytest.mark.parametrize('N', [2, 4, 6])
+    def test_gauge_relation_holds(self, spin_space, N):
+        # AL[i] C[i+1] == C[i] AR[i] is what makes AL, AR and C describe one
+        # state rather than three unrelated ones.
+        imps = _gaugeable_imps(spin_space, N)
+        imps.canonical()
+        for i in range(N):
+            through_left = einsum(
+                'lms,mb->lbs', imps.left_isometries()[i], imps.bond_matrix(i + 1),
+            )
+            assert float((through_left - imps.center_tensor(i)).norm()) < 1e-10
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_schmidt_weights_are_normalized(self, spin_space, N):
+        imps = _gaugeable_imps(spin_space, N)
+        imps.canonical()
+        for bond in range(N):
+            values = imps.schmidt_values(bond)
+            assert values == sorted(values, reverse=True)
+            assert sum(v * v for v in values) == pytest.approx(1.0)
+
+    def test_bond_matrix_wraps(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 2)
+        imps.canonical()
+        assert imps.bond_matrix(2) is imps.bond_matrix(0)
+        assert imps.bond_matrix(-1) is imps.bond_matrix(1)
+
+    def test_center_defaults_to_target(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 4)
+        imps.canonical(target=2)
+        assert imps.center == 2
+        expected = einsum(
+            'ab,brs->ars', imps.bond_matrix(2), imps.right_isometries()[2],
+        )
+        assert float((imps.center_tensor() - expected).norm()) < 1e-12
+
+    def test_negative_target_counts_from_the_end(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 4)
+        imps.canonical(target=-1)
+        assert imps.center == 3
+
+    def test_bond_dimensions_are_untouched(self, spin_space):
+        # QR keeps every bond exactly as wide as it was; truncation is the
+        # sweep's job, not the gauge's.
+        imps = _gaugeable_imps(spin_space, 4)
+        before = imps.bond_dims
+        imps.canonical()
+        assert imps.bond_dims == before
+
+    def test_second_call_is_a_fixed_point(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 4)
+        imps.canonical()
+        first = [imps.schmidt_values(k) for k in range(imps.N)]
+        imps.canonical()
+        for before, after in zip(first, (imps.schmidt_values(k) for k in range(imps.N))):
+            assert after == pytest.approx(before, abs=1e-10)
 
 
 # ---------------------------------------------------------------------------
