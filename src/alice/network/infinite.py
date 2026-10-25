@@ -47,18 +47,46 @@ the right bond is tagged `{prefix}00`, matching the left bond of site `0`.
 
 Physical itag convention: site *i* physical axis carries itag `s{i:02d}`,
 exactly as in the finite family.
+
+Canonical form
+--------------
+
+An infinite state has no ends to sweep from, so its canonical form is not
+reached in one pass but is a fixed point of the gauge iteration: sweep the
+cell with QR, carry the triangular factor around the ring, repeat until it
+stops moving. `iMPS.canonical` does this from both sides and leaves the
+unit cell uniformly right-orthonormal with one bond matrix per bond.
+Writing `AR` for the stored tensors and `AL` for the left-orthonormal ones,
+the three satisfy
+
+    AL[i] C[i+1] = C[i] AR[i]
+
+All three are kept. `AL` cannot be recovered from `AR` and `C` by a fresh
+QR sweep, because QR fixes its own basis on each bond and the result, while
+left-orthonormal, no longer pairs with the stored `C`. The alternatives are
+to invert `C`, which is least accurate exactly where the Schmidt values are
+small and matter most, or to hold `C` in a triangular gauge, which discards
+the Schmidt basis that makes its singular values meaningful. Keeping one
+extra tensor per site is cheaper than either.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import List, Optional, Tuple, Union
 
 import torch
-from nicole import Tensor, decomp
+from nicole import Tensor, decomp, einsum, identity
 from nicole import serialize as _serialize_tensor, deserialize as _deserialize_tensor
+
+logger = logging.getLogger(__name__)
 
 # Default itag prefix for the bare `iNetwork` class. Subclasses override it.
 _DEFAULT_ITAG_PREFIX = '_init_'
+
+# itag worn by a bond between the QR step that creates it and the retag that
+# gives it its unit-cell name.
+_GAUGE_ITAG = '_gauge_'
 
 # Guards the division that pulls a phase out of a diagonal entry.
 _TINY = 1e-300
@@ -452,7 +480,22 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             If any tensor has the wrong number of axes, an incorrect physical
             itag, or the unit cell does not close into a consistent ring.
         """
+        self._bond_matrices: Optional[List[Tensor]] = None
+        self._left_isos: Optional[List[Tensor]] = None
         super().__init__(tensors, center, itag_prefix if itag_prefix is not None else 'A')
+
+    def __setitem__(self, i: int, t: Tensor) -> None:
+        """Replace a site tensor, dropping the gauge it invalidates.
+
+        The finite family leaves `center` alone here, because there it is
+        only a bookkeeping integer. A gauge is not bookkeeping: it carries
+        the Schmidt spectrum, and keeping a stale one would let every later
+        measurement quietly describe a state that no longer exists.
+        """
+        self._tensors[i] = t
+        self._bond_matrices = None
+        self._left_isos = None
+        self._center = None
 
     def _validate(self) -> None:
         """Extend the ring validation with iMPS-specific axis and itag checks."""
@@ -473,6 +516,300 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
     def __repr__(self) -> str:
         from alice.network.display import infinite_summary
         return infinite_summary(self)
+
+    # ------------------------------------------------------------------
+    # Gauge fixing
+    # ------------------------------------------------------------------
+
+    def _left_sweep(
+        self, tensors: List[Tensor], gauge: Tensor,
+    ) -> Tuple[List[Tensor], Tensor]:
+        """Carry `gauge` left to right through the cell with QR at each site.
+
+        Returns the left-orthonormal tensors and the triangular factor that
+        falls off the right end, which the ring closure puts back on bond 0.
+        """
+        isometries: List[Tensor] = []
+        for i, t in enumerate(tensors):
+            m = einsum('al,lrs->ars', gauge, t)
+            q, gauge = _qr_positive(m, [0, 2], _GAUGE_ITAG)
+            # QR appends the new bond, giving (left, phys, bond); the MPS
+            # layout wants it on axis 1.
+            q.permute([0, 2, 1], in_place=True)
+            q.retag([0, 1], [self._bond_itag(i), self._bond_itag(i + 1)])
+            isometries.append(q)
+            tag = self._bond_itag(i + 1)
+            gauge.retag([0, 1], [tag, tag])
+        return isometries, gauge
+
+    def _right_sweep(
+        self, tensors: List[Tensor], gauge: Tensor,
+    ) -> Tuple[List[Tensor], Tensor]:
+        """Carry `gauge` right to left through the cell with QR at each site."""
+        isometries: List[Optional[Tensor]] = [None] * len(tensors)
+        for i in range(len(tensors) - 1, -1, -1):
+            m = einsum('lrs,br->lbs', tensors[i], gauge)
+            q, gauge = _qr_positive(m, [1, 2], _GAUGE_ITAG)
+            # Here the appended bond is the site's *left* bond, so it moves
+            # to the front rather than to the middle.
+            q.permute([2, 0, 1], in_place=True)
+            q.retag([0, 1], [self._bond_itag(i), self._bond_itag(i + 1)])
+            isometries[i] = q
+            tag = self._bond_itag(i)
+            gauge.retag([0, 1], [tag, tag])
+        return isometries, gauge
+
+    def _gauge_fixed_point(
+        self, to_left: bool, tol: float, maxiter: int,
+    ) -> Tuple[List[Tensor], Tensor]:
+        """Iterate one-directional sweeps until the gauge stops moving.
+
+        Each sweep multiplies the gauge by the unit-cell transfer operator
+        and re-orthogonalizes, so this is power iteration and converges as
+        `|lambda_2 / lambda_1|` per sweep.
+
+        Parameters
+        ----------
+        to_left:
+            Sweep right to left (producing `AR`) rather than left to right.
+        tol:
+            Convergence threshold on the change in the gauge matrix.
+        maxiter:
+            Sweep budget before giving up.
+
+        Returns
+        -------
+        tuple
+            `(isometries, gauge)` at the fixed point.
+
+        Raises
+        ------
+        ValueError
+            If the iteration two-cycles or exhausts `maxiter`.
+        """
+        sweep = self._right_sweep if to_left else self._left_sweep
+        seed = (
+            self._tensors[-1].indices[1] if to_left
+            else self._tensors[0].indices[0]
+        )
+        gauge = identity(seed)
+        tag = self._bond_itag(0)
+        gauge.retag([0, 1], [tag, tag])
+
+        side = 'right' if to_left else 'left'
+        isometries: List[Tensor] = []
+        previous = older = None
+        for step in range(1, maxiter + 1):
+            isometries, gauge = sweep(self._tensors, gauge)
+            norm = float(gauge.norm())
+            # Sweeping can land the gauge in charge sectors the bond indices
+            # do not carry, leaving nothing behind. The cell then describes
+            # the zero state and there is no gauge to find.
+            if norm == 0.0:
+                raise ValueError(
+                    f"{side} gauge fixing collapsed to zero on sweep {step}: "
+                    f"the unit cell has no amplitude. Its bond charges "
+                    f"cannot be reached from each other by the physical "
+                    f"charges over N={self.N} sites."
+                )
+            gauge = gauge * (1.0 / norm)
+
+            if previous is not None and float((gauge - previous).norm()) < tol:
+                logger.debug("%s gauge converged after %d sweeps", side, step)
+                return isometries, gauge
+            # A two-cycle is not slow convergence, it is a mismatch between
+            # the cell and the state, so say so rather than spin to maxiter.
+            if older is not None and float((gauge - older).norm()) < tol:
+                raise ValueError(
+                    f"{side} gauge fixing fell into a two-cycle after {step} "
+                    f"sweeps: the unit-cell transfer operator has two "
+                    f"dominant eigenvalues of opposite sign. That happens "
+                    f"when the physical charges split the bond charges into "
+                    f"two classes that N={self.N} sites map into each other "
+                    f"rather than onto themselves, so the cell cannot host a "
+                    f"translation-invariant state. Double the unit cell, or "
+                    f"give each bond only the charges reachable at that "
+                    f"position."
+                )
+            older, previous = previous, gauge
+
+        residual = float((gauge - previous).norm())
+        raise ValueError(
+            f"{side} gauge fixing did not converge in {maxiter} sweeps "
+            f"(residual {residual:.3e}, tolerance {tol:.3e}). Power "
+            f"iteration converges as the ratio of the two largest transfer "
+            f"operator eigenvalues, so raise maxiter, loosen tol, or start "
+            f"from a state closer to canonical."
+        )
+
+    def canonical(
+        self, target: int = 0, tol: float = 1e-12, maxiter: int = 200,
+    ) -> None:
+        """Fix the gauge of the unit cell, in place.
+
+        Leaves every stored tensor right-orthonormal (`AR`) and attaches one
+        bond matrix `C` to each of the `N` bonds, with
+        `AL[i] C[i+1] = C[i] AR[i]`. The state is normalized on the way: the
+        transfer operator of the stored tensors has dominant eigenvalue `1`
+        and each bond matrix has unit norm, so the Schmidt weights on every
+        bond sum to one.
+
+        Unlike `MPS.canonical` this cannot be done in a single sweep. The
+        cell has no open end to start from, so the gauge is found by
+        iterating sweeps until the triangular factor carried around the ring
+        reproduces itself. No truncation happens here: the sweeps use QR,
+        which keeps every bond exactly as wide as it was.
+
+        Parameters
+        ----------
+        target:
+            Site to record as the orthogonality center. Bond matrices are
+            computed on every bond regardless, so this only chooses which
+            site `center_tensor` defaults to describing. Negative values
+            count from the end.
+        tol:
+            Convergence threshold on the change in the gauge matrix between
+            successive sweeps.
+        maxiter:
+            Sweep budget for each of the two directions.
+
+        Raises
+        ------
+        IndexError
+            If `target` is out of range `[0, N)`.
+        ValueError
+            If either gauge iteration fails to converge, or if the two
+            converged gauges disagree around the ring.
+        """
+        if target < 0:
+            target += self.N
+        if not (0 <= target < self.N):
+            raise IndexError(f"target {target} out of range for N={self.N}")
+
+        left_isos, left_gauge = self._gauge_fixed_point(False, tol, maxiter)
+        right_isos, right_gauge = self._gauge_fixed_point(True, tol, maxiter)
+
+        # The two gauges overlap on bond 0 to give C there; the defining
+        # relation AL C = C AR then propagates it to the remaining bonds.
+        bond = einsum('ao,bo->ab', left_gauge, right_gauge)
+        matrices = [bond * (1.0 / float(bond.norm()))]
+        for i in range(self.N):
+            centered = einsum('ab,brs->ars', matrices[i], right_isos[i])
+            matrices.append(einsum('lms,lbs->mb', left_isos[i].conj(), centered))
+
+        # Propagating all the way round must return the bond matrix it
+        # started from. If it does not, the two iterations converged to
+        # gauges that describe different states and nothing below is valid.
+        drift = float((matrices[self.N] - matrices[0]).norm())
+        if drift > max(1e-8, 1e3 * tol):
+            raise ValueError(
+                f"gauge fixing did not close the ring: propagating the bond "
+                f"matrix through all {self.N} sites moved it by {drift:.3e}. "
+                f"Tighten tol or raise maxiter."
+            )
+
+        self._tensors = right_isos
+        self._left_isos = left_isos
+        self._bond_matrices = matrices[:self.N]
+        self._center = target
+        self._validate()
+
+    # ------------------------------------------------------------------
+    # Canonical-form accessors
+    # ------------------------------------------------------------------
+
+    def _require_canonical(self) -> None:
+        """Raise unless `canonical` has run and nothing has invalidated it."""
+        if self._bond_matrices is None:
+            raise ValueError(
+                "the unit cell is not gauge fixed; call canonical() first "
+                "(replacing a site tensor discards the gauge)"
+            )
+
+    def bond_matrix(self, bond: int) -> Tensor:
+        """Return the bond matrix `C` on `bond`, taken modulo `N`.
+
+        Parameters
+        ----------
+        bond:
+            Bond position. Bond `k` is the left bond of site `k`.
+
+        Returns
+        -------
+        Tensor
+            2-index tensor whose left axis is in the `AL` basis and whose
+            right axis is in the `AR` basis.
+        """
+        self._require_canonical()
+        return self._bond_matrices[bond % self.N]
+
+    def right_isometries(self) -> List[Tensor]:
+        """Return the right-orthonormal tensors `AR`, one per site.
+
+        These are the stored tensors, so this is a convenience alias that
+        says which canonical form they are in.
+        """
+        self._require_canonical()
+        return list(self._tensors)
+
+    def left_isometries(self) -> List[Tensor]:
+        """Return the left-orthonormal tensors `AL`, one per site.
+
+        These come from the left gauge iteration and pair with the stored
+        bond matrices as `AL[i] C[i+1] = C[i] AR[i]`. Their bonds carry the
+        same itags as `AR`, but the two sets of bases are different.
+        """
+        self._require_canonical()
+        return list(self._left_isos)
+
+    def center_tensor(self, site: Optional[int] = None) -> Tensor:
+        """Return the center tensor `AC[site] = C[site] AR[site]`.
+
+        Parameters
+        ----------
+        site:
+            Site index, taken modulo `N`. Defaults to `center`.
+
+        Returns
+        -------
+        Tensor
+            3-index tensor with the usual `(left, right, physical)` layout.
+        """
+        self._require_canonical()
+        if site is None:
+            site = self._center or 0
+        site %= self.N
+        return einsum(
+            'ab,brs->ars', self._bond_matrices[site], self._tensors[site],
+        )
+
+    def schmidt_values(self, bond: int) -> List[float]:
+        """Return the Schmidt values on `bond`, largest first.
+
+        These are the singular values of the bond matrix, so they are
+        normalized to `sum(s**2) == 1`. For a generic symmetry group they
+        are multiplet-resolved: a value in a spin-*j* sector stands for
+        *2j+1* degenerate Schmidt states.
+
+        Parameters
+        ----------
+        bond:
+            Bond position, taken modulo `N`.
+
+        Returns
+        -------
+        List[float]
+            Singular values in descending order.
+        """
+        _, weights, _ = decomp(self.bond_matrix(bond), axes=0, mode='SVD')
+        values = [
+            float(v)
+            for blk in weights.data.values()
+            for v in torch.diagonal(
+                blk.reshape(blk.shape[0], blk.shape[1], -1)[:, :, 0]
+            )
+        ]
+        return sorted(values, reverse=True)
 
 
 class iMPO(iNetwork):  # noqa: N801 — physics convention
