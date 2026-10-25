@@ -51,14 +51,77 @@ exactly as in the finite family.
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
-from nicole import Tensor
+from nicole import Tensor, decomp
 from nicole import serialize as _serialize_tensor, deserialize as _deserialize_tensor
 
 # Default itag prefix for the bare `iNetwork` class. Subclasses override it.
 _DEFAULT_ITAG_PREFIX = '_init_'
+
+# Guards the division that pulls a phase out of a diagonal entry.
+_TINY = 1e-300
+
+
+def _scale_axis(blk: torch.Tensor, scale: torch.Tensor, axis: int) -> None:
+    """Multiply `blk` along `axis` by the per-index factors in `scale`."""
+    shape = [1] * blk.dim()
+    shape[axis] = -1
+    blk.mul_(scale.reshape(shape))
+
+
+def _qr_positive(t: Tensor, axes: List[int], itag: str) -> Tuple[Tensor, Tensor]:
+    """QR decomposition whose triangular factor has a non-negative diagonal.
+
+    `decomp(..., mode='QR')` inherits LAPACK's sign freedom: for any diagonal
+    sign matrix `D`, `(Q D, D R)` factorizes the same tensor just as well.
+    That is harmless once, but fatal inside a fixed-point iteration, where it
+    lets the gauge alternate between `+R` and `-R` and never meet its
+    tolerance. Pinning the phase of the diagonal makes the factorization
+    unique, which is what the Majumdar-Ghosh dimer state needs to converge
+    at all.
+
+    Parameters
+    ----------
+    t:
+        Tensor to decompose.
+    axes:
+        Axes forming the isometric factor. The new bond is appended to them.
+    itag:
+        itag for the new bond.
+
+    Returns
+    -------
+    tuple
+        `(Q, R)` with `Q` isometric over `axes` and the diagonal of `R` real
+        and non-negative.
+    """
+    q, r = decomp(t, axes=axes, mode='QR', itag=itag)
+
+    # The bond sits on axis 0 of R and on the last axis of Q, and a block key
+    # carries one charge per axis, so the two factors match up by charge.
+    phases = {}
+    for key, blk in r.data.items():
+        # R has two indices and therefore a single intertwiner, so its
+        # leading slice holds the whole matrix for a generic group too.
+        diag = torch.diagonal(blk.reshape(blk.shape[0], blk.shape[1], -1)[:, :, 0])
+        mag = diag.abs()
+        phase = torch.where(
+            mag > 0, diag / mag.clamp_min(_TINY), torch.ones_like(diag)
+        )
+        # A rectangular R has rows past the diagonal; those keep phase 1.
+        full = torch.ones(blk.shape[0], dtype=blk.dtype, device=blk.device)
+        full[:phase.numel()] = phase
+        phases[key[0]] = full
+        _scale_axis(blk, full.conj(), 0)
+
+    bond_axis = len(q.indices) - 1
+    for key, blk in q.data.items():
+        phase = phases.get(key[-1])
+        if phase is not None:
+            _scale_axis(blk, phase, bond_axis)
+    return q, r
 
 
 class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics convention
