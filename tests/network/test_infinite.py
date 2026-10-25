@@ -20,6 +20,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 import torch
 from nicole import Direction, Tensor, einsum
@@ -85,6 +87,59 @@ def _gaugeable_imps(spin_space, N, width=2, dim=2, seed=1):
         )
         for i in range(N)
     ])
+
+
+def _dimer_imps(spin_space):
+    """Build the exact Majumdar-Ghosh dimer state as a 2-site iMPS.
+
+    Sites 0 and 1 share a singlet and the pattern repeats, so bond 0 cuts
+    no singlet (one Schmidt value) while bond 1 cuts one (two equal Schmidt
+    values). That makes the Schmidt spectrum known in closed form, which is
+    what turns this into a real check rather than a self-consistency one.
+    """
+    Spc, _ = spin_space
+    trivial = _bond(Spc.group, (0,), dim=1)
+    half = _bond(Spc.group, (-1, 1), dim=1)
+
+    opener = Tensor.zeros(
+        [trivial, half.flip(), Spc], itags=['A00', 'A01', 's00'],
+    )
+    # The open singlet records which spin was left behind on site 0.
+    opener.data[(0, 1, 1)][:] = 1.0
+    opener.data[(0, -1, -1)][:] = 1.0
+
+    closer = Tensor.zeros(
+        [half, trivial.flip(), Spc], itags=['A01', 'A00', 's01'],
+    )
+    # ... and site 1 takes the opposite spin, antisymmetrically.
+    closer.data[(1, 0, -1)][:] = 1.0 / math.sqrt(2.0)
+    closer.data[(-1, 0, 1)][:] = -1.0 / math.sqrt(2.0)
+
+    return iMPS([opener, closer])
+
+
+def _neel_imps(spin_space, N):
+    """Build the Neel product state as an `N`-site iMPS, `N` even.
+
+    Every bond is one-dimensional, so the state is already canonical and
+    every bond matrix is a number. A polarized product state would be the
+    simpler choice but cannot close a ring under U(1): each site would
+    push the bond charge up by one and nothing would bring it back.
+    """
+    Spc, _ = spin_space
+    # The bond charge records the spin the previous site put there, so it
+    # alternates with the pattern rather than staying at zero.
+    bonds = [_bond(Spc.group, (k % 2,), dim=1) for k in range(N + 1)]
+    tensors = []
+    for i in range(N):
+        spin = 1 if i % 2 == 0 else -1
+        t = Tensor.zeros(
+            [bonds[i], bonds[i + 1].flip(), Spc],
+            itags=[f'A{i % N:02d}', f'A{(i + 1) % N:02d}', f's{i:02d}'],
+        )
+        t.data[(i % 2, (i + 1) % 2, spin)][:] = 1.0
+        tensors.append(t)
+    return iMPS(tensors)
 
 
 def _deviation_from_identity(gram):
@@ -397,6 +452,27 @@ class TestCanonicalForm:
         imps.canonical()
         for before, after in zip(first, (imps.schmidt_values(k) for k in range(imps.N))):
             assert after == pytest.approx(before, abs=1e-10)
+
+
+class TestCanonicalKnownStates:
+    """States whose canonical form is known in closed form."""
+
+    def test_dimer_schmidt_spectrum(self, spin_space):
+        # Bond 0 lies inside no singlet and bond 1 cuts exactly one, so the
+        # spectra are [1] and [1/sqrt(2), 1/sqrt(2)] with nothing in between.
+        imps = _dimer_imps(spin_space)
+        imps.canonical()
+        assert imps.schmidt_values(0) == pytest.approx([1.0])
+        assert imps.schmidt_values(1) == pytest.approx(
+            [1.0 / math.sqrt(2.0)] * 2
+        )
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_product_state_is_unentangled(self, spin_space, N):
+        imps = _neel_imps(spin_space, N)
+        imps.canonical()
+        for bond in range(N):
+            assert imps.schmidt_values(bond) == pytest.approx([1.0])
 
 
 # ---------------------------------------------------------------------------
