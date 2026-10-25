@@ -514,6 +514,42 @@ class TestCanonicalFailures:
             call(_gaugeable_imps(spin_space, 2))
 
 
+class TestCanonicalLifetime:
+    """The gauge must not outlive the tensors it describes."""
+
+    def test_setitem_discards_the_gauge(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 2)
+        imps.canonical()
+        imps[0] = imps[0]
+        assert imps.center is None
+        with pytest.raises(ValueError, match='not gauge fixed'):
+            imps.bond_matrix(0)
+
+    def test_serialize_roundtrip_keeps_the_gauge(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 2)
+        imps.canonical(target=1)
+        restored = iNetwork.deserialize(imps.serialize())
+        assert restored.center == 1
+        for bond in range(imps.N):
+            assert restored.schmidt_values(bond) == pytest.approx(
+                imps.schmidt_values(bond)
+            )
+        for before, after in zip(imps.left_isometries(), restored.left_isometries()):
+            assert float((before - after).norm()) < 1e-12
+
+    def test_serialize_roundtrip_without_a_gauge(self, spin_space):
+        restored = iNetwork.deserialize(_gaugeable_imps(spin_space, 2).serialize())
+        with pytest.raises(ValueError, match='not gauge fixed'):
+            restored.bond_matrix(0)
+
+    def test_to_dtype_carries_the_gauge(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 2)
+        imps.canonical()
+        imps.to(dtype=torch.complex128)
+        assert imps.bond_matrix(0).dtype == torch.complex128
+        assert all(t.dtype == torch.complex128 for t in imps.left_isometries())
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
