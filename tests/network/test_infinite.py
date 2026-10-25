@@ -475,6 +475,45 @@ class TestCanonicalKnownStates:
             assert imps.schmidt_values(bond) == pytest.approx([1.0])
 
 
+class TestCanonicalFailures:
+    """Gauge fixing must refuse rather than hand back an inconsistent state."""
+
+    def test_two_cycle_is_reported(self, spin_space):
+        # A uniform bond index mixes both charge parities, which the odd
+        # physical charges then swap, so the iteration alternates forever.
+        with pytest.raises(ValueError, match='two-cycle'):
+            _imps(spin_space, 3).canonical()
+
+    def test_zero_amplitude_cell_is_reported(self, spin_space):
+        # Even bond charges are unreachable from each other through odd
+        # physical ones, so every tensor in this cell is identically zero.
+        with pytest.raises(ValueError, match='no amplitude'):
+            _imps(spin_space, 2, sectors=(-2, 0, 2)).canonical()
+
+    def test_iteration_cap_is_reported(self, spin_space):
+        with pytest.raises(ValueError, match='did not converge in 2 sweeps'):
+            _gaugeable_imps(spin_space, 4).canonical(maxiter=2)
+
+    @pytest.mark.parametrize('target', [4, -5])
+    def test_target_out_of_range(self, spin_space, target):
+        with pytest.raises(IndexError, match='out of range'):
+            _gaugeable_imps(spin_space, 4).canonical(target=target)
+
+    @pytest.mark.parametrize(
+        'call',
+        [
+            lambda m: m.bond_matrix(0),
+            lambda m: m.left_isometries(),
+            lambda m: m.right_isometries(),
+            lambda m: m.center_tensor(0),
+            lambda m: m.schmidt_values(0),
+        ],
+    )
+    def test_accessors_require_canonical(self, spin_space, call):
+        with pytest.raises(ValueError, match='not gauge fixed'):
+            call(_gaugeable_imps(spin_space, 2))
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
