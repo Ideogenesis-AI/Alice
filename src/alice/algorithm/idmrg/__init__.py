@@ -19,18 +19,23 @@
 """Infinite DMRG algorithm package.
 
 Optimizes one unit cell of an infinite MPS against an infinite MPO. The
-public API so far covers the transfer operators:
+public API so far covers the environments:
 
+- `left_environment` / `right_environment` — regularized boundary fixed
+  points, each returning the energy of one unit cell alongside.
+- `energy_density` — energy per site.
 - `transfer_left` / `transfer_right` — MPS unit-cell transfer operators.
 - `cell_left_env` / `cell_right_env` — MPO unit-cell transfer operators.
-- `left_density` / `right_density` — the matrices those operators fix.
 """
 
 from .environ import (
     cell_left_env,
     cell_right_env,
+    energy_density,
     left_density,
+    left_environment,
     right_density,
+    right_environment,
     transfer_left,
     transfer_right,
 )
@@ -38,8 +43,11 @@ from .environ import (
 __all__ = [
     'cell_left_env',
     'cell_right_env',
+    'energy_density',
     'left_density',
+    'left_environment',
     'right_density',
+    'right_environment',
     'transfer_left',
     'transfer_right',
 ]
