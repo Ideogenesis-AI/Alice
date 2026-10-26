@@ -55,16 +55,6 @@ from alice.network import MPO, build_hamiltonian, build_interaction
 
 
 # ---------------------------------------------------------------------------
-# Working-directory isolation
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(autouse=True)
-def _isolate_cwd(tmp_path, monkeypatch):
-    """Run every test with cwd set to a fresh tmp_path."""
-    monkeypatch.chdir(tmp_path)
-
-
-# ---------------------------------------------------------------------------
 # Exact reference functions
 # ---------------------------------------------------------------------------
 
