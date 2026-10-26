@@ -98,8 +98,8 @@ class TestMPSTransfer:
         delta = _delta(last.indices[1], last.itags[1])
         assert _deviation(transfer_right(delta, isometries), delta) < 1e-12
 
-    def test_transfer_can_be_iterated_around_the_ring(self, spin_half):
-        # The premise of the whole module is that the wrap-around itags let
+    def test_transfer_can_be_iterated_across_cells(self, spin_half):
+        # The premise of the whole module is that the repeating itags let
         # a cell be absorbed over and over without retagging in between.
         # Five cells of an isometric state must still leave the identity.
         imps = random_imps(spin_half, 2)

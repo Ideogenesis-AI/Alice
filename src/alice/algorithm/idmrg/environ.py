@@ -329,9 +329,10 @@ def right_density(imps: iMPS, bond: int = 0) -> Tensor:
 def cell_left_env(E: Tensor, tensors: Sequence[Tensor], impo: iMPO) -> Tensor:
     """Absorb one whole unit cell into the left environment.
 
-    Applies `step_left_env` once per site. The wrap-around itags of the
-    infinite containers mean the environment comes back wearing the names it
-    started with, so the map can be iterated without any retagging.
+    Applies `step_left_env` once per site. The itags of the infinite
+    containers repeat from one cell to the next, so the environment comes
+    back wearing the names it started with and the map can be iterated
+    without any retagging.
 
     Parameters
     ----------
