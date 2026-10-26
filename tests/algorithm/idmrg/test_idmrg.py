@@ -65,7 +65,7 @@ def _options(**kwargs):
 # ---------------------------------------------------------------------------
 
 class TestOptions:
-    """Alias resolution and defaults."""
+    """Alias resolution, defaults, and the TOML round trip."""
 
     def test_default_scheme_is_vumps(self):
         assert Options().scheme == '1s'
@@ -86,6 +86,16 @@ class TestOptions:
     def test_unknown_scheme_raises(self):
         with pytest.raises(ValueError, match='unknown iDMRG scheme'):
             Options(scheme='no-such-scheme')
+
+    def test_directories_survive_a_toml_round_trip(self, tmp_path):
+        # Both directories are held as str rather than Path so that a run
+        # can be configured entirely from a TOML file.
+        original = Options(checkpoint_dir='/tmp/ckpt', artifacts_dir='/tmp/archive')
+        path = tmp_path / 'idmrg.toml'
+        original.to_toml(path)
+        loaded = Options.load_toml(path)
+        assert loaded.checkpoint_dir == '/tmp/ckpt'
+        assert loaded.artifacts_dir == '/tmp/archive'
 
 
 # ---------------------------------------------------------------------------
