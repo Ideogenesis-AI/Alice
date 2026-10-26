@@ -656,7 +656,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
                 )
             older, previous = previous, gauge
 
-        residual = float((gauge - previous).norm())
+        residual = float((previous - older).norm())
         raise ValueError(
             f"{side} gauge fixing did not converge in {maxiter} sweeps "
             f"(residual {residual:.3e}, tolerance {tol:.3e}). Power "
