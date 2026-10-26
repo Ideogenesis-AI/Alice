@@ -99,7 +99,9 @@ def _scale_axis(blk: torch.Tensor, scale: torch.Tensor, axis: int) -> None:
     blk.mul_(scale.reshape(shape))
 
 
-def _qr_positive(t: Tensor, axes: List[int], itag: str) -> Tuple[Tensor, Tensor]:
+def _qr_positive(
+    t: Tensor, axes: List[int], itag: str, flow: str = '>>',
+) -> Tuple[Tensor, Tensor]:
     """QR decomposition whose triangular factor has a non-negative diagonal.
 
     `decomp(..., mode='QR')` inherits LAPACK's sign freedom: for any diagonal
@@ -118,6 +120,9 @@ def _qr_positive(t: Tensor, axes: List[int], itag: str) -> Tuple[Tensor, Tensor]
         Axes forming the isometric factor. The new bond is appended to them.
     itag:
         itag for the new bond.
+    flow:
+        Direction convention for the new bond, forwarded to `decomp`.
+        `'>>'` makes it incoming on `Q`, `'<<'` outgoing.
 
     Returns
     -------
@@ -125,7 +130,7 @@ def _qr_positive(t: Tensor, axes: List[int], itag: str) -> Tuple[Tensor, Tensor]
         `(Q, R)` with `Q` isometric over `axes` and the diagonal of `R` real
         and non-negative.
     """
-    q, r = decomp(t, axes=axes, mode='QR', itag=itag)
+    q, r = decomp(t, axes=axes, mode='QR', itag=itag, flow=flow)
 
     # The bond sits on axis 0 of R and on the last axis of Q, and a block key
     # carries one charge per axis, so the two factors match up by charge.
@@ -539,12 +544,18 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         """Carry `gauge` left to right through the cell with QR at each site.
 
         Returns the left-orthonormal tensors and the triangular factor that
-        falls off the right end, which the ring closure puts back on bond 0.
+        falls off the right end, which the tiling puts back on bond 0.
+
+        The `'<<'` flow sends the new bond out of `AL` rather than into it,
+        which is what makes `AL` carry the same index directions as `AR` and
+        the carried gauge an ordinary `(IN, OUT)` matrix. Without it the two
+        canonical forms end up in dual bases, and `AC` can no longer be
+        dropped into the chain in place of `AR`.
         """
         isometries: List[Tensor] = []
         for i, t in enumerate(tensors):
             m = einsum('al,lrs->ars', gauge, t)
-            q, gauge = _qr_positive(m, [0, 2], _GAUGE_ITAG)
+            q, gauge = _qr_positive(m, [0, 2], _GAUGE_ITAG, flow='<<')
             # QR appends the new bond, giving (left, phys, bond); the MPS
             # layout wants it on axis 1.
             q.permute([0, 2, 1], in_place=True)
