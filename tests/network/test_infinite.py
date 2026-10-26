@@ -468,6 +468,71 @@ class TestCanonicalForm:
                 assert float(off.abs().max()) < 1e-12
 
 
+class TestSetCanonical:
+    """Installing a canonical form computed elsewhere."""
+
+    def test_reinstalling_the_current_gauge_changes_nothing(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 4)
+        imps.canonical()
+        before = [imps.schmidt_values(k) for k in range(imps.N)]
+        tensors = [t for t in imps.right_isometries()]
+        imps.set_canonical(
+            imps.left_isometries(),
+            imps.right_isometries(),
+            [imps.bond_matrix(k) for k in range(imps.N)],
+        )
+        for k in range(imps.N):
+            assert imps.schmidt_values(k) == pytest.approx(before[k], abs=1e-10)
+        for before_t, after_t in zip(tensors, imps.right_isometries()):
+            assert float((before_t - after_t).norm()) < 1e-10
+
+    def test_installed_bond_matrices_are_diagonalized(self, spin_space):
+        # The caller's C need not be diagonal; the installer rotates it,
+        # exactly as canonical does.
+        imps = _gaugeable_imps(spin_space, 2)
+        imps.canonical()
+        skewed = [
+            einsum('ab,bc->ac', imps.bond_matrix(k), imps.bond_matrix(k))
+            for k in range(imps.N)
+        ]
+        imps.set_canonical(imps.left_isometries(), imps.right_isometries(), skewed)
+        for bond in range(imps.N):
+            for blk in imps.bond_matrix(bond).data.values():
+                flat = blk.reshape(blk.shape[0], blk.shape[1], -1)[:, :, 0]
+                off = flat - torch.diag_embed(torch.diagonal(flat))
+                assert float(off.abs().max()) < 1e-12
+
+    def test_center_is_recorded(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 4)
+        imps.canonical()
+        imps.set_canonical(
+            imps.left_isometries(),
+            imps.right_isometries(),
+            [imps.bond_matrix(k) for k in range(imps.N)],
+            target=-1,
+        )
+        assert imps.center == 3
+
+    def test_wrong_length_is_rejected(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 4)
+        imps.canonical()
+        with pytest.raises(ValueError, match='bond_matrices must have 4 entries'):
+            imps.set_canonical(
+                imps.left_isometries(), imps.right_isometries(), [imps.bond_matrix(0)],
+            )
+
+    def test_out_of_range_target_is_rejected(self, spin_space):
+        imps = _gaugeable_imps(spin_space, 2)
+        imps.canonical()
+        with pytest.raises(IndexError, match='out of range'):
+            imps.set_canonical(
+                imps.left_isometries(),
+                imps.right_isometries(),
+                [imps.bond_matrix(k) for k in range(imps.N)],
+                target=5,
+            )
+
+
 class TestCanonicalKnownStates:
     """States whose canonical form is known in closed form."""
 
