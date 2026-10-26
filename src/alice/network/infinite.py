@@ -819,6 +819,72 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         self._center = target
         self._validate()
 
+    def set_canonical(
+        self,
+        left_isos: List[Tensor],
+        right_isos: List[Tensor],
+        bond_matrices: List[Tensor],
+        target: int = 0,
+    ) -> None:
+        """Install a canonical form computed elsewhere, in place.
+
+        The counterpart of `canonical` for callers that already know the
+        answer. A variational update on the uniform manifold produces `AL`,
+        `AR` and `C` directly, and re-deriving them with the gauge iteration
+        would be both wasteful and fragile: the iteration assumes a single
+        dominant transfer-operator eigenvalue, which a state in mid-update
+        need not have.
+
+        The three sets are not required to satisfy `AL[i] C[i+1] = C[i]
+        AR[i]`. Away from a variational fixed point they do not, and the
+        size of the mismatch is exactly the convergence measure such an
+        update reports. They are rotated into the Schmidt basis on the way
+        in, so the stored bond matrices are diagonal as they are after
+        `canonical`.
+
+        Parameters
+        ----------
+        left_isos:
+            Left-orthonormal tensors, one per site.
+        right_isos:
+            Right-orthonormal tensors, one per site. These become the
+            stored site tensors.
+        bond_matrices:
+            Bond matrices, one per bond, in the `(AL, AR)` basis pair.
+        target:
+            Site to record as the orthogonality center. Negative values
+            count from the end.
+
+        Raises
+        ------
+        IndexError
+            If `target` is out of range `[0, N)`.
+        ValueError
+            If any of the three lists has the wrong length, or if the
+            resulting unit cell does not tile consistently.
+        """
+        N = self.N
+        if target < 0:
+            target += N
+        if not (0 <= target < N):
+            raise IndexError(f"target {target} out of range for N={N}")
+        for name, seq in (
+            ('left_isos', left_isos),
+            ('right_isos', right_isos),
+            ('bond_matrices', bond_matrices),
+        ):
+            if len(seq) != N:
+                raise ValueError(f"{name} must have {N} entries, got {len(seq)}")
+
+        left_isos, right_isos, matrices = self._diagonalize_gauge(
+            list(left_isos), list(right_isos), list(bond_matrices),
+        )
+        self._tensors = right_isos
+        self._left_isos = left_isos
+        self._bond_matrices = matrices
+        self._center = target
+        self._validate()
+
     # ------------------------------------------------------------------
     # Canonical-form accessors
     # ------------------------------------------------------------------
