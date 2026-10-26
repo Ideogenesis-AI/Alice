@@ -19,18 +19,25 @@
 """iMPS, iMPO, and base tensor network class for infinite 1D chains.
 
 An infinite network stores one translation-invariant unit cell of `N` site
-tensors. Unlike the finite `Network` family the unit cell closes on itself:
-the right bond of site `N-1` is the *same* bond as the left bond of site `0`,
-so the cell has `N` bonds rather than `N-1` and both "ends" carry a full
-virtual index instead of a trivial dimension-1 boundary.
+tensors, which tiles the chain. Site `N` is site `0` of the next copy, so
+the right bond of site `N-1` is the *same* index as the left bond of site
+`0`: the cell has `N` bonds, and both of its ends carry a full virtual
+index rather than a trivial dimension-1 boundary.
 
-That closure is why this family does not derive from `Network`. Several of
-the finite methods are not merely inconvenient on a ring, they are wrong:
-`bond_dims` counts `L-1` bonds, `canonical` is an open-boundary sweep that
-pins the center at site 0, and `norm` / `MPO.compact` contract against
-boundary vectors that do not exist here. Keeping the two families unrelated
-also means `isinstance(x, MPS)` is `False` for an infinite state, so the
-finite entry points reject one instead of silently producing nonsense.
+This is a tiling, not a closed loop. The chain is genuinely infinite, and
+the index identification above says that translating by `N` sites changes
+nothing. It does not bond two distant sites to each other, which is what
+periodic boundary conditions do; the finite closed chain is `Network` with
+`bc='PBC'`, and it is a different physical system solved by a different
+algorithm.
+
+That tiling is why this family stands apart from `Network`. An infinite
+chain has no boundary vector to contract against and no open end to start
+a sweep from, so counting bonds, fixing a gauge, taking a norm and
+compacting an operator all need their own definitions here. Keeping the
+two families unrelated also makes `isinstance(x, MPS)` `False` for an
+infinite state, so the finite entry points reject one rather than silently
+producing nonsense.
 
 Axis layout (shared with the finite family):
 
@@ -42,8 +49,9 @@ Axis layout (shared with the finite family):
 Bond itag convention: the left bond of site *i* carries itag
 `{prefix}{i % N:0M}` and the right bond carries `{prefix}{(i+1) % N:0M}`,
 where `prefix` is `itag_prefix` (`'A'` for `iMPS`, `'W'` for `iMPO`) and *M*
-is `max(2, len(str(N)))`. The modulo is what closes the ring: at `i = N-1`
-the right bond is tagged `{prefix}00`, matching the left bond of site `0`.
+is `max(2, len(str(N)))`. The modulo is what makes the cell tile: at
+`i = N-1` the right bond is tagged `{prefix}00`, matching the left bond of
+site `0` in the next copy.
 
 Physical itag convention: site *i* physical axis carries itag `s{i:02d}`,
 exactly as in the finite family.
@@ -53,8 +61,8 @@ Canonical form
 
 An infinite state has no ends to sweep from, so its canonical form is not
 reached in one pass but is a fixed point of the gauge iteration: sweep the
-cell with QR, carry the triangular factor around the ring, repeat until it
-stops moving. `iMPS.canonical` does this from both sides and leaves the
+cell with QR, carry the triangular factor on into the next copy, repeat
+until it stops moving. `iMPS.canonical` does this from both sides and leaves the
 unit cell uniformly right-orthonormal with one bond matrix per bond.
 Writing `AR` for the stored tensors and `AL` for the left-orthonormal ones,
 the three satisfy
@@ -202,8 +210,8 @@ class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics conventio
         Raises
         ------
         ValueError
-            If `tensors` is empty, or if the unit cell does not close into a
-            consistent ring.
+            If `tensors` is empty, or if the unit cell does not tile
+            consistently.
         """
         if not tensors:
             raise ValueError("tensors must be a non-empty list")
@@ -216,11 +224,11 @@ class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics conventio
         self._validate()
 
     def _validate(self) -> None:
-        """Check that the unit cell closes into a consistent ring.
+        """Check that the unit cell tiles consistently.
 
-        For each of the `N` bonds — including the wrap-around bond between
-        site `N-1` and site `0` — verifies that the right index of the left
-        site and the left index of the right site:
+        For each of the `N` bonds — including the one joining site `N-1` to
+        site `0` of the next copy — verifies that the right index of the
+        left site and the left index of the right site:
 
         - share the same itag,
         - have opposite directions (so they can be contracted), and
@@ -244,9 +252,9 @@ class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics conventio
             l = self._tensors[j].indices[0]
             r_itag = self._tensors[i].itags[1]
             l_itag = self._tensors[j].itags[0]
-            # Name the wrap-around bond explicitly; a mismatch there is the
-            # most likely failure and the least obvious one to diagnose.
-            where = f"between sites {i} and {j}" + (" (wrap-around)" if j < i else "")
+            # Name the bond onto the next cell explicitly; a mismatch there
+            # is the most likely failure and the least obvious to diagnose.
+            where = f"between sites {i} and {j}" + (" (cell boundary)" if j < i else "")
 
             if r_itag != l_itag:
                 raise ValueError(
@@ -294,8 +302,8 @@ class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics conventio
         """Return the itag for bond index *k*, wrapped into `[0, N)`.
 
         The left bond of site *i* has index *i* and the right bond has index
-        *i+1*; the modulo is what identifies bond `N` with bond `0` and so
-        closes the ring.
+        *i+1*; the modulo is what identifies bond `N` with bond `0`, which
+        is what makes the cell tile.
         """
         N = self.N
         ndigits = max(2, len(str(N)))
@@ -344,8 +352,9 @@ class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics conventio
         """Bond dimension at each bond of the unit cell (length `N`).
 
         Entry *i* is the dimension of the right bond of site *i*. Entry
-        `N-1` is the wrap-around bond, which is also the left bond of site
-        `0` — note the length is `N`, not `N-1` as in the finite case.
+        `N-1` is the bond onto the next copy of the cell, which is the same
+        bond as the left bond of site `0` — note the length is `N`, not
+        `N-1` as in the finite case.
         """
         return [t.indices[1].dim for t in self._tensors]
 
@@ -508,7 +517,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         ------
         ValueError
             If any tensor has the wrong number of axes, an incorrect physical
-            itag, or the unit cell does not close into a consistent ring.
+            itag, or the unit cell does not tile consistently.
         """
         self._bond_matrices: Optional[List[Tensor]] = None
         self._left_isos: Optional[List[Tensor]] = None
@@ -528,7 +537,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         self._center = None
 
     def _validate(self) -> None:
-        """Extend the ring validation with iMPS-specific axis and itag checks."""
+        """Extend the cell validation with iMPS-specific axis and itag checks."""
         for i, t in enumerate(self._tensors):
             if len(t.indices) != 3:
                 raise ValueError(
@@ -780,7 +789,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             If `target` is out of range `[0, N)`.
         ValueError
             If either gauge iteration fails to converge, or if the two
-            converged gauges disagree around the ring.
+            converged gauges disagree across the cell.
         """
         if target < 0:
             target += self.N
@@ -798,15 +807,16 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             centered = einsum('ab,brs->ars', matrices[i], right_isos[i])
             matrices.append(einsum('lms,lbs->mb', left_isos[i].conj(), centered))
 
-        # Propagating all the way round must return the bond matrix it
-        # started from. If it does not, the two iterations converged to
-        # gauges that describe different states and nothing below is valid.
+        # Propagating through a whole cell must return the bond matrix it
+        # started from, since that is what translation invariance means. If
+        # it does not, the two iterations converged to gauges that describe
+        # different states and nothing below is valid.
         drift = float((matrices[self.N] - matrices[0]).norm())
         if drift > max(1e-8, 1e3 * tol):
             raise ValueError(
-                f"gauge fixing did not close the ring: propagating the bond "
-                f"matrix through all {self.N} sites moved it by {drift:.3e}. "
-                f"Tighten tol or raise maxiter."
+                f"gauge fixing is not translation invariant: propagating the "
+                f"bond matrix through all {self.N} sites moved it by "
+                f"{drift:.3e}. Tighten tol or raise maxiter."
             )
 
         left_isos, right_isos, matrices = self._diagonalize_gauge(
@@ -1058,12 +1068,12 @@ class iMPO(iNetwork):  # noqa: N801 — physics convention
         ValueError
             If any tensor has the wrong axis count, incorrect physical itags,
             physical axes with the same direction, or the unit cell does not
-            close into a consistent ring.
+            tile consistently.
         """
         super().__init__(tensors, center, itag_prefix if itag_prefix is not None else 'W')
 
     def _validate(self) -> None:
-        """Extend the ring validation with iMPO-specific axis and itag checks."""
+        """Extend the cell validation with iMPO-specific axis and itag checks."""
         for i, t in enumerate(self._tensors):
             if len(t.indices) != 4:
                 raise ValueError(

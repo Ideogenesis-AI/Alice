@@ -47,7 +47,7 @@ def _imps(spin_space, N, sectors=(-1, 0, 1), dim=2, seed=0):
     """Build a random iMPS unit cell of `N` sites with a uniform bond index.
 
     Every bond carries the same index, which is the simplest way to satisfy
-    the ring-closure requirement, including the wrap-around bond.
+    the tiling requirement, including the bond onto the next cell.
     """
     Spc, _ = spin_space
     bulk = _bond(Spc.group, sectors, dim=dim)
@@ -123,8 +123,8 @@ def _neel_imps(spin_space, N):
 
     Every bond is one-dimensional, so the state is already canonical and
     every bond matrix is a number. A polarized product state would be the
-    simpler choice but cannot close a ring under U(1): each site would
-    push the bond charge up by one and nothing would bring it back.
+    simpler choice but cannot tile under U(1): each site would push the
+    bond charge up by one and nothing would bring it back.
     """
     Spc, _ = spin_space
     # The bond charge records the spin the previous site put there, so it
@@ -168,14 +168,14 @@ def _impo(spin_space, N, sectors=(0,), dim=3, seed=100):
 
 
 # ---------------------------------------------------------------------------
-# Ring closure
+# Cell tiling
 # ---------------------------------------------------------------------------
 
-class TestRingClosure:
-    """The unit cell must close on itself, wrap-around bond included."""
+class TestCellTiling:
+    """The unit cell must join to its own next copy, every bond included."""
 
     @pytest.mark.parametrize('N', [1, 2, 3, 4, 7])
-    def test_accepts_closed_cell(self, spin_space, N):
+    def test_accepts_tiling_cell(self, spin_space, N):
         imps = _imps(spin_space, N)
         assert imps.N == N
         assert imps.L == N
@@ -189,8 +189,8 @@ class TestRingClosure:
         assert imps[0].indices[0].direction != imps[0].indices[1].direction
 
     def test_rejects_open_wrap_bond(self, spin_space):
-        # A cell whose last right bond is dimension 1 (an open end) does not
-        # close; the error must name the wrap-around bond specifically.
+        # A cell whose last right bond is dimension 1 (an open end) cannot
+        # tile; the error must name the bond onto the next cell.
         Spc, _ = spin_space
         bulk = _bond(Spc.group, (-1, 0, 1))
         trivial = _bond(Spc.group, (0,), dim=1)
@@ -198,7 +198,7 @@ class TestRingClosure:
             Tensor.random([bulk, bulk.flip(), Spc], seed=1, itags=['A00', 'A01', 's00']),
             Tensor.random([bulk, trivial.flip(), Spc], seed=2, itags=['A01', 'A00', 's01']),
         ]
-        with pytest.raises(ValueError, match='wrap-around'):
+        with pytest.raises(ValueError, match='cell boundary'):
             iMPS(tensors)
 
     def test_rejects_wrap_itag_mismatch(self, spin_space):
@@ -209,7 +209,7 @@ class TestRingClosure:
             # Right bond tagged 'A02' instead of wrapping back to 'A00'.
             Tensor.random([bulk, bulk.flip(), Spc], seed=2, itags=['A01', 'A02', 's01']),
         ]
-        with pytest.raises(ValueError, match='wrap-around'):
+        with pytest.raises(ValueError, match='cell boundary'):
             iMPS(tensors)
 
     def test_rejects_wrap_direction_clash(self, spin_space):
@@ -254,7 +254,7 @@ class TestBondBookkeeping:
         imps = _imps(spin_space, 4)
         assert imps._bond_itag(0) == 'A00'
         assert imps._bond_itag(3) == 'A03'
-        # Bond 4 is bond 0: this identification is what closes the ring.
+        # Bond 4 is bond 0: this identification is what makes the cell tile.
         assert imps._bond_itag(4) == 'A00'
         assert imps._bond_itag(5) == 'A01'
 
