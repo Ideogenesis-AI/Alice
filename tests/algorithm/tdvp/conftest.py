@@ -48,20 +48,6 @@ from alice.physics.system import build_fermionic
 
 
 # ---------------------------------------------------------------------------
-# Working-directory isolation
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(autouse=True)
-def _isolate_cwd(tmp_path, monkeypatch):
-    """Run every test with cwd set to a fresh tmp_path.
-
-    This prevents checkpoint files (and any other cwd-relative artefacts)
-    from accumulating in the project root during the test session.
-    """
-    monkeypatch.chdir(tmp_path)
-
-
-# ---------------------------------------------------------------------------
 # Physical spaces
 # ---------------------------------------------------------------------------
 
