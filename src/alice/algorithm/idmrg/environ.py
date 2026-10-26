@@ -23,7 +23,7 @@ boundary environments of a unit cell are fixed points of the transfer
 operator that carries one whole cell. This module builds those operators
 and solves for the fixed points, and in doing so measures the energy.
 
-Index convention, as in `alice.algorithm.dmrg.environ`:
+Index convention:
 
 - `a, b, c, d` — virtual bond indices of the MPS, bra or ket side
 - `o, p, q`    — virtual bond indices of the MPO
@@ -71,7 +71,6 @@ from typing import Callable, Sequence, Tuple
 
 from nicole import Direction, Index, Tensor, einsum, identity
 
-from alice.algorithm.dmrg.environ import step_left_env, step_right_env
 from alice.network import iMPO, iMPS
 from alice.network.autoimpo import boundary_vectors
 
@@ -86,6 +85,66 @@ _CAP_ITAG = '_cap_'
 # Hamiltonian contracted against a complex state leaves an imaginary residue
 # at roundoff level; anything larger means the operator is not Hermitian.
 _IMAG_TOL = 1e-10
+
+
+# ---------------------------------------------------------------------------
+# Single-site environment steps
+# ---------------------------------------------------------------------------
+
+def step_left_env(E: Tensor, M: Tensor, W: Tensor) -> Tensor:
+    """Absorb one site rightward into the left environment.
+
+    Index convention:
+
+    - `E(a, o, b)` — `(bra_left, mpo_left, ket_left)`
+    - `M.conj(a, c, r)` — `(bra_left, bra_right, phys_bra)`
+    - `W(o, p, r, s)` — `(mpo_left, mpo_right, phys_bra, phys_ket)`
+    - `M(b, d, s)` — `(ket_left, ket_right, phys_ket)`
+    - output `(c, p, d)` — `(bra_right, mpo_right, ket_right)`
+
+    Parameters
+    ----------
+    E:
+        Current left environment with axes `(bra_left, mpo_left, ket_left)`.
+    M:
+        iMPS site tensor with axes `(left_bond, right_bond, physical)`.
+    W:
+        iMPO site tensor with axes `(left_bond, right_bond, phys_bra, phys_ket)`.
+
+    Returns
+    -------
+    Tensor
+        Updated left environment with axes `(bra_right, mpo_right, ket_right)`.
+    """
+    return einsum('aob,acr,oprs,bds->cpd', E, M.conj(), W, M)
+
+
+def step_right_env(E: Tensor, M: Tensor, W: Tensor) -> Tensor:
+    """Absorb one site leftward into the right environment.
+
+    Index convention:
+
+    - `E(c, p, d)` — `(bra_right, mpo_right, ket_right)`
+    - `M.conj(a, c, r)` — `(bra_left, bra_right, phys_bra)`
+    - `W(o, p, r, s)` — `(mpo_left, mpo_right, phys_bra, phys_ket)`
+    - `M(b, d, s)` — `(ket_left, ket_right, phys_ket)`
+    - output `(a, o, b)` — `(bra_left, mpo_left, ket_left)`
+
+    Parameters
+    ----------
+    E:
+        Current right environment with axes `(bra_right, mpo_right, ket_right)`.
+    M:
+        iMPS site tensor with axes `(left_bond, right_bond, physical)`.
+    W:
+        iMPO site tensor with axes `(left_bond, right_bond, phys_bra, phys_ket)`.
+
+    Returns
+    -------
+    Tensor
+        Updated right environment with axes `(bra_left, mpo_left, ket_left)`.
+    """
+    return einsum('cpd,acr,oprs,bds->aob', E, M.conj(), W, M)
 
 
 # ---------------------------------------------------------------------------
