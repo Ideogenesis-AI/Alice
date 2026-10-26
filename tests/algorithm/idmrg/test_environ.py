@@ -16,16 +16,46 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for the infinite unit-cell transfer operators."""
+"""Tests for the infinite unit-cell transfer operators and their fixed points."""
 
 from __future__ import annotations
 
 import pytest
 from nicole import identity
 
-from alice.algorithm.idmrg import transfer_left, transfer_right
+from alice.algorithm.idmrg import (
+    energy_density,
+    transfer_left,
+    transfer_right,
+)
 
-from .conftest import random_imps
+from .conftest import (
+    HEISENBERG,
+    HEISENBERG_SU2,
+    MAJUMDAR_GHOSH,
+    MAJUMDAR_GHOSH_SU2,
+    dimer_imps,
+    dimer_imps_su2,
+    ihamiltonian,
+    neel_imps,
+    random_imps,
+)
+
+# The Majumdar-Ghosh dimer state is the exact ground state at J2 = J1 / 2:
+# half the nearest-neighbor bonds sit inside a singlet and contribute -3/4,
+# the rest contribute nothing, and every next-nearest-neighbor bond vanishes.
+DIMER_ENERGY = -0.375
+
+# A Neel state has no transverse correlations, so only the Ising part of the
+# Heisenberg coupling survives: -1/4 on every bond.
+NEEL_ENERGY = -0.25
+
+# Alice's spin operators reach Nicole as single-precision table entries
+# promoted to double, which caps any U(1) spin energy at roughly eight
+# digits. The SU(2) tensors avoid those tables, which is why the same
+# physical check is tightened by five orders of magnitude below.
+TABLE_TOL = 1e-7
+
 
 def _delta(idx, itag):
     """Build an identity on a bond index, tagged for both ends of a cell."""
@@ -72,6 +102,45 @@ class TestMPSTransfer:
         for _ in range(5):
             carried = transfer_left(carried, isometries)
         assert _deviation(carried, delta) < 1e-11
+
+
+# ---------------------------------------------------------------------------
+# Fixed points on states with a known energy
+# ---------------------------------------------------------------------------
+
+class TestKnownEnergies:
+    """States whose energy density can be written down without computing it."""
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_neel_state_against_heisenberg(self, spin_half, N):
+        imps = neel_imps(spin_half, N)
+        energy = energy_density(imps, ihamiltonian(HEISENBERG, N))
+        assert energy == pytest.approx(NEEL_ENERGY, abs=TABLE_TOL)
+
+    def test_dimer_state_against_majumdar_ghosh(self, spin_half):
+        imps = dimer_imps(spin_half)
+        impo = ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True)
+        assert energy_density(imps, impo) == pytest.approx(
+            DIMER_ENERGY, abs=TABLE_TOL
+        )
+
+    def test_dimer_state_against_majumdar_ghosh_su2(self, spin_half_su2):
+        # Under SU(2) the same physics is exact to machine precision,
+        # because the dimer tensors are pure Clebsch-Gordan coefficients.
+        imps = dimer_imps_su2(spin_half_su2)
+        impo = ihamiltonian(MAJUMDAR_GHOSH_SU2, 2, n3x=True)
+        assert energy_density(imps, impo) == pytest.approx(
+            DIMER_ENERGY, abs=1e-12
+        )
+
+    def test_dimer_state_against_plain_heisenberg_su2(self, spin_half_su2):
+        # Dropping the next-nearest-neighbor term changes nothing, since the
+        # dimer state has no correlation across two sites at all.
+        imps = dimer_imps_su2(spin_half_su2)
+        impo = ihamiltonian(HEISENBERG_SU2, 2)
+        assert energy_density(imps, impo) == pytest.approx(
+            DIMER_ENERGY, abs=1e-12
+        )
 
 
 # ---------------------------------------------------------------------------
