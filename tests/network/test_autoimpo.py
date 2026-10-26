@@ -174,7 +174,7 @@ class TestWindowMatchesFinite:
 
 
 # ---------------------------------------------------------------------------
-# Ring closure and structure
+# Cell tiling and structure
 # ---------------------------------------------------------------------------
 
 class TestRingStructure:
@@ -259,8 +259,8 @@ class TestChargeConservation:
         assert len(start.data) == 1
         assert len(finish.data) == 1
 
-    def test_bond_sectors_match_across_the_ring(self):
-        """Wrap-around bond sectors agree, which is what makes the ring close."""
+    def test_bond_sectors_match_across_the_cell(self):
+        """Sectors agree on the bond onto the next cell, so the cell tiles."""
         impo = _build_inf('hubbard', 3)
         for i in range(impo.N):
             j = (i + 1) % impo.N
@@ -283,7 +283,7 @@ class TestBoundaryVectors:
 
     @pytest.mark.parametrize("bond", [0, 1, 2, 3, -1])
     def test_bond_taken_modulo_unit_cell(self, bond):
-        """Any bond index is valid; it wraps around the unit cell."""
+        """Any bond index is valid; it is taken modulo the unit cell."""
         impo = _build_inf('heisenberg_u1', 2)
         start, finish = boundary_vectors(impo, bond=bond)
         assert start.itags[1] == impo[bond % 2].itags[0]

@@ -38,9 +38,9 @@ survives on an infinite chain:
   a harmless redundancy: the start channel is what propagates "no term has
   begun yet" down the chain, and a second copy of it generates a whole extra
   family of spurious terms.
-- `MPO.compact()` is an open-boundary two-sweep canonicalization. On a ring it
-  is meaningless, and it would scramble the upper-triangular structure that
-  the iDMRG environment solver depends on.
+- `MPO.compact()` is an open-boundary two-sweep canonicalization. A unit cell
+  has no open end for it to start from, and it would scramble the
+  upper-triangular structure that the iDMRG environment solver depends on.
 
 So the unit cell is assembled directly as a finite-state automaton instead.
 
