@@ -61,13 +61,21 @@ the three satisfy
 
     AL[i] C[i+1] = C[i] AR[i]
 
+Each `C` is diagonal: the gauge iteration leaves it a general matrix, and a
+final rotation of both canonical forms into the Schmidt basis turns it into
+the Schmidt values themselves. That is worth the extra decomposition,
+because it makes the stored form unique. A general `C` is only one of many
+gauges describing the same state, so two states could not be compared bond
+by bond and the entanglement spectrum could not be read off without a
+further decomposition. Diagonalizing also gives `set_canonical` a normal form to put
+its input into, so a state that has been through an update looks exactly
+like one fresh from `canonical`.
+
 All three are kept. `AL` cannot be recovered from `AR` and `C` by a fresh
 QR sweep, because QR fixes its own basis on each bond and the result, while
-left-orthonormal, no longer pairs with the stored `C`. The alternatives are
-to invert `C`, which is least accurate exactly where the Schmidt values are
-small and matter most, or to hold `C` in a triangular gauge, which discards
-the Schmidt basis that makes its singular values meaningful. Keeping one
-extra tensor per site is cheaper than either.
+left-orthonormal, no longer pairs with the stored `C`. Reconstructing it
+through `C` instead would be least accurate exactly where the Schmidt
+values are small, so keeping one extra tensor per site is cheaper.
 """
 
 from __future__ import annotations
@@ -87,6 +95,11 @@ _DEFAULT_ITAG_PREFIX = '_init_'
 # itag worn by a bond between the QR step that creates it and the retag that
 # gives it its unit-cell name.
 _GAUGE_ITAG = '_gauge_'
+
+# itags worn by the two halves of a bond while it is being rotated into the
+# Schmidt basis. They differ so that the rotations cannot be contracted
+# against each other by accident.
+_SCHMIDT_ITAGS = ('_schmidt_L_', '_schmidt_R_')
 
 # Guards the division that pulls a phase out of a diagonal entry.
 _TINY = 1e-300
@@ -582,6 +595,71 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             gauge.retag([0, 1], [tag, tag])
         return isometries, gauge
 
+    def _diagonalize_gauge(
+        self,
+        left_isos: List[Tensor],
+        right_isos: List[Tensor],
+        matrices: List[Tensor],
+    ) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]:
+        """Rotate both canonical forms so that every bond matrix is diagonal.
+
+        `C` cannot be built diagonal in the first place. It is the change
+        of basis between the two canonical forms, `C[0] = L R^dag` from the
+        two gauge fixed points, and those are found by independent
+        iterations that know nothing of each other: `L` comes back upper
+        triangular and `R^dag` lower, so the product is a general matrix
+        whose off-diagonal entries are of order its diagonal ones. `C` is
+        diagonal exactly when `AL` and `AR` are already Schmidt-aligned,
+        which is what this rotation establishes rather than assumes.
+        Writing `C[k] = U[k] S[k] Vh[k]` and setting
+
+            AL'[i] = U[i]^dag AL[i] U[i+1]
+            AR'[i] = Vh[i] AR[i] Vh[i+1]^dag
+            C'[k]  = S[k]
+
+        leaves `AL' C' = C' AR'` intact, since the rotations cancel in
+        pairs, and keeps both forms orthonormal, since `U` and `Vh` are
+        unitary. The bond matrices are then the Schmidt values themselves.
+
+        Parameters
+        ----------
+        left_isos:
+            Left-orthonormal tensors from the gauge iteration.
+        right_isos:
+            Right-orthonormal tensors from the gauge iteration.
+        matrices:
+            One bond matrix per bond, length `N`.
+
+        Returns
+        -------
+        tuple
+            `(left_isos, right_isos, matrices)` in the Schmidt basis.
+        """
+        N = self.N
+        rot_l: List[Tensor] = []
+        rot_r: List[Tensor] = []
+        diagonals: List[Tensor] = []
+        for k, c in enumerate(matrices):
+            u, s, vh = decomp(c, axes=0, mode='SVD', flow='<<', itag=_SCHMIDT_ITAGS)
+            tag = self._bond_itag(k)
+            s.retag([0, 1], [tag, tag])
+            rot_l.append(u)
+            rot_r.append(vh)
+            diagonals.append(s)
+
+        rotated_l: List[Tensor] = []
+        rotated_r: List[Tensor] = []
+        for i in range(N):
+            j = (i + 1) % N
+            al = einsum('am,ars,rn->mns', rot_l[i].conj(), left_isos[i], rot_l[j])
+            ar = einsum('nb,bcs,mc->nms', rot_r[i], right_isos[i], rot_r[j].conj())
+            tags = [self._bond_itag(i), self._bond_itag(i + 1)]
+            al.retag([0, 1], tags)
+            ar.retag([0, 1], tags)
+            rotated_l.append(al)
+            rotated_r.append(ar)
+        return rotated_l, rotated_r, diagonals
+
     def _gauge_fixed_point(
         self, to_left: bool, tol: float, maxiter: int,
     ) -> Tuple[List[Tensor], Tensor]:
@@ -671,7 +749,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         """Fix the gauge of the unit cell, in place.
 
         Leaves every stored tensor right-orthonormal (`AR`) and attaches one
-        bond matrix `C` to each of the `N` bonds, with
+        diagonal bond matrix `C` to each of the `N` bonds, with
         `AL[i] C[i+1] = C[i] AR[i]`. The state is normalized on the way: the
         transfer operator of the stored tensors has dominant eigenvalue `1`
         and each bond matrix has unit norm, so the Schmidt weights on every
@@ -731,9 +809,13 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
                 f"Tighten tol or raise maxiter."
             )
 
+        left_isos, right_isos, matrices = self._diagonalize_gauge(
+            left_isos, right_isos, matrices[:self.N],
+        )
+
         self._tensors = right_isos
         self._left_isos = left_isos
-        self._bond_matrices = matrices[:self.N]
+        self._bond_matrices = matrices
         self._center = target
         self._validate()
 
@@ -760,8 +842,9 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         Returns
         -------
         Tensor
-            2-index tensor whose left axis is in the `AL` basis and whose
-            right axis is in the `AR` basis.
+            Diagonal 2-index tensor holding the Schmidt values, with its
+            left axis in the `AL` basis and its right axis in the `AR`
+            basis.
         """
         self._require_canonical()
         return self._bond_matrices[bond % self.N]
@@ -809,8 +892,8 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
     def schmidt_values(self, bond: int) -> List[float]:
         """Return the Schmidt values on `bond`, largest first.
 
-        These are the singular values of the bond matrix, so they are
-        normalized to `sum(s**2) == 1`. For a generic symmetry group they
+        These are the diagonal of the bond matrix, so they are normalized
+        to `sum(s**2) == 1`. For a generic symmetry group they
         are multiplet-resolved: a value in a spin-*j* sector stands for
         *2j+1* degenerate Schmidt states.
 
@@ -824,10 +907,9 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         List[float]
             Singular values in descending order.
         """
-        _, weights, _ = decomp(self.bond_matrix(bond), axes=0, mode='SVD')
         values = [
             float(v)
-            for blk in weights.data.values()
+            for blk in self.bond_matrix(bond).data.values()
             for v in torch.diagonal(
                 blk.reshape(blk.shape[0], blk.shape[1], -1)[:, :, 0]
             )
