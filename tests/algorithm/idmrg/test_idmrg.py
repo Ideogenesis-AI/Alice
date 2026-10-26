@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+from pathlib import Path
 
 import pytest
 
@@ -179,7 +180,8 @@ class TestRunValidation:
 # ---------------------------------------------------------------------------
 
 class TestRun:
-    """End-to-end runs against states whose energies are known."""
+    """End-to-end runs: energies against known values, files against the
+    documented layout."""
 
     @pytest.mark.parametrize('N', [2, 4])
     def test_majumdar_ghosh_is_found_from_a_random_start(self, spin_half, N):
@@ -273,3 +275,50 @@ class TestRun:
         assert (tmp_path / 'artifacts' / 'state.ckpt').exists()
         # The per-iteration checkpoint is redundant once the run finishes.
         assert not (tmp_path / 'idmrg.ckpt').exists()
+
+    def test_artifact_is_written_under_cwd_by_default(self, spin_half):
+        # An unset checkpoint_dir resolves to the working directory as it
+        # stands when run() is called, the same convention as .logging.
+        run(
+            dimer_imps(spin_half),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(),
+        )
+        assert (Path.cwd() / 'artifacts' / 'state.ckpt').exists()
+
+    def test_artifacts_dir_is_decoupled_from_checkpoint_dir(self, spin_half, tmp_path):
+        # An explicit archive can live on storage of its own, so it must be
+        # used verbatim rather than nested under the checkpoints.
+        ckpt_dir = tmp_path / 'ckpt'
+        archive = tmp_path / 'elsewhere' / 'archive'
+        run(
+            dimer_imps(spin_half),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(checkpoint_dir=str(ckpt_dir), artifacts_dir=str(archive)),
+        )
+        assert (archive / 'state.ckpt').exists()
+        assert not (ckpt_dir / 'artifacts').exists()
+
+    def test_no_lock_file_outlives_the_run(self, spin_half, tmp_path):
+        # Both the checkpoint and the archive are written to a lock file and
+        # renamed into place, so a surviving lock means a rename was missed.
+        run(
+            dimer_imps(spin_half),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(checkpoint_dir=str(tmp_path)),
+        )
+        assert not (tmp_path / 'idmrg_lock.ckpt').exists()
+        assert not (tmp_path / 'artifacts' / 'state_lock.ckpt').exists()
+
+    def test_archived_artifact_agrees_with_the_summary(self, spin_half, tmp_path):
+        # The archive is built after the loop exits, unlike the per-iteration
+        # checkpoint, which reports converged=False however the run ends.
+        summary = run(
+            dimer_imps(spin_half),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(checkpoint_dir=str(tmp_path)),
+        )
+        loaded = Summary.load(tmp_path / 'artifacts' / 'state.ckpt')
+        assert loaded.converged is True
+        assert loaded.n_iters == summary.n_iters
+        assert abs(loaded.energy - summary.energy) < 1e-12
