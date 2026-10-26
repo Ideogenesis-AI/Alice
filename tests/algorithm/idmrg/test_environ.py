@@ -21,10 +21,15 @@
 from __future__ import annotations
 
 import pytest
+import torch
 from nicole import identity
 
 from alice.algorithm.idmrg import (
+    cell_left_env,
+    cell_right_env,
     energy_density,
+    left_environment,
+    right_environment,
     transfer_left,
     transfer_right,
 )
@@ -140,6 +145,75 @@ class TestKnownEnergies:
         impo = ihamiltonian(HEISENBERG_SU2, 2)
         assert energy_density(imps, impo) == pytest.approx(
             DIMER_ENERGY, abs=1e-12
+        )
+
+
+# ---------------------------------------------------------------------------
+# Consistency of the two sides
+# ---------------------------------------------------------------------------
+
+class TestEnvironmentConsistency:
+    """Checks that hold for any state, exactly solvable or not."""
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_both_sides_report_the_same_energy(self, spin_half, N):
+        # The two environments describe disjoint halves of one chain, so
+        # agreement is a genuine cross-check rather than a tautology: the
+        # left side sweeps AL forwards and the right side sweeps AR back.
+        imps = random_imps(spin_half, N)
+        impo = ihamiltonian(HEISENBERG, N)
+        _, left = left_environment(imps, impo)
+        _, right = right_environment(imps, impo)
+        assert left == pytest.approx(right, rel=1e-10)
+
+    @pytest.mark.parametrize(
+        'solver, absorb, basis',
+        [
+            (left_environment, cell_left_env, 'left_isometries'),
+            (right_environment, cell_right_env, 'right_isometries'),
+        ],
+    )
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_the_environment_grows_by_a_constant(
+        self, spin_half, N, solver, absorb, basis,
+    ):
+        # The solved environment is a fixed point of everything except the
+        # finish channel, which gains one cell of energy per cell absorbed.
+        # So the increment must be the same every time: if any other channel
+        # were still moving, the second increment would differ from the
+        # first. This is the defining equation, checked without reaching
+        # into the solver.
+        imps = random_imps(spin_half, N)
+        impo = ihamiltonian(HEISENBERG, N)
+        E, _ = solver(imps, impo)
+        isometries = getattr(imps, basis)()
+        once = absorb(E, isometries, impo)
+        twice = absorb(once, isometries, impo)
+        assert _deviation(twice - once, once - E) < 1e-9
+        assert _deviation(once, E) > 1e-3
+
+    @pytest.mark.parametrize('reps', [2, 3])
+    def test_energy_density_ignores_the_unit_cell_size(self, spin_half, reps):
+        # Describing one state with a cell twice or three times as long must
+        # not move the energy per site. This catches an energy that is
+        # accumulated per cell but divided per site incorrectly, and any
+        # dependence on where the environment happens to be anchored.
+        base = random_imps(spin_half, 2)
+        stretched = random_imps(spin_half, 2 * reps, period=2)
+        assert energy_density(stretched, ihamiltonian(HEISENBERG, 2 * reps)) \
+            == pytest.approx(
+                energy_density(base, ihamiltonian(HEISENBERG, 2)), rel=1e-10
+            )
+
+    def test_complex_state_gives_a_real_energy(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        imps.canonical()
+        imps.to(dtype=torch.complex128)
+        energy = energy_density(imps, ihamiltonian(HEISENBERG, 2))
+        assert isinstance(energy, float)
+        assert energy == pytest.approx(
+            energy_density(random_imps(spin_half, 2), ihamiltonian(HEISENBERG, 2)),
+            rel=1e-10,
         )
 
 
