@@ -60,8 +60,12 @@ identity, so the environment returned here is well defined.
 
 Nicole has no Krylov solver, so the fixed point is reached by plain
 regularized power iteration, converging as the second eigenvalue of the
-MPS transfer operator to the power of the iteration count. A gapped model
-needs a handful of sweeps; a critical one needs more.
+MPS transfer operator to the power of the number of unit cells absorbed.
+A gapped model needs tens of cells. A critical one needs hundreds and may
+not get there at all, because its second eigenvalue approaches one as the
+bond dimension grows: that is why running out of cells is a warning here
+and not an error. This is the accuracy bottleneck of the whole package,
+and the thing a Krylov solve would fix.
 """
 
 from __future__ import annotations
@@ -440,11 +444,7 @@ def _fixed_point(
     -------
     tuple
         `(environment, energy)` with the energy counted per unit cell.
-
-    Raises
-    ------
-    ValueError
-        If the iteration does not converge within `maxiter` cells.
+        Returned even if the budget ran out, with a warning logged.
     """
     E = seed
     change = float('inf')
@@ -462,13 +462,19 @@ def _fixed_point(
             )
             return E, energy
 
-    raise ValueError(
-        f"{side} environment did not converge in {maxiter} unit cells "
-        f"(residual {change:.3e}, tolerance {tol:.3e}). Regularized power "
-        f"iteration converges as the second eigenvalue of the MPS transfer "
-        f"operator, which approaches one at a critical point; raise maxiter "
-        f"or loosen tol."
+    # The best estimate is returned rather than raised on, because the
+    # models this is aimed at are the ones that cannot meet a tight
+    # tolerance: regularized power iteration converges as the second
+    # eigenvalue of the MPS transfer operator, which approaches one at a
+    # critical point. Discarding a nearly converged environment, and with
+    # it a whole run, would be the worse failure.
+    logger.warning(
+        "%s environment did not converge in %d unit cells (residual %.3e, "
+        "tolerance %.3e); continuing with the best estimate. Raise maxiter "
+        "or loosen tol to silence this.",
+        side, maxiter, change, tol,
     )
+    return E, energy
 
 
 def _check_cell(imps: iMPS, impo: iMPO) -> None:
@@ -509,13 +515,13 @@ def left_environment(
     -------
     tuple
         `(E, energy)`, the environment with axes `(bra, mpo, ket)` and the
-        energy of one unit cell.
+        energy of one unit cell. Running out of cells is reported as a
+        warning, not an error, and the best estimate is returned.
 
     Raises
     ------
     ValueError
-        If the unit cells disagree, if `imps` is not gauge fixed, or if the
-        iteration does not converge.
+        If the unit cells disagree, or if `imps` is not gauge fixed.
     """
     _check_cell(imps, impo)
     isometries = imps.left_isometries()
@@ -574,13 +580,13 @@ def right_environment(
     -------
     tuple
         `(E, energy)`, the environment with axes `(bra, mpo, ket)` and the
-        energy of one unit cell.
+        energy of one unit cell. Running out of cells is reported as a
+        warning, not an error, and the best estimate is returned.
 
     Raises
     ------
     ValueError
-        If the unit cells disagree, if `imps` is not gauge fixed, or if the
-        iteration does not converge.
+        If the unit cells disagree, or if `imps` is not gauge fixed.
     """
     _check_cell(imps, impo)
     isometries = imps.right_isometries()
