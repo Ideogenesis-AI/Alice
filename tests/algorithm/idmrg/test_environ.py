@@ -220,3 +220,24 @@ class TestEnvironmentConsistency:
 # ---------------------------------------------------------------------------
 # Failure paths
 # ---------------------------------------------------------------------------
+
+class TestEnvironmentFailures:
+
+    def test_mismatched_unit_cells(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        with pytest.raises(ValueError, match='share a unit cell'):
+            left_environment(imps, ihamiltonian(HEISENBERG, 4))
+
+    def test_state_must_be_gauge_fixed(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        imps[0] = imps[0]
+        with pytest.raises(ValueError, match='not gauge fixed'):
+            left_environment(imps, ihamiltonian(HEISENBERG, 2))
+
+    @pytest.mark.parametrize(
+        'solver', [left_environment, right_environment],
+    )
+    def test_iteration_cap_is_reported(self, spin_half, solver):
+        imps = random_imps(spin_half, 2)
+        with pytest.raises(ValueError, match='did not converge in 1 unit cell'):
+            solver(imps, ihamiltonian(HEISENBERG, 2), maxiter=1)
