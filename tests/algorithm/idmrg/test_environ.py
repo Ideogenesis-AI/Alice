@@ -20,6 +20,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 import torch
 from nicole import identity
@@ -237,7 +239,10 @@ class TestEnvironmentFailures:
     @pytest.mark.parametrize(
         'solver', [left_environment, right_environment],
     )
-    def test_iteration_cap_is_reported(self, spin_half, solver):
+    def test_iteration_cap_warns_but_returns(self, spin_half, solver, caplog):
         imps = random_imps(spin_half, 2)
-        with pytest.raises(ValueError, match='did not converge in 1 unit cell'):
-            solver(imps, ihamiltonian(HEISENBERG, 2), maxiter=1)
+        imps.canonical(0)
+        with caplog.at_level(logging.WARNING, logger='alice.algorithm.idmrg.environ'):
+            env, _ = solver(imps, ihamiltonian(HEISENBERG, 2), maxiter=1)
+        assert 'did not converge in 1 unit cell' in caplog.text
+        assert env is not None
