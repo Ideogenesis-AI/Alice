@@ -177,8 +177,8 @@ class TestWindowMatchesFinite:
 # Cell tiling and structure
 # ---------------------------------------------------------------------------
 
-class TestRingStructure:
-    """Shape, itags and bond matching around the unit cell."""
+class TestCellStructure:
+    """Shape, itags and bond matching across the unit cell."""
 
     @pytest.mark.parametrize("N", [1, 2, 3, 5])
     def test_is_impo_of_right_length(self, N):
@@ -189,7 +189,7 @@ class TestRingStructure:
         assert len(impo.bond_dims) == N
 
     @pytest.mark.parametrize("N", [1, 2, 3, 5])
-    def test_wrap_around_bond_closes(self, N):
+    def test_cell_boundary_bond_matches(self, N):
         """The last tensor's right index is dual to the first tensor's left."""
         impo = _build_inf('heisenberg_u1', N)
         right = impo[N - 1].indices[1]
