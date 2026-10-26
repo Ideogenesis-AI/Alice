@@ -18,9 +18,11 @@
 
 """Infinite DMRG algorithm package.
 
-Optimizes one unit cell of an infinite MPS against an infinite MPO. The
-public API so far covers the environments:
+Optimizes one unit cell of an infinite MPS against an infinite MPO.
 
+- `run` — the driver, configured by `Options` and reporting a `Summary`.
+- `cell_update` — one VUMPS iteration over the whole unit cell.
+- `cell_environments` — environment blocks for every bond of the cell.
 - `left_environment` / `right_environment` — regularized boundary fixed
   points, each returning the energy of one unit cell alongside.
 - `energy_density` — energy per site.
@@ -39,15 +41,22 @@ from .environ import (
     transfer_left,
     transfer_right,
 )
+from .idmrg import Options, Summary, run
+from .sweep import cell_environments, cell_update
 
 __all__ = [
+    'Options',
+    'Summary',
+    'cell_environments',
     'cell_left_env',
     'cell_right_env',
+    'cell_update',
     'energy_density',
     'left_density',
     'left_environment',
     'right_density',
     'right_environment',
+    'run',
     'transfer_left',
     'transfer_right',
 ]
