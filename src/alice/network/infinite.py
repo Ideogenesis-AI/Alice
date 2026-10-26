@@ -526,10 +526,10 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
     def __setitem__(self, i: int, t: Tensor) -> None:
         """Replace a site tensor, dropping the gauge it invalidates.
 
-        The finite family leaves `center` alone here, because there it is
-        only a bookkeeping integer. A gauge is not bookkeeping: it carries
-        the Schmidt spectrum, and keeping a stale one would let every later
-        measurement quietly describe a state that no longer exists.
+        The gauge goes with it, `center` included. A gauge is not
+        bookkeeping: it carries the Schmidt spectrum, and keeping a stale
+        one would let every later measurement quietly describe a state that
+        no longer exists.
         """
         self._tensors[i] = t
         self._bond_matrices = None
@@ -764,11 +764,11 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         and each bond matrix has unit norm, so the Schmidt weights on every
         bond sum to one.
 
-        Unlike `MPS.canonical` this cannot be done in a single sweep. The
-        cell has no open end to start from, so the gauge is found by
-        iterating sweeps until the triangular factor carried around the ring
-        reproduces itself. No truncation happens here: the sweeps use QR,
-        which keeps every bond exactly as wide as it was.
+        The cell has no open end to start from, so one sweep is not enough:
+        the gauge is found by iterating sweeps until the triangular factor
+        carried into the next copy reproduces itself, after which both forms
+        are rotated into the Schmidt basis. No truncation happens here, as
+        the sweeps use QR, which keeps every bond exactly as wide as it was.
 
         Parameters
         ----------
