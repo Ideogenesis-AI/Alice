@@ -454,6 +454,20 @@ class TestCanonicalForm:
             assert after == pytest.approx(before, abs=1e-10)
 
 
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_bond_matrices_are_diagonal(self, spin_space, N):
+        # The gauge iteration leaves C triangular; a final rotation into the
+        # Schmidt basis makes it diagonal, which is what gives it a cheap
+        # inverse and makes its entries the Schmidt values themselves.
+        imps = _gaugeable_imps(spin_space, N)
+        imps.canonical()
+        for bond in range(N):
+            for blk in imps.bond_matrix(bond).data.values():
+                flat = blk.reshape(blk.shape[0], blk.shape[1], -1)[:, :, 0]
+                off = flat - torch.diag_embed(torch.diagonal(flat))
+                assert float(off.abs().max()) < 1e-12
+
+
 class TestCanonicalKnownStates:
     """States whose canonical form is known in closed form."""
 
