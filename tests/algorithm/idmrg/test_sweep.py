@@ -158,6 +158,15 @@ class TestCellUpdate:
         assert before / 2 == pytest.approx(DIMER_ENERGY, abs=TABLE_TOL)
         assert after / 2 == pytest.approx(DIMER_ENERGY, abs=TABLE_TOL)
 
+    def test_only_the_two_site_scheme_reports_a_discarded_weight(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        env_left, env_right, _ = cell_environments(imps, impo)
+        _, discarded = cell_update(
+            imps, impo, env_left, env_right, Options(scheme='1s'),
+        )
+        assert discarded == 0.0
+
     def test_unimplemented_scheme_is_rejected(self, spin_half):
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
