@@ -158,6 +158,6 @@ class TestCellUpdate:
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
         opts = Options()
-        opts.scheme = '2s'
+        opts.scheme = '1sp'
         with pytest.raises(NotImplementedError, match='unknown scheme'):
             cell_update(imps, impo, env_left, env_right, opts)
