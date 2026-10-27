@@ -243,8 +243,18 @@ class Options(AlgorithmOptions):
 
     Notes
     -----
-    Environments are not cached to disk. A unit cell holds `N` environment
-    blocks and all of them are live at once, so there is nothing to evict.
+    An environment block scales as `chi^2 * w`, and a pass over the cell
+    needs one on every bond from each side. On a chain that is what it
+    sounds like, `2N` small tensors, and the defaults keep them all in
+    memory. On a quasi-1D cylinder the unit cell is one column, so `N`
+    runs to dozens while `chi` and `w` both grow with the circumference,
+    and that is the case `env_cache_dir` exists for.
+
+    Half of those blocks were never needed. A pass produces its left
+    blocks in the order it consumes them, so one running tensor does the
+    work of `N`, and that is now how both schemes run whether or not
+    anything is cached. Only the right side is stored, and only it can be
+    evicted. See `alice.algorithm.idmrg.sweep` for the argument.
     """
 
     scheme: str = '2s'
