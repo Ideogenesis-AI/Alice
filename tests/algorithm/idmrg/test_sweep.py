@@ -190,6 +190,25 @@ class TestCellUpdate:
         with pytest.raises(NotImplementedError, match='unknown scheme'):
             cell_update(imps, impo, env_left, env_right, opts)
 
+    def test_mirrored_environments_name_the_missing_direction(self, spin_half):
+        # Streaming the right side and storing the left describes a
+        # backward pass, which the signature admits and nothing runs yet.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        env_left, env_right, _ = cell_environments(imps, impo)
+        with pytest.raises(NotImplementedError, match='right-to-left'):
+            cell_update(imps, impo, env_right, env_left, Options())
+
+    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    def test_two_sides_in_one_shape_are_rejected(self, spin_half, scheme):
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        env_left, env_right, _ = cell_environments(imps, impo)
+        with pytest.raises(TypeError, match='same shape'):
+            cell_update(
+                imps, impo, env_left, env_right[1], Options(scheme=scheme),
+            )
+
 
 class TestTwoSiteCellUpdate:
     """What only the two-site scheme can do, and what it refuses."""
