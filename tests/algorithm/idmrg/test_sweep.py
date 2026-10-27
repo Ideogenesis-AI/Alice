@@ -123,13 +123,14 @@ class TestCellUpdate:
         assert abs(float(imps.bond_matrix(0).norm()) - 1.0) < 1e-10
 
     @pytest.mark.parametrize('N', [2, 4])
-    def test_bond_dimensions_are_preserved(self, spin_half, N):
-        # VUMPS neither splits nor truncates, so the cell keeps its width.
+    def test_one_site_preserves_the_bond_dimensions(self, spin_half, N):
+        # The one-site scheme neither splits nor truncates, so the cell
+        # keeps exactly the width it came in with.
         imps = random_imps(spin_half, N)
         impo = ihamiltonian(HEISENBERG, N)
         before = list(imps.bond_dims)
         env_left, env_right, _ = cell_environments(imps, impo)
-        cell_update(imps, impo, env_left, env_right, Options())
+        cell_update(imps, impo, env_left, env_right, Options(scheme='1s'))
         assert imps.bond_dims == before
 
     def test_energy_decreases(self, spin_half):
