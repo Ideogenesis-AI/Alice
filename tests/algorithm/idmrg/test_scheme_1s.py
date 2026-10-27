@@ -23,7 +23,7 @@ from __future__ import annotations
 import pytest
 from nicole import identity
 
-from alice.algorithm.idmrg import cell_environments, transfer_left, transfer_right
+from alice.algorithm.idmrg import transfer_left, transfer_right
 from alice.algorithm.idmrg.davidson import _inner_product
 from alice.algorithm.idmrg.scheme_1s import (
     gauge_tensors,
@@ -36,6 +36,7 @@ from alice.algorithm.idmrg.scheme_1s import (
 from .conftest import (
     HEISENBERG,
     MAJUMDAR_GHOSH,
+    bond_environments,
     dimer_imps,
     ihamiltonian,
     random_imps,
@@ -52,10 +53,15 @@ def _delta(idx, itag):
 
 
 def _setup(imps, model=HEISENBERG, n3x=False):
-    """Return the iMPO and the environment blocks for a gauge-fixed state."""
+    """Return the iMPO and the environment blocks of a gauge-fixed state.
+
+    Both block lists are indexed by bond, so the right block that goes
+    with site `i` is `rights[(i + 1) % N]` and the one that goes with
+    bond `k` is `rights[k]`.
+    """
     impo = ihamiltonian(model, imps.N, n3x=n3x)
-    env_left, env_right, _ = cell_environments(imps, impo)
-    return impo, env_left, env_right
+    lefts, rights = bond_environments(imps, impo)
+    return impo, lefts, rights
 
 
 # ---------------------------------------------------------------------------
@@ -68,18 +74,18 @@ class TestEffectiveHamiltonians:
     @pytest.mark.parametrize('N', [2, 4])
     def test_center_operator_preserves_layout(self, spin_half, N):
         imps = random_imps(spin_half, N)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         center = imps.center_tensor(0)
-        out = matvec_center(center, impo[0], env_left[0], env_right[0])
+        out = matvec_center(center, impo[0], lefts[0], rights[1])
         assert out.itags == center.itags
         assert [i.dim for i in out.indices] == [i.dim for i in center.indices]
 
     @pytest.mark.parametrize('N', [2, 4])
     def test_bond_operator_preserves_layout(self, spin_half, N):
         imps = random_imps(spin_half, N)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         bond = imps.bond_matrix(0)
-        out = matvec_bond(bond, env_left[0], env_right[N - 1])
+        out = matvec_bond(bond, lefts[0], rights[0])
         assert out.itags == bond.itags
         assert [i.dim for i in out.indices] == [i.dim for i in bond.indices]
 
@@ -88,20 +94,20 @@ class TestEffectiveHamiltonians:
         # that is not Hermitian would be silently symmetrized and the
         # eigenvector would be wrong rather than merely inaccurate.
         imps = random_imps(spin_half, 2)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         u = imps.center_tensor(0)
         v = random_imps(spin_half, 2, seed=7).center_tensor(0)
-        left = _inner_product(u, matvec_center(v, impo[0], env_left[0], env_right[0]))
-        right = _inner_product(matvec_center(u, impo[0], env_left[0], env_right[0]), v)
+        left = _inner_product(u, matvec_center(v, impo[0], lefts[0], rights[1]))
+        right = _inner_product(matvec_center(u, impo[0], lefts[0], rights[1]), v)
         assert abs(left - right) < 1e-10 * max(1.0, abs(left))
 
     def test_bond_operator_is_hermitian(self, spin_half):
         imps = random_imps(spin_half, 2)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         u = imps.bond_matrix(0)
         v = random_imps(spin_half, 2, seed=7).bond_matrix(0)
-        left = _inner_product(u, matvec_bond(v, env_left[0], env_right[1]))
-        right = _inner_product(matvec_bond(u, env_left[0], env_right[1]), v)
+        left = _inner_product(u, matvec_bond(v, lefts[0], rights[0]))
+        right = _inner_product(matvec_bond(u, lefts[0], rights[0]), v)
         assert abs(left - right) < 1e-10 * max(1.0, abs(left))
 
 
@@ -114,23 +120,23 @@ class TestLocalSolves:
 
     def test_center_solve_does_not_raise_the_ritz_value(self, spin_half):
         imps = random_imps(spin_half, 2)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         center = imps.center_tensor(0)
         before = _inner_product(
-            center, matvec_center(center, impo[0], env_left[0], env_right[0]),
+            center, matvec_center(center, impo[0], lefts[0], rights[1]),
         ).real
         energy, optimized, _ = optimize_center(
-            center, impo[0], env_left[0], env_right[0], DAVIDSON,
+            center, impo[0], lefts[0], rights[1], DAVIDSON,
         )
         assert energy <= before + 1e-12
         assert abs(float(optimized.norm()) - 1.0) < 1e-10
 
     def test_bond_solve_does_not_raise_the_ritz_value(self, spin_half):
         imps = random_imps(spin_half, 2)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         bond = imps.bond_matrix(0)
-        before = _inner_product(bond, matvec_bond(bond, env_left[0], env_right[1])).real
-        energy, optimized, _ = optimize_bond(bond, env_left[0], env_right[1], DAVIDSON)
+        before = _inner_product(bond, matvec_bond(bond, lefts[0], rights[0])).real
+        energy, optimized, _ = optimize_bond(bond, lefts[0], rights[0], DAVIDSON)
         assert energy <= before + 1e-12
         assert abs(float(optimized.norm()) - 1.0) < 1e-10
 
@@ -147,16 +153,17 @@ class TestGaugeStep:
         # The polar factors are isometric by construction whatever is fed
         # in, so this holds away from the fixed point too.
         imps = random_imps(spin_half, N)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         centers, bonds = [], []
         for i in range(N):
             _, center, _ = optimize_center(
-                imps.center_tensor(i), impo[i], env_left[i], env_right[i], DAVIDSON,
+                imps.center_tensor(i), impo[i], lefts[i], rights[(i + 1) % N],
+                DAVIDSON,
             )
             centers.append(center)
         for k in range(N):
             _, bond, _ = optimize_bond(
-                imps.bond_matrix(k), env_left[k], env_right[(k - 1) % N], DAVIDSON,
+                imps.bond_matrix(k), lefts[k], rights[k], DAVIDSON,
             )
             bonds.append(bond)
 
@@ -190,18 +197,19 @@ class TestGaugeStep:
         # The dimer state is the exact Majumdar-Ghosh ground state, so the
         # two eigenproblems must already agree on it.
         imps = dimer_imps(spin_half)
-        impo, env_left, env_right = _setup(imps, MAJUMDAR_GHOSH, n3x=True)
+        impo, lefts, rights = _setup(imps, MAJUMDAR_GHOSH, n3x=True)
         gradient = 0.0
         for i in range(imps.N):
             _, center, _ = optimize_center(
-                imps.center_tensor(i), impo[i], env_left[i], env_right[i], DAVIDSON,
+                imps.center_tensor(i), impo[i], lefts[i],
+                rights[(i + 1) % imps.N], DAVIDSON,
             )
             _, bond_left, _ = optimize_bond(
-                imps.bond_matrix(i), env_left[i], env_right[i - 1], DAVIDSON,
+                imps.bond_matrix(i), lefts[i], rights[i], DAVIDSON,
             )
             _, bond_right, _ = optimize_bond(
-                imps.bond_matrix(i + 1), env_left[(i + 1) % imps.N], env_right[i],
-                DAVIDSON,
+                imps.bond_matrix(i + 1), lefts[(i + 1) % imps.N],
+                rights[(i + 1) % imps.N], DAVIDSON,
             )
             _, _, error = gauge_tensors(center, bond_left, bond_right)
             gradient = max(gradient, error)
