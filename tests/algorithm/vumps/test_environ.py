@@ -26,7 +26,7 @@ import pytest
 import torch
 from nicole import identity
 
-from alice.algorithm.idmrg import (
+from alice.algorithm.vumps import (
     Environment,
     build_right_envs,
     cell_left_env,
@@ -37,7 +37,7 @@ from alice.algorithm.idmrg import (
     transfer_left,
     transfer_right,
 )
-from alice.algorithm.idmrg.environ import step_right_env
+from alice.algorithm.vumps.environ import step_right_env
 
 from .conftest import (
     HEISENBERG,
@@ -245,7 +245,7 @@ class TestEnvironmentFailures:
     def test_iteration_cap_warns_but_returns(self, spin_half, solver, caplog):
         imps = random_imps(spin_half, 2)
         imps.canonical(0)
-        with caplog.at_level(logging.WARNING, logger='alice.algorithm.idmrg.environ'):
+        with caplog.at_level(logging.WARNING, logger='alice.algorithm.vumps.environ'):
             env, _ = solver(imps, ihamiltonian(HEISENBERG, 2), maxiter=1)
         assert 'did not converge in 1 unit cell' in caplog.text
         assert env is not None

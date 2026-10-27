@@ -23,9 +23,9 @@ from __future__ import annotations
 import pytest
 from nicole import einsum
 
-from alice.algorithm.idmrg.davidson import _inner_product
-from alice.algorithm.idmrg.scheme_1s import gauge_tensors
-from alice.algorithm.idmrg.scheme_2s import (
+from alice.algorithm.vumps.davidson import _inner_product
+from alice.algorithm.vumps.scheme_1s import gauge_tensors
+from alice.algorithm.vumps.scheme_2s import (
     discarded_weight,
     matvec_two_site,
     optimize_two_site,

@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Infinite states and Hamiltonians shared by the iDMRG tests."""
+"""Infinite states and Hamiltonians shared by the VUMPS tests."""
 
 from __future__ import annotations
 
@@ -27,8 +27,8 @@ from nicole import Direction, Tensor, load_space
 from nicole.index import Index, Sector
 
 from alice import build_interaction
-from alice.algorithm.idmrg import cell_environments
-from alice.algorithm.idmrg.environ import step_left_env
+from alice.algorithm.vumps import cell_environments
+from alice.algorithm.vumps.environ import step_left_env
 from alice.network import iMPS
 from alice.network.autoimpo import build_ihamiltonian
 

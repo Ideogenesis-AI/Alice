@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for the iDMRG driver: options, summary, and the VUMPS run loop."""
+"""Tests for the VUMPS driver: options, summary, and the run loop."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from alice.algorithm.idmrg import Options, Summary, run
+from alice.algorithm.vumps import Options, Summary, run
 from alice.network import iMPS
 
 from .conftest import (
@@ -93,14 +93,14 @@ class TestOptions:
         assert Options(scheme=alias).scheme == '1sp'
 
     def test_unknown_scheme_raises(self):
-        with pytest.raises(ValueError, match='unknown iDMRG scheme'):
+        with pytest.raises(ValueError, match='unknown VUMPS scheme'):
             Options(scheme='no-such-scheme')
 
     def test_directories_survive_a_toml_round_trip(self, tmp_path):
         # Both directories are held as str rather than Path so that a run
         # can be configured entirely from a TOML file.
         original = Options(checkpoint_dir='/tmp/ckpt', artifacts_dir='/tmp/archive')
-        path = tmp_path / 'idmrg.toml'
+        path = tmp_path / 'vumps.toml'
         original.to_toml(path)
         loaded = Options.load_toml(path)
         assert loaded.checkpoint_dir == '/tmp/ckpt'
@@ -347,7 +347,7 @@ class TestRun:
         )
         assert (tmp_path / 'artifacts' / 'state.ckpt').exists()
         # The per-iteration checkpoint is redundant once the run finishes.
-        assert not (tmp_path / 'idmrg.ckpt').exists()
+        assert not (tmp_path / 'vumps.ckpt').exists()
 
     def test_artifact_is_written_under_cwd_by_default(self, spin_half):
         # An unset checkpoint_dir resolves to the working directory as it
@@ -380,7 +380,7 @@ class TestRun:
             ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
             _options(checkpoint_dir=str(tmp_path)),
         )
-        assert not (tmp_path / 'idmrg_lock.ckpt').exists()
+        assert not (tmp_path / 'vumps_lock.ckpt').exists()
         assert not (tmp_path / 'artifacts' / 'state_lock.ckpt').exists()
 
     def test_archived_artifact_agrees_with_the_summary(self, spin_half, tmp_path):
@@ -464,7 +464,7 @@ class TestEnvironmentCache:
         root = tmp_path / 'cache'
         root.mkdir()
         monkeypatch.setattr(
-            'alice.algorithm.idmrg.idmrg.cell_update', _refuses_to_run,
+            'alice.algorithm.vumps.vumps.cell_update', _refuses_to_run,
         )
         with pytest.raises(RuntimeError, match='no iteration for you'):
             self._dimer_run(spin_half, env_cache_dir=str(root))

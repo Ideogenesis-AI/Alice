@@ -23,7 +23,7 @@ from __future__ import annotations
 import pytest
 from nicole import identity
 
-from alice.algorithm.idmrg import (
+from alice.algorithm.vumps import (
     Environment,
     Options,
     cell_environments,

@@ -23,9 +23,9 @@ from __future__ import annotations
 import pytest
 from nicole import identity
 
-from alice.algorithm.idmrg import transfer_left, transfer_right
-from alice.algorithm.idmrg.davidson import _inner_product
-from alice.algorithm.idmrg.scheme_1s import (
+from alice.algorithm.vumps import transfer_left, transfer_right
+from alice.algorithm.vumps.davidson import _inner_product
+from alice.algorithm.vumps.scheme_1s import (
     gauge_tensors,
     matvec_bond,
     matvec_center,

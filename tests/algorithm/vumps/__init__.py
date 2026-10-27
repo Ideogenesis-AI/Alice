@@ -16,4 +16,4 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Tests for alice.algorithm.idmrg: environments and the infinite engine."""
+"""Tests for alice.algorithm.vumps: environments and the infinite engine."""
