@@ -259,6 +259,9 @@ class Summary(AlgorithmSummary):
         bond onto the next copy of the cell).
     gradients:
         VUMPS gradient norm `|AC - AL C|` recorded at each iteration.
+    discarded_weights:
+        Largest weight discarded by a split, recorded at each iteration.
+        All zeros under `'1s'`, which never splits anything.
     """
 
     energy: float
@@ -268,6 +271,7 @@ class Summary(AlgorithmSummary):
     n_iters: int = 0
     bond_dims: List[int] = field(default_factory=list)
     gradients: List[float] = field(default_factory=list)
+    discarded_weights: List[float] = field(default_factory=list)
 
     def serialize(self) -> Dict:
         """Serialize the summary to a plain dict compatible with `torch.save`.
@@ -280,7 +284,7 @@ class Summary(AlgorithmSummary):
         Dict
             Serialized summary with keys `"version"`, `"energy"`,
             `"energies"`, `"converged"`, `"n_iters"`, `"bond_dims"`,
-            `"gradients"`, and `"state"`.
+            `"gradients"`, `"discarded_weights"`, and `"state"`.
         """
         return {
             'version': 1,
@@ -290,6 +294,7 @@ class Summary(AlgorithmSummary):
             'n_iters': self.n_iters,
             'bond_dims': self.bond_dims,
             'gradients': self.gradients,
+            'discarded_weights': self.discarded_weights,
             'state': self.state.serialize(),
         }
 
@@ -324,6 +329,7 @@ class Summary(AlgorithmSummary):
             n_iters=data['n_iters'],
             bond_dims=data['bond_dims'],
             gradients=data.get('gradients', []),
+            discarded_weights=data.get('discarded_weights', []),
             state=iNetwork.deserialize(data['state'], device=device),
         )
 
@@ -336,6 +342,7 @@ def _save_checkpoint(
     imps: iMPS,
     energies: List[float],
     gradients: List[float],
+    discarded_weights: List[float],
     iter_count: int,
     ckpt_dir: Path,
 ) -> None:
@@ -354,6 +361,8 @@ def _save_checkpoint(
         Energy-per-site history up to and including the current iteration.
     gradients:
         Gradient-norm history up to and including the current iteration.
+    discarded_weights:
+        Discarded-weight history up to and including the current iteration.
     iter_count:
         Number of iterations completed so far.
     ckpt_dir:
@@ -369,6 +378,7 @@ def _save_checkpoint(
         n_iters=iter_count,
         bond_dims=list(imps.bond_dims),
         gradients=list(gradients),
+        discarded_weights=list(discarded_weights),
     )
 
     lock_path = ckpt_dir / 'idmrg_lock.ckpt'
@@ -475,6 +485,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
 
     energies: List[float] = []
     gradients: List[float] = []
+    discarded_weights: List[float] = []
     converged = False
     iter_count = 0
     prev_energy = math.inf
@@ -512,7 +523,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
             logger.debug("")
         logger.debug("iteration %*d / %d initiated", w, iter_idx + 1, opts.n_iters)
 
-        gradient = cell_update(imps, impo, env_left, env_right, opts)
+        gradient, discarded = cell_update(imps, impo, env_left, env_right, opts)
 
         # The update installs its own gauge, so only the fixed points have
         # to be re-solved. They give the energy density and the environments
@@ -525,9 +536,12 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
         delta_e = abs(energy - prev_energy)
         energies.append(energy)
         gradients.append(gradient)
+        discarded_weights.append(discarded)
         iter_count += 1
 
-        _save_checkpoint(imps, energies, gradients, iter_count, _ckpt)
+        _save_checkpoint(
+            imps, energies, gradients, discarded_weights, iter_count, _ckpt,
+        )
 
         logger.info(
             "iteration %*d / %d: e = %+.12g, |Δe| = %.4e, |grad| = %.4e",
@@ -550,6 +564,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
         n_iters=iter_count,
         bond_dims=list(imps.bond_dims),
         gradients=gradients,
+        discarded_weights=discarded_weights,
     )
 
     _save_final_artifact(summary, _artifacts)
