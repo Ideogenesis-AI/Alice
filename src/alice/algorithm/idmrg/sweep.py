@@ -57,13 +57,19 @@ is the gradient this module reports.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 from nicole import Tensor, einsum
 
 from alice.network import iMPO, iMPS
 
-from .environ import left_environment, right_environment, step_left_env, step_right_env
+from .environ import (
+    Environment,
+    build_right_envs,
+    left_environment,
+    spread_right_envs,
+    step_left_env,
+)
 from .scheme_1s import gauge_tensors, optimize_bond, optimize_center
 from .scheme_2s import discarded_weight, optimize_two_site, split_two_site
 
@@ -83,12 +89,16 @@ def cell_environments(
     *,
     tol: float = 1e-12,
     maxiter: int = 200,
-) -> Tuple[List[Tensor], List[Tensor], float]:
-    """Solve the boundary fixed points and spread them across the unit cell.
+    env_left: Optional[Environment] = None,
+    env_right: Optional[Environment] = None,
+) -> Tuple[Tensor, Environment, float]:
+    """Solve the boundary fixed points and set up the environments of a pass.
 
-    `imps` must be gauge-fixed. The two fixed points live on bond 0; the
-    remaining blocks follow from them by absorbing one site at a time, the
-    left ones through `AL` and the right ones through `AR`.
+    `imps` must be gauge-fixed. Both fixed points live on bond 0. The left
+    one is handed back as it is, because a pass builds the rest of the left
+    side as it goes; the right one is spread over every bond of the cell,
+    because a pass reads those in the opposite order to the one they are
+    built in. The module docstring gives the argument in full.
 
     Parameters
     ----------
@@ -100,34 +110,45 @@ def cell_environments(
         Convergence tolerance forwarded to the fixed-point solver.
     maxiter:
         Maximum number of unit cells absorbed by the fixed-point solver.
+    env_left:
+        Storage for the left side, which a forward pass streams rather
+        than stores. Taken for symmetry with `env_right` and refused.
+    env_right:
+        Storage to fill. `None` builds a plain in-memory one. A caller
+        that runs many iterations should build one `Environment` up front
+        and pass it in each time, so that its cache directory and its I/O
+        thread are set up once rather than per iteration.
 
     Returns
     -------
     env_left:
-        Block `i` sits on the bond to the left of site `i` and holds
-        everything further left. Length `N`.
+        Left fixed point, the block on bond 0.
     env_right:
-        Block `i` sits on the bond to the right of site `i` and holds
-        everything further right. Length `N`.
+        Right blocks, one per bond. The same object that was passed in,
+        when one was.
     energy:
         Energy of one unit cell, from the left fixed point.
+
+    Raises
+    ------
+    NotImplementedError
+        If storage was handed in for the left side, which describes a
+        right-to-left pass.
     """
-    N = imps.N
-    left_isos = imps.left_isometries()
-    right_isos = imps.right_isometries()
+    # Only the stored side needs somewhere to live, since the streamed one
+    # is a single block the pass carries itself.
+    if env_left is not None:
+        raise NotImplementedError(
+            "a right-to-left pass is not implemented: a forward pass stores "
+            "the right side, so its storage belongs to env_right"
+        )
+    if env_right is None:
+        env_right = Environment(imps.N)
 
-    env_left: List[Optional[Tensor]] = [None] * N
-    env_right: List[Optional[Tensor]] = [None] * N
+    left_block, energy = left_environment(imps, impo, tol=tol, maxiter=maxiter)
+    build_right_envs(imps, impo, env_right, tol=tol, maxiter=maxiter)
 
-    env_left[0], energy = left_environment(imps, impo, tol=tol, maxiter=maxiter)
-    for i in range(N - 1):
-        env_left[i + 1] = step_left_env(env_left[i], left_isos[i], impo[i])
-
-    env_right[N - 1], _ = right_environment(imps, impo, tol=tol, maxiter=maxiter)
-    for i in range(N - 2, -1, -1):
-        env_right[i] = step_right_env(env_right[i + 1], right_isos[i + 1], impo[i + 1])
-
-    return env_left, env_right, energy
+    return left_block, env_right, energy
 
 
 # ---------------------------------------------------------------------------
