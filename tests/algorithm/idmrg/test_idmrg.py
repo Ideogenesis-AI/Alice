@@ -36,6 +36,7 @@ from .conftest import (
     dimer_imps,
     dimer_imps_su2,
     ihamiltonian,
+    neel_imps,
     random_imps,
 )
 
@@ -273,6 +274,70 @@ class TestRun:
         assert narrow.energy > HEISENBERG_EXACT
         assert wide.energy > HEISENBERG_EXACT
         assert wide.energy < narrow.energy
+
+    def test_two_site_reaches_the_dimer_from_a_product_state(self, spin_half):
+        # The Neel state has one-dimensional bonds, so the one-site scheme
+        # is stuck with it forever. This is the test that justifies the
+        # two-site scheme existing at all.
+        imps = neel_imps(spin_half, 2)
+        assert imps.bond_dims == [1, 1]
+        summary = run(
+            imps,
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme='2s', max_bond=8),
+        )
+        assert summary.converged
+        assert max(summary.bond_dims) > 1
+        assert summary.energy == pytest.approx(DIMER_ENERGY, abs=TABLE_TOL)
+
+    def test_two_site_agrees_with_one_site_where_both_can_run(self, spin_half):
+        # Given a cell wide enough for the one-site scheme to represent the
+        # answer, the two schemes must land on the same state.
+        one = run(
+            random_imps(spin_half, 2),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme='1s'),
+        )
+        two = run(
+            random_imps(spin_half, 2),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme='2s', max_bond=8),
+        )
+        assert two.energy == pytest.approx(one.energy, abs=TABLE_TOL)
+
+    def test_two_site_under_su2(self, spin_half_su2):
+        # The SU(2) tensors are pure Clebsch-Gordan and avoid the spin
+        # tables, so this pins the two-site scheme to machine precision
+        # rather than to the eight digits U(1) allows.
+        summary = run(
+            dimer_imps_su2(spin_half_su2),
+            ihamiltonian(MAJUMDAR_GHOSH_SU2, 2, n3x=True),
+            _options(scheme='2s', max_bond=8),
+        )
+        assert summary.converged
+        assert summary.energy == pytest.approx(DIMER_ENERGY, abs=1e-11)
+
+    def test_two_site_result_is_independent_of_the_unit_cell(self, spin_half):
+        two = run(
+            neel_imps(spin_half, 2),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme='2s', max_bond=8),
+        )
+        four = run(
+            neel_imps(spin_half, 4),
+            ihamiltonian(MAJUMDAR_GHOSH, 4, n3x=True),
+            _options(scheme='2s', max_bond=8),
+        )
+        assert four.energy == pytest.approx(two.energy, abs=TABLE_TOL)
+
+    def test_two_site_growth_respects_the_bond_cap(self, spin_half):
+        summary = run(
+            neel_imps(spin_half, 2),
+            ihamiltonian(HEISENBERG, 2),
+            _options(scheme='2s', max_bond=6, n_iters=8),
+        )
+        assert max(summary.bond_dims) == 6
+        assert len(summary.discarded_weights) == summary.n_iters
 
     def test_artifact_is_archived(self, spin_half, tmp_path):
         run(
