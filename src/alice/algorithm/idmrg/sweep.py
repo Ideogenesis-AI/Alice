@@ -69,6 +69,23 @@ Which side plays which role is a property of the direction, not of the
 side, so every entry point here names its arguments by side, takes
 either side in either shape, and turns away the shapes it cannot run.
 
+Mirroring to a backward sweep
+-----------------------------
+Caching one side only is what ties these passes to one direction; the
+finite algorithm caches both because it sweeps both ways. Four things
+would change in a right-to-left pass, and nothing else:
+
+1. Which side is streamed and which is stored, the two exchanging roles.
+   The signatures already allow it; `_forward_pass_envs` and the opening
+   of `cell_environments` are the only places that insist on the forward
+   assignment.
+2. Which of `step_left_env` / `step_right_env` advances the running block.
+3. The order the positions are visited in, and so the bond each one reads.
+4. Which end the two-site boundary rebuild starts from: the one bond the
+   pass has not cut, which is bond 0 going right and bond 1 going left.
+
+`Environment` already takes its direction as a setting rather than
+guessing it, so the storage side needs nothing new.
 
 Installing the result
 ---------------------
