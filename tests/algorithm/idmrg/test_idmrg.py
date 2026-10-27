@@ -81,6 +81,10 @@ class TestOptions:
     def test_one_site_aliases(self, alias):
         assert Options(scheme=alias).scheme == '1s'
 
+    @pytest.mark.parametrize('alias', ['2s', '2-site', 'two-site'])
+    def test_two_site_aliases(self, alias):
+        assert Options(scheme=alias).scheme == '2s'
+
     @pytest.mark.parametrize(
         'alias, canonical',
         [('2-site', '2s'), ('two-site', '2s'), ('1-site-plus', '1sp')],
