@@ -66,6 +66,17 @@ not get there at all, because its second eigenvalue approaches one as the
 bond dimension grows: that is why running out of cells is a warning here
 and not an error. This is the accuracy bottleneck of the whole package,
 and the thing a Krylov solve would fix.
+
+Storing the blocks
+------------------
+A fixed point on bond `0` is one tensor, but a pass over the cell needs a
+block on every bond, and `Environment` is where those live. Only the right
+side is stored: a forward pass produces its left blocks in the order it
+consumes them, so one running tensor suffices, while the right blocks come
+off the recursion in the opposite order to the one they are read in. See
+`sweep` for the full argument. `build_right_envs` solves the right fixed
+point and fills an `Environment` from it; `spread_right_envs` does the
+filling alone, for a caller that already holds the block on bond `0`.
 """
 
 from __future__ import annotations
