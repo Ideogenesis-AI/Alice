@@ -568,6 +568,9 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     logger.info("  davidson max space: %d", opts.davidson_max_subspace)
     logger.info("  gauge tol         : %.2e", opts.gauge_tol)
     logger.info("  env tol           : %.2e", opts.env_tol)
+    if _cache is not None:
+        logger.info("  env cache dir     : %s", _cache)
+        logger.info("  env window        : %d", opts.env_window)
     if opts.checkpoint_dir is not None:
         logger.info("  checkpoint dir    : %s", _ckpt)
     logger.info("  artifacts dir     : %s", _artifacts)
