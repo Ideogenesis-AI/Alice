@@ -27,6 +27,8 @@ from nicole import Direction, Tensor, load_space
 from nicole.index import Index, Sector
 
 from alice import build_interaction
+from alice.algorithm.idmrg import cell_environments
+from alice.algorithm.idmrg.environ import step_left_env
 from alice.network import iMPS
 from alice.network.autoimpo import build_ihamiltonian
 
@@ -40,6 +42,28 @@ HEISENBERG_SU2 = dict(
     category='bosonic', label='Heisenberg', symmetry='SU2', spin=0.5, J=1.0,
 )
 MAJUMDAR_GHOSH_SU2 = dict(HEISENBERG_SU2, Jp=0.5)
+
+
+def bond_environments(imps, impo):
+    """Return every left and right environment block, indexed by bond.
+
+    Both lists are indexed the way `Environment` is: entry `k` sits on
+    bond `k` and holds everything on its side of it, so the right block
+    paired with site `i` is `rights[(i + 1) % N]` and the one paired with
+    bond `k` is `rights[k]`.
+
+    A pass carries the left side one block at a time and reads the right
+    side out of an `Environment`, neither of which suits a test that wants
+    the blocks on one chosen bond. This lays both sides out as plain lists
+    instead.
+    """
+    N = imps.N
+    env_left, env_right, _ = cell_environments(imps, impo)
+    left_isos = imps.left_isometries()
+    lefts = [env_left]
+    for i in range(N - 1):
+        lefts.append(step_left_env(lefts[i], left_isos[i], impo[i]))
+    return lefts, [env_right[k] for k in range(N)]
 
 
 def ihamiltonian(model, N, *, n3x=False):
