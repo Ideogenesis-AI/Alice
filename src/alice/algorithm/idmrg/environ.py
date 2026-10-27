@@ -1001,3 +1001,40 @@ def spread_right_envs(
         # ones the pass asks for first.
         if k + window <= N - 1:
             env_right.evict(k + window)
+
+
+def build_right_envs(
+    imps: iMPS,
+    impo: iMPO,
+    env_right: Environment,
+    *,
+    tol: float = 1e-12,
+    maxiter: int = 200,
+) -> None:
+    """Solve the right fixed point and spread it over the unit cell.
+
+    Parameters
+    ----------
+    imps:
+        Gauge-fixed infinite MPS.
+    impo:
+        Hamiltonian iMPO sharing the unit cell of `imps`.
+    env_right:
+        Target, filled in place. Its length must match the unit cell.
+    tol:
+        Convergence tolerance forwarded to the fixed-point solver.
+    maxiter:
+        Maximum number of unit cells absorbed by the fixed-point solver.
+
+    Raises
+    ------
+    ValueError
+        If `env_right` was built for a different unit cell length.
+    """
+    if len(env_right) != imps.N:
+        raise ValueError(
+            f"env_right holds {len(env_right)} bonds but the unit cell has "
+            f"{imps.N}; build one Environment per cell length"
+        )
+    env_right[0], _ = right_environment(imps, impo, tol=tol, maxiter=maxiter)
+    spread_right_envs(imps.right_isometries(), impo, env_right)
