@@ -339,8 +339,8 @@ def _update_one_site(
 def _update_two_site(
     imps: iMPS,
     impo: iMPO,
-    env_left: List[Tensor],
-    env_right: List[Tensor],
+    env_streamed: Tensor,
+    env_stored: Environment,
     opts: Options,
 ) -> Tuple[float, float]:
     """Sweep the bonds of the cell, solving and splitting a pair at each.
@@ -364,10 +364,11 @@ def _update_two_site(
         Gauge-fixed infinite MPS, updated in place.
     impo:
         Hamiltonian iMPO sharing the unit cell.
-    env_left:
-        Left environment blocks, one per site.
-    env_right:
-        Right environment blocks, one per site.
+    env_streamed:
+        Streamed side, the left fixed point on bond 0.
+    env_stored:
+        Stored side, the right block of every bond, rewritten in place
+        at the cell boundary.
     opts:
         Run options.
 
@@ -400,26 +401,23 @@ def _update_two_site(
     centers = [imps.center_tensor(i) for i in range(N)]
     bonds = [imps.bond_matrix(k) for k in range(N)]
     left_isos = list(imps.left_isometries())
-    envs_left = list(env_left)
-    envs_right = list(env_right)
 
+    carried = env_streamed
     discarded = 0.0
     for k in range(N):
         j = (k + 1) % N
         if j == 0:
             # The pair that spans the cell boundary. Bond 0 is the one bond
-            # this sweep has not touched, so its right environment is still
-            # the one solved for, and carrying it back through the sites
-            # updated since puts a current block on bond 1.
-            for i in range(N - 1, 0, -1):
-                _, right_iso, _ = gauge_tensors(
-                    centers[i], bonds[i], bonds[(i + 1) % N],
-                )
-                envs_right[i - 1] = step_right_env(envs_right[i], right_iso, impo[i])
+            # this sweep has not touched, so its right block is still the
+            # one solved for, and carrying it back through the sites
+            # updated since puts a current block on every bond behind it.
+            _, right_isos, _ = _reconcile(centers, bonds)
+            spread_right_envs(right_isos, impo, env_stored)
 
         AC2 = einsum('abr,bcs->acrs', left_isos[k], centers[j])
         energy, AC2, davidson_error = optimize_two_site(
-            AC2, impo[k], impo[j], envs_left[k], envs_right[j], davidson_opts,
+            AC2, impo[k], impo[j], carried,
+            env_stored.fetch((k + 2) % N), davidson_opts,
         )
         discarded = max(discarded, discarded_weight(AC2, trunc))
 
@@ -436,7 +434,7 @@ def _update_two_site(
         # `left_iso` is already the left-orthonormal tensor of site k, since
         # the polar factor of `U S` is `U` and that of `S` is the identity,
         # so it can carry the left environment onto the new bond directly.
-        envs_left[j] = step_left_env(envs_left[k], left_iso, impo[k])
+        carried = step_left_env(carried, left_iso, impo[k])
         left_isos[j], _, _ = gauge_tensors(centers[j], bonds[j], bonds[(j + 1) % N])
 
     left_isos, right_isos, gradient = _reconcile(centers, bonds)
