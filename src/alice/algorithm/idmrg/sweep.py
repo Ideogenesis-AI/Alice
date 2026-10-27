@@ -262,11 +262,24 @@ def _truncation(opts: Options) -> Optional[dict]:
 def _update_one_site(
     imps: iMPS,
     impo: iMPO,
-    env_left: List[Tensor],
-    env_right: List[Tensor],
+    env_streamed: Tensor,
+    env_stored: Environment,
     opts: Options,
 ) -> float:
     """Solve every center tensor and bond matrix of the cell, then gauge.
+
+    Every position is solved against the environments of the state as it
+    stood when the pass began, which is what makes `|AC - AL C|` a
+    gradient: refreshing a block mid-pass would leave the two sets of
+    answers measured against different operators, and their mismatch
+    would no longer vanish at a stationary point.
+
+    Walking the cell in order does not weaken that. The pass steps its
+    left block through the tensors it read at the top, and `set_canonical`
+    is not reached until the end, so each block is the one the whole cell
+    would have been given up front. The order the positions are solved in
+    is free for the same reason: with the environments frozen, no solve
+    reads another's answer.
 
     Parameters
     ----------
@@ -274,10 +287,10 @@ def _update_one_site(
         Gauge-fixed infinite MPS, updated in place.
     impo:
         Hamiltonian iMPO sharing the unit cell.
-    env_left:
-        Left environment blocks, one per site.
-    env_right:
-        Right environment blocks, one per site.
+    env_streamed:
+        Streamed side, the left fixed point on bond 0.
+    env_stored:
+        Stored side, the right block of every bond.
     opts:
         Run options.
 
@@ -294,26 +307,29 @@ def _update_one_site(
     # since every position is solved against the same environments.
     centers = [imps.center_tensor(i) for i in range(N)]
     bonds = [imps.bond_matrix(k) for k in range(N)]
+    left_isos = imps.left_isometries()
 
+    carried = env_streamed
     for i in range(N):
+        # Bond i first, then site i, so that the two blocks this step reads
+        # come in increasing bond order and the window slides by one.
+        energy, bonds[i], davidson_error = optimize_bond(
+            bonds[i], carried, env_stored.fetch(i), davidson_opts,
+        )
+        logger.debug(
+            "  bond %*d: E = %+.12g, davidson err = %.4e",
+            w, i, energy, davidson_error,
+        )
+
         energy, centers[i], davidson_error = optimize_center(
-            centers[i], impo[i], env_left[i], env_right[i], davidson_opts,
+            centers[i], impo[i], carried, env_stored.fetch((i + 1) % N), davidson_opts,
         )
         logger.debug(
             "  site %*d: E = %+.12g, davidson err = %.4e",
             w, i, energy, davidson_error,
         )
 
-    for k in range(N):
-        # The right environment on bond k belongs to the site to its left,
-        # which is site N-1 when k is 0.
-        energy, bonds[k], davidson_error = optimize_bond(
-            bonds[k], env_left[k], env_right[(k - 1) % N], davidson_opts,
-        )
-        logger.debug(
-            "  bond %*d: E = %+.12g, davidson err = %.4e",
-            w, k, energy, davidson_error,
-        )
+        carried = step_left_env(carried, left_isos[i], impo[i])
 
     left_isos, right_isos, gradient = _reconcile(centers, bonds)
     imps.set_canonical(left_isos, right_isos, bonds)
