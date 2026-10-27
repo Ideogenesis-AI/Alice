@@ -19,13 +19,13 @@
 """Algorithm module: tensor network algorithms built on the network layer."""
 
 from . import dmrg
-from . import idmrg
 from . import tdvp
+from . import vumps
 from . import xtrg
 
 __all__ = [
     'dmrg',
-    'idmrg',
     'tdvp',
+    'vumps',
     'xtrg',
 ]

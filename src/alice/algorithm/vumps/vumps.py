@@ -16,13 +16,13 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Top-level iDMRG driver: options, summary, and entry-point function.
+"""Top-level VUMPS driver: options, summary, and entry-point function.
 
 Typical usage:
 
     import tomllib
     from alice import build_interaction, build_ihamiltonian, iMPS
-    from alice.algorithm import idmrg
+    from alice.algorithm import vumps
 
     with open("config.toml", "rb") as fh:
         cfg = tomllib.load(fh)
@@ -30,17 +30,17 @@ Typical usage:
     interactions, spc, geo = build_interaction(cfg["heisenberg_u1"])
     impo = build_ihamiltonian(interactions, geo.L, spc)
     imps = iMPS(...)         # provide an initial unit cell
-    opts = idmrg.Options.from_toml(cfg["heisenberg_u1"]["algorithm"])
-    summary = idmrg.run(imps, impo, opts)
+    opts = vumps.Options.from_toml(cfg["heisenberg_u1"]["algorithm"])
+    summary = vumps.run(imps, impo, opts)
     print(summary.energy)    # energy per site
 
 How a run proceeds
 ------------------
-The engine is VUMPS. The unit of work is an iteration, counted by
-`n_iters`: every position of the unit cell is solved against one set of
-environments, the environments are re-solved against the updated state,
-and the cycle repeats. The positions within an iteration are independent,
-so their order is immaterial.
+The unit of work is an iteration, counted by `n_iters`: every position of
+the unit cell is solved against one set of environments, the environments
+are re-solved against the updated state, and the cycle repeats. The
+positions within an iteration are independent, so their order is
+immaterial.
 
 Which positions an iteration solves depends on the scheme. The two-site
 scheme, the default, solves a pair of neighboring sites at a time and
@@ -121,7 +121,7 @@ def _resolve_scheme(alias: str) -> str:
     if canonical is None:
         known = ', '.join(sorted(_SCHEME_ALIASES))
         raise ValueError(
-            f"unknown iDMRG scheme {alias!r}; recognised values are: {known}"
+            f"unknown VUMPS scheme {alias!r}; recognised values are: {known}"
         )
     return canonical
 
@@ -132,7 +132,7 @@ def _resolve_scheme(alias: str) -> str:
 
 @dataclass
 class Options(AlgorithmOptions):
-    """iDMRG run options.
+    """VUMPS run options.
 
     All fields have sensible defaults so `Options()` is a valid minimal
     configuration. Use `Options.from_toml` to load from an `[algorithm]`
@@ -226,14 +226,14 @@ class Options(AlgorithmOptions):
         is the smallest value both schemes can run at. Only relevant when
         `env_cache_dir` is set.
     checkpoint_dir:
-        Directory to write checkpoint files into. An `idmrg.ckpt` file
-        (PyTorch format, loadable via `idmrg.Summary.load`) is written after
+        Directory to write checkpoint files into. An `vumps.ckpt` file
+        (PyTorch format, loadable via `vumps.Summary.load`) is written after
         every iteration using an atomic write: the data is first serialized
-        to `idmrg_lock.ckpt` in the same directory, then renamed to
-        `idmrg.ckpt` on success, so a failed write cannot corrupt the
+        to `vumps_lock.ckpt` in the same directory, then renamed to
+        `vumps.ckpt` on success, so a failed write cannot corrupt the
         previous checkpoint. Once `run()` finishes successfully, the final
         `Summary` is archived under `artifacts_dir` (see below) and
-        `idmrg.ckpt` is removed, since it is redundant with the archived
+        `vumps.ckpt` is removed, since it is redundant with the archived
         artifact. `None` (default) resolves to `Path.cwd()` at the time
         `run()` is called, mirroring `.logging`. Pass an explicit path
         string to write elsewhere. Stored as `str` for TOML compatibility.
@@ -257,7 +257,7 @@ class Options(AlgorithmOptions):
     blocks in the order it consumes them, so one running tensor does the
     work of `N`, and that is now how both schemes run whether or not
     anything is cached. Only the right side is stored, and only it can be
-    evicted. See `alice.algorithm.idmrg.sweep` for the argument.
+    evicted. See `alice.algorithm.vumps.sweep` for the argument.
     """
 
     scheme: str = '2s'
@@ -289,7 +289,7 @@ class Options(AlgorithmOptions):
 
 @dataclass
 class Summary(AlgorithmSummary):
-    """iDMRG output.
+    """VUMPS output.
 
     Attributes
     ----------
@@ -397,10 +397,10 @@ def _save_checkpoint(
     iter_count: int,
     ckpt_dir: Path,
 ) -> None:
-    """Write an atomic checkpoint of the current iDMRG state.
+    """Write an atomic checkpoint of the current VUMPS state.
 
-    Serializes the current iMPS and energy history to `idmrg_lock.ckpt` in
-    `ckpt_dir`, then renames it to `idmrg.ckpt`. The rename is atomic on
+    Serializes the current iMPS and energy history to `vumps_lock.ckpt` in
+    `ckpt_dir`, then renames it to `vumps.ckpt`. The rename is atomic on
     POSIX systems, so a crash during serialization cannot corrupt the
     previously written checkpoint.
 
@@ -417,7 +417,7 @@ def _save_checkpoint(
     iter_count:
         Number of iterations completed so far.
     ckpt_dir:
-        Directory in which `idmrg.ckpt` and `idmrg_lock.ckpt` are written.
+        Directory in which `vumps.ckpt` and `vumps_lock.ckpt` are written.
     """
     import torch
 
@@ -432,8 +432,8 @@ def _save_checkpoint(
         discarded_weights=list(discarded_weights),
     )
 
-    lock_path = ckpt_dir / 'idmrg_lock.ckpt'
-    ckpt_path = ckpt_dir / 'idmrg.ckpt'
+    lock_path = ckpt_dir / 'vumps_lock.ckpt'
+    ckpt_path = ckpt_dir / 'vumps.ckpt'
 
     torch.save(summary.serialize(), lock_path)
     lock_path.replace(ckpt_path)
@@ -442,14 +442,14 @@ def _save_checkpoint(
 def _save_final_artifact(summary: Summary, artifacts_dir: Path) -> None:
     """Write the final `Summary` atomically to `state.ckpt` in `artifacts_dir`.
 
-    Unlike the per-iteration `idmrg.ckpt` checkpoint, `summary` here carries
+    Unlike the per-iteration `vumps.ckpt` checkpoint, `summary` here carries
     the correct `converged` flag, since it is built after the loop exits
     rather than while it is still in progress.
 
     Parameters
     ----------
     summary:
-        Final iDMRG summary, including the optimized iMPS.
+        Final VUMPS summary, including the optimized iMPS.
     artifacts_dir:
         Directory in which `state.ckpt` and `state_lock.ckpt` are written.
     """
@@ -507,7 +507,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
 
     if opts.scheme not in _IMPLEMENTED_SCHEMES:
         raise NotImplementedError(
-            f"iDMRG scheme {opts.scheme!r} is recognised but not yet implemented; "
+            f"VUMPS scheme {opts.scheme!r} is recognised but not yet implemented; "
             f"implemented schemes are: {', '.join(sorted(_IMPLEMENTED_SCHEMES))}"
         )
 
@@ -516,7 +516,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     # onto the next cell.
     if not isinstance(imps, iMPS) or not isinstance(impo, iMPO):
         raise TypeError(
-            f"idmrg.run operates on an infinite MPS and MPO, got "
+            f"vumps.run operates on an infinite MPS and MPO, got "
             f"{type(imps).__name__} and {type(impo).__name__}; "
             "use dmrg.run for finite networks"
         )
@@ -551,10 +551,10 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     prev_energy = math.inf
 
     logger.info("─" * 60)
-    logger.info("Commencing: iDMRG Algorithm".center(60))
+    logger.info("Commencing: VUMPS Algorithm".center(60))
     logger.info("─" * 60)
     logger.info("")
-    logger.info("  scheme            : %s (VUMPS)", opts.scheme)
+    logger.info("  scheme            : %s", opts.scheme)
     logger.info("  unit cell         : %d", N)
     logger.info("  bond dim          : %d", max(imps.bond_dims))
     if opts.scheme != '1s':
@@ -668,7 +668,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     )
 
     _save_final_artifact(summary, _artifacts)
-    (_ckpt / 'idmrg.ckpt').unlink(missing_ok=True)
-    (_ckpt / 'idmrg_lock.ckpt').unlink(missing_ok=True)
+    (_ckpt / 'vumps.ckpt').unlink(missing_ok=True)
+    (_ckpt / 'vumps_lock.ckpt').unlink(missing_ok=True)
 
     return summary

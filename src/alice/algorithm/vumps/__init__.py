@@ -16,7 +16,7 @@
 # along with Alice. If not, see <https://www.gnu.org/licenses/>.
 
 
-"""Infinite DMRG algorithm package.
+"""Variational uniform MPS algorithm package.
 
 Optimizes one unit cell of an infinite MPS against an infinite MPO.
 
@@ -47,8 +47,8 @@ from .environ import (
     transfer_left,
     transfer_right,
 )
-from .idmrg import Options, Summary, run
 from .sweep import cell_environments, cell_update
+from .vumps import Options, Summary, run
 
 __all__ = [
     'Environment',

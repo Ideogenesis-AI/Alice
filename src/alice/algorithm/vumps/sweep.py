@@ -117,7 +117,7 @@ from .scheme_1s import gauge_tensors, optimize_bond, optimize_center
 from .scheme_2s import discarded_weight, optimize_two_site, split_two_site
 
 if TYPE_CHECKING:
-    from .idmrg import Options
+    from .vumps import Options
 
 logger = logging.getLogger(__name__)
 
