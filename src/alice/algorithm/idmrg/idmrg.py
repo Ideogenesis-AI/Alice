@@ -63,6 +63,8 @@ from __future__ import annotations
 
 import logging
 import math
+import shutil
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -71,6 +73,7 @@ from alice.network import iMPO, iMPS
 from alice.network.infinite import iNetwork
 
 from ..interface import AlgorithmOptions, AlgorithmSummary
+from .environ import Environment
 from .sweep import cell_environments, cell_update
 
 logger = logging.getLogger(__name__)
@@ -525,6 +528,14 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
 
     N = imps.N
 
+    # A unique subdirectory per run, so that two runs sharing a config do
+    # not write over each other. Resolved here to be logged with the rest
+    # of the settings, but not created until the try that removes it again
+    # is about to open, so that nothing can fail in between.
+    _cache: Optional[Path] = None
+    if opts.env_cache_dir:
+        _cache = Path(opts.env_cache_dir) / uuid.uuid4().hex[:8]
+
     _ckpt: Path = Path(opts.checkpoint_dir) if opts.checkpoint_dir is not None else Path.cwd()
     _ckpt.mkdir(parents=True, exist_ok=True)
     _artifacts: Path = (
@@ -566,54 +577,79 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     # are defined against the canonical tensors, so an update that has moved
     # them invalidates both at once.
     imps.canonical(0, tol=opts.gauge_tol, maxiter=opts.gauge_maxiter)
-    env_left, env_right, cell_energy = cell_environments(
-        imps, impo, tol=opts.env_tol, maxiter=opts.env_maxiter,
+
+    # Only the right side is stored, so only `right/` is made.
+    if _cache is not None:
+        (_cache / 'right').mkdir(parents=True, exist_ok=True)
+
+    # One store for the whole run, so that the cache directory and the
+    # I/O thread are set up once rather than per iteration. The blocks in
+    # it are overwritten each time the fixed points are re-solved.
+    env_right = Environment(
+        N,
+        _cache / 'right' if _cache is not None else None,
+        async_io=opts.env_async_io,
+        window=opts.env_window,
     )
 
-    w = len(str(opts.n_iters))
-    for iter_idx in range(opts.n_iters):
-        if iter_idx > 0:
-            logger.debug("")
-        logger.debug("iteration %*d / %d initiated", w, iter_idx + 1, opts.n_iters)
-
-        gradient, discarded = cell_update(imps, impo, env_left, env_right, opts)
-
-        # The update installs its own gauge, so only the fixed points have
-        # to be re-solved. They give the energy density and the environments
-        # for the next iteration at once.
+    try:
         env_left, env_right, cell_energy = cell_environments(
             imps, impo, tol=opts.env_tol, maxiter=opts.env_maxiter,
-        )
-        energy = cell_energy / N
-
-        delta_e = abs(energy - prev_energy)
-        energies.append(energy)
-        gradients.append(gradient)
-        discarded_weights.append(discarded)
-        iter_count += 1
-
-        _save_checkpoint(
-            imps, energies, gradients, discarded_weights, iter_count, _ckpt,
+            env_right=env_right,
         )
 
-        if opts.scheme == '1s':
-            logger.info(
-                "iteration %*d / %d: e = %+.12g, |Δe| = %.4e, |grad| = %.4e",
-                w, iter_idx + 1, opts.n_iters, energy, delta_e, gradient,
+        w = len(str(opts.n_iters))
+        for iter_idx in range(opts.n_iters):
+            if iter_idx > 0:
+                logger.debug("")
+            logger.debug("iteration %*d / %d initiated", w, iter_idx + 1, opts.n_iters)
+
+            gradient, discarded = cell_update(imps, impo, env_left, env_right, opts)
+
+            # The update installs its own gauge, so only the fixed points
+            # have to be re-solved. They give the energy density and the
+            # environments for the next iteration at once.
+            env_left, env_right, cell_energy = cell_environments(
+                imps, impo, tol=opts.env_tol, maxiter=opts.env_maxiter,
+                env_right=env_right,
             )
-        else:
-            logger.info(
-                "iteration %*d / %d: e = %+.12g, |Δe| = %.4e, |grad| = %.4e, "
-                "D = %d, dw = %.4e",
-                w, iter_idx + 1, opts.n_iters, energy, delta_e, gradient,
-                max(imps.bond_dims), discarded,
+            energy = cell_energy / N
+
+            delta_e = abs(energy - prev_energy)
+            energies.append(energy)
+            gradients.append(gradient)
+            discarded_weights.append(discarded)
+            iter_count += 1
+
+            _save_checkpoint(
+                imps, energies, gradients, discarded_weights, iter_count, _ckpt,
             )
 
-        if gradient < opts.grad_tol:
-            converged = True
-            logger.info("converged after %d iteration(s)", iter_count)
-            break
-        prev_energy = energy
+            if opts.scheme == '1s':
+                logger.info(
+                    "iteration %*d / %d: e = %+.12g, |Δe| = %.4e, |grad| = %.4e",
+                    w, iter_idx + 1, opts.n_iters, energy, delta_e, gradient,
+                )
+            else:
+                logger.info(
+                    "iteration %*d / %d: e = %+.12g, |Δe| = %.4e, |grad| = %.4e, "
+                    "D = %d, dw = %.4e",
+                    w, iter_idx + 1, opts.n_iters, energy, delta_e, gradient,
+                    max(imps.bond_dims), discarded,
+                )
+
+            if gradient < opts.grad_tol:
+                converged = True
+                logger.info("converged after %d iteration(s)", iter_count)
+                break
+            prev_energy = energy
+    finally:
+        # Flush pending writes and release the I/O thread, then drop the
+        # run's cache subdirectory. Errors there are ignored so that a
+        # half-written directory cannot mask a real failure in the loop.
+        env_right.shutdown()
+        if _cache is not None:
+            shutil.rmtree(_cache, ignore_errors=True)
 
     logger.info("")
 
