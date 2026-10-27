@@ -18,11 +18,20 @@
 
 """Update orchestration for VUMPS over one unit cell.
 
-A VUMPS iteration solves every position of the unit cell against the same
-set of environments, so the positions are independent of each other and
-the order they are visited in does not matter. `cell_update` does one such
-iteration: `N` center-tensor eigenproblems, `N` bond eigenproblems, then
-the gauge step that turns the two sets of answers back into a unit cell.
+`cell_update` does one iteration of whichever scheme the options name,
+and the two schemes move through the cell differently.
+
+The one-site scheme solves every position against the same set of
+environments, so the positions are independent of each other and the
+order they are visited in does not matter: `N` center-tensor
+eigenproblems, `N` bond eigenproblems, then the gauge step that turns
+the two sets of answers back into a unit cell.
+
+The two-site scheme cannot be ordered freely. Each pair it solves is
+split by an SVD, and the split replaces the index on the bond between
+the pair, so the pass has to walk the cell bond by bond and carry the
+left environment along with it. That makes it a sweep in the finite
+sense, and the price of being able to change the bond dimension at all.
 
 Environments
 ------------
@@ -50,12 +59,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
-from nicole import Tensor
+from nicole import Tensor, einsum
 
 from alice.network import iMPO, iMPS
 
 from .environ import left_environment, right_environment, step_left_env, step_right_env
 from .scheme_1s import gauge_tensors, optimize_bond, optimize_center
+from .scheme_2s import discarded_weight, optimize_two_site, split_two_site
 
 if TYPE_CHECKING:
     from .idmrg import Options
@@ -130,7 +140,7 @@ def cell_update(
     env_left: List[Tensor],
     env_right: List[Tensor],
     opts: Options,
-) -> float:
+) -> Tuple[float, float]:
     """Run one VUMPS iteration over the whole unit cell, in place.
 
     `imps` must be gauge-fixed on entry and is left gauge-fixed on return,
@@ -147,25 +157,116 @@ def cell_update(
     env_right:
         Right environment blocks from `cell_environments`.
     opts:
-        Run options (scheme, Davidson parameters).
+        Run options (scheme, Davidson parameters, truncation).
 
     Returns
     -------
-    float
+    gradient:
         Largest `|AC - AL C|` over the cell: the VUMPS gradient norm, and
         the quantity `run` converges on. It measures how far the state is
         from being a stationary point of the energy, which is a sharper
         signal than the change in energy between iterations.
-    """
-    if opts.scheme != '1s':
-        raise NotImplementedError(f"cell_update: unknown scheme {opts.scheme!r}")
+    discarded:
+        Largest weight discarded by a split over the cell, or `0.0` for a
+        scheme that never splits anything.
 
-    N = imps.N
-    davidson_opts = {
+    Raises
+    ------
+    NotImplementedError
+        If `opts.scheme` names a scheme this module does not implement.
+    ValueError
+        If the two-site scheme is asked for a one-site unit cell.
+    """
+    if opts.scheme == '1s':
+        return _update_one_site(imps, impo, env_left, env_right, opts), 0.0
+    if opts.scheme == '2s':
+        return _update_two_site(imps, impo, env_left, env_right, opts)
+    raise NotImplementedError(f"cell_update: unknown scheme {opts.scheme!r}")
+
+
+def _reconcile(
+    centers: List[Tensor], bonds: List[Tensor],
+) -> Tuple[List[Tensor], List[Tensor], float]:
+    """Gauge every position of the cell and report the largest mismatch.
+
+    Parameters
+    ----------
+    centers:
+        One center tensor per site.
+    bonds:
+        One bond matrix per bond.
+
+    Returns
+    -------
+    left_isos:
+        Left-orthonormal tensors, one per site.
+    right_isos:
+        Right-orthonormal tensors, one per site.
+    gradient:
+        Largest `|AC - AL C|` over the cell.
+    """
+    N = len(centers)
+    left_isos: List[Tensor] = []
+    right_isos: List[Tensor] = []
+    gradient = 0.0
+    for i in range(N):
+        left_iso, right_iso, error = gauge_tensors(
+            centers[i], bonds[i], bonds[(i + 1) % N],
+        )
+        left_isos.append(left_iso)
+        right_isos.append(right_iso)
+        gradient = max(gradient, error)
+    return left_isos, right_isos, gradient
+
+
+def _davidson_opts(opts: Options) -> dict:
+    """Collect the Davidson settings out of `opts`."""
+    return {
         'max_iter': opts.davidson_max_iter,
         'tol': opts.davidson_tol,
         'max_subspace': opts.davidson_max_subspace,
     }
+
+
+def _truncation(opts: Options) -> Optional[dict]:
+    """Collect the truncation settings out of `opts`, or `None` if unset."""
+    trunc: dict = {}
+    if opts.max_bond is not None:
+        trunc['nkeep'] = opts.max_bond
+    if opts.trunc_thresh > 0.0:
+        trunc['thresh'] = opts.trunc_thresh
+    return trunc or None
+
+
+def _update_one_site(
+    imps: iMPS,
+    impo: iMPO,
+    env_left: List[Tensor],
+    env_right: List[Tensor],
+    opts: Options,
+) -> float:
+    """Solve every center tensor and bond matrix of the cell, then gauge.
+
+    Parameters
+    ----------
+    imps:
+        Gauge-fixed infinite MPS, updated in place.
+    impo:
+        Hamiltonian iMPO sharing the unit cell.
+    env_left:
+        Left environment blocks, one per site.
+    env_right:
+        Right environment blocks, one per site.
+    opts:
+        Run options.
+
+    Returns
+    -------
+    float
+        Largest `|AC - AL C|` over the cell.
+    """
+    N = imps.N
+    davidson_opts = _davidson_opts(opts)
     w = len(str(N - 1))
 
     # Everything is read from the current gauge before anything is written,
@@ -193,16 +294,114 @@ def cell_update(
             w, k, energy, davidson_error,
         )
 
-    left_isos: List[Tensor] = []
-    right_isos: List[Tensor] = []
-    gradient = 0.0
-    for i in range(N):
-        left_iso, right_iso, error = gauge_tensors(
-            centers[i], bonds[i], bonds[(i + 1) % N],
-        )
-        left_isos.append(left_iso)
-        right_isos.append(right_iso)
-        gradient = max(gradient, error)
-
+    left_isos, right_isos, gradient = _reconcile(centers, bonds)
     imps.set_canonical(left_isos, right_isos, bonds)
     return gradient
+
+
+def _update_two_site(
+    imps: iMPS,
+    impo: iMPO,
+    env_left: List[Tensor],
+    env_right: List[Tensor],
+    opts: Options,
+) -> Tuple[float, float]:
+    """Sweep the bonds of the cell, solving and splitting a pair at each.
+
+    Pair `k` spans sites `k` and `k+1` and is split on the bond between
+    them, which is the only index the step changes. The outer bonds of the
+    pair are left alone, so the next pair starts from something consistent
+    and the cell still tiles at the end.
+
+    The sweep carries its own environments. The left one is pushed forward
+    through each freshly split tensor, since the bond it sits on has just
+    been replaced. The right ones are still valid as long as the sweep has
+    not reached them, which covers every pair but the last; that one spans
+    the cell boundary and needs the right environment on bond 1, which the
+    first pair of this same sweep invalidated, so it is rebuilt by carrying
+    the untouched one on bond 0 backward through the cell.
+
+    Parameters
+    ----------
+    imps:
+        Gauge-fixed infinite MPS, updated in place.
+    impo:
+        Hamiltonian iMPO sharing the unit cell.
+    env_left:
+        Left environment blocks, one per site.
+    env_right:
+        Right environment blocks, one per site.
+    opts:
+        Run options.
+
+    Returns
+    -------
+    gradient:
+        Largest `|AC - AL C|` over the cell.
+    discarded:
+        Largest weight discarded by a split over the cell.
+
+    Raises
+    ------
+    ValueError
+        If the unit cell holds a single site. A pair then spans the cell
+        twice over, and the split would have to replace the bond it is
+        reading from.
+    """
+    N = imps.N
+    if N < 2:
+        raise ValueError(
+            "the two-site scheme needs a unit cell of at least two sites, "
+            "since a pair must span one bond and leave the others alone; "
+            "use scheme='1s' or describe the same state with a doubled cell"
+        )
+
+    davidson_opts = _davidson_opts(opts)
+    trunc = _truncation(opts)
+    w = len(str(N - 1))
+
+    centers = [imps.center_tensor(i) for i in range(N)]
+    bonds = [imps.bond_matrix(k) for k in range(N)]
+    left_isos = list(imps.left_isometries())
+    envs_left = list(env_left)
+    envs_right = list(env_right)
+
+    discarded = 0.0
+    for k in range(N):
+        j = (k + 1) % N
+        if j == 0:
+            # The pair that spans the cell boundary. Bond 0 is the one bond
+            # this sweep has not touched, so its right environment is still
+            # the one solved for, and carrying it back through the sites
+            # updated since puts a current block on bond 1.
+            for i in range(N - 1, 0, -1):
+                _, right_iso, _ = gauge_tensors(
+                    centers[i], bonds[i], bonds[(i + 1) % N],
+                )
+                envs_right[i - 1] = step_right_env(envs_right[i], right_iso, impo[i])
+
+        AC2 = einsum('abr,bcs->acrs', left_isos[k], centers[j])
+        energy, AC2, davidson_error = optimize_two_site(
+            AC2, impo[k], impo[j], envs_left[k], envs_right[j], davidson_opts,
+        )
+        discarded = max(discarded, discarded_weight(AC2, trunc))
+
+        left_iso, bond, right_iso = split_two_site(AC2, bonds[j].itags[0], trunc)
+        bonds[j] = bond
+        centers[k] = einsum('abr,bc->acr', left_iso, bond)
+        centers[j] = einsum('ab,bcr->acr', bond, right_iso)
+
+        logger.debug(
+            "  pair %*d: E = %+.12g, davidson err = %.4e, D = %d",
+            w, k, energy, davidson_error, bond.indices[0].dim,
+        )
+
+        # `left_iso` is already the left-orthonormal tensor of site k, since
+        # the polar factor of `U S` is `U` and that of `S` is the identity,
+        # so it can carry the left environment onto the new bond directly.
+        envs_left[j] = step_left_env(envs_left[k], left_iso, impo[k])
+        left_isos[j], _, _ = gauge_tensors(centers[j], bonds[j], bonds[(j + 1) % N])
+
+    left_isos, right_isos, gradient = _reconcile(centers, bonds)
+    imps.set_canonical(left_isos, right_isos, bonds)
+    return gradient, discarded
