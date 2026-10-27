@@ -23,7 +23,6 @@ from __future__ import annotations
 import pytest
 from nicole import einsum
 
-from alice.algorithm.idmrg import cell_environments
 from alice.algorithm.idmrg.davidson import _inner_product
 from alice.algorithm.idmrg.scheme_1s import gauge_tensors
 from alice.algorithm.idmrg.scheme_2s import (
@@ -33,7 +32,7 @@ from alice.algorithm.idmrg.scheme_2s import (
     split_two_site,
 )
 
-from .conftest import HEISENBERG, ihamiltonian, random_imps
+from .conftest import HEISENBERG, bond_environments, ihamiltonian, random_imps
 
 DAVIDSON = {'max_iter': 100, 'tol': 1e-10, 'max_subspace': 20}
 
@@ -48,10 +47,14 @@ def _pair(imps, k=0):
 
 
 def _setup(imps):
-    """Return the iMPO and the environment blocks for a gauge-fixed state."""
+    """Return the iMPO and the environment blocks of a gauge-fixed state.
+
+    Both block lists are indexed by bond, so the pair spanning sites 0
+    and 1 reads the left block on bond 0 and the right one on bond 2.
+    """
     impo = ihamiltonian(HEISENBERG, imps.N)
-    env_left, env_right, _ = cell_environments(imps, impo)
-    return impo, env_left, env_right
+    lefts, rights = bond_environments(imps, impo)
+    return impo, lefts, rights
 
 
 # ---------------------------------------------------------------------------
@@ -64,9 +67,9 @@ class TestEffectiveHamiltonian:
     @pytest.mark.parametrize('N', [2, 4])
     def test_layout_is_preserved(self, spin_half, N):
         imps = random_imps(spin_half, N)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         AC2 = _pair(imps)
-        out = matvec_two_site(AC2, impo[0], impo[1], env_left[0], env_right[1])
+        out = matvec_two_site(AC2, impo[0], impo[1], lefts[0], rights[2 % N])
         assert out.itags == AC2.itags
         assert [i.dim for i in out.indices] == [i.dim for i in AC2.indices]
 
@@ -75,14 +78,14 @@ class TestEffectiveHamiltonian:
         # that is not Hermitian would be silently symmetrized and the
         # eigenvector would be wrong rather than merely inaccurate.
         imps = random_imps(spin_half, 2)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         u = _pair(imps)
         v = _pair(random_imps(spin_half, 2, seed=7))
         left = _inner_product(
-            u, matvec_two_site(v, impo[0], impo[1], env_left[0], env_right[1]),
+            u, matvec_two_site(v, impo[0], impo[1], lefts[0], rights[0]),
         )
         right = _inner_product(
-            matvec_two_site(u, impo[0], impo[1], env_left[0], env_right[1]), v,
+            matvec_two_site(u, impo[0], impo[1], lefts[0], rights[0]), v,
         )
         assert abs(left - right) < 1e-10 * max(1.0, abs(left))
 
@@ -96,14 +99,14 @@ class TestLocalSolve:
 
     def test_solve_does_not_raise_the_ritz_value(self, spin_half):
         imps = random_imps(spin_half, 2)
-        impo, env_left, env_right = _setup(imps)
+        impo, lefts, rights = _setup(imps)
         AC2 = _pair(imps)
         before = _inner_product(
             AC2,
-            matvec_two_site(AC2, impo[0], impo[1], env_left[0], env_right[1]),
+            matvec_two_site(AC2, impo[0], impo[1], lefts[0], rights[0]),
         ).real
         energy, optimized, _ = optimize_two_site(
-            AC2, impo[0], impo[1], env_left[0], env_right[1], DAVIDSON,
+            AC2, impo[0], impo[1], lefts[0], rights[0], DAVIDSON,
         )
         assert energy <= before + 1e-10
         assert abs(float(optimized.norm()) - 1.0) < 1e-10
