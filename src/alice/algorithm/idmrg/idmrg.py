@@ -174,7 +174,13 @@ class Options(AlgorithmOptions):
     grad_tol:
         Convergence criterion on the VUMPS gradient norm `|AC - AL C|`,
         maximized over the cell. Cannot be met unless `davidson_tol` is
-        smaller.
+        smaller. Under `'2s'` against a bond cap that bites, it cannot be
+        met at all: the two-site solve keeps asking for a wider bond than
+        it is allowed, and the gradient settles at a floor set by the
+        discarded weight rather than falling. A run that has grown to
+        `max_bond` and stopped improving is converged in every sense that
+        matters, and polishing it with `'1s'` will drive the gradient the
+        rest of the way down.
     gauge_tol:
         Convergence tolerance for the unit-cell gauge iteration. Used only
         to canonicalize the initial state: every iteration after that
