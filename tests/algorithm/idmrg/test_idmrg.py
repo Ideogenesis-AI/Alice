@@ -85,14 +85,11 @@ class TestOptions:
     def test_two_site_aliases(self, alias):
         assert Options(scheme=alias).scheme == '2s'
 
-    @pytest.mark.parametrize(
-        'alias, canonical',
-        [('2-site', '2s'), ('two-site', '2s'), ('1-site-plus', '1sp')],
-    )
-    def test_other_schemes_resolve_but_are_not_implemented(self, alias, canonical):
+    @pytest.mark.parametrize('alias', ['1sp', '1-site-plus', 'one-site-plus'])
+    def test_planned_scheme_resolves_but_is_not_implemented(self, alias):
         # Recognising the name and refusing to run it are separate steps, so
         # a config written for a planned scheme fails with a clear message.
-        assert Options(scheme=alias).scheme == canonical
+        assert Options(scheme=alias).scheme == '1sp'
 
     def test_unknown_scheme_raises(self):
         with pytest.raises(ValueError, match='unknown iDMRG scheme'):
@@ -182,7 +179,7 @@ class TestRunValidation:
     def test_unimplemented_scheme_is_rejected(self, spin_half):
         imps = random_imps(spin_half, 2)
         with pytest.raises(NotImplementedError, match='not yet implemented'):
-            run(imps, ihamiltonian(HEISENBERG, 2), Options(scheme='2s'))
+            run(imps, ihamiltonian(HEISENBERG, 2), Options(scheme='1sp'))
 
 
 # ---------------------------------------------------------------------------
