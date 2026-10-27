@@ -40,13 +40,35 @@ at all.
 Environments
 ------------
 An infinite chain has no boundary, so the environments are the fixed
-points solved in `environ`, not accumulated boundary blocks.
-`cell_environments` solves the two on bond 0 and absorbs sites to reach
-the rest, through `AL` going right and `AR` going left.
+points solved in `environ`, not accumulated boundary blocks. They go
+stale the moment the state changes, so `run` re-solves them once per
+iteration. That is the dominant cost of the algorithm, around half the
+running time, and it is `O(1)` in the length of the cell: each solve
+iterates a single block around the cell until it stops moving.
 
-They go stale the moment the state changes, so `run` re-solves them once
-per iteration. That is the dominant cost of the algorithm, around half the
-running time.
+What costs memory is the cheap part that follows, spreading a fixed
+point from bond 0 onto every other bond. A block scales as `chi^2 * w`,
+and on a quasi-1D cylinder the cell is one column, so `N` can be dozens
+while `chi` and `w` both grow with the circumference. The two sides are
+not symmetric in what that spreading costs:
+
+- The left blocks are *produced in the order the pass consumes them*.
+  At bond `k` the next one is `step_left_env` of the current one, so a
+  single running tensor is enough and none of them need storing.
+- The right blocks are *produced against the order the pass consumes
+  them*. They come off the recursion from bond 0 leftward, while the
+  pass asks for bonds 1, 2, 3 and so on. Last built, first used, which
+  is exactly the access pattern a sliding window serves.
+
+So one side of a pass is **streamed**, arriving as the single block
+currently in hand, and the other is **stored**, arriving as a whole
+`Environment` that can keep most of itself on disk. Going left to right
+the left side is the streamed one and the right side is the stored one.
+
+Which side plays which role is a property of the direction, not of the
+side, so every entry point here names its arguments by side, takes
+either side in either shape, and turns away the shapes it cannot run.
+
 
 Installing the result
 ---------------------
