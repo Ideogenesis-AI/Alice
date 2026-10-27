@@ -410,7 +410,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         If `opts.scheme` is not `'1s'` (other schemes are planned but not
         yet implemented).
     TypeError
-        If `mps` or `mpo` is an infinite network; use `idmrg.run` instead.
+        If `mps` or `mpo` is an infinite network; use `vumps.run` instead.
     ValueError
         If `mps` and `mpo` have different lengths.
     """
@@ -430,7 +430,7 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         raise TypeError(
             f"dmrg.run operates on a finite MPS and MPO, got "
             f"{type(mps).__name__} and {type(mpo).__name__}; "
-            "use idmrg.run for infinite networks"
+            "use vumps.run for infinite networks"
         )
 
     if mps.L != mpo.L:

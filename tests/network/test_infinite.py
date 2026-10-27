@@ -318,7 +318,7 @@ class TestSeparateFromFinite:
 
         imps = _imps(spin_space, 2)
         impo = _impo(spin_space, 2)
-        with pytest.raises(TypeError, match='idmrg.run'):
+        with pytest.raises(TypeError, match='vumps.run'):
             dmrg.run(imps, impo)
 
 
