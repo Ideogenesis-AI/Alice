@@ -18,20 +18,24 @@
 
 """Update orchestration for VUMPS over one unit cell.
 
-`cell_update` does one iteration of whichever scheme the options name,
-and the two schemes move through the cell differently.
+`cell_update` does one iteration of whichever scheme the options name.
+Both schemes walk the cell from left to right, one position at a time,
+but for different reasons.
 
 The one-site scheme solves every position against the same set of
 environments, so the positions are independent of each other and the
 order they are visited in does not matter: `N` center-tensor
 eigenproblems, `N` bond eigenproblems, then the gauge step that turns
-the two sets of answers back into a unit cell.
+the two sets of answers back into a unit cell. It walks in order only
+because walking in order is what lets it carry one environment block
+instead of holding `N`.
 
-The two-site scheme cannot be ordered freely. Each pair it solves is
-split by an SVD, and the split replaces the index on the bond between
-the pair, so the pass has to walk the cell bond by bond and carry the
-left environment along with it. That makes it a sweep in the finite
-sense, and the price of being able to change the bond dimension at all.
+The two-site scheme has no choice. Each pair it solves is split by an
+SVD, and the split replaces the index on the bond between the pair, so
+the pass has to reach that bond with a left environment built on the
+index the previous split left behind. That makes it a sweep in the
+finite sense, and the price of being able to change the bond dimension
+at all.
 
 Environments
 ------------
