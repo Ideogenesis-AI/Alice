@@ -72,8 +72,10 @@ def _options(**kwargs):
 class TestOptions:
     """Alias resolution, defaults, and the TOML round trip."""
 
-    def test_default_scheme_is_vumps(self):
-        assert Options().scheme == '1s'
+    def test_default_scheme_is_two_site(self):
+        # The only scheme that can change the bond dimension, so it is what
+        # a caller who has not thought about it should get.
+        assert Options().scheme == '2s'
 
     @pytest.mark.parametrize('alias', ['1s', '1-site', 'one-site'])
     def test_one_site_aliases(self, alias):
