@@ -148,6 +148,20 @@ def dimer_imps_su2(Spc):
     return imps
 
 
+def single_site_imps(Spc):
+    """Build a one-site unit cell, which carries no state at all.
+
+    A spin-1/2 site shifts the bond charge by one, so a one-site cell asks
+    the bond to equal its own shift and the only tensor on those indices is
+    zero. The cell still tiles, which is all the guards that reject a
+    one-site cell get to look at before they refuse it.
+    """
+    trivial = _bond(Spc.group, (0,))
+    return iMPS([Tensor.zeros(
+        [trivial, trivial.flip(), Spc], itags=['A00', 'A00', 's00'],
+    )])
+
+
 def random_imps(Spc, N, *, period=None, width=2, dim=2, seed=1):
     """Build a random gauge-fixable iMPS of `N` sites.
 
