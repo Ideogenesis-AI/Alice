@@ -297,3 +297,15 @@ class TestCachedCellUpdate:
         assert cached_energy == pytest.approx(plain_energy, abs=1e-12)
 
     @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    def test_a_pass_never_holds_more_than_a_window(
+        self, spin_half, tmp_path, scheme,
+    ):
+        # Four bonds and a window of two, so a pass that kept everything
+        # would be caught. The window plus one is the steady state: the
+        # block just read is still held alongside those prefetched ahead.
+        imps = random_imps(spin_half, 4)
+        impo = ihamiltonian(HEISENBERG, 4)
+        env_right = _Watched(4, tmp_path, window=2)
+        env_left, env_right, _ = cell_environments(imps, impo, env_right=env_right)
+        cell_update(imps, impo, env_left, env_right, Options(scheme=scheme))
+        assert env_right.peak <= env_right.window + 1
