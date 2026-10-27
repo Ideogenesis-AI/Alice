@@ -395,3 +395,89 @@ class TestRun:
         assert loaded.converged is True
         assert loaded.n_iters == summary.n_iters
         assert abs(loaded.energy - summary.energy) < 1e-12
+
+
+# ---------------------------------------------------------------------------
+# Caching the environments
+# ---------------------------------------------------------------------------
+
+def _refuses_to_run(*args, **kwargs):
+    """Stand in for `cell_update` to make a run fail inside its loop."""
+    raise RuntimeError("no iteration for you")
+
+
+class TestEnvironmentCache:
+    """Putting the right blocks on disk must change nothing but memory."""
+
+    def _dimer_run(self, spin_half, **kwargs):
+        """A run that converges in one iteration, so the cache is the subject."""
+        return run(
+            dimer_imps(spin_half),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(**kwargs),
+        )
+
+    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    def test_a_cached_run_lands_where_an_uncached_one_does(
+        self, spin_half, tmp_path, scheme,
+    ):
+        plain = self._dimer_run(spin_half, scheme=scheme)
+        cached = self._dimer_run(
+            spin_half, scheme=scheme, env_cache_dir=str(tmp_path),
+        )
+        assert cached.energy == pytest.approx(plain.energy, abs=1e-12)
+        assert cached.n_iters == plain.n_iters
+        assert cached.converged == plain.converged
+
+    @pytest.mark.parametrize('window', [2, 3, 8])
+    def test_the_window_width_does_not_move_the_answer(
+        self, spin_half, tmp_path, window,
+    ):
+        # Two is the narrowest both schemes run at and eight is wider than
+        # the cell, which evicts nothing; the answer cannot tell.
+        plain = self._dimer_run(spin_half)
+        cached = self._dimer_run(
+            spin_half, env_cache_dir=str(tmp_path), env_window=window,
+        )
+        assert cached.energy == pytest.approx(plain.energy, abs=1e-12)
+
+    def test_synchronous_io_lands_where_asynchronous_io_does(
+        self, spin_half, tmp_path,
+    ):
+        plain = self._dimer_run(spin_half)
+        cached = self._dimer_run(
+            spin_half, env_cache_dir=str(tmp_path), env_async_io=False,
+        )
+        assert cached.energy == pytest.approx(plain.energy, abs=1e-12)
+
+    def test_the_run_cleans_up_after_itself(self, spin_half, tmp_path):
+        # Blocks go into a subdirectory named for the run, which is removed
+        # on the way out so that the root does not fill up over many runs.
+        root = tmp_path / 'cache'
+        root.mkdir()
+        self._dimer_run(spin_half, env_cache_dir=str(root))
+        assert list(root.iterdir()) == []
+
+    def test_a_failing_run_cleans_up_too(self, spin_half, tmp_path, monkeypatch):
+        # The teardown sits in a finally, so a run that gives up partway
+        # still has to release its I/O thread and drop its directory.
+        root = tmp_path / 'cache'
+        root.mkdir()
+        monkeypatch.setattr(
+            'alice.algorithm.idmrg.idmrg.cell_update', _refuses_to_run,
+        )
+        with pytest.raises(RuntimeError, match='no iteration for you'):
+            self._dimer_run(spin_half, env_cache_dir=str(root))
+        assert list(root.iterdir()) == []
+
+    def test_a_column_sized_cell_runs_under_the_cache(self, spin_half, tmp_path):
+        # Eight sites stands in for a cylinder circumference, the case the
+        # cache exists for: more bonds than the window, so most of them
+        # spend the pass on disk.
+        summary = run(
+            neel_imps(spin_half, 8),
+            ihamiltonian(MAJUMDAR_GHOSH, 8, n3x=True),
+            _options(scheme='2s', max_bond=4, n_iters=3, env_cache_dir=str(tmp_path)),
+        )
+        assert summary.n_iters >= 1
+        assert summary.energy == pytest.approx(DIMER_ENERGY, abs=1e-3)
