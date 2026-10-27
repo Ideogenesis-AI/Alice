@@ -24,6 +24,7 @@ import pytest
 from nicole import identity
 
 from alice.algorithm.idmrg import (
+    Environment,
     Options,
     cell_environments,
     cell_update,
@@ -96,6 +97,16 @@ class TestCellEnvironments:
         _, _, e_two = cell_environments(two, ihamiltonian(HEISENBERG, 2))
         _, _, e_four = cell_environments(four, ihamiltonian(HEISENBERG, 4))
         assert e_four / 4 == pytest.approx(e_two / 2, abs=TABLE_TOL)
+
+    def test_storage_for_the_left_side_names_the_missing_direction(
+        self, spin_half,
+    ):
+        # Only the stored side needs somewhere to live, and going forward
+        # that is the right one.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        with pytest.raises(NotImplementedError, match='right-to-left'):
+            cell_environments(imps, impo, env_left=Environment(2))
 
 
 # ---------------------------------------------------------------------------
