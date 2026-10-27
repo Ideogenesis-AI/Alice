@@ -117,7 +117,7 @@ class TestSummary:
         names = {f.name for f in dataclasses.fields(Summary)}
         assert {
             'energy', 'state', 'energies', 'converged',
-            'n_iters', 'bond_dims', 'gradients',
+            'n_iters', 'bond_dims', 'gradients', 'discarded_weights',
         } <= names
 
     def test_serialize_deserialize(self, spin_half):
@@ -129,6 +129,7 @@ class TestSummary:
         assert restored.n_iters == summary.n_iters
         assert restored.bond_dims == summary.bond_dims
         assert restored.gradients == summary.gradients
+        assert restored.discarded_weights == summary.discarded_weights
         assert isinstance(restored.state, iMPS)
 
     def test_deserialize_tolerates_a_missing_gradient_history(self, spin_half):
