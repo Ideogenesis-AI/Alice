@@ -80,6 +80,57 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Which side a pass streams and which it stores
+# ---------------------------------------------------------------------------
+
+def _forward_pass_envs(
+    env_left: Union[Tensor, Environment],
+    env_right: Union[Tensor, Environment],
+) -> Tuple[Tensor, Environment]:
+    """Read a left and a right environment as the streamed and stored one.
+
+    A left-to-right pass streams the left side and stores the right, so
+    it wants a single block on the left and an `Environment` on the
+    right. The other assignment describes a backward pass, which nothing
+    implements yet; two sides in the same shape describe no pass at all.
+
+    Parameters
+    ----------
+    env_left:
+        Left environments, as a single block or as an `Environment`.
+    env_right:
+        Right environments, in either of the same two shapes.
+
+    Returns
+    -------
+    env_left:
+        Streamed block, the left fixed point on bond 0.
+    env_right:
+        Stored blocks, one per bond of the cell.
+
+    Raises
+    ------
+    NotImplementedError
+        If the left side is stored and the right side streamed.
+    TypeError
+        If both sides arrive in the same shape.
+    """
+    if isinstance(env_left, Tensor) and isinstance(env_right, Environment):
+        return env_left, env_right
+    if isinstance(env_left, Environment) and isinstance(env_right, Tensor):
+        raise NotImplementedError(
+            "a right-to-left pass is not implemented: stream the left side "
+            "as the block on bond 0 and store the right side in an "
+            "Environment over the cell"
+        )
+    raise TypeError(
+        "a pass streams one side and stores the other, so the two "
+        "environments cannot arrive in the same shape: got "
+        f"{type(env_left).__name__} and {type(env_right).__name__}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Environments over the unit cell
 # ---------------------------------------------------------------------------
 
@@ -158,8 +209,8 @@ def cell_environments(
 def cell_update(
     imps: iMPS,
     impo: iMPO,
-    env_left: List[Tensor],
-    env_right: List[Tensor],
+    env_left: Union[Tensor, Environment],
+    env_right: Union[Tensor, Environment],
     opts: Options,
 ) -> Tuple[float, float]:
     """Run one VUMPS iteration over the whole unit cell, in place.
@@ -174,9 +225,13 @@ def cell_update(
     impo:
         Hamiltonian iMPO sharing the unit cell.
     env_left:
-        Left environment blocks from `cell_environments`.
+        Left fixed point on bond 0, from `cell_environments`: the
+        streamed side, which the pass carries forward itself rather than
+        being handed every block of.
     env_right:
-        Right environment blocks from `cell_environments`.
+        Right blocks on every bond, from `cell_environments`: the stored
+        side, read in increasing bond order and left in no particular
+        state.
     opts:
         Run options (scheme, Davidson parameters, truncation).
 
@@ -194,10 +249,15 @@ def cell_update(
     Raises
     ------
     NotImplementedError
-        If `opts.scheme` names a scheme this module does not implement.
+        If `opts.scheme` names a scheme this module does not implement,
+        or if the environments describe a right-to-left pass.
+    TypeError
+        If both environments come in the same shape.
     ValueError
         If the two-site scheme is asked for a one-site unit cell.
     """
+    env_left, env_right = _forward_pass_envs(env_left, env_right)
+
     if opts.scheme == '1s':
         return _update_one_site(imps, impo, env_left, env_right, opts), 0.0
     if opts.scheme == '2s':
