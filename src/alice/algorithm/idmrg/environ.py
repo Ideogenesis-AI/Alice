@@ -71,9 +71,14 @@ and the thing a Krylov solve would fix.
 from __future__ import annotations
 
 import logging
-from typing import Callable, Sequence, Tuple
+from concurrent.futures import Future, ThreadPoolExecutor
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+import torch
 from nicole import Direction, Index, Tensor, einsum, identity
+from nicole import deserialize as _deserialize_tensor
+from nicole import serialize as _serialize_tensor
 
 from alice.network import iMPO, iMPS
 from alice.network.autoimpo import boundary_vectors
@@ -647,3 +652,298 @@ def energy_density(
     """
     _, energy = left_environment(imps, impo, tol=tol, maxiter=maxiter)
     return energy / imps.N
+
+
+# ---------------------------------------------------------------------------
+# Block storage over the unit cell
+# ---------------------------------------------------------------------------
+
+def _save(fp: Path, block: Tensor) -> None:
+    """Serialize and write a single environment block to `fp`."""
+    torch.save(_serialize_tensor(block), fp)
+
+
+def _load(fp: Path) -> Tensor:
+    """Load and deserialize a single environment block from `fp`."""
+    return _deserialize_tensor(torch.load(fp, weights_only=True))
+
+
+class Environment:
+    """Environment blocks for the bonds of a unit cell, optionally on disk.
+
+    Block `k` sits on bond `k` and holds everything on one side of it, so
+    a cell of `N` sites has `N` of them and the index wraps: bond `N` is
+    bond `0` on the next copy of the cell. This is bond indexing, not site
+    indexing, which is what makes the wrap work out.
+
+    A block scales as `chi^2 * w`. On a quasi-1D cylinder the unit cell is
+    one column of the lattice, so `N` can be dozens while `chi` and `w`
+    both grow with the circumference, and holding all `N` at once is what
+    exhausts memory. With `path` set, the class keeps `window` blocks in
+    memory and the rest on disk, so the footprint stops depending on `N`.
+
+    The sweep direction is an explicit setting rather than something
+    inferred. A cyclic index has no boundary to detect a turn at, and the
+    only pass that exists today runs one way, so having the caller say
+    which way it is going is both simpler and the hook a backward pass
+    would use.
+
+    Parameters
+    ----------
+    N:
+        Number of sites in the unit cell, and so of bonds.
+    path:
+        Directory for cache files, each block written as `{k:05d}.pt`.
+        `None` keeps every block in memory and makes `evict` a no-op,
+        since there would be nowhere to read a dropped block back from.
+    async_io:
+        If `True` (default), reads and writes are submitted to a
+        background thread so they overlap with the Davidson solves. No
+        effect when `path` is `None`.
+    window:
+        Number of blocks to keep in memory: the one being read plus
+        `window - 1` prefetched ahead. Clamped to `N`. No effect when
+        `path` is `None`.
+    direction:
+        `+1` when the caller reads blocks in increasing bond order, `-1`
+        for decreasing. Decides which neighbors are prefetched and which
+        block falls out of the window.
+    """
+
+    def __init__(
+        self,
+        N: int,
+        path: Optional[Path] = None,
+        *,
+        async_io: bool = True,
+        window: int = 2,
+        direction: int = 1,
+    ) -> None:
+        if N < 1:
+            raise ValueError(f"a unit cell needs at least one bond, got N={N}")
+
+        self._blocks: List[Optional[Tensor]] = [None] * N
+        self._path: Optional[Path] = path
+        self._async_io: bool = async_io and path is not None
+        # A window as wide as the cell means nothing is ever dropped, which
+        # is also what the modular arithmetic below degenerates to.
+        self._window: int = max(1, min(window, N))
+        self._direction: int = direction
+
+        self._executor: Optional[ThreadPoolExecutor] = None
+        self._write_futures: Dict[int, Future] = {}
+        self._read_futures: Dict[int, Future] = {}
+
+    # ------------------------------------------------------------------
+    # Introspection
+    # ------------------------------------------------------------------
+
+    @property
+    def window(self) -> int:
+        """Number of blocks the sliding window keeps in memory."""
+        return self._window
+
+    @property
+    def cached(self) -> bool:
+        """Whether blocks are backed by disk and so may be evicted."""
+        return self._path is not None
+
+    @property
+    def direction(self) -> int:
+        """Bond order the caller reads in: `+1` increasing, `-1` decreasing."""
+        return self._direction
+
+    @direction.setter
+    def direction(self, value: int) -> None:
+        if value not in (1, -1):
+            raise ValueError(f"direction must be +1 or -1, got {value}")
+        self._direction = value
+
+    @property
+    def n_resident(self) -> int:
+        """Number of blocks currently held in memory."""
+        return sum(1 for block in self._blocks if block is not None)
+
+    def is_resident(self, k: int) -> bool:
+        """Whether bond `k` is held in memory rather than only on disk."""
+        return self._blocks[k] is not None
+
+    def __len__(self) -> int:
+        return len(self._blocks)
+
+    def __repr__(self) -> str:
+        return (
+            f"Environment(N={len(self._blocks)}, resident={self.n_resident}, "
+            f"cached={self.cached})"
+        )
+
+    # ------------------------------------------------------------------
+    # Reading and writing
+    # ------------------------------------------------------------------
+
+    def __getitem__(self, k: int) -> Tensor:
+        """Return the block on bond `k`, without touching the window.
+
+        Resolves from memory, from a prefetch already in flight, or from
+        disk, in that order. Use this when reading out of the order the
+        window was set up for; use `fetch` to read along it.
+
+        Raises
+        ------
+        IndexError
+            If `k` is out of range.
+        RuntimeError
+            If the block is neither in memory nor on disk.
+        """
+        if not (0 <= k < len(self._blocks)):
+            raise IndexError(f"bond index {k} out of range for N={len(self._blocks)}")
+
+        block = self._blocks[k]
+        if block is not None:
+            return block
+        if k in self._read_futures:
+            block = self._read_futures.pop(k).result()
+            self._blocks[k] = block
+            return block
+        if self._path is not None:
+            fp = self._path / f"{k:05d}.pt"
+            if fp.exists():
+                block = _load(fp)
+                self._blocks[k] = block
+                return block
+        raise RuntimeError(f"environment block on bond {k} has not been initialized")
+
+    def __setitem__(self, k: int, E: Tensor) -> None:
+        """Store the block on bond `k` and schedule its write to disk.
+
+        Any prefetch still in flight for this bond is dropped, since the
+        block just written supersedes whatever is on disk. A previous write
+        to the same slot is waited on first, so two writes never race for
+        one file.
+
+        Raises
+        ------
+        IndexError
+            If `k` is out of range.
+        """
+        if not (0 <= k < len(self._blocks)):
+            raise IndexError(f"bond index {k} out of range for N={len(self._blocks)}")
+
+        self._blocks[k] = E
+        self._read_futures.pop(k, None)
+
+        if self._path is not None:
+            previous = self._write_futures.pop(k, None)
+            if previous is not None:
+                previous.result()
+            self._write_futures[k] = self._submit(_save, self._path / f"{k:05d}.pt", E)
+
+    def fetch(self, k: int) -> Tensor:
+        """Return the block on bond `k` and slide the window past it.
+
+        After resolving the block, in this order: the block that has
+        dropped off the back of the window is evicted, then the next
+        `window - 1` blocks ahead are scheduled for prefetch. Both indices
+        wrap around the cell. Doing the eviction first keeps the two
+        disjoint, so a block is never dropped and immediately asked for
+        again.
+
+        A window as wide as the cell evicts nothing, since the block that
+        would fall out is the one just read.
+
+        Parameters
+        ----------
+        k:
+            Bond index.
+
+        Returns
+        -------
+        Tensor
+            The block on bond `k`.
+        """
+        block = self[k]
+
+        if self._path is not None:
+            N = len(self._blocks)
+            stale = (k - self._direction * self._window) % N
+            if stale != k:
+                self.evict(stale)
+            for step in range(1, self._window):
+                self._prefetch((k + self._direction * step) % N)
+
+        return block
+
+    def evict(self, k: int) -> None:
+        """Drop the in-memory copy of bond `k`, leaving the disk copy.
+
+        A no-op when the blocks are not disk-backed, since there would be
+        nowhere to read the block back from, and when `k` holds nothing.
+        Waits for a write still in flight, so the block is safely on disk
+        before memory lets go of it.
+        """
+        if self._path is None:
+            return
+        if not (0 <= k < len(self._blocks)):
+            return
+        pending = self._write_futures.pop(k, None)
+        if pending is not None:
+            pending.result()
+        self._blocks[k] = None
+
+    # ------------------------------------------------------------------
+    # Shutdown
+    # ------------------------------------------------------------------
+
+    def shutdown(self) -> None:
+        """Flush pending I/O and release the background thread.
+
+        Waits on every outstanding write, drains the prefetches, and closes
+        the executor. A no-op in substance when `path` is `None`.
+        """
+        for future in self._write_futures.values():
+            future.result()
+        self._write_futures.clear()
+        for future in self._read_futures.values():
+            try:
+                future.result()
+            except Exception:  # noqa: BLE001
+                pass
+        self._read_futures.clear()
+        if self._executor is not None:
+            self._executor.shutdown(wait=True)
+            self._executor = None
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _get_executor(self) -> ThreadPoolExecutor:
+        """Return the shared executor, created on first use."""
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
+
+    def _submit(self, fn: Callable, *args) -> Future:
+        """Run `fn` on the executor, or now if asynchronous I/O is off."""
+        if self._async_io:
+            return self._get_executor().submit(fn, *args)
+        future: Future = Future()
+        future.set_result(fn(*args))
+        return future
+
+    def _prefetch(self, k: int) -> None:
+        """Schedule an asynchronous load of bond `k`.
+
+        Skipped when the block is already in memory, a read is already in
+        flight, or nothing has been written to disk for it yet.
+        """
+        if self._path is None:
+            return
+        if self._blocks[k] is not None:
+            return
+        if k in self._read_futures:
+            return
+        fp = self._path / f"{k:05d}.pt"
+        if not fp.exists():
+            return
+        self._read_futures[k] = self._submit(_load, fp)
