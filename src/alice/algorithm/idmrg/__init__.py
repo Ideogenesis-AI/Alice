@@ -22,7 +22,11 @@ Optimizes one unit cell of an infinite MPS against an infinite MPO.
 
 - `run` — the driver, configured by `Options` and reporting a `Summary`.
 - `cell_update` — one VUMPS iteration over the whole unit cell.
-- `cell_environments` — environment blocks for every bond of the cell.
+- `cell_environments` — the environments one iteration runs against: the
+  left fixed point, and an `Environment` holding the right blocks.
+- `Environment` — right environment blocks over the bonds of the cell,
+  optionally kept on disk behind a sliding window.
+- `build_right_envs` — solve the right fixed point and fill one.
 - `left_environment` / `right_environment` — regularized boundary fixed
   points, each returning the energy of one unit cell alongside.
 - `energy_density` — energy per site.
@@ -31,6 +35,8 @@ Optimizes one unit cell of an infinite MPS against an infinite MPO.
 """
 
 from .environ import (
+    Environment,
+    build_right_envs,
     cell_left_env,
     cell_right_env,
     energy_density,
@@ -45,8 +51,10 @@ from .idmrg import Options, Summary, run
 from .sweep import cell_environments, cell_update
 
 __all__ = [
+    'Environment',
     'Options',
     'Summary',
+    'build_right_envs',
     'cell_environments',
     'cell_left_env',
     'cell_right_env',
