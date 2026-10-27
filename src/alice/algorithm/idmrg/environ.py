@@ -958,3 +958,46 @@ class Environment:
         if not fp.exists():
             return
         self._read_futures[k] = self._submit(_load, fp)
+
+
+def spread_right_envs(
+    right_isos: Sequence[Tensor],
+    impo: iMPO,
+    env_right: Environment,
+) -> None:
+    """Fill bonds `N-1` down to `1` from the block already on bond `0`.
+
+    Walks the cell backward, absorbing one site into the running block at
+    each step and storing the answer. Only one block is held locally, and
+    each stored block is released `window` steps later, so a disk-backed
+    `Environment` never carries more than `window + 1` through the build.
+    Bond `0` is released as well, which leaves the store holding only the
+    blocks a forward pass asks for first.
+
+    Parameters
+    ----------
+    right_isos:
+        Right-orthonormal tensor of each site. Site `0` is never read,
+        since the block on bond `0` is the starting point rather than
+        something to be built.
+    impo:
+        Hamiltonian iMPO over the same unit cell.
+    env_right:
+        Target, holding the block on bond `0` already. Filled in place.
+    """
+    N = len(env_right)
+    window = env_right.window
+    carried = env_right[0]
+    # Bond 0 has served its purpose the moment it is in hand, and a pass
+    # does not come back to it until the far end of the cell.
+    env_right.evict(0)
+    for k in range(N - 1, 0, -1):
+        carried = step_right_env(carried, right_isos[k], impo[k])
+        env_right[k] = carried
+        # Nothing reads this block again until a forward pass reaches it,
+        # which is most of a cell away, so it only has to stay in memory
+        # long enough for the next one to be built from it. Blocks within
+        # a window of the end of the build are kept, since they are the
+        # ones the pass asks for first.
+        if k + window <= N - 1:
+            env_right.evict(k + window)
