@@ -63,28 +63,29 @@ def _delta(idx, itag):
 # ---------------------------------------------------------------------------
 
 class TestCellEnvironments:
-    """Blocks must cover every bond and agree with the boundary solvers."""
+    """The right side must cover every bond and agree with the solvers."""
 
     @pytest.mark.parametrize('N', [2, 4])
-    def test_one_block_per_site_on_each_side(self, spin_half, N):
+    def test_the_right_side_covers_every_bond(self, spin_half, N):
+        # The left side comes back as the one block on bond 0, since a
+        # pass builds the rest of it as it walks.
         imps = random_imps(spin_half, N)
-        env_left, env_right, _ = cell_environments(imps, ihamiltonian(HEISENBERG, N))
-        assert len(env_left) == N
+        _, env_right, _ = cell_environments(imps, ihamiltonian(HEISENBERG, N))
         assert len(env_right) == N
-        assert all(block is not None for block in env_left + env_right)
+        assert all(env_right[k] is not None for k in range(N))
 
     @pytest.mark.parametrize('N', [2, 4])
     def test_boundary_blocks_match_the_fixed_point_solvers(self, spin_half, N):
-        # Block 0 on the left and block N-1 on the right are the two fixed
-        # points themselves; the rest are reached by absorbing sites.
+        # Both sides are the fixed points on bond 0 themselves; the other
+        # right blocks are reached from there by absorbing sites.
         imps = random_imps(spin_half, N)
         impo = ihamiltonian(HEISENBERG, N)
         env_left, env_right, energy = cell_environments(imps, impo)
 
         boundary_left, cell_energy = left_environment(imps, impo)
         boundary_right, _ = right_environment(imps, impo)
-        assert float((env_left[0] - boundary_left).norm()) < 1e-12
-        assert float((env_right[N - 1] - boundary_right).norm()) < 1e-12
+        assert float((env_left - boundary_left).norm()) < 1e-12
+        assert float((env_right[0] - boundary_right).norm()) < 1e-12
         assert energy == pytest.approx(cell_energy)
 
     def test_energy_is_per_unit_cell(self, spin_half):
