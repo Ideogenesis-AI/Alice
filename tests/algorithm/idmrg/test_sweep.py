@@ -243,8 +243,11 @@ class TestTwoSiteCellUpdate:
         assert discarded > 0.0
 
     def test_single_site_cell_is_rejected(self, spin_half):
-        # Refused before anything is read, so the environments can be empty.
+        # Refused before anything is read, so the environments only have to
+        # be of the right shape; any tensor stands in for the left block.
         imps = single_site_imps(spin_half)
         impo = ihamiltonian(HEISENBERG, 1)
         with pytest.raises(ValueError, match='at least two sites'):
-            cell_update(imps, impo, [], [], Options(scheme='2s'))
+            cell_update(
+                imps, impo, impo[0], Environment(1), Options(scheme='2s'),
+            )
