@@ -42,11 +42,13 @@ environments, the environments are re-solved against the updated state,
 and the cycle repeats. The positions within an iteration are independent,
 so their order is immaterial.
 
-The bond dimension is whatever the initial state carries. An iteration
-solves eigenproblems and takes polar decompositions, so nothing is
-discarded and no width is gained, and `Options` accordingly has no
-truncation settings. Growing the bond dimension is the job of a
-bond-expanding scheme.
+Which positions an iteration solves depends on the scheme. The two-site
+scheme, the default, solves a pair of neighboring sites at a time and
+splits the answer, and that split is what lets the bond dimension grow
+from one iteration to the next, up to `max_bond`. The one-site scheme
+solves single sites and bonds, and takes polar decompositions rather
+than splits, so it never discards anything and never gains width: a run
+under `'1s'` stays at the bond dimension its initial state carried.
 
 Convergence is measured on the gradient. The Davidson eigenvalues belong
 to regularized local problems and carry no physical scale, since the
@@ -91,7 +93,7 @@ _SCHEME_ALIASES: Dict[str, str] = {
     'one-site-plus': '1sp',
 }
 
-_IMPLEMENTED_SCHEMES = {'1s'}
+_IMPLEMENTED_SCHEMES = {'1s', '2s'}
 
 
 def _resolve_scheme(alias: str) -> str:
@@ -136,14 +138,19 @@ class Options(AlgorithmOptions):
     Parameters
     ----------
     scheme:
-        Update scheme. Only `'1s'` / `'1-site'` / `'one-site'` is
-        implemented, which is the VUMPS update; the other names are
-        recognised so that a config written for them fails with a clear
-        message rather than a typo error.
+        Update scheme. Canonical values and their aliases:
+
+        - `'2s'` / `'2-site'` / `'two-site'`: two-site VUMPS, the default.
+          The only scheme that can change the bond dimension.
+        - `'1s'` / `'1-site'` / `'one-site'`: one-site VUMPS. Cheaper per
+          iteration, but confined to the bond dimension of the initial
+          state.
+        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: recognised but not
+          implemented, so a config written for it fails with a clear
+          message rather than a typo error.
     n_iters:
-        Maximum number of VUMPS iterations. Each one solves every center
-        tensor and every bond matrix of the cell against one set of
-        environments.
+        Maximum number of VUMPS iterations. Each one solves every position
+        of the cell against one set of environments.
     max_bond:
         Largest bond dimension a split may keep. `None` means no limit, in
         which case every split multiplies the bond dimension by the
@@ -212,7 +219,7 @@ class Options(AlgorithmOptions):
     blocks and all of them are live at once, so there is nothing to evict.
     """
 
-    scheme: str = '1s'
+    scheme: str = '2s'
     n_iters: int = 100
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-15
@@ -427,7 +434,8 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     imps:
         Initial infinite MPS. Gauge-fixed in place before the first
         iteration and after every one, so it is left in canonical form.
-        Its bond dimension is kept throughout.
+        Under `'2s'` it may come out wider than it went in; under `'1s'`
+        its bond dimension is kept throughout.
     impo:
         Hamiltonian iMPO sharing the unit cell of `imps`.
     opts:
@@ -443,12 +451,12 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     Raises
     ------
     NotImplementedError
-        If `opts.scheme` is not `'1s'` (other schemes are planned but not
-        yet implemented).
+        If `opts.scheme` is recognised but not implemented.
     TypeError
         If `imps` or `impo` is a finite network; use `dmrg.run` instead.
     ValueError
-        If `imps` and `impo` have different unit cells.
+        If `imps` and `impo` have different unit cells, or if `'2s'` is
+        asked for a one-site cell.
     """
     if opts is None:
         opts = Options()
