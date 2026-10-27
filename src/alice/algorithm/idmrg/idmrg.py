@@ -200,6 +200,28 @@ class Options(AlgorithmOptions):
         reach `env_tol` at any budget. A run that warns on most iterations
         is reporting an energy limited by `env_maxiter`, not by the bond
         dimension.
+    env_cache_dir:
+        Root directory for environment block cache files. When set,
+        `run()` creates a unique subdirectory inside it (first 8 hex
+        characters of a UUID4, e.g. `{env_cache_dir}/a1b2c3d4/`) so that
+        concurrent runs sharing the same config do not overwrite each
+        other's blocks. Inside it, `right/{k:05d}.pt` files are written
+        and dropped from memory once they leave the sliding window,
+        keeping the footprint proportional to `env_window` rather than to
+        the length of the cell. Only the right side appears there: the
+        left side is carried one block at a time and never reaches disk.
+        The subdirectory is removed when `run()` returns or raises.
+        `None` (default) keeps every block in memory. Stored as `str` for
+        TOML compatibility.
+    env_async_io:
+        If `True` (default), environment block I/O is submitted to a
+        background thread so it overlaps with the Davidson solves. Only
+        relevant when `env_cache_dir` is set.
+    env_window:
+        Number of right environment blocks kept in memory at once, the
+        one being read plus those prefetched ahead. Defaults to `2`, which
+        is the smallest value both schemes can run at. Only relevant when
+        `env_cache_dir` is set.
     checkpoint_dir:
         Directory to write checkpoint files into. An `idmrg.ckpt` file
         (PyTorch format, loadable via `idmrg.Summary.load`) is written after
@@ -237,6 +259,9 @@ class Options(AlgorithmOptions):
     gauge_maxiter: int = 200
     env_tol: float = 1e-12
     env_maxiter: int = 200
+    env_cache_dir: Optional[str] = None
+    env_async_io: bool = True
+    env_window: int = 2
     checkpoint_dir: Optional[str] = None
     artifacts_dir: Optional[str] = None
 
