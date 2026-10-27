@@ -38,7 +38,9 @@ from .conftest import (
     MAJUMDAR_GHOSH,
     dimer_imps,
     ihamiltonian,
+    neel_imps,
     random_imps,
+    single_site_imps,
 )
 
 DIMER_ENERGY = -0.375
@@ -175,3 +177,43 @@ class TestCellUpdate:
         opts.scheme = '1sp'
         with pytest.raises(NotImplementedError, match='unknown scheme'):
             cell_update(imps, impo, env_left, env_right, opts)
+
+
+class TestTwoSiteCellUpdate:
+    """What only the two-site scheme can do, and what it refuses."""
+
+    def test_bond_dimension_grows_from_a_product_state(self, spin_half):
+        # Every bond of the Neel state is one-dimensional, which is the
+        # case the one-site scheme can never leave.
+        imps = neel_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        assert imps.bond_dims == [1, 1]
+        env_left, env_right, _ = cell_environments(imps, impo)
+        cell_update(imps, impo, env_left, env_right, Options(scheme='2s'))
+        assert max(imps.bond_dims) > 1
+
+    def test_growth_respects_the_bond_cap(self, spin_half):
+        imps = random_imps(spin_half, 2, width=1, dim=1)
+        impo = ihamiltonian(HEISENBERG, 2)
+        opts = Options(scheme='2s', max_bond=3)
+        for _ in range(3):
+            env_left, env_right, _ = cell_environments(imps, impo)
+            cell_update(imps, impo, env_left, env_right, opts)
+            assert max(imps.bond_dims) <= 3
+
+    def test_truncation_is_reported(self, spin_half):
+        # A cap tight enough to bite must show up as a discarded weight.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        env_left, env_right, _ = cell_environments(imps, impo)
+        _, discarded = cell_update(
+            imps, impo, env_left, env_right, Options(scheme='2s', max_bond=2),
+        )
+        assert discarded > 0.0
+
+    def test_single_site_cell_is_rejected(self, spin_half):
+        # Refused before anything is read, so the environments can be empty.
+        imps = single_site_imps(spin_half)
+        impo = ihamiltonian(HEISENBERG, 1)
+        with pytest.raises(ValueError, match='at least two sites'):
+            cell_update(imps, impo, [], [], Options(scheme='2s'))
