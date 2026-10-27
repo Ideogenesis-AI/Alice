@@ -246,7 +246,7 @@ class TestRun:
         # The gradient is what the loop stops on, so it must have fallen.
         assert summary.gradients[-1] < summary.gradients[0]
 
-    def test_bond_dimension_is_left_alone(self, spin_half):
+    def test_one_site_leaves_the_bond_dimension_alone(self, spin_half):
         imps = random_imps(spin_half, 2)
         before = list(imps.bond_dims)
         summary = run(imps, ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True), _options())
