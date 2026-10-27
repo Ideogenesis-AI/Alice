@@ -251,3 +251,22 @@ class TestTwoSiteCellUpdate:
             cell_update(
                 imps, impo, impo[0], Environment(1), Options(scheme='2s'),
             )
+
+
+class _Watched(Environment):
+    """An `Environment` that remembers how full it ever got."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.peak = 0
+
+    def __setitem__(self, k, E):
+        super().__setitem__(k, E)
+        self.peak = max(self.peak, self.n_resident)
+
+    def fetch(self, k):
+        block = super().fetch(k)
+        self.peak = max(self.peak, self.n_resident)
+        return block
+
+
