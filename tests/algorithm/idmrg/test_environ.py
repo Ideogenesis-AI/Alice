@@ -27,6 +27,8 @@ import torch
 from nicole import identity
 
 from alice.algorithm.idmrg import (
+    Environment,
+    build_right_envs,
     cell_left_env,
     cell_right_env,
     energy_density,
@@ -35,6 +37,7 @@ from alice.algorithm.idmrg import (
     transfer_left,
     transfer_right,
 )
+from alice.algorithm.idmrg.environ import step_right_env
 
 from .conftest import (
     HEISENBERG,
@@ -246,3 +249,50 @@ class TestEnvironmentFailures:
             env, _ = solver(imps, ihamiltonian(HEISENBERG, 2), maxiter=1)
         assert 'did not converge in 1 unit cell' in caplog.text
         assert env is not None
+
+
+# ---------------------------------------------------------------------------
+# Block storage over the unit cell
+# ---------------------------------------------------------------------------
+
+class TestBuildRightEnvs:
+    """Filling a store must reproduce what the solvers say, bond by bond."""
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_bond_zero_is_the_fixed_point(self, spin_half, N):
+        imps = random_imps(spin_half, N)
+        impo = ihamiltonian(HEISENBERG, N)
+        env_right = Environment(N)
+        build_right_envs(imps, impo, env_right)
+
+        boundary, _ = right_environment(imps, impo)
+        assert _deviation(env_right[0], boundary) < 1e-12
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_every_bond_follows_from_the_one_after_it(self, spin_half, N):
+        # Bond k holds everything to its right, so absorbing site k into
+        # the block on bond k+1 has to land on it. Bond 0 closes the loop.
+        imps = random_imps(spin_half, N)
+        impo = ihamiltonian(HEISENBERG, N)
+        env_right = Environment(N)
+        build_right_envs(imps, impo, env_right)
+
+        right_isos = imps.right_isometries()
+        for k in range(1, N):
+            expected = step_right_env(env_right[(k + 1) % N], right_isos[k], impo[k])
+            assert _deviation(env_right[k], expected) < 1e-12
+
+    def test_caching_does_not_change_the_blocks(self, spin_half, tmp_path):
+        imps = random_imps(spin_half, 4)
+        impo = ihamiltonian(HEISENBERG, 4)
+        plain = Environment(4)
+        cached = Environment(4, tmp_path, async_io=False, window=2)
+        build_right_envs(imps, impo, plain)
+        build_right_envs(imps, impo, cached)
+        for k in range(4):
+            assert _deviation(cached[k], plain[k]) < 1e-14
+
+    def test_a_store_of_the_wrong_length_is_rejected(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        with pytest.raises(ValueError, match='build one Environment per cell'):
+            build_right_envs(imps, ihamiltonian(HEISENBERG, 2), Environment(4))
