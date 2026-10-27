@@ -270,3 +270,30 @@ class _Watched(Environment):
         return block
 
 
+class TestCachedCellUpdate:
+    """A pass must read the right side off disk without noticing."""
+
+    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    def test_a_cached_pass_lands_where_an_uncached_one_does(
+        self, spin_half, tmp_path, scheme,
+    ):
+        impo = ihamiltonian(HEISENBERG, 4)
+        opts = Options(scheme=scheme)
+
+        plain_imps = random_imps(spin_half, 4)
+        plain = cell_update(
+            plain_imps, impo, *cell_environments(plain_imps, impo)[:2], opts,
+        )
+
+        cached_imps = random_imps(spin_half, 4)
+        env_left, env_right, _ = cell_environments(
+            cached_imps, impo, env_right=Environment(4, tmp_path, window=2),
+        )
+        cached = cell_update(cached_imps, impo, env_left, env_right, opts)
+
+        assert cached == pytest.approx(plain, abs=1e-12)
+        _, _, plain_energy = cell_environments(plain_imps, impo)
+        _, _, cached_energy = cell_environments(cached_imps, impo)
+        assert cached_energy == pytest.approx(plain_energy, abs=1e-12)
+
+    @pytest.mark.parametrize('scheme', ['1s', '2s'])
