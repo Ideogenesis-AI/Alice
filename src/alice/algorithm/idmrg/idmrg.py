@@ -505,6 +505,10 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     logger.info("  scheme            : %s (VUMPS)", opts.scheme)
     logger.info("  unit cell         : %d", N)
     logger.info("  bond dim          : %d", max(imps.bond_dims))
+    if opts.scheme != '1s':
+        max_bond_str = str(opts.max_bond) if opts.max_bond is not None else 'unlimited'
+        logger.info("  max bond dim      : %s", max_bond_str)
+        logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
     logger.info("  max iterations    : %d", opts.n_iters)
     logger.info("  grad thresh       : %.2e", opts.grad_tol)
     logger.info("  davidson tol      : %.2e", opts.davidson_tol)
@@ -551,10 +555,18 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
             imps, energies, gradients, discarded_weights, iter_count, _ckpt,
         )
 
-        logger.info(
-            "iteration %*d / %d: e = %+.12g, |Δe| = %.4e, |grad| = %.4e",
-            w, iter_idx + 1, opts.n_iters, energy, delta_e, gradient,
-        )
+        if opts.scheme == '1s':
+            logger.info(
+                "iteration %*d / %d: e = %+.12g, |Δe| = %.4e, |grad| = %.4e",
+                w, iter_idx + 1, opts.n_iters, energy, delta_e, gradient,
+            )
+        else:
+            logger.info(
+                "iteration %*d / %d: e = %+.12g, |Δe| = %.4e, |grad| = %.4e, "
+                "D = %d, dw = %.4e",
+                w, iter_idx + 1, opts.n_iters, energy, delta_e, gradient,
+                max(imps.bond_dims), discarded,
+            )
 
         if gradient < opts.grad_tol:
             converged = True
