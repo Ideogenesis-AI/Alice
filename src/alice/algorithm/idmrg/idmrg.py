@@ -144,6 +144,14 @@ class Options(AlgorithmOptions):
         Maximum number of VUMPS iterations. Each one solves every center
         tensor and every bond matrix of the cell against one set of
         environments.
+    max_bond:
+        Largest bond dimension a split may keep. `None` means no limit, in
+        which case every split multiplies the bond dimension by the
+        physical dimension and the state grows until `trunc_thresh` stops
+        it. Ignored by `'1s'`, which never splits anything.
+    trunc_thresh:
+        Smallest singular value a split may keep, applied before
+        `max_bond`. Ignored by `'1s'`.
     davidson_tol:
         Residual norm tolerance for the Davidson eigensolver. Keep it well
         below `grad_tol`. The gradient measures how far `AC` and `C`
@@ -206,6 +214,8 @@ class Options(AlgorithmOptions):
 
     scheme: str = '1s'
     n_iters: int = 100
+    max_bond: Optional[int] = None
+    trunc_thresh: float = 1e-15
     davidson_tol: float = 1e-10
     davidson_max_iter: int = 100
     davidson_max_subspace: int = 20
