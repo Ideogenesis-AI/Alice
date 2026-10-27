@@ -53,9 +53,13 @@ HEISENBERG_EXACT = 0.25 - math.log(2.0)
 
 
 def _options(**kwargs):
-    """Run options tuned for a small test: loose environments, few iterations."""
+    """Run options tuned for a small test: loose environments, few iterations.
+
+    Pinned to the one-site scheme, so that a test which says nothing about
+    the bond dimension is about the driver rather than about growth.
+    """
     defaults = dict(
-        n_iters=60, grad_tol=1e-8, env_tol=1e-10, env_maxiter=400,
+        scheme='1s', n_iters=60, grad_tol=1e-8, env_tol=1e-10, env_maxiter=400,
     )
     defaults.update(kwargs)
     return Options(**defaults)
