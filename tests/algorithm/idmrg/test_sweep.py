@@ -102,12 +102,13 @@ class TestCellEnvironments:
 class TestCellUpdate:
     """An iteration must leave a usable state and move downhill."""
 
+    @pytest.mark.parametrize('scheme', ['1s', '2s'])
     @pytest.mark.parametrize('N', [2, 4])
-    def test_state_stays_canonical_and_normalized(self, spin_half, N):
+    def test_state_stays_canonical_and_normalized(self, spin_half, N, scheme):
         imps = random_imps(spin_half, N)
         impo = ihamiltonian(HEISENBERG, N)
         env_left, env_right, _ = cell_environments(imps, impo)
-        cell_update(imps, impo, env_left, env_right, Options())
+        cell_update(imps, impo, env_left, env_right, Options(scheme=scheme))
 
         # set_canonical installs the gauge directly, so these accessors must
         # work without a further canonical() call.
@@ -133,21 +134,25 @@ class TestCellUpdate:
         cell_update(imps, impo, env_left, env_right, Options(scheme='1s'))
         assert imps.bond_dims == before
 
-    def test_energy_decreases(self, spin_half):
+    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    def test_energy_decreases(self, spin_half, scheme):
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, before = cell_environments(imps, impo)
-        cell_update(imps, impo, env_left, env_right, Options())
+        cell_update(imps, impo, env_left, env_right, Options(scheme=scheme))
         _, _, after = cell_environments(imps, impo)
         assert after < before
 
-    def test_exact_ground_state_is_stationary(self, spin_half):
+    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    def test_exact_ground_state_is_stationary(self, spin_half, scheme):
         # The dimer state solves the Majumdar-Ghosh point exactly, so an
         # iteration must report no gradient and leave the energy alone.
         imps = dimer_imps(spin_half)
         impo = ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True)
         env_left, env_right, before = cell_environments(imps, impo)
-        gradient = cell_update(imps, impo, env_left, env_right, Options())
+        gradient, _ = cell_update(
+            imps, impo, env_left, env_right, Options(scheme=scheme),
+        )
         _, _, after = cell_environments(imps, impo)
         assert gradient < 1e-7
         assert before / 2 == pytest.approx(DIMER_ENERGY, abs=TABLE_TOL)
