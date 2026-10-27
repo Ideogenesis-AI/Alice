@@ -296,3 +296,89 @@ class TestBuildRightEnvs:
         imps = random_imps(spin_half, 2)
         with pytest.raises(ValueError, match='build one Environment per cell'):
             build_right_envs(imps, ihamiltonian(HEISENBERG, 2), Environment(4))
+
+
+class TestEnvironmentStore:
+    """Where the blocks live, and what the window does with them."""
+
+    @staticmethod
+    def _store(block, N, path=None, **kwargs):
+        """Put one block on every bond of a store, then let go of them all.
+
+        The blocks of a real cell differ from each other, but nothing here
+        turns on that, and a single fixed point stands in for all of them
+        far more cheaply than solving a cell of the length being tested.
+        """
+        env_right = Environment(N, path, **kwargs)
+        for k in range(N):
+            env_right[k] = block
+            env_right.evict(k)
+        return env_right
+
+    @pytest.fixture
+    def block(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        boundary, _ = right_environment(imps, ihamiltonian(HEISENBERG, 2))
+        return boundary
+
+    def test_blocks_survive_the_round_trip_to_disk(self, block, tmp_path):
+        env_right = self._store(block, 4, tmp_path, async_io=False)
+        assert env_right.n_resident == 0
+        for k in range(4):
+            assert _deviation(env_right[k], block) < 1e-14
+
+    def test_files_appear_one_per_bond(self, block, tmp_path):
+        self._store(block, 4, tmp_path, async_io=False).shutdown()
+        assert sorted(f.name for f in tmp_path.iterdir()) == [
+            '00000.pt', '00001.pt', '00002.pt', '00003.pt',
+        ]
+
+    def test_nothing_reaches_disk_without_a_directory(self, block):
+        env_right = self._store(block, 4)
+        assert not env_right.cached
+        # With nowhere to read a block back from, eviction has to refuse.
+        assert env_right.n_resident == 4
+
+    def test_reading_along_the_cell_keeps_only_a_window(self, block, tmp_path):
+        env_right = self._store(block, 8, tmp_path, window=2)
+        for k in range(8):
+            env_right.fetch(k)
+            # One over the window: the block just read is still held
+            # alongside those prefetched ahead of it.
+            assert env_right.n_resident <= env_right.window + 1
+
+    def test_a_window_as_wide_as_the_cell_evicts_nothing(self, block, tmp_path):
+        env_right = self._store(block, 4, tmp_path, window=4)
+        for k in range(4):
+            env_right.fetch(k)
+        assert env_right.n_resident == 4
+
+    def test_window_is_clamped_to_the_cell(self, tmp_path):
+        assert Environment(3, tmp_path, window=99).window == 3
+
+    def test_direction_decides_which_block_falls_out(self, block, tmp_path):
+        env_right = self._store(block, 6, tmp_path, window=2)
+        for k in range(6):
+            env_right[k]
+        env_right.direction = -1
+        env_right.fetch(1)
+        # Reading backward, the block that drops is the one ahead of the
+        # read rather than the one behind it, which a forward read keeps.
+        assert not env_right.is_resident(3)
+        assert env_right.is_resident(5)
+
+    def test_direction_must_be_a_direction(self, tmp_path):
+        with pytest.raises(ValueError, match=r'must be \+1 or -1'):
+            Environment(4, tmp_path).direction = 0
+
+    def test_an_empty_bond_is_an_error_not_a_none(self, tmp_path):
+        with pytest.raises(RuntimeError, match='has not been initialized'):
+            Environment(4, tmp_path)[2]
+
+    def test_a_bond_outside_the_cell_is_an_error(self):
+        with pytest.raises(IndexError, match='out of range'):
+            Environment(4)[4]
+
+    def test_a_cell_needs_a_bond(self):
+        with pytest.raises(ValueError, match='at least one bond'):
+            Environment(0)
