@@ -40,7 +40,7 @@ survives on an infinite chain:
   family of spurious terms.
 - `MPO.compact()` is an open-boundary two-sweep canonicalization. A unit cell
   has no open end for it to start from, and it would scramble the
-  upper-triangular structure that the iDMRG environment solver depends on.
+  upper-triangular structure that the VUMPS environment solver depends on.
 
 So the unit cell is assembled directly as a finite-state automaton instead.
 
@@ -278,7 +278,7 @@ def build_ihamiltonian(
     automaton (see the module docstring). Unlike `build_hamiltonian` there is
     no term-by-term accumulation and no compression pass: the automaton is
     already minimal for finite-range models, and compressing it would destroy
-    the channel structure the iDMRG environments rely on.
+    the channel structure the VUMPS environments rely on.
 
     Interactions are consumed exactly as `build_hamiltonian` consumes them:
     tensor slots must be pre-filled, and the coupling `cpl` must *not* be
