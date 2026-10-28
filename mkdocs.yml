@@ -68,6 +68,12 @@ nav:
       - Options: algorithms/dmrg/options.md
       - Summary: algorithms/dmrg/summary.md
       - Launch: algorithms/dmrg/run.md
+    - VUMPS:
+      - Overview: algorithms/vumps/index.md
+      - Options: algorithms/vumps/options.md
+      - Summary: algorithms/vumps/summary.md
+      - Lessons: algorithms/vumps/lessons.md
+      - Launch: algorithms/vumps/run.md
     - XTRG:
       - Overview: algorithms/xtrg/index.md
       - Options: algorithms/xtrg/options.md
@@ -89,8 +95,12 @@ nav:
       - Network: api/network/network.md
       - MPS: api/network/mps.md
       - MPO: api/network/mpo.md
+      - iNetwork: api/network/inetwork.md
+      - iMPS: api/network/imps.md
+      - iMPO: api/network/impo.md
       - NormalMPO: api/network/normal-mpo.md
-      - initialize: api/network/init-mps.md
+      - initialize (finite): api/network/init-mps.md
+      - initialize (infinite): api/network/init-imps.md
       - observe: api/network/observe.md
       - thermal_mpo: api/network/thermal-mpo.md
     - Interaction:
@@ -116,6 +126,7 @@ nav:
     - Hamiltonian:
       - Overview: api/hamiltonian/index.md
       - build_hamiltonian: api/hamiltonian/build-hamiltonian.md
+      - build_ihamiltonian: api/hamiltonian/build-ihamiltonian.md
       - build_heisenberg: api/hamiltonian/build-heisenberg.md
       - build_free_fermion: api/hamiltonian/build-free-fermion.md
       - build_hubbard: api/hamiltonian/build-hubbard.md
@@ -125,6 +136,11 @@ nav:
       - Heisenberg chain: examples/dmrg/heisenberg.md
       - Free fermion: examples/dmrg/free-fermion.md
       - Hubbard model: examples/dmrg/hubbard.md
+    - VUMPS:
+      - Heisenberg chain: examples/vumps/heisenberg.md
+      - Majumdar-Ghosh: examples/vumps/majumdar-ghosh.md
+      - Free fermion: examples/vumps/free-fermion.md
+      - Hubbard model: examples/vumps/hubbard.md
     - XTRG:
       - Free fermion: examples/xtrg/free-fermion.md
       - Hubbard model: examples/xtrg/hubbard.md
