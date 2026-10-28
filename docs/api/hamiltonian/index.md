@@ -7,6 +7,7 @@ This section covers the final stage of the AutoMPO pipeline: assembling an MPO f
 | Function | Description |
 |----------|-------------|
 | [build_hamiltonian](build-hamiltonian.md) | Assemble Hamiltonian MPO from interactions |
+| [build_ihamiltonian](build-ihamiltonian.md) | Assemble Hamiltonian iMPO over a unit cell |
 | [build_heisenberg](build-heisenberg.md) | Heisenberg spin model |
 | [build_free_fermion](build-free-fermion.md) | Spinless free-fermion (tight-binding) model |
 | [build_hubbard](build-hubbard.md) | Hubbard model |
