@@ -43,6 +43,7 @@ Lattice geometry builders and traversal-order generators.
 | [build_intrcmap](geometry/build-intrcmap.md) | Generate the interaction map from a `Geometry` |
 | [intrcmap_1dchain](geometry/intrcmap-1dchain.md) | Interaction map for 1D chains |
 | [intrcmap_square](geometry/intrcmap-square.md) | Interaction map for 2D square lattices |
+| [intrcmap_kagome](geometry/intrcmap-kagome.md) | Interaction map for kagome lattices |
 
 ## Local Space
 
