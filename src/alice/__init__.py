@@ -28,9 +28,10 @@ from .network import (
     MPS, MPO, Network,
     iMPS, iMPO, iNetwork,
     init_mps,
+    init_imps,
     observe,
 )
-from .algorithm import dmrg, tdvp, xtrg
+from .algorithm import dmrg, tdvp, vumps, xtrg
 from .logging import configure_logging
 
 __version__ = version('alice-net')
@@ -55,11 +56,13 @@ __all__ = [
     'iNetwork',
     # initializers
     'init_mps',
+    'init_imps',
     # measurement
     'observe',
     # algorithms (as submodules)
     'dmrg',
     'tdvp',
+    'vumps',
     'xtrg',
     # logging
     'configure_logging',
