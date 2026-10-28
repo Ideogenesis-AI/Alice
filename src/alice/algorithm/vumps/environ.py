@@ -479,11 +479,11 @@ def _fixed_point(
             )
             return E, energy
 
-    # The best estimate is returned rather than raised on, because the
-    # models this is aimed at are the ones that cannot meet a tight
-    # tolerance: regularized power iteration converges as the second
-    # eigenvalue of the MPS transfer operator, which approaches one at a
-    # critical point. Discarding a nearly converged environment, and with
+    # The best estimate is returned rather than raised on. Regularized
+    # power iteration converges as the second eigenvalue of the MPS
+    # transfer operator, which approaches one as the bond dimension grows
+    # at a critical point, so the budget a tight tolerance needs is
+    # unbounded there. Discarding a nearly converged environment, and with
     # it a whole run, would be the worse failure.
     logger.warning(
         "%s environment did not converge in %d unit cells (residual %.3e, "
