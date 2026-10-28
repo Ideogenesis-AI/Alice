@@ -192,17 +192,25 @@ class Options(AlgorithmOptions):
         Maximum number of gauge sweeps around the unit cell, for that same
         initial canonicalization.
     env_tol:
-        Convergence tolerance for the environment fixed point. The single
-        most important setting for accuracy, and the most expensive: the
-        environments are re-solved from scratch every iteration and account
-        for roughly half the running time.
+        Convergence tolerance for the environment fixed point. The
+        environments are re-solved from scratch every iteration, so this
+        is among the more expensive settings. The energy is the least
+        sensitive thing it controls, converging well before the
+        environment tensor does; a one-site run is the case that wants it
+        tight, since its gradient tracks the environments directly.
     env_maxiter:
         Maximum number of unit cells absorbed by the environment solver.
-        Running out logs a warning and continues with the best estimate
-        rather than abandoning the run, because a critical model may not
-        reach `env_tol` at any budget. A run that warns on most iterations
-        is reporting an energy limited by `env_maxiter`, not by the bond
-        dimension.
+        The residual falls geometrically at a rate set by the subleading
+        eigenvalue of the MPS transfer operator, so the budget `env_tol`
+        needs is roughly the correlation length in unit cells times
+        `log(1 / env_tol)`, and the default covers a correlation length of
+        about seven cells. On a gapped model that rate saturates once the
+        bond dimension captures the correlation length, and widening the
+        state further does not slow it down. A critical model has no such
+        saturation, since there the correlation length is cut off by the
+        bond dimension itself. Running out logs a warning and continues
+        with the best estimate rather than abandoning the run and the
+        nearly converged environment with it.
     env_cache_dir:
         Root directory for environment block cache files. When set,
         `run()` creates a unique subdirectory inside it (first 8 hex
