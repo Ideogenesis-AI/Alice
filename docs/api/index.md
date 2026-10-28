@@ -61,6 +61,7 @@ MPO Hamiltonian assembly and built-in physics models.
 | Symbol | Description |
 |--------|-------------|
 | [build_hamiltonian](hamiltonian/build-hamiltonian.md) | Assemble Hamiltonian MPO from interactions |
+| [build_ihamiltonian](hamiltonian/build-ihamiltonian.md) | Assemble Hamiltonian iMPO over a unit cell |
 | [build_heisenberg](hamiltonian/build-heisenberg.md) | Heisenberg spin model |
 | [build_free_fermion](hamiltonian/build-free-fermion.md) | Spinless free-fermion (tight-binding) model |
 | [build_hubbard](hamiltonian/build-hubbard.md) | Hubbard model |
@@ -80,8 +81,14 @@ MPO Hamiltonian assembly and built-in physics models.
 **Run DMRG on a spin chain**
 → [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [dmrg.run](../algorithms/dmrg/run.md)
 
+**Run VUMPS on an infinite chain**
+→ [build_interaction](interaction/build-interaction.md), [build_ihamiltonian](hamiltonian/build-ihamiltonian.md), [init_imps](network/init-imps.md), [vumps.run](../algorithms/vumps/run.md)
+
 **Run XTRG at finite temperature**
 → [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [xtrg.run](../algorithms/xtrg/run.md)
+
+**Evolve a state in real time**
+→ [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [tdvp.run](../algorithms/tdvp/run.md)
 
 **Define a model from a TOML file**
 → [build_interaction](interaction/build-interaction.md) — see [AutoMPO from TOML](../examples/autompo-toml.md)
