@@ -182,8 +182,7 @@ class Options(AlgorithmOptions):
         it is allowed, and the gradient settles at a floor set by the
         discarded weight rather than falling. A run that has grown to
         `max_bond` and stopped improving is converged in every sense that
-        matters, and polishing it with `'1s'` will drive the gradient the
-        rest of the way down.
+        matters.
     gauge_tol:
         Convergence tolerance for the unit-cell gauge iteration. Used only
         to canonicalize the initial state: every iteration after that
