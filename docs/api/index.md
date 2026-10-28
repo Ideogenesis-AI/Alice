@@ -4,14 +4,21 @@ Welcome to the Alice API Reference. All public classes and functions are documen
 
 ## Network
 
-Matrix product states, operators, and measurement.
+Matrix product states and operators, finite and infinite, with their initializers and measurement.
 
 | Symbol | Description |
 |--------|-------------|
+| [Network](network/network.md) | Base tensor network chain |
 | [MPS](network/mps.md) | Matrix product state |
 | [MPO](network/mpo.md) | Matrix product operator |
-| [Network](network/network.md) | Base tensor network chain |
+| [iNetwork](network/inetwork.md) | Base tensor network unit cell |
+| [iMPS](network/imps.md) | Infinite matrix product state |
+| [iMPO](network/impo.md) | Infinite matrix product operator |
+| [NormalMPO](network/normal-mpo.md) | Unit-normed MPO with a separately tracked scale |
+| [init_mps](network/init-mps.md) | Construct an initial MPS |
+| [init_imps](network/init-imps.md) | Construct an initial unit cell |
 | [observe](network/observe.md) | Compute expectation values |
+| [thermal_mpo](network/thermal-mpo.md) | Approximate \(e^{-\beta H}\) via Taylor expansion |
 
 ## Interaction
 
