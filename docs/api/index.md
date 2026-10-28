@@ -106,8 +106,8 @@ MPO Hamiltonian assembly and built-in physics models.
 **Compute an expectation value**
 → [observe](network/observe.md)
 
-**Save and reload a result**
-→ [Network.serialize / deserialize](network/network.md), [dmrg.Summary](../algorithms/dmrg/summary.md), [xtrg.Summary](../algorithms/xtrg/summary.md)
+**Save and reload a tensor network**
+→ [Network.serialize / deserialize](network/network.md)
 
 **Configure logging and diagnostics**
 → [configure_logging](logging.md)
