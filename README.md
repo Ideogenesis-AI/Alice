@@ -23,6 +23,10 @@ With the assistance of various AI coding agents, Alice pairs a physicist-friendl
 
 Ground-state search and optimization via alternating sweep optimization of MPS tensors. Three complementary update schemes are available — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — each with a Davidson eigensolver and energy-based convergence criterion.
 
+### VUMPS (Variational Uniform Matrix Product States)
+
+Ground-state search directly in the thermodynamic limit, on a uniform MPS described by a unit cell that tiles an infinite chain. Two update schemes are available — 1-site and 2-site — with the environments solved as transfer-operator fixed points and convergence measured on the tangent-space gradient.
+
 ### XTRG (eXponential Tensor Renormalization Group)
 
 Finite-temperature thermodynamics via exponential cooling of the thermal density matrix. Three update schemes drive the underlying variational MPO-MPO compression — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — solving a linear least-squares minimization at each step.

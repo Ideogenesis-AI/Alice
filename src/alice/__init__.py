@@ -24,11 +24,14 @@ from .network import (
     Interaction, Interaction1Site, Interaction2Site, InteractionNSite,
     build_interaction,
     build_hamiltonian,
+    build_ihamiltonian,
     MPS, MPO, Network,
+    iMPS, iMPO, iNetwork,
     init_mps,
+    init_imps,
     observe,
 )
-from .algorithm import dmrg, tdvp, xtrg
+from .algorithm import dmrg, tdvp, vumps, xtrg
 from .logging import configure_logging
 
 __version__ = version('alice-net')
@@ -42,17 +45,24 @@ __all__ = [
     # high-level entry points
     'build_interaction',
     'build_hamiltonian',
-    # tensor network objects
+    'build_ihamiltonian',
+    # finite tensor network
     'MPS',
     'MPO',
     'Network',
+    # infinite tensor network
+    'iMPS',
+    'iMPO',
+    'iNetwork',
     # initializers
     'init_mps',
+    'init_imps',
     # measurement
     'observe',
     # algorithms (as submodules)
     'dmrg',
     'tdvp',
+    'vumps',
     'xtrg',
     # logging
     'configure_logging',

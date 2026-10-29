@@ -24,3 +24,4 @@ Base class for 1D tensor network chains.
 
 - [MPS](mps.md) — matrix product state (3-index site tensors).
 - [MPO](mpo.md) — matrix product operator (4-index site tensors).
+- [iNetwork](inetwork.md) — the infinite counterpart.

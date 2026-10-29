@@ -18,6 +18,15 @@ Complete ground-state calculations with the three update schemes.
 - [Free fermion](dmrg/free-fermion.md) — spinless tight-binding chain.
 - [Hubbard model](dmrg/hubbard.md) — spinful Hubbard chain with U(1)×SU(2) symmetry.
 
+### VUMPS
+
+Ground states of infinite chains, on a uniform MPS with no finite-size error to extrapolate away.
+
+- [Heisenberg chain](vumps/heisenberg.md) — spin-1/2 Heisenberg model against `1/4 - ln 2`, grown to the bond cap by the two-site scheme.
+- [Majumdar-Ghosh](vumps/majumdar-ghosh.md) — the J1-J2 chain at its exactly solvable point, reached to machine precision.
+- [Free fermion](vumps/free-fermion.md) — spinless tight-binding chain against `-2/π` at half filling.
+- [Hubbard model](vumps/hubbard.md) — spinful chain against the Lieb–Wu exact solution, in all four band symmetries.
+
 ### XTRG
 
 Finite-temperature thermodynamics via exponential cooling, with the three update schemes.

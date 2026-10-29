@@ -115,9 +115,21 @@ def build_traversal(
 def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     """Generate an interaction map for a 1D chain.
 
-    Produces nearest-neighbor (NN) bonds along the chain and, when
-    `bcx='PBC'`, a single periodic bond connecting the two ends.
-    Coupling constants are not set; `cpl` is `0.0` on all returned objects.
+    Produces nearest-neighbor (NN) and, optionally, next-nearest-neighbor
+    (NNN) bonds along the chain. Coupling constants are not set; `cpl` is
+    `0.0` on all returned objects.
+
+    Three boundary conditions are supported:
+
+    - `'OBC'` — bonds stay inside `[0, L)`, so the chain has open ends.
+    - `'PBC'` — bonds additionally wrap from the right end back to the left,
+      normalized so that `leading_site < terminal_site`.
+    - `'IBC'` — the `L` sites form one unit cell of an infinite chain. Every
+      site leads a bond, and a `terminal_site` at or beyond `L` denotes a
+      site in the *next* unit cell; `build_ihamiltonian` folds those back
+      modulo `L` when it lays out the operator-string channels. Unlike PBC
+      these are not wrap-around bonds within a finite ring: site `L-1` is
+      bonded to site `0` of the following cell, not to site `0` of its own.
 
     Parameters
     ----------
@@ -125,18 +137,28 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
         Fully-resolved geometry struct for the 1D chain. Relevant config
         keys (read from `geo.cfg`):
 
-        - `bcx` — boundary condition (`'OBC'` or `'PBC'`).
+        - `bcx` — boundary condition (`'OBC'`, `'PBC'`, or `'IBC'`).
         - `n2x` — include NN bonds (default `True`).
+        - `n3x` — include NNN bonds (default `False`).
 
     Returns
     -------
     List[Interaction2Site]
         Interaction objects sorted by `leading_site`. Tensor fields are
         `None`; `cpl` is `0.0`.
+
+    Raises
+    ------
+    ValueError
+        If `bcx` is not one of `'OBC'`, `'PBC'`, or `'IBC'`.
     """
     L   = geo.lx
     bcx = geo.cfg.get('bcx', 'OBC').upper()
     n2x = bool(geo.cfg.get('n2x', True))
+    n3x = bool(geo.cfg.get('n3x', False))
+
+    if bcx not in ('OBC', 'PBC', 'IBC'):
+        raise ValueError(f"bcx must be 'OBC', 'PBC', or 'IBC', got '{bcx}'")
 
     interactions: List[Interaction2Site] = []
 
@@ -145,27 +167,45 @@ def intrcmap_1dchain(geo: Geometry) -> List[Interaction2Site]:
     logger.info("─" * 60)
     logger.info("")
 
-    if n2x:
-        logger.info(" NN interaction (N2X):")
+    def _emit(dist: int, labels: List[str], heading: str) -> None:
+        """Append every bond of range `dist`, honoring the boundary condition."""
+        logger.info(heading)
         pairs = []
-        for si in range(L - 1):
+        # IBC lets the terminal index run past the cell; the extra bonds are
+        # exactly the ones that couple this cell to the next one.
+        last = L if bcx == 'IBC' else L - dist
+        for si in range(last):
             interactions.append(Interaction2Site(
-                label=['NN', 'N2X'],
+                label=list(labels),
                 leading_site=si,
-                terminal_site=si + 1,
+                terminal_site=si + dist,
             ))
-            pairs.append(f"({si:02d},{si+1:02d})")
+            pairs.append(f"({si:02d},{si+dist:02d})")
         _log_pairs(pairs)
 
         if bcx == 'PBC':
             logger.info("")
-            logger.info(" PBC interaction at X edge:")
-            interactions.append(Interaction2Site(
-                label=['NN', 'PBC', 'N2X'],
-                leading_site=0,
-                terminal_site=L - 1,
-            ))
-            _log_pairs([f"({0:02d},{L-1:02d})"])
+            logger.info(f" PBC interaction at X edge (range {dist}):")
+            pairs = []
+            for si in range(L - dist, L):
+                # Normalize so that leading_site < terminal_site, which is
+                # what Interaction2Site and build_hamiltonian require.
+                lo, hi = sorted(((si + dist) % L, si))
+                interactions.append(Interaction2Site(
+                    label=[*labels, 'PBC'],
+                    leading_site=lo,
+                    terminal_site=hi,
+                ))
+                pairs.append(f"({lo:02d},{hi:02d})")
+            _log_pairs(pairs)
+
+    if n2x:
+        _emit(1, ['NN', 'N2X'], " NN interaction (N2X):")
+
+    if n3x:
+        if n2x:
+            logger.info("")
+        _emit(2, ['NNN', 'N3X'], " NNN interaction (N3X):")
 
     interactions.sort(key=lambda x: x.leading_site)
 

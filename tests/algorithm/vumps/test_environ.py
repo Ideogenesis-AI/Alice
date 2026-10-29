@@ -1,0 +1,384 @@
+# Copyright (C) 2025-2026 Changkai Zhang.
+#
+# This file is part of Alice project.
+#
+# Alice is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published
+# by the Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
+#
+# Alice is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Alice. If not, see <https://www.gnu.org/licenses/>.
+
+
+"""Tests for the infinite unit-cell transfer operators and their fixed points."""
+
+from __future__ import annotations
+
+import logging
+
+import pytest
+import torch
+from nicole import identity
+
+from alice.algorithm.vumps import (
+    Environment,
+    build_right_envs,
+    cell_left_env,
+    cell_right_env,
+    energy_density,
+    left_environment,
+    right_environment,
+    transfer_left,
+    transfer_right,
+)
+from alice.algorithm.vumps.environ import step_right_env
+
+from .conftest import (
+    HEISENBERG,
+    HEISENBERG_SU2,
+    MAJUMDAR_GHOSH,
+    MAJUMDAR_GHOSH_SU2,
+    dimer_imps,
+    dimer_imps_su2,
+    ihamiltonian,
+    neel_imps,
+    random_imps,
+)
+
+# The Majumdar-Ghosh dimer state is the exact ground state at J2 = J1 / 2:
+# half the nearest-neighbor bonds sit inside a singlet and contribute -3/4,
+# the rest contribute nothing, and every next-nearest-neighbor bond vanishes.
+DIMER_ENERGY = -0.375
+
+# A Neel state has no transverse correlations, so only the Ising part of the
+# Heisenberg coupling survives: -1/4 on every bond.
+NEEL_ENERGY = -0.25
+
+# Alice's spin operators reach Nicole as single-precision table entries
+# promoted to double, which caps any U(1) spin energy at roughly eight
+# digits. The SU(2) tensors avoid those tables, which is why the same
+# physical check is tightened by five orders of magnitude below.
+TABLE_TOL = 1e-7
+
+
+def _delta(idx, itag):
+    """Build an identity on a bond index, tagged for both ends of a cell."""
+    delta = identity(idx)
+    delta.retag([0, 1], [itag, itag])
+    return delta
+
+
+def _deviation(a, b):
+    """Return the norm of the difference between two tensors."""
+    return float((a - b).norm())
+
+
+# ---------------------------------------------------------------------------
+# MPS transfer operators
+# ---------------------------------------------------------------------------
+
+class TestMPSTransfer:
+    """Orthonormality seen from the transfer operator's point of view."""
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_identity_is_fixed_under_left_isometries(self, spin_half, N):
+        imps = random_imps(spin_half, N)
+        isometries = imps.left_isometries()
+        delta = _delta(isometries[0].indices[0], isometries[0].itags[0])
+        assert _deviation(transfer_left(delta, isometries), delta) < 1e-12
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_identity_is_fixed_under_right_isometries(self, spin_half, N):
+        imps = random_imps(spin_half, N)
+        isometries = imps.right_isometries()
+        last = isometries[N - 1]
+        delta = _delta(last.indices[1], last.itags[1])
+        assert _deviation(transfer_right(delta, isometries), delta) < 1e-12
+
+    def test_transfer_can_be_iterated_across_cells(self, spin_half):
+        # The premise of the whole module is that the repeating itags let
+        # a cell be absorbed over and over without retagging in between.
+        # Five cells of an isometric state must still leave the identity.
+        imps = random_imps(spin_half, 2)
+        isometries = imps.left_isometries()
+        delta = _delta(isometries[0].indices[0], isometries[0].itags[0])
+        carried = delta
+        for _ in range(5):
+            carried = transfer_left(carried, isometries)
+        assert _deviation(carried, delta) < 1e-11
+
+
+# ---------------------------------------------------------------------------
+# Fixed points on states with a known energy
+# ---------------------------------------------------------------------------
+
+class TestKnownEnergies:
+    """States whose energy density can be written down without computing it."""
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_neel_state_against_heisenberg(self, spin_half, N):
+        imps = neel_imps(spin_half, N)
+        energy = energy_density(imps, ihamiltonian(HEISENBERG, N))
+        assert energy == pytest.approx(NEEL_ENERGY, abs=TABLE_TOL)
+
+    def test_dimer_state_against_majumdar_ghosh(self, spin_half):
+        imps = dimer_imps(spin_half)
+        impo = ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True)
+        assert energy_density(imps, impo) == pytest.approx(
+            DIMER_ENERGY, abs=TABLE_TOL
+        )
+
+    def test_dimer_state_against_majumdar_ghosh_su2(self, spin_half_su2):
+        # Under SU(2) the same physics is exact to machine precision,
+        # because the dimer tensors are pure Clebsch-Gordan coefficients.
+        imps = dimer_imps_su2(spin_half_su2)
+        impo = ihamiltonian(MAJUMDAR_GHOSH_SU2, 2, n3x=True)
+        assert energy_density(imps, impo) == pytest.approx(
+            DIMER_ENERGY, abs=1e-12
+        )
+
+    def test_dimer_state_against_plain_heisenberg_su2(self, spin_half_su2):
+        # Dropping the next-nearest-neighbor term changes nothing, since the
+        # dimer state has no correlation across two sites at all.
+        imps = dimer_imps_su2(spin_half_su2)
+        impo = ihamiltonian(HEISENBERG_SU2, 2)
+        assert energy_density(imps, impo) == pytest.approx(
+            DIMER_ENERGY, abs=1e-12
+        )
+
+
+# ---------------------------------------------------------------------------
+# Consistency of the two sides
+# ---------------------------------------------------------------------------
+
+class TestEnvironmentConsistency:
+    """Checks that hold for any state, exactly solvable or not."""
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_both_sides_report_the_same_energy(self, spin_half, N):
+        # The two environments describe disjoint halves of one chain, so
+        # agreement is a genuine cross-check rather than a tautology: the
+        # left side sweeps AL forwards and the right side sweeps AR back.
+        imps = random_imps(spin_half, N)
+        impo = ihamiltonian(HEISENBERG, N)
+        _, left = left_environment(imps, impo)
+        _, right = right_environment(imps, impo)
+        assert left == pytest.approx(right, rel=1e-10)
+
+    @pytest.mark.parametrize(
+        'solver, absorb, basis',
+        [
+            (left_environment, cell_left_env, 'left_isometries'),
+            (right_environment, cell_right_env, 'right_isometries'),
+        ],
+    )
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_the_environment_grows_by_a_constant(
+        self, spin_half, N, solver, absorb, basis,
+    ):
+        # The solved environment is a fixed point of everything except the
+        # finish channel, which gains one cell of energy per cell absorbed.
+        # So the increment must be the same every time: if any other channel
+        # were still moving, the second increment would differ from the
+        # first. This is the defining equation, checked without reaching
+        # into the solver.
+        imps = random_imps(spin_half, N)
+        impo = ihamiltonian(HEISENBERG, N)
+        E, _ = solver(imps, impo)
+        isometries = getattr(imps, basis)()
+        once = absorb(E, isometries, impo)
+        twice = absorb(once, isometries, impo)
+        assert _deviation(twice - once, once - E) < 1e-9
+        assert _deviation(once, E) > 1e-3
+
+    @pytest.mark.parametrize('reps', [2, 3])
+    def test_energy_density_ignores_the_unit_cell_size(self, spin_half, reps):
+        # Describing one state with a cell twice or three times as long must
+        # not move the energy per site. This catches an energy that is
+        # accumulated per cell but divided per site incorrectly, and any
+        # dependence on where the environment happens to be anchored.
+        base = random_imps(spin_half, 2)
+        stretched = random_imps(spin_half, 2 * reps, period=2)
+        assert energy_density(stretched, ihamiltonian(HEISENBERG, 2 * reps)) \
+            == pytest.approx(
+                energy_density(base, ihamiltonian(HEISENBERG, 2)), rel=1e-10
+            )
+
+    def test_complex_state_gives_a_real_energy(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        imps.canonical()
+        imps.to(dtype=torch.complex128)
+        energy = energy_density(imps, ihamiltonian(HEISENBERG, 2))
+        assert isinstance(energy, float)
+        assert energy == pytest.approx(
+            energy_density(random_imps(spin_half, 2), ihamiltonian(HEISENBERG, 2)),
+            rel=1e-10,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Failure paths
+# ---------------------------------------------------------------------------
+
+class TestEnvironmentFailures:
+
+    def test_mismatched_unit_cells(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        with pytest.raises(ValueError, match='share a unit cell'):
+            left_environment(imps, ihamiltonian(HEISENBERG, 4))
+
+    def test_state_must_be_gauge_fixed(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        imps[0] = imps[0]
+        with pytest.raises(ValueError, match='not gauge fixed'):
+            left_environment(imps, ihamiltonian(HEISENBERG, 2))
+
+    @pytest.mark.parametrize(
+        'solver', [left_environment, right_environment],
+    )
+    def test_iteration_cap_warns_but_returns(self, spin_half, solver, caplog):
+        imps = random_imps(spin_half, 2)
+        imps.canonical(0)
+        with caplog.at_level(logging.WARNING, logger='alice.algorithm.vumps.environ'):
+            env, _ = solver(imps, ihamiltonian(HEISENBERG, 2), maxiter=1)
+        assert 'did not converge in 1 unit cell' in caplog.text
+        assert env is not None
+
+
+# ---------------------------------------------------------------------------
+# Block storage over the unit cell
+# ---------------------------------------------------------------------------
+
+class TestBuildRightEnvs:
+    """Filling a store must reproduce what the solvers say, bond by bond."""
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_bond_zero_is_the_fixed_point(self, spin_half, N):
+        imps = random_imps(spin_half, N)
+        impo = ihamiltonian(HEISENBERG, N)
+        env_right = Environment(N)
+        build_right_envs(imps, impo, env_right)
+
+        boundary, _ = right_environment(imps, impo)
+        assert _deviation(env_right[0], boundary) < 1e-12
+
+    @pytest.mark.parametrize('N', [2, 4])
+    def test_every_bond_follows_from_the_one_after_it(self, spin_half, N):
+        # Bond k holds everything to its right, so absorbing site k into
+        # the block on bond k+1 has to land on it. Bond 0 closes the loop.
+        imps = random_imps(spin_half, N)
+        impo = ihamiltonian(HEISENBERG, N)
+        env_right = Environment(N)
+        build_right_envs(imps, impo, env_right)
+
+        right_isos = imps.right_isometries()
+        for k in range(1, N):
+            expected = step_right_env(env_right[(k + 1) % N], right_isos[k], impo[k])
+            assert _deviation(env_right[k], expected) < 1e-12
+
+    def test_caching_does_not_change_the_blocks(self, spin_half, tmp_path):
+        imps = random_imps(spin_half, 4)
+        impo = ihamiltonian(HEISENBERG, 4)
+        plain = Environment(4)
+        cached = Environment(4, tmp_path, async_io=False, window=2)
+        build_right_envs(imps, impo, plain)
+        build_right_envs(imps, impo, cached)
+        for k in range(4):
+            assert _deviation(cached[k], plain[k]) < 1e-14
+
+    def test_a_store_of_the_wrong_length_is_rejected(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        with pytest.raises(ValueError, match='build one Environment per cell'):
+            build_right_envs(imps, ihamiltonian(HEISENBERG, 2), Environment(4))
+
+
+class TestEnvironmentStore:
+    """Where the blocks live, and what the window does with them."""
+
+    @staticmethod
+    def _store(block, N, path=None, **kwargs):
+        """Put one block on every bond of a store, then let go of them all.
+
+        The blocks of a real cell differ from each other, but nothing here
+        turns on that, and a single fixed point stands in for all of them
+        far more cheaply than solving a cell of the length being tested.
+        """
+        env_right = Environment(N, path, **kwargs)
+        for k in range(N):
+            env_right[k] = block
+            env_right.evict(k)
+        return env_right
+
+    @pytest.fixture
+    def block(self, spin_half):
+        imps = random_imps(spin_half, 2)
+        boundary, _ = right_environment(imps, ihamiltonian(HEISENBERG, 2))
+        return boundary
+
+    def test_blocks_survive_the_round_trip_to_disk(self, block, tmp_path):
+        env_right = self._store(block, 4, tmp_path, async_io=False)
+        assert env_right.n_resident == 0
+        for k in range(4):
+            assert _deviation(env_right[k], block) < 1e-14
+
+    def test_files_appear_one_per_bond(self, block, tmp_path):
+        self._store(block, 4, tmp_path, async_io=False).shutdown()
+        assert sorted(f.name for f in tmp_path.iterdir()) == [
+            '00000.pt', '00001.pt', '00002.pt', '00003.pt',
+        ]
+
+    def test_nothing_reaches_disk_without_a_directory(self, block):
+        env_right = self._store(block, 4)
+        assert not env_right.cached
+        # With nowhere to read a block back from, eviction has to refuse.
+        assert env_right.n_resident == 4
+
+    def test_reading_along_the_cell_keeps_only_a_window(self, block, tmp_path):
+        env_right = self._store(block, 8, tmp_path, window=2)
+        for k in range(8):
+            env_right.fetch(k)
+            # One over the window: the block just read is still held
+            # alongside those prefetched ahead of it.
+            assert env_right.n_resident <= env_right.window + 1
+
+    def test_a_window_as_wide_as_the_cell_evicts_nothing(self, block, tmp_path):
+        env_right = self._store(block, 4, tmp_path, window=4)
+        for k in range(4):
+            env_right.fetch(k)
+        assert env_right.n_resident == 4
+
+    def test_window_is_clamped_to_the_cell(self, tmp_path):
+        assert Environment(3, tmp_path, window=99).window == 3
+
+    def test_direction_decides_which_block_falls_out(self, block, tmp_path):
+        env_right = self._store(block, 6, tmp_path, window=2)
+        for k in range(6):
+            env_right[k]
+        env_right.direction = -1
+        env_right.fetch(1)
+        # Reading backward, the block that drops is the one ahead of the
+        # read rather than the one behind it, which a forward read keeps.
+        assert not env_right.is_resident(3)
+        assert env_right.is_resident(5)
+
+    def test_direction_must_be_a_direction(self, tmp_path):
+        with pytest.raises(ValueError, match=r'must be \+1 or -1'):
+            Environment(4, tmp_path).direction = 0
+
+    def test_an_empty_bond_is_an_error_not_a_none(self, tmp_path):
+        with pytest.raises(RuntimeError, match='has not been initialized'):
+            Environment(4, tmp_path)[2]
+
+    def test_a_bond_outside_the_cell_is_an_error(self):
+        with pytest.raises(IndexError, match='out of range'):
+            Environment(4)[4]
+
+    def test_a_cell_needs_a_bond(self):
+        with pytest.raises(ValueError, match='at least one bond'):
+            Environment(0)

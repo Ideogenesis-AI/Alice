@@ -4,14 +4,21 @@ Welcome to the Alice API Reference. All public classes and functions are documen
 
 ## Network
 
-Matrix product states, operators, and measurement.
+Matrix product states and operators, finite and infinite, with their initializers and measurement.
 
 | Symbol | Description |
 |--------|-------------|
+| [Network](network/network.md) | Base tensor network chain |
 | [MPS](network/mps.md) | Matrix product state |
 | [MPO](network/mpo.md) | Matrix product operator |
-| [Network](network/network.md) | Base tensor network chain |
+| [iNetwork](network/inetwork.md) | Base tensor network unit cell |
+| [iMPS](network/imps.md) | Infinite matrix product state |
+| [iMPO](network/impo.md) | Infinite matrix product operator |
+| [NormalMPO](network/normal-mpo.md) | Unit-normed MPO with a separately tracked scale |
+| [init_mps](network/init-mps.md) | Construct an initial MPS |
+| [init_imps](network/init-imps.md) | Construct an initial unit cell |
 | [observe](network/observe.md) | Compute expectation values |
+| [thermal_mpo](network/thermal-mpo.md) | Approximate \(e^{-\beta H}\) via Taylor expansion |
 
 ## Interaction
 
@@ -36,6 +43,7 @@ Lattice geometry builders and traversal-order generators.
 | [build_intrcmap](geometry/build-intrcmap.md) | Generate the interaction map from a `Geometry` |
 | [intrcmap_1dchain](geometry/intrcmap-1dchain.md) | Interaction map for 1D chains |
 | [intrcmap_square](geometry/intrcmap-square.md) | Interaction map for 2D square lattices |
+| [intrcmap_kagome](geometry/intrcmap-kagome.md) | Interaction map for kagome lattices |
 
 ## Local Space
 
@@ -54,6 +62,7 @@ MPO Hamiltonian assembly and built-in physics models.
 | Symbol | Description |
 |--------|-------------|
 | [build_hamiltonian](hamiltonian/build-hamiltonian.md) | Assemble Hamiltonian MPO from interactions |
+| [build_ihamiltonian](hamiltonian/build-ihamiltonian.md) | Assemble Hamiltonian iMPO over a unit cell |
 | [build_heisenberg](hamiltonian/build-heisenberg.md) | Heisenberg spin model |
 | [build_free_fermion](hamiltonian/build-free-fermion.md) | Spinless free-fermion (tight-binding) model |
 | [build_hubbard](hamiltonian/build-hubbard.md) | Hubbard model |
@@ -73,8 +82,14 @@ MPO Hamiltonian assembly and built-in physics models.
 **Run DMRG on a spin chain**
 → [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [dmrg.run](../algorithms/dmrg/run.md)
 
+**Run VUMPS on an infinite chain**
+→ [build_interaction](interaction/build-interaction.md), [build_ihamiltonian](hamiltonian/build-ihamiltonian.md), [init_imps](network/init-imps.md), [vumps.run](../algorithms/vumps/run.md)
+
 **Run XTRG at finite temperature**
 → [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [xtrg.run](../algorithms/xtrg/run.md)
+
+**Evolve a state in real time**
+→ [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [tdvp.run](../algorithms/tdvp/run.md)
 
 **Define a model from a TOML file**
 → [build_interaction](interaction/build-interaction.md) — see [AutoMPO from TOML](../examples/autompo-toml.md)
@@ -91,8 +106,8 @@ MPO Hamiltonian assembly and built-in physics models.
 **Compute an expectation value**
 → [observe](network/observe.md)
 
-**Save and reload a result**
-→ [Network.serialize / deserialize](network/network.md), [dmrg.Summary](../algorithms/dmrg/summary.md), [xtrg.Summary](../algorithms/xtrg/summary.md)
+**Save and reload a tensor network**
+→ [Network.serialize / deserialize](network/network.md)
 
 **Configure logging and diagnostics**
 → [configure_logging](logging.md)

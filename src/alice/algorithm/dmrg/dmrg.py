@@ -409,6 +409,8 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
     NotImplementedError
         If `opts.scheme` is not `'1s'` (other schemes are planned but not
         yet implemented).
+    TypeError
+        If `mps` or `mpo` is an infinite network; use `vumps.run` instead.
     ValueError
         If `mps` and `mpo` have different lengths.
     """
@@ -419,6 +421,16 @@ def run(mps: MPS, mpo: MPO, opts: Optional[Options] = None) -> Summary:
         raise NotImplementedError(
             f"DMRG scheme {opts.scheme!r} is recognised but not yet implemented; "
             f"implemented schemes are: {', '.join(sorted(_IMPLEMENTED_SCHEMES))}"
+        )
+
+    # An infinite state shares no ancestry with MPS, so this rejects it rather
+    # than letting canonical(0) and the boundary environments quietly treat the
+    # wrap-around bond as an open end.
+    if not isinstance(mps, MPS) or not isinstance(mpo, MPO):
+        raise TypeError(
+            f"dmrg.run operates on a finite MPS and MPO, got "
+            f"{type(mps).__name__} and {type(mpo).__name__}; "
+            "use vumps.run for infinite networks"
         )
 
     if mps.L != mpo.L:
