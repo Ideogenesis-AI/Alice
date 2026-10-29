@@ -25,6 +25,18 @@ Ground-state search directly in the thermodynamic limit, on a uniform MPS descri
 | [Lessons](vumps/lessons.md) | Practical notes, starting with the environment budget |
 | [Launch](vumps/run.md) | Top-level VUMPS entry point |
 
+## TDVP
+
+Real-time evolution under a Hamiltonian MPO, by projecting the Schrödinger equation onto the tangent space of the MPS manifold.
+
+| Symbol | Description |
+|--------|-------------|
+| [Overview](tdvp/index.md) | Update schemes, integrator order, the tangent-space projection, usage pattern |
+| [Options](tdvp/options.md) | TDVP run options |
+| [Summary](tdvp/summary.md) | TDVP output dataclass |
+| [Artifact](tdvp/artifact.md) | State snapshot at one time step |
+| [Launch](tdvp/run.md) | Top-level TDVP entry point |
+
 ## XTRG
 
 Finite-temperature thermodynamics via exponential cooling of the thermal density matrix.
@@ -37,18 +49,6 @@ Finite-temperature thermodynamics via exponential cooling of the thermal density
 | [Artifact](xtrg/artifact.md) | Density-matrix snapshot at one cooling step |
 | [Lessons](xtrg/lessons.md) | Practical pitfalls, starting with the absolute truncation scale |
 | [Launch](xtrg/run.md) | Top-level XTRG entry point |
-
-## TDVP
-
-Real-time evolution under a Hamiltonian MPO, by projecting the Schrödinger equation onto the tangent space of the MPS manifold.
-
-| Symbol | Description |
-|--------|-------------|
-| [Overview](tdvp/index.md) | Update schemes, integrator order, the tangent-space projection, usage pattern |
-| [Options](tdvp/options.md) | TDVP run options |
-| [Summary](tdvp/summary.md) | TDVP output dataclass |
-| [Artifact](tdvp/artifact.md) | State snapshot at one time step |
-| [Launch](tdvp/run.md) | Top-level TDVP entry point |
 
 ## See Also
 
