@@ -74,6 +74,12 @@ nav:
       - Summary: algorithms/vumps/summary.md
       - Lessons: algorithms/vumps/lessons.md
       - Launch: algorithms/vumps/run.md
+    - TDVP:
+      - Overview: algorithms/tdvp/index.md
+      - Options: algorithms/tdvp/options.md
+      - Summary: algorithms/tdvp/summary.md
+      - Artifact: algorithms/tdvp/artifact.md
+      - Launch: algorithms/tdvp/run.md
     - XTRG:
       - Overview: algorithms/xtrg/index.md
       - Options: algorithms/xtrg/options.md
@@ -81,12 +87,6 @@ nav:
       - Artifact: algorithms/xtrg/artifact.md
       - Lessons: algorithms/xtrg/lessons.md
       - Launch: algorithms/xtrg/run.md
-    - TDVP:
-      - Overview: algorithms/tdvp/index.md
-      - Options: algorithms/tdvp/options.md
-      - Summary: algorithms/tdvp/summary.md
-      - Artifact: algorithms/tdvp/artifact.md
-      - Launch: algorithms/tdvp/run.md
   - API Reference:
     - Overview: api/index.md
     - Logging: api/logging.md
@@ -141,15 +141,15 @@ nav:
       - Majumdar-Ghosh: examples/vumps/majumdar-ghosh.md
       - Free fermion: examples/vumps/free-fermion.md
       - Hubbard model: examples/vumps/hubbard.md
-    - XTRG:
-      - Free fermion: examples/xtrg/free-fermion.md
-      - Hubbard model: examples/xtrg/hubbard.md
     - TDVP:
       - Free fermion: examples/tdvp/free-fermion.md
       - Domain wall: examples/tdvp/domain-wall.md
       - Hubbard model: examples/tdvp/hubbard.md
       - Hubbard quench: examples/tdvp/hubbard-quench.md
       - Scheme comparison: examples/tdvp/scheme-comparison.md
+    - XTRG:
+      - Free fermion: examples/xtrg/free-fermion.md
+      - Hubbard model: examples/xtrg/hubbard.md
     - AutoMPO from TOML: examples/autompo-toml.md
     - Extensions:
       - Custom geometry: examples/extensions/custom-geometry.md
