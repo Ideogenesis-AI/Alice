@@ -85,11 +85,11 @@ MPO Hamiltonian assembly and built-in physics models.
 **Run VUMPS on an infinite chain**
 → [build_interaction](interaction/build-interaction.md), [build_ihamiltonian](hamiltonian/build-ihamiltonian.md), [init_imps](network/init-imps.md), [vumps.run](../algorithms/vumps/run.md)
 
-**Run XTRG at finite temperature**
-→ [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [xtrg.run](../algorithms/xtrg/run.md)
-
 **Evolve a state in real time**
 → [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [tdvp.run](../algorithms/tdvp/run.md)
+
+**Run XTRG at finite temperature**
+→ [build_interaction](interaction/build-interaction.md), [build_hamiltonian](hamiltonian/build-hamiltonian.md), [xtrg.run](../algorithms/xtrg/run.md)
 
 **Define a model from a TOML file**
 → [build_interaction](interaction/build-interaction.md) — see [AutoMPO from TOML](../examples/autompo-toml.md)
