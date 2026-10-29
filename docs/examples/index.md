@@ -27,13 +27,6 @@ Ground states of infinite chains, on a uniform MPS with no finite-size error to 
 - [Free fermion](vumps/free-fermion.md) — spinless tight-binding chain against `-2/π` at half filling.
 - [Hubbard model](vumps/hubbard.md) — spinful chain against the Lieb–Wu exact solution, in all four band symmetries.
 
-### XTRG
-
-Finite-temperature thermodynamics via exponential cooling, with the three update schemes.
-
-- [Free fermion](xtrg/free-fermion.md) — spinless tight-binding chain, exact `log Z` comparison.
-- [Hubbard model](xtrg/hubbard.md) — spinful Hubbard chain with Z(2)×SU(2) symmetry.
-
 ### TDVP
 
 Real-time evolution, each validated against an analytic reference or across symmetry groups.
@@ -42,6 +35,13 @@ Real-time evolution, each validated against an analytic reference or across symm
 - [Domain wall](tdvp/domain-wall.md) — many-body melting against the exact correlation matrix, with occupations *and* entanglement entropy.
 - [Hubbard model](tdvp/hubbard.md) — spinful melting at U = 0, Abelian versus SU(2), against twice the spinless result.
 - [Hubbard quench](tdvp/hubbard-quench.md) — interaction quench from a DMRG ground state, in all four symmetry groups.
+
+### XTRG
+
+Finite-temperature thermodynamics via exponential cooling, with the three update schemes.
+
+- [Free fermion](xtrg/free-fermion.md) — spinless tight-binding chain, exact `log Z` comparison.
+- [Hubbard model](xtrg/hubbard.md) — spinful Hubbard chain with Z(2)×SU(2) symmetry.
 
 ### AutoMPO from TOML
 
