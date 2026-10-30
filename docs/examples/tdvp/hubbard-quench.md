@@ -61,17 +61,17 @@ import alice
 alice.configure_logging()
 
 from alice import MPS
-from alice.network import build_hamiltonian, build_interaction, observe
+from alice.network import build_hamiltonian, build_interaction, init_mps, observe
 from alice.algorithm import dmrg, tdvp
-from conductor import iter_diag_band   # tests/diagonaliztn/conductor.py
+from alice.physics.system import build_conductor
 
 L, t, U_init, U_final, symmetry = 6, 1.0, 2.0, 6.0, "U1,SU2"
 
-# Iterative diagonalization of the U = 0 chain: a good guess at any U, and
-# available in every symmetry group.
-_, _, tensors = iter_diag_band(N=L, Nkeep=64, t=t, symmetry=symmetry,
-                               verbose=False)
-state = MPS(tensors, center=None)
+# A random MPS at the right total charge, available in every symmetry group.
+# The 2-site DMRG below adapts the bond sectors as it sweeps, so the starting
+# state does not have to resemble the ground state.
+spc, ops = build_conductor(symmetry)
+state = init_mps(L, spc, ops, bond_dim=64)
 state.canonical(0)
 state.normalize()
 
