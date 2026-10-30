@@ -28,7 +28,8 @@ config = {
     "model": {"category": "conductor", "label": "Hubbard",
               "symmetry": "U1,SU2", "t": 1.0, "U": 4.0, "mu": 0.0},
 }
-interactions, spc, L = build_interaction(config)
+interactions, spc, geo = build_interaction(config)
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 print(f"L = {L}, MPO bond dims: {hamiltonian.bond_dims}")
 ```
