@@ -15,7 +15,8 @@ At half-filling (`µ = 0`), the exact ground-state energy for a chain of length 
 import alice
 alice.configure_logging()
 
-from alice import build_interaction, build_hamiltonian, MPS, dmrg
+from alice import build_interaction, build_hamiltonian, init_mps, dmrg
+from nicole import load_space
 ```
 
 ## 2. Build the Hamiltonian
@@ -34,27 +35,21 @@ print(f"L = {L}, MPO bond dims: {hamiltonian.bond_dims}")
 
 ## 3. Build an initial MPS
 
-For a half-filled chain with U(1) symmetry, alternate occupied (charge 1) and empty (charge 0) sites:
+`init_mps` builds the state from the physical space and operators of the
+model. With `bond_dim=1` and an explicit `config` it gives a product state;
+here alternating occupied (sector 1) and empty (sector 0) sites put the chain
+at half-filling:
 
 ```python
-from nicole import isometry, Direction
-from nicole.index import Index, Sector
-
-ndigits = max(2, len(str(L)))
-bond_0 = Index([Sector(0, 1)], Direction.OUT)
-
-tensors = []
-for i in range(L):
-    charge = 1 if i % 2 == 0 else 0   # half-filling product state
-    phys = Index([Sector(charge, 1)], Direction.IN)
-    t = isometry(bond_0.flip(), phys)
-    t.insert_index(1, direction=Direction.OUT, itag=f'A{i+1:0{ndigits}d}')
-    t.retag(0, f'A{i:0{ndigits}d}')
-    t.retag(2, f's{i:02d}')
-    tensors.append(t)
-
-mps = MPS(tensors)
+Spc, Op = load_space("Ferm", "U1")
+mps = init_mps(L, Spc, Op, bond_dim=1, config=[1 if i % 2 == 0 else 0 for i in range(L)])
 ```
+
+Omitting `config` lets `init_mps` pick a balanced half-filled configuration
+itself, and `bond_dim > 1` gives a random MPS instead. A product state does
+not carry the bond sectors of the ground state, so pair it with the 2-site
+scheme below, which adapts them as it sweeps; the 1-site scheme never changes
+them and would converge above the true energy.
 
 ## 4. Run DMRG
 
