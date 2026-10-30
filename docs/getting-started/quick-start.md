@@ -68,9 +68,13 @@ Spc, Op = load_space('Spin', 'U1', {'J': 0.5})
 # Product state (bond_dim=1) — exact charge targeting, best for CBE / 2-site DMRG
 mps = init_mps(L, Spc, Op, bond_dim=1)
 
-# Random MPS (bond_dim>1) — group-derived bond sectors, more friendly to 1-site DMRG
+# Random MPS (bond_dim>1) — group-derived bond sectors
 # mps = init_mps(L, Spc, Op, bond_dim=32)
 ```
+
+Neither state carries the bond sectors of the ground state, so pair it with
+the 2-site (`'2s'`) or CBE (`'1sp'`) scheme below. The 1-site scheme never
+changes those sectors, and would converge above the true energy.
 
 See [init_mps](../api/network/init-mps.md) for the full signature and all
 supported symmetry groups.
