@@ -110,27 +110,29 @@ summary = dmrg.Summary.load("ground_state.ckpt")
 
 ## Expected Output
 
-For a 20-site Heisenberg chain with OBC, U(1) symmetry, and bond dimension 64, the run converges in 2 sweeps. Alice logs the sweep progress at INFO level:
+For a 20-site Heisenberg chain with OBC, U(1) symmetry, and bond dimension 64,
+the run converges in 4 sweeps from the product state. Alice logs the sweep
+progress at INFO level:
 
 ```
-sweep  1 / 20: E = -8.68247313627, |ΔE| = inf,        dw = 1.65e-11
-sweep  2 / 20: E = -8.68247313627, |ΔE| = 1.51e-12,   dw = 1.55e-11
-converged after 2 sweep(s)
+sweep  1 / 20: E = -8.60547015119, |ΔE| = inf, dw = 0.0000e+00
+sweep  2 / 20: E = -8.68225912573, |ΔE| = 7.6789e-02, dw = 0.0000e+00
+sweep  3 / 20: E = -8.6824731357, |ΔE| = 2.1401e-04, dw = 0.0000e+00
+sweep  4 / 20: E = -8.68247313627, |ΔE| = 5.7109e-10, dw = 6.6697e-14
+converged after 4 sweep(s)
 ```
 
-The final energy and per-site energy printed by the script:
+And the script itself prints:
 
 ```
-Sweeps performed : 2  (converged)
-Ground-state E   : -8.6824731363
-Energy per site  : -0.4341236568
-
-Exact E/N (N→∞)  : -0.4431471806  (thermodynamic limit)
-DMRG  E/N        : -0.4341236568
-Difference       : +9.0235e-03  (finite-size + truncation error)
+Ground-state energy: -8.6824731363
+Converged: True after 4 sweeps
 ```
 
-The ~0.009 gap is expected: for L=20 with OBC the finite-size correction alone accounts for most of the difference with the thermodynamic-limit Bethe-ansatz value of \(E/L = 1/4 - \ln 2 \approx -0.4431\).
+That is `E/L = -0.4341236568` per site, about 0.009 above the
+thermodynamic-limit Bethe-ansatz value \(E/L = 1/4 - \ln 2 \approx -0.4431\).
+The gap is expected: for L=20 with OBC the finite-size correction alone
+accounts for most of it.
 
 ## Next Steps
 
