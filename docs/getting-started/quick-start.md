@@ -48,7 +48,8 @@ name each (`[heisenberg.geometry]`, `[heisenberg.model]`), load the file with
 ```python
 from alice import build_interaction, build_hamiltonian
 
-interactions, spc, L = build_interaction("heisenberg.toml")
+interactions, spc, geo = build_interaction("heisenberg.toml")
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 ```
 
