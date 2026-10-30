@@ -26,7 +26,8 @@ config = {
     "model": {"category": "fermionic", "label": "FreeFermion",
               "symmetry": "U1", "t": 1.0, "mu": 0.0},
 }
-interactions, spc, L = build_interaction(config)
+interactions, spc, geo = build_interaction(config)
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 print(f"L = {L}, MPO bond dims: {hamiltonian.bond_dims}")
 ```
