@@ -90,20 +90,13 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
-import sys
-from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
 import torch
 
-sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'tests' / 'diagonaliztn'))
-
-from conductor import iter_diag_band  # pyright: ignore[reportMissingImports]
-
 import alice
-from alice import MPS, build_hamiltonian, build_interaction, dmrg, observe, tdvp
+from alice import MPS, build_hamiltonian, build_interaction, dmrg, init_mps, observe, tdvp
 from alice.physics.system import build_conductor
 from freefermion_exact import (  # pyright: ignore[reportMissingImports]
     mps_entropy,
@@ -169,9 +162,9 @@ def _ground_state(
 ) -> Tuple[MPS, float]:
     """Find the Hubbard ground state at interaction `U` with DMRG.
 
-    The starting point is the `U = 0` spinful chain from iterative
-    diagonalization, which is a good guess at any `U` and, unlike a site
-    configuration, is available in every symmetry group.
+    The starting point is a random MPS from `init_mps`, which is available in
+    every symmetry group. The 2-site scheme below adapts the bond sectors as
+    it sweeps, so the initial state only has to carry the right total charge.
 
     Parameters
     ----------
@@ -195,9 +188,8 @@ def _ground_state(
     float
         Converged ground-state energy.
     """
-    _, _, tensors = iter_diag_band(N=L, Nkeep=bond_dim, t=t,
-                                   symmetry=symmetry, verbose=False)
-    mps = MPS(tensors, center=None)
+    spc, ops = build_conductor(symmetry)
+    mps = init_mps(L, spc, ops, bond_dim=bond_dim)
     mps.canonical(0)
     mps.normalize()
 
