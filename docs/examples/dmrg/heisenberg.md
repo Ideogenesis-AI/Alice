@@ -40,7 +40,8 @@ J        = 1.0
 Then load it:
 
 ```python
-interactions, spc, L = build_interaction("heisenberg.toml")
+interactions, spc, geo = build_interaction("heisenberg.toml")
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 print(f"L = {L}, MPO bond dims: {hamiltonian.bond_dims}")
 ```
@@ -53,7 +54,8 @@ config = {
     "model": {"category": "bosonic", "label": "Heisenberg",
               "symmetry": "U1", "spin": 0.5, "J": 1.0},
 }
-interactions, spc, L = build_interaction(config)
+interactions, spc, geo = build_interaction(config)
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 ```
 
@@ -118,7 +120,8 @@ To use full SU(2) spin-rotation symmetry, change `symmetry` to `"SU2"`:
 
 ```python
 config["model"]["symmetry"] = "SU2"
-interactions, spc, L = build_interaction(config)
+interactions, spc, geo = build_interaction(config)
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 ```
 
