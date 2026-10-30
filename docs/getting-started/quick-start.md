@@ -78,7 +78,7 @@ supported symmetry groups.
 ### 5. Run DMRG
 
 ```python
-from alice import dmrg, MPS
+from alice import dmrg
 
 opts = dmrg.Options(
     scheme    = '2s',
