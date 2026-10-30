@@ -33,13 +33,18 @@ energy is computed analytically from the single-particle spectrum
 
     ε_k = -2t cos(kπ / (L+1)),  k = 1, …, ⌊L/2⌋.
 
-Two initializations are supported via --init:
+Both initializations offered via --init come from `init_mps`:
 
-- `iter_diag` (default): iterative diagonalization, growing the chain
-  site by site and keeping `bond_dim` states. Provides a good starting
-  point and typically converges in one or two sweeps.
-- `random`: random MPS with group-derived bond sectors. Simpler to construct
-  but requires more sweeps to converge.
+- `random` (default): random MPS with group-derived bond sectors.
+- `product`: deterministic bond-dimension-1 product state.
+
+Neither carries the bond sectors of the ground state, which matters for the
+update scheme. The 1-site scheme optimizes one site tensor at a time and so
+leaves the bond sectors of the initial MPS untouched for the whole run: it
+converges inside that restricted variational space and settles visibly above
+the exact energy. Compare `--scheme 1s` against `--scheme 2s` or
+`--scheme 1sp`, both of which let the sectors adapt and reach the exact
+energy from either initialization.
 
 Run from the repository root:
 
@@ -48,23 +53,16 @@ Run from the repository root:
     uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --bond-dim 32 --scheme 1sp
     uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --bond-dim 32 --scheme 1sp --expand-k 8
     uv run python examples/examples_dmrg/dmrg_freefermion.py --L 50 --bond-dim 64 --history
-    uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --init random --bond-dim 32
+    uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --init product --scheme 2s
     uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --bond-dim 32 --env-cache-dir /tmp/env_cache
     uv run python examples/examples_dmrg/dmrg_freefermion.py --help
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests" / "diagonaliztn"))
-
-from fermionic import iter_diag_ferm, exact_halffilling_energy  # pyright: ignore[reportMissingImports]
 
 import alice
 from alice import MPS, build_hamiltonian, build_interaction, init_mps
@@ -72,41 +70,29 @@ from alice import dmrg
 from nicole import load_space
 
 
-def _iter_diag_mps(
-    L: int,
-    bond_dim: int,
-    t: float = 1.0,
-    symmetry: str = 'U1',
-) -> MPS:
-    """Build an initial MPS from iterative diagonalization of the free-fermion chain.
+def _exact_halffilling_energy(L: int, t: float = 1.0) -> float:
+    """Exact ground-state energy of an L-site open tight-binding chain at half-filling.
 
-    Uses `iter_diag_ferm` (fermionic.py) to grow the chain site by site with
-    isometry-based tensors, keeping at most `bond_dim` states at each step.
-    The result is placed in right-canonical form with `center == 0` before
-    being returned.
+    Fills the ⌊L/2⌋ lowest levels of the analytic single-particle spectrum
+    ε_k = -2t cos(kπ / (L+1)), k = 1, …, L.
 
     Parameters
     ----------
     L:
         Chain length.
-    bond_dim:
-        Maximum number of states kept per truncation step.
     t:
-        Nearest-neighbor hopping amplitude forwarded to `iter_diag_ferm`.
-    symmetry:
-        `'U1'` (conserve particle number) or `'Z2'` (fermion parity).
+        Hopping amplitude.
 
     Returns
     -------
-    MPS
-        Right-canonical MPS (`center == 0`).
+    float
+        Exact ground-state energy at half-filling (⌊L/2⌋ particles).
     """
-    _, _, tensors = iter_diag_ferm(
-        N=L, Nkeep=bond_dim, t=t, symmetry=symmetry, verbose=False,
-    )
-    mps = MPS(tensors, center=None)
-    mps.canonical(0)
-    return mps
+    n_particles = L // 2
+    if n_particles == 0:
+        return 0.0
+    k = np.arange(1, n_particles + 1)
+    return float(-2 * t * np.sum(np.cos(k * np.pi / (L + 1))))
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +109,7 @@ def dmrg_freefermion(
     e_tol: float = 1e-8,
     davidson_tol: float = 1e-10,
     trunc_thresh: float = 1e-15,
-    init: str = 'iter_diag',
+    init: str = 'random',
     seed: int = 42,
     expand_k: int = 4,
     expand_alpha: int = None,
@@ -139,9 +125,9 @@ def dmrg_freefermion(
     L:
         Chain length.
     bond_dim:
-        Maximum bond dimension. For `init='iter_diag'` this is the number of
-        states kept at each iterative step. For `init='random'` the total is
-        distributed evenly across particle-number sectors.
+        Maximum bond dimension of the DMRG run. For `init='random'` it is also
+        the budget distributed across the particle-number sectors of the
+        initial MPS; `init='product'` always starts at bond dimension 1.
     n_sweeps:
         Maximum number of full sweeps (forward + backward half-sweep each).
     t:
@@ -164,8 +150,11 @@ def dmrg_freefermion(
         largest singular value are discarded (default: 1e-15). Applied at
         every canonical step in the `'2s'` and `'1sp'` schemes.
     init:
-        Initial MPS strategy: `'iter_diag'` (iterative diagonalization,
-        default) or `'random'` (random tensors with group-derived sectors).
+        Initial MPS strategy, both built by `init_mps`: `'random'` (random
+        tensors with group-derived bond sectors, default) or `'product'`
+        (deterministic bond-dimension-1 product state). Neither reproduces
+        the bond sectors of the ground state, so `scheme='1s'` converges
+        above the exact energy; use `'2s'` or `'1sp'` to let them adapt.
     seed:
         Base random seed used when `init='random'`.
     expand_k:
@@ -197,8 +186,8 @@ def dmrg_freefermion(
     """
     if symmetry not in ('U1', 'Z2'):
         raise ValueError(f"symmetry must be 'U1' or 'Z2', got {symmetry!r}")
-    if init not in ('iter_diag', 'random'):
-        raise ValueError(f"init must be 'iter_diag' or 'random', got {init!r}")
+    if init not in ('random', 'product'):
+        raise ValueError(f"init must be 'random' or 'product', got {init!r}")
 
     # -----------------------------------------------------------------------
     # Build the Hamiltonian MPO
@@ -218,11 +207,8 @@ def dmrg_freefermion(
     # -----------------------------------------------------------------------
     # Build the initial MPS
     # -----------------------------------------------------------------------
-    if init == 'iter_diag':
-        mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, t=t, symmetry=symmetry)
-    else:
-        Spc, Op = load_space('Ferm', symmetry)
-        mps = init_mps(geo.L, Spc, Op, bond_dim=bond_dim, seed=seed)
+    Spc, Op = load_space('Ferm', symmetry)
+    mps = init_mps(geo.L, Spc, Op, bond_dim=1 if init == 'product' else bond_dim, seed=seed)
 
     if verbose:
         print(f"Chain length   : {geo.L}")
@@ -270,7 +256,7 @@ def dmrg_freefermion(
         print(f"MPS bond dims    : {summary.bond_dims}")
 
         print()
-        E_exact_N = exact_halffilling_energy(geo.L, t)
+        E_exact_N = _exact_halffilling_energy(geo.L, t)
         E_exact_inf = -2.0 * t / np.pi
         print(f"Exact E (finite, half-filling) : {E_exact_N:.10f}")
         print(f"DMRG  E                        : {summary.energy:.10f}")
@@ -299,7 +285,7 @@ def _parse_args():
             "  uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --bond-dim 32 --scheme 1sp\n"
             "  uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --bond-dim 32 --scheme 1sp --expand-k 8\n"
             "  uv run python examples/examples_dmrg/dmrg_freefermion.py --L 50 --bond-dim 64 --history\n"
-            "  uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --init random --bond-dim 32\n"
+            "  uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --init product --scheme 2s\n"
             "  uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --bond-dim 32 --env-cache-dir /tmp/env_cache\n"
             "  uv run python examples/examples_dmrg/dmrg_freefermion.py --L 20 --init random --seed 123"
         ),
@@ -353,10 +339,11 @@ def _parse_args():
         help='SVD truncation threshold (default: 1e-15)',
     )
     p.add_argument(
-        '--init', choices=['iter_diag', 'random'], default='iter_diag',
+        '--init', choices=['random', 'product'], default='random',
         help=(
-            'MPS initialization strategy: iter_diag (iterative diagonalization,'
-            ' default) or random (random tensors, U1 only)'
+            'MPS initialization strategy: random (random tensors with '
+            'group-derived bond sectors, default) or product (bond-dimension-1 '
+            'product state)'
         ),
     )
     p.add_argument(
@@ -422,7 +409,7 @@ if __name__ == '__main__':
         for k, E in enumerate(energies):
             dE = E - energies[k - 1] if k > 0 else float('nan')
             print(f"{k + 1:>6}  {E:>18.10f}  {dE:>+14.4e}")
-        E_exact_N = exact_halffilling_energy(args.L, args.t)
+        E_exact_N = _exact_halffilling_energy(args.L, args.t)
         print(f"\nFinal energy      : {energies[-1]:.10f}")
         print(f"Exact energy      : {E_exact_N:.10f}  (finite chain, half-filling)")
         print(f"Exact E/N (N→∞)   : {-2.0 * args.t / np.pi:.10f}  (thermodynamic limit)")
