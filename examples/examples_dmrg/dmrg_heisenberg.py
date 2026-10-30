@@ -236,7 +236,13 @@ def dmrg_heisenberg(
             print(f"Exact E/N (N→∞)  : {E_exact_per_site:.10f}")
             print(f"DMRG  E/N        : {summary.energy / geo.L:.10f}")
             delta = summary.energy / geo.L - E_exact_per_site
-            print(f"Difference       : {delta:+.4e}  (finite-size + truncation error)")
+            # Under the 1-site scheme the bond sectors stay those of the initial
+            # MPS, which adds a restricted-variational-space error on top of the
+            # finite-size and truncation gaps.
+            cause = ('finite-size + fixed initial bond sectors'
+                     if scheme in ('1s', '1-site', 'one-site')
+                     else 'finite-size + truncation error')
+            print(f"Difference       : {delta:+.4e}  ({cause})")
 
     return summary, mps
 
