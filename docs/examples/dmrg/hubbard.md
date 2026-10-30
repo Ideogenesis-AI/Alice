@@ -72,7 +72,7 @@ print(f"Converged:     {summary.converged}")
 print(f"Max bond dim:  {max(summary.bond_dims)}")
 ```
 
-For `L=8`, `U=4`, `t=1`, OBC, the ground-state energy is approximately `E ≈ -3.67`.
+For `L=8`, `U=4`, `t=1`, OBC, this converges to `E ≈ -20.2358` (`E/L ≈ -2.5295`). The `Hubbard` label carries a `-U/2 Σ_i n_i` term that puts half-filling at `mu = 0`, so the energy includes that shift.
 
 ## 5. Environment caching for large chains
 
