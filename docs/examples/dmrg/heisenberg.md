@@ -23,13 +23,13 @@ from alice import build_interaction, build_hamiltonian, MPS, dmrg
 Save the following as `heisenberg.toml`:
 
 ```toml
-[model.geometry]
+[geometry]
 lattice = "chain"
 lx      = 20
 bcx     = "OBC"
 n2x     = true
 
-[model.model]
+[model]
 category = "bosonic"
 label    = "Heisenberg"
 symmetry = "U1"
