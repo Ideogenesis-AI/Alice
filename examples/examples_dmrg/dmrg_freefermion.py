@@ -261,7 +261,12 @@ def dmrg_freefermion(
         print(f"Exact E (finite, half-filling) : {E_exact_N:.10f}")
         print(f"DMRG  E                        : {summary.energy:.10f}")
         delta = summary.energy - E_exact_N
-        print(f"Difference                     : {delta:+.4e}  (truncation error)")
+        # Under the 1-site scheme the bond sectors stay those of the initial
+        # MPS, so the gap to the exact energy is a restricted variational
+        # space rather than SVD truncation.
+        cause = ('fixed initial bond sectors'
+                 if scheme in ('1s', '1-site', 'one-site') else 'truncation error')
+        print(f"Difference                     : {delta:+.4e}  ({cause})")
         print()
         print(f"Exact E/N (N→∞, half-filling)  : {E_exact_inf:.10f}")
         print(f"DMRG  E/N                      : {summary.energy / geo.L:.10f}")
