@@ -24,19 +24,24 @@ alice.configure_logging()   # writes a timestamped .log file under .logging/
 Create a file `heisenberg.toml`:
 
 ```toml
-[model.geometry]
+[geometry]
 lattice = "chain"
 lx      = 20
 bcx     = "OBC"
 n2x     = true
 
-[model.model]
+[model]
 category = "bosonic"
 label    = "Heisenberg"
 symmetry = "U1"
 spin     = 0.5
 J        = 1.0
 ```
+
+The two tables are top level here because the file path goes straight to
+`build_interaction`. To keep several models in one file, nest them under a
+name each (`[heisenberg.geometry]`, `[heisenberg.model]`), load the file with
+`tomllib`, and pass the section you want.
 
 ### 3. Build interactions and Hamiltonian
 
