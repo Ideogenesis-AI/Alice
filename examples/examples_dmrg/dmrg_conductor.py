@@ -29,10 +29,13 @@ algorithm performs alternating left and right half-sweeps, optimizing each
 site tensor (1-site / 1-site-plus) or bond tensor (2-site) with the Davidson
 eigensolver, until the energy converges.
 
-The initial MPS is obtained from iterative diagonalization of the U = 0
-(non-interacting) limit, which provides an excellent starting point for the
-interacting system. The free-fermion initial energy per site at half-filling
-converges to
+Both initializations offered via --init come from `init_mps`: `random`
+(default, random tensors with group-derived bond sectors) and `product`
+(deterministic bond-dimension-1 product state). Neither carries the bond
+sectors of the ground state, so the 1-site scheme, which leaves those sectors
+untouched for the whole run, converges well above the true energy; use
+`--scheme 2s` or `--scheme 1sp` to let the sectors adapt. For reference, the
+free-fermion (U = 0) energy per site at half-filling converges to
 
     E₀/N = -4t/π ≈ -1.2732 t  (thermodynamic limit, U = 0).
 
@@ -54,16 +57,9 @@ Run from the repository root:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests" / "diagonaliztn"))
-
-from conductor import iter_diag_band, exact_halffilling_energy_band  # pyright: ignore[reportMissingImports]
 
 import alice
 from alice import MPS, build_hamiltonian, build_interaction, init_mps
@@ -71,49 +67,30 @@ from alice import dmrg
 from nicole import load_space
 
 
-# ---------------------------------------------------------------------------
-# Initial MPS construction
-# ---------------------------------------------------------------------------
+def _exact_free_energy_band(L: int, t: float = 1.0) -> float:
+    """Exact U = 0 ground-state energy of an L-site spinful chain at half-filling.
 
-def _iter_diag_mps(
-    L: int,
-    bond_dim: int,
-    t: float = 1.0,
-    symmetry: str = 'U1,U1',
-) -> MPS:
-    """Build an initial MPS from iterative diagonalization of the free spinful chain.
-
-    Uses `iter_diag_band` (conductor.py) to diagonalize the non-interacting
-    (U = 0) spinful tight-binding chain site by site, keeping at most
-    `bond_dim` states (multiplets for SU2) at each step. This free-fermion
-    MPS is an excellent starting point for the interacting Hubbard problem.
-    The result is placed in right-canonical form with `center == 0`.
+    The non-interacting Hamiltonian is spin-diagonal, so the energy is twice
+    that of a single spinless chain filled to ⌊L/2⌋ particles:
+    E = 2 × Σ_{k=1}^{⌊L/2⌋} (-2t cos(kπ / (L+1))).
 
     Parameters
     ----------
     L:
         Chain length.
-    bond_dim:
-        Maximum number of states kept per truncation step. For symmetries with
-        SU2 spin rotation (`'U1,SU2'` or `'Z2,SU2'`) this counts SU(2)
-        multiplets.
     t:
-        Nearest-neighbor hopping amplitude forwarded to `iter_diag_band`.
-    symmetry:
-        Band symmetry. Accepted values: `'U1,U1'` (default), `'Z2,U1'`,
-        `'U1,SU2'`, or `'Z2,SU2'`.
+        Hopping amplitude.
 
     Returns
     -------
-    MPS
-        Right-canonical MPS (`center == 0`).
+    float
+        Exact U = 0 ground-state energy at half-filling.
     """
-    _, _, tensors = iter_diag_band(
-        N=L, Nkeep=bond_dim, t=t, symmetry=symmetry, verbose=False,
-    )
-    mps = MPS(tensors, center=None)
-    mps.canonical(0)
-    return mps
+    n_particles = L // 2
+    if n_particles == 0:
+        return 0.0
+    k = np.arange(1, n_particles + 1)
+    return float(-4 * t * np.sum(np.cos(k * np.pi / (L + 1))))
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +109,7 @@ def dmrg_conductor(
     e_tol: float = 1e-8,
     davidson_tol: float = 1e-10,
     trunc_thresh: float = 1e-15,
-    init: str = 'iter_diag',
+    init: str = 'random',
     seed: int = 42,
     expand_k: int = 4,
     expand_alpha: int = None,
@@ -143,21 +120,19 @@ def dmrg_conductor(
 ) -> Tuple[dmrg.Summary, MPS]:
     """Run DMRG for the 1D Hubbard chain.
 
-    Two initializations are supported via `init`:
+    Two initializations are supported via `init`, both built by `init_mps`:
 
-    - `iter_diag` (default): iterative diagonalization of the U = 0
-      free-fermion limit. Provides an excellent starting point for the
-      interacting problem and typically converges in a few sweeps.
-    - `random`: random MPS with group-derived bond sectors. Faster to
-      construct but may require more sweeps.
+    - `random` (default): random MPS with group-derived bond sectors.
+    - `product`: deterministic bond-dimension-1 product state.
 
     Parameters
     ----------
     L:
         Chain length.
     bond_dim:
-        Maximum bond dimension. Also controls the number of states kept during
-        iterative diagonalization of the initial MPS.
+        Maximum bond dimension of the DMRG run. For `init='random'` it is also
+        the budget distributed across the group-derived bond sectors of the
+        initial MPS; `init='product'` always starts at bond dimension 1.
     n_sweeps:
         Maximum number of full sweeps (forward + backward half-sweep each).
     t:
@@ -191,9 +166,11 @@ def dmrg_conductor(
         largest singular value are discarded (default: 1e-15). Applied at
         every canonical step in the `'2s'` and `'1sp'` schemes.
     init:
-        Initial MPS strategy: `'iter_diag'` (iterative diagonalization of
-        the U=0 free-fermion chain, default) or `'random'` (random MPS with
-        group-derived bond sectors).
+        Initial MPS strategy, both built by `init_mps`: `'random'` (random
+        tensors with group-derived bond sectors, default) or `'product'`
+        (deterministic bond-dimension-1 product state). Neither reproduces
+        the bond sectors of the ground state, so `scheme='1s'` converges
+        above the true energy; use `'2s'` or `'1sp'` to let them adapt.
     seed:
         Base random seed used when `init='random'`.
     expand_k:
@@ -228,8 +205,8 @@ def dmrg_conductor(
         raise ValueError(
             f"symmetry must be one of {_VALID_SYMMETRIES}, got {symmetry!r}"
         )
-    if init not in ('iter_diag', 'random'):
-        raise ValueError(f"init must be 'iter_diag' or 'random', got {init!r}")
+    if init not in ('random', 'product'):
+        raise ValueError(f"init must be 'random' or 'product', got {init!r}")
 
     # -----------------------------------------------------------------------
     # Build the Hamiltonian MPO
@@ -251,11 +228,8 @@ def dmrg_conductor(
     # -----------------------------------------------------------------------
     # Build the initial MPS
     # -----------------------------------------------------------------------
-    if init == 'iter_diag':
-        mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, t=t, symmetry=symmetry)
-    else:
-        Spc, Op = load_space('Band', symmetry)
-        mps = init_mps(geo.L, Spc, Op, bond_dim=bond_dim, seed=seed)
+    Spc, Op = load_space('Band', symmetry)
+    mps = init_mps(geo.L, Spc, Op, bond_dim=1 if init == 'product' else bond_dim, seed=seed)
 
     if verbose:
         print(f"Chain length   : {geo.L}")
@@ -306,7 +280,7 @@ def dmrg_conductor(
         print()
         # The U=0 free-fermion exact energy serves as a lower bound and a
         # reference for how much the Hubbard interaction raises the energy.
-        E_free_N   = exact_halffilling_energy_band(geo.L, t)
+        E_free_N   = _exact_free_energy_band(geo.L, t)
         E_free_inf = -4.0 * t / np.pi
         print(f"Reference (U=0, finite, half-filling) : {E_free_N:.10f}")
         print(f"Reference E/N  (U=0, N→∞, half-fill) : {E_free_inf:.10f}")
@@ -370,10 +344,11 @@ def _parse_args():
         help='band symmetry exploited (default: U1,U1)',
     )
     p.add_argument(
-        '--init', choices=['iter_diag', 'random'], default='iter_diag',
+        '--init', choices=['random', 'product'], default='random',
         help=(
-            'MPS initialization strategy: iter_diag (iterative diagonalization of the '
-            'U=0 free-fermion chain, default) or random (random tensors)'
+            'MPS initialization strategy: random (random tensors with '
+            'group-derived bond sectors, default) or product (bond-dimension-1 '
+            'product state)'
         ),
     )
     p.add_argument(
@@ -468,7 +443,7 @@ if __name__ == '__main__':
         for k, E in enumerate(energies):
             dE = E - energies[k - 1] if k > 0 else float('nan')
             print(f"{k + 1:>6}  {E:>18.10f}  {dE:>+14.4e}")
-        E_free_N = exact_halffilling_energy_band(args.L, args.t)
+        E_free_N = _exact_free_energy_band(args.L, args.t)
         print(f"\nFinal energy          : {energies[-1]:.10f}")
         print(f"Ref. (U=0, half-fill) : {E_free_N:.10f}")
         print(f"Ref. E/N (N→∞, U=0)  : {-4.0 * args.t / np.pi:.10f}  (thermodynamic limit)")
