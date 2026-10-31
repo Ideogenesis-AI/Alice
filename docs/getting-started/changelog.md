@@ -1,5 +1,173 @@
 # Changelog
 
+## [0.4.0] - 2026-10-31
+
+**VUMPS: The Infinite Chain**
+
+Introduces VUMPS (Variational Uniform Matrix Product States), Alice's fourth algorithm: a
+ground-state solver that works directly on an infinite chain, with no system size, no
+boundary, and no finite-size extrapolation. The state is a uniform MPS given by a unit cell
+that tiles the chain, the Hamiltonian is an iMPO over the same cell, and the energy reported
+is an energy per site. Supporting it, the network layer gains a whole infinite family —
+`iNetwork`, `iMPS`, `iMPO`, their gauge-fixed canonical form, `init_imps`, and an
+automaton-based `build_ihamiltonian` — and the 1D chain geometry gains the `IBC` boundary
+condition and next-nearest-neighbor bonds. No breaking API changes.
+
+### Infinite Tensor Networks
+
+- New `alice.network.infinite` with `iNetwork`, `iMPS`, and `iMPO`, exported from
+  `alice.network` and the top-level namespace. A cell of `N` site tensors tiles the chain:
+  site `N` is site `0` of the next copy, so the right bond of site `N-1` is the *same* index
+  as the left bond of site `0`, and both ends of the cell carry a full virtual index rather
+  than a trivial dimension-1 boundary.
+- This is a tiling, not a closed loop — it says translating by `N` sites changes nothing,
+  not that two distant sites are bonded. The finite closed chain remains `Network` with
+  `bc='PBC'`. The family shares no ancestry with `Network`, which is what makes
+  `isinstance(x, MPS)` `False` for an infinite state and lets the finite entry points reject
+  one.
+- **Canonical form by gauge fixing.** With no end to sweep orthogonality in from,
+  `iMPS.canonical` solves for a fixed point instead: sweep the cell with a sign-fixed QR,
+  carry the triangular factor into the next copy, repeat. It leaves `AL`, `AR`, and `C`
+  satisfying `AL[i] C[i+1] = C[i] AR[i]`, with each `C` diagonalized into the Schmidt basis
+  so the stored form is unique and the entanglement spectrum can be read off. All three are
+  kept: `AL` cannot be recovered from `AR` and `C` by a fresh QR sweep, which fixes its own
+  basis on each bond.
+- New `set_canonical` installs a gauge computed elsewhere, taking all three as given.
+  Deriving them from updated tensors would require the transfer operator of a state caught
+  mid-update to have a single dominant eigenvalue, which it need not. `canonical` raises when
+  no gauge exists, which a random cell can land on.
+- New `infinite_summary` in `display.py` renders one cell between `···─` continuation
+  markers, reporting the cell size rather than a chain length and omitting the norm, which is
+  not a finite quantity for an infinite state.
+
+### Building the Infinite System
+
+- New `build_ihamiltonian` assembles the cell directly as a **finite-state automaton**. The
+  finite builder cannot be reused: `oplus` would duplicate the unique start and finish
+  channels of the upper-triangular `W`, and a second start channel generates a whole family
+  of spurious terms, while `compact()` has no open end to sweep from and would scramble the
+  triangular structure the environment solver reads. A term is a walk entering at start,
+  carrying an operator string across the intervening bonds, and exiting at finish; because
+  the string's progress is part of the channel identity, a term reaching past the cell simply
+  places several channels on one bond, so the range is not limited by `N`. Companion helpers
+  `boundary_vectors` and `window_mpo` are exported alongside it.
+- New `init_imps` builds the initial cell in the same two modes as `init_mps`. **The cell is
+  charge neutral** — fusing its physical charges has to return the charge it started from,
+  which means half filling for fermions and zero magnetization for spins, so there is no
+  `target_qn` and a `config` carrying net charge is refused, as is an odd cell for spin-1/2.
+  **Each bond carries only the charges reachable at its own position**, an even number of
+  fusion steps from its neighbors'; giving every bond the same sectors produces a transfer
+  operator with two dominant eigenvalues of opposite sign, which gauge fixing reports as a
+  two-cycle. A random draw landing there is repeated with a shifted seed up to eight times.
+- `intrcmap_1dchain` accepts `bcx='IBC'`, under which a `terminal_site` at or beyond `L`
+  denotes a site in the next cell, and gains an `n3x` key for next-nearest-neighbor bonds,
+  which the Majumdar-Ghosh point needs. An unrecognized `bcx` now raises `ValueError`.
+
+### VUMPS Algorithm
+
+- New `alice.algorithm.vumps` package exporting `Options`, `Summary`, `run`, `cell_update`,
+  `cell_environments`, `Environment`, and the unit-cell transfer operators, with `vumps`
+  added to the `alice.algorithm` and top-level namespaces. The unit of work is an
+  **iteration**, not a sweep: every position of the cell is solved against one frozen set of
+  environments, which are then re-solved against the updated state.
+- **2-site** (`'2s'`, default) solves a pair and splits it by SVD under
+  `max_bond`/`trunc_thresh` — the only scheme that can change the bond dimension or move
+  weight between charge sectors. The split needs no inverse: writing `C = S` with center
+  tensors `U S` and `S Vh` reproduces the one-site gauge step exactly. **1-site** (`'1s'`)
+  solves `H_AC` and `H_C` independently and reconciles them with two separate polar factors,
+  taken separately because the polar decomposition of `AC C†` would square the condition
+  number of an ill-conditioned `C`. Discarding nothing, it is confined to the bond dimension
+  *and* the sectors its initial state carried. `'1sp'` is accepted by `Options` and rejected
+  by `run()`.
+- **Environments are fixed points.** The iMPO being upper triangular with identities in both
+  corners, the start channel is solved by the identity, the string channels converge in
+  finitely many cells, and the finish channel's equation has no solution at all — each
+  application adds one more cell of energy. Subtracting that component at every step is the
+  cure, and the amount subtracted *is* the energy, which is why the solver measures it.
+  Nicole has no Krylov solver, so this is plain regularized power iteration, the
+  slowest-converging piece of an iteration. Running out of `env_maxiter` warns and continues
+  with the best estimate.
+- Only the right environment blocks are stored, and that is structural: a forward pass
+  produces its left blocks in the order it consumes them, so one running tensor suffices,
+  while the right blocks come off the recursion last-built-first-used, which is what a
+  sliding window serves. One side of a pass is streamed and the other stored, with the same
+  `env_cache_dir`/`env_async_io`/`env_window` triple as the other algorithms.
+- **Convergence is measured on the gradient** `|AC - AL·C|`, maximized over the cell. The
+  Davidson eigenvalues belong to regularized local problems and the energy of an infinite
+  chain is infinite, so the energy density comes from the environment fixed point. The
+  gradient keeps falling long after the energy has flattened, and rests on two floors: it
+  cannot go below `davidson_tol`, and under `'2s'` against a bond cap that bites it settles
+  at a floor set by the discarded weight.
+- `Summary` carries `energy` (per site), the gauge-fixed `state`, `energies`, `converged`,
+  `n_iters`, `bond_dims`, `gradients`, and `discarded_weights`. `vumps.ckpt` is written
+  atomically every iteration and removed on success, with the final `Summary` archived as
+  `state.ckpt` under `artifacts_dir`, matching DMRG's layout.
+
+### Tests
+
+- Five new modules under `tests/algorithm/vumps/` plus a shared `conftest.py`: the transfer
+  operators against isometry, the energy density against closed-form answers, the
+  environments for consistency where no answer is known, the missed-tolerance warning, the
+  bond-indexed store against its recursion and its window, both schemes' local solves and
+  gauge steps, and the driver, its cache, and the files it leaves on disk. A `_Watched`
+  subclass of `Environment` records how full it ever got, pinning that a pass never holds
+  more than a window.
+- New `tests/network/test_infinite.py`, `test_autoimpo.py`, and `test_autoimps.py` cover the
+  tiling and bond bookkeeping, the canonical form against states with a known Schmidt
+  spectrum and the failures it must refuse, a window of the cell against the finite MPO built
+  from the same terms, and both initializer modes with their refusals.
+- `tests/physics/test_chain.py` gains NNN and IBC coverage. New top-level `tests/conftest.py`
+  isolates the working directory of the whole suite from the project root, with a
+  session-scoped fixture ahead of any fixture that calls `run()`; the per-algorithm copies it
+  supersedes are gone.
+
+### Documentation and Examples
+
+- New `docs/algorithms/vumps/` section and four `docs/examples/vumps/` walkthroughs, each
+  against an exact answer: Heisenberg against `1/4 - ln 2`, Majumdar-Ghosh at its exactly
+  solvable point (`6e-14` from exact in seven iterations), free fermion against `-2/π`, and
+  Hubbard against the Lieb–Wu integral in all four band symmetries.
+- `docs/algorithms/vumps/lessons.md` measures the environment budget: the residual falls
+  geometrically, so `env_tol = ε` costs roughly `ξ ln(1/ε)` cells and the default of 200
+  covers `ξ` up to about seven. Nothing stalls; a gapped model saturates with the bond
+  dimension while a critical one does not; a degenerate or over-wide state exhausts the
+  budget while gapped. **The energy is not the environment** — at `D = 32` on the Heisenberg
+  chain an environment with a `1.9e-4` residual gives an energy good to `3e-14`.
+- New API pages for `iNetwork`, `iMPS`, `iMPO`, `init_imps`, and `build_ihamiltonian`; the
+  API overview tables and quick links are completed; and the algorithms index, examples
+  index, navigation, and README are reordered DMRG, VUMPS, TDVP, XTRG.
+- The DMRG example pages and the quick start are corrected throughout: `build_interaction`
+  returns a `Geometry`, the TOML tables sit where it reads them, the initial state comes from
+  `init_mps`, and each page says why a product state wants `'2s'` or `'1sp'` — which is also
+  the right attribution for the energy gaps they quote. The Hubbard page's energy is
+  corrected from `≈ -3.67` to `-20.2358`, and the quick start's output is a verified run.
+- The three DMRG example scripts are rebuilt on the shipped Alice API alone, no longer
+  reaching into `tests/diagonaliztn`, so `--init` chooses between `random` and `product`,
+  both from `init_mps`. The five TDVP scripts drop their redundant `sys.path` inserts.
+
+### Statistics
+
+- **1,728 tests** across 46 test modules (up from 1,357 / 38 modules in v0.3.2).
+- **175 commits** since v0.3.2.
+- **70 files changed**, 11,723 insertions, 395 deletions.
+- **44 source modules** in six subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.vumps`, `alice.algorithm.tdvp`,
+  `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `dmrg.run` raises `TypeError` for anything that is not an `MPS` and
+  an `MPO`, naming `vumps.run`. `intrcmap_1dchain` raises `ValueError` for a `bcx` outside
+  `'OBC'`, `'PBC'`, and `'IBC'`, where an unrecognized value previously produced an open
+  chain, and a PBC bond's label list is now `['NN', 'N2X', 'PBC']` rather than
+  `['NN', 'PBC', 'N2X']` (the bonds themselves are unchanged). The DMRG example scripts'
+  `--init` choices change from `iter_diag`/`random` to `random`/`product`. The test suite
+  runs with its working directory set to a temporary path.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.4.2.
+
+---
+
 ## [0.3.2] - 2026-10-24
 
 **Truncation Scale and Kept-Space Projection**
@@ -1383,6 +1551,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.4.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.0
 [0.3.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.2
 [0.3.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.0

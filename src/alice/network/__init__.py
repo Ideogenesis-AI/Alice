@@ -26,9 +26,12 @@ from .interaction import (
     build_interaction,
 )
 from .network import MPS, MPO, Network
+from .infinite import iMPS, iMPO, iNetwork
 from .automps import init_mps
+from .autoimps import init_imps
 from .observe import observe
 from .autompo import build_hamiltonian
+from .autoimpo import boundary_vectors, build_ihamiltonian, window_mpo
 from .thermal import NormalMPO, thermal_mpo
 
 __all__ = [
@@ -42,12 +45,22 @@ __all__ = [
     'MPS',
     'MPO',
     'Network',
+    # infinite network
+    'iMPS',
+    'iMPO',
+    'iNetwork',
     # automps
     'init_mps',
+    # autoimps
+    'init_imps',
     # observe
     'observe',
     # autompo
     'build_hamiltonian',
+    # autoimpo
+    'build_ihamiltonian',
+    'boundary_vectors',
+    'window_mpo',
     # thermal
     'NormalMPO',
     'thermal_mpo',

@@ -15,7 +15,8 @@ At half-filling (`µ = 0`) the Hubbard model is a Mott insulator for any `U > 0`
 import alice
 alice.configure_logging()
 
-from alice import build_interaction, build_hamiltonian, MPS, dmrg
+from alice import build_interaction, build_hamiltonian, init_mps, dmrg
+from nicole import load_space
 ```
 
 ## 2. Build the Hamiltonian
@@ -28,7 +29,8 @@ config = {
     "model": {"category": "conductor", "label": "Hubbard",
               "symmetry": "U1,SU2", "t": 1.0, "U": 4.0, "mu": 0.0},
 }
-interactions, spc, L = build_interaction(config)
+interactions, spc, geo = build_interaction(config)
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 print(f"L = {L}, MPO bond dims: {hamiltonian.bond_dims}")
 ```
@@ -41,12 +43,16 @@ config["model"]["symmetry"] = "U1,U1"
 
 ## 3. Build an initial MPS
 
-For U(1)×SU(2), the product-state initialization targets the half-filled singlet sector (total particle number `L`, total spin `S=0`). Building the initial MPS correctly for non-Abelian symmetry is non-trivial; it is typically done via iterative diagonalization (see `examples/examples_dmrg/dmrg_heisenberg.py` for a reference implementation).
-
-A simpler approach is to start from a 2-site DMRG sweep with a small random MPS:
+`init_mps` handles the non-Abelian groups as well as the Abelian ones: for U(1)×SU(2) it targets the half-filled singlet sector (total particle number `L`, total spin `S=0`) without any special-casing by the caller.
 
 ```python
-# For a demonstration, use the 2-site scheme to grow bonds from a product state.
+Spc, Op = load_space("Band", "U1,SU2")
+mps = init_mps(L, Spc, Op, bond_dim=1)
+```
+
+A product state does not carry the bond sectors of the ground state, so pair it with the 2-site scheme, which grows the bonds and adapts their sectors as it sweeps. The 1-site scheme would leave them untouched and converge above the true energy.
+
+```python
 opts = dmrg.Options(
     scheme   = '2s',
     n_sweeps = 30,
@@ -66,7 +72,7 @@ print(f"Converged:     {summary.converged}")
 print(f"Max bond dim:  {max(summary.bond_dims)}")
 ```
 
-For `L=8`, `U=4`, `t=1`, OBC, the ground-state energy is approximately `E ≈ -3.67`.
+For `L=8`, `U=4`, `t=1`, OBC, this converges to `E ≈ -20.2358` (`E/L ≈ -2.5295`). The `Hubbard` label carries a `-U/2 Σ_i n_i` term that puts half-filling at `mu = 0`, so the energy includes that shift.
 
 ## 5. Environment caching for large chains
 

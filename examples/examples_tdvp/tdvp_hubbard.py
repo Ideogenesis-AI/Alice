@@ -95,14 +95,10 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import sys
-from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
 import torch
-
-sys.path.insert(0, str(Path(__file__).parent))
 
 import alice
 from alice import build_hamiltonian, build_interaction, init_mps, observe, tdvp

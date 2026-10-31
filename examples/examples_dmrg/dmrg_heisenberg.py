@@ -30,13 +30,17 @@ energy converges.
 For spin-1/2 chains the exact ground-state energy per site in the
 thermodynamic limit is E_exact/N = 1/4 - ln(2) ≈ -0.443147.
 
-Two initializations are supported via --init:
+Both initializations offered via --init come from `init_mps`:
 
-- `iter_diag` (default): iterative diagonalization, growing the chain
-  site by site and keeping `bond_dim` states. Provides a good starting
-  point and typically converges in one or two sweeps.
-- `random`: random MPS with `bond_dim // n_sectors` states per charge
-  sector. Simpler to construct but requires more sweeps to converge.
+- `random` (default): random MPS with group-derived bond sectors.
+- `product`: deterministic bond-dimension-1 product state.
+
+Neither carries the bond sectors of the ground state, which matters for the
+update scheme. The 1-site scheme optimizes one site tensor at a time and so
+leaves the bond sectors of the initial MPS untouched for the whole run: it
+converges inside that restricted variational space and settles visibly above
+the exact energy. Compare `--scheme 1s` against `--scheme 2s` or
+`--scheme 1sp`, both of which let the sectors adapt.
 
 Run from the repository root:
 
@@ -45,69 +49,21 @@ Run from the repository root:
     uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --bond-dim 32 --scheme 1sp
     uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --bond-dim 32 --scheme 1sp --expand-k 8
     uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 50 --bond-dim 64 --history
-    uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --init random --bond-dim 32
+    uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --init product --scheme 2s
     uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --bond-dim 32 --env-cache-dir /tmp/env_cache
     uv run python examples/examples_dmrg/dmrg_heisenberg.py --help
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests" / "diagonaliztn"))
-
-from bosonic import iter_diag_spin  # pyright: ignore[reportMissingImports]
 
 import alice
 from alice import MPS, build_hamiltonian, build_interaction, init_mps
 from alice import dmrg
 from nicole import load_space
-
-
-def _iter_diag_mps(
-    L: int,
-    bond_dim: int,
-    J: float = 1.0,
-    spin: float = 0.5,
-    symmetry: str = 'U1',
-) -> MPS:
-    """Build an initial MPS from iterative diagonalization of the Heisenberg chain.
-
-    Uses `iter_diag_spin` (bosonic.py) to grow the chain site by site with
-    isometry-based tensors, keeping at most `bond_dim` states (multiplets for
-    SU2) at each step. The result is placed in right-canonical form with
-    `center == 0` before being returned.
-
-    Parameters
-    ----------
-    L:
-        Chain length.
-    bond_dim:
-        Maximum number of states kept per truncation step. For SU2 this
-        counts SU(2) multiplets.
-    J:
-        Nearest-neighbor coupling constant forwarded to `iter_diag_spin`.
-    spin:
-        Site spin quantum number.
-    symmetry:
-        `'U1'` or `'SU2'`.
-
-    Returns
-    -------
-    MPS
-        Right-canonical MPS (`center == 0`).
-    """
-    _, _, tensors = iter_diag_spin(
-        N=L, Nkeep=bond_dim, J=J, spin=spin, symmetry=symmetry, verbose=False,
-    )
-    mps = MPS(tensors, center=None)
-    mps.canonical(0)
-    return mps
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +80,7 @@ def dmrg_heisenberg(
     scheme: str = '1s',
     e_tol: float = 1e-8,
     davidson_tol: float = 1e-10,
-    init: str = 'iter_diag',
+    init: str = 'random',
     seed: int = 42,
     trunc_thresh: float = 1e-15,
     expand_k: int = 4,
@@ -141,9 +97,10 @@ def dmrg_heisenberg(
     L:
         Chain length.
     bond_dim:
-        Maximum bond dimension. For `init='iter_diag'` this is the number
-        of states (multiplets for SU2) kept at each step. For `init='random'`
-        the total is distributed across group-derived bond sectors.
+        Maximum bond dimension of the DMRG run. For `init='random'` it is also
+        the budget distributed across the group-derived bond sectors (multiplets
+        for SU2) of the initial MPS; `init='product'` always starts at bond
+        dimension 1.
     n_sweeps:
         Maximum number of full sweeps (forward + backward half-sweep each).
     J:
@@ -164,8 +121,11 @@ def dmrg_heisenberg(
     davidson_tol:
         Residual norm tolerance for the Davidson eigensolver.
     init:
-        Initial MPS strategy: `'iter_diag'` (iterative diagonalization,
-        default) or `'random'` (random tensors).
+        Initial MPS strategy, both built by `init_mps`: `'random'` (random
+        tensors with group-derived bond sectors, default) or `'product'`
+        (deterministic bond-dimension-1 product state). Neither reproduces
+        the bond sectors of the ground state, so `scheme='1s'` converges
+        above the exact energy; use `'2s'` or `'1sp'` to let them adapt.
     seed:
         Base random seed used when `init='random'`.
     trunc_thresh:
@@ -201,8 +161,8 @@ def dmrg_heisenberg(
     """
     if symmetry not in ('U1', 'SU2'):
         raise ValueError(f"symmetry must be 'U1' or 'SU2', got {symmetry!r}")
-    if init not in ('iter_diag', 'random'):
-        raise ValueError(f"init must be 'iter_diag' or 'random', got {init!r}")
+    if init not in ('random', 'product'):
+        raise ValueError(f"init must be 'random' or 'product', got {init!r}")
 
     # -----------------------------------------------------------------------
     # Build the Hamiltonian MPO
@@ -223,11 +183,8 @@ def dmrg_heisenberg(
     # -----------------------------------------------------------------------
     # Build the initial MPS
     # -----------------------------------------------------------------------
-    if init == 'iter_diag':
-        mps = _iter_diag_mps(geo.L, bond_dim=bond_dim, J=J, spin=spin, symmetry=symmetry)
-    else:
-        Spc, Op = load_space('Spin', symmetry, {'J': spin})
-        mps = init_mps(geo.L, Spc, Op, bond_dim=bond_dim, seed=seed)
+    Spc, Op = load_space('Spin', symmetry, {'J': spin})
+    mps = init_mps(geo.L, Spc, Op, bond_dim=1 if init == 'product' else bond_dim, seed=seed)
 
     if verbose:
         print(f"Chain length   : {geo.L}")
@@ -279,7 +236,13 @@ def dmrg_heisenberg(
             print(f"Exact E/N (N→∞)  : {E_exact_per_site:.10f}")
             print(f"DMRG  E/N        : {summary.energy / geo.L:.10f}")
             delta = summary.energy / geo.L - E_exact_per_site
-            print(f"Difference       : {delta:+.4e}  (finite-size + truncation error)")
+            # Under the 1-site scheme the bond sectors stay those of the initial
+            # MPS, which adds a restricted-variational-space error on top of the
+            # finite-size and truncation gaps.
+            cause = ('finite-size + fixed initial bond sectors'
+                     if scheme in ('1s', '1-site', 'one-site')
+                     else 'finite-size + truncation error')
+            print(f"Difference       : {delta:+.4e}  ({cause})")
 
     return summary, mps
 
@@ -300,7 +263,7 @@ def _parse_args():
             "  uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --bond-dim 32 --scheme 1sp\n"
             "  uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --bond-dim 32 --scheme 1sp --expand-k 8\n"
             "  uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 50 --bond-dim 64 --history\n"
-            "  uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --init random --bond-dim 32\n"
+            "  uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --init product --scheme 2s\n"
             "  uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --bond-dim 32 --env-cache-dir /tmp/env_cache\n"
             "  uv run python examples/examples_dmrg/dmrg_heisenberg.py --L 20 --init random --seed 123"
         ),
@@ -358,10 +321,11 @@ def _parse_args():
         ),
     )
     p.add_argument(
-        '--init', choices=['iter_diag', 'random'], default='iter_diag',
+        '--init', choices=['random', 'product'], default='random',
         help=(
-            'MPS initialization strategy: iter_diag (iterative diagonalization,'
-            ' default) or random (random tensors)'
+            'MPS initialization strategy: random (random tensors with '
+            'group-derived bond sectors, default) or product (bond-dimension-1 '
+            'product state)'
         ),
     )
     p.add_argument(

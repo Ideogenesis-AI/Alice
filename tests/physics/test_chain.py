@@ -35,9 +35,11 @@ def _quiet_geometry(caplog):
         yield
 
 
-def _geo(lx, *, bcx='OBC', n2x=True):
+def _geo(lx, *, bcx='OBC', n2x=True, n3x=False):
     """Convenience factory for a 1D chain `Geometry`."""
-    return build_geometry({'lattice': 'chain', 'lx': lx, 'bcx': bcx, 'n2x': n2x})
+    return build_geometry({
+        'lattice': 'chain', 'lx': lx, 'bcx': bcx, 'n2x': n2x, 'n3x': n3x,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -134,3 +136,91 @@ class TestChainExactBonds:
         assert len(pbc) == 1
         assert pbc[0].leading_site  == 0
         assert pbc[0].terminal_site == lx - 1
+
+
+# ---------------------------------------------------------------------------
+# Next-nearest neighbors
+# ---------------------------------------------------------------------------
+
+class TestChainNNN:
+    """Range-2 bonds emitted when n3x is enabled."""
+
+    @pytest.mark.parametrize("lx", [3, 5, 10])
+    def test_obc_nnn_bond_count(self, lx):
+        """OBC chain of lx sites produces exactly lx-2 NNN bonds."""
+        intrs = intrcmap_1dchain(_geo(lx=lx, n2x=False, n3x=True))
+        assert len(intrs) == lx - 2
+
+    def test_obc_nnn_bonds(self):
+        """8-site OBC chain: NNN bonds are exactly (0,2), (1,3), …, (5,7)."""
+        intrs = intrcmap_1dchain(_geo(lx=8, n2x=False, n3x=True))
+        bonds = {(i.leading_site, i.terminal_site) for i in intrs}
+        assert bonds == {(k, k + 2) for k in range(6)}
+
+    def test_nnn_labels(self):
+        """Every NNN bond carries exactly {'NNN', 'N3X'}."""
+        for intr in intrcmap_1dchain(_geo(lx=8, n2x=False, n3x=True)):
+            assert set(intr.label) == {'NNN', 'N3X'}
+
+    def test_pbc_nnn_bonds(self):
+        """6-site PBC chain closes the NNN bonds (0,4) and (1,5)."""
+        intrs = intrcmap_1dchain(_geo(lx=6, n2x=False, n3x=True, bcx='PBC'))
+        bonds = {(i.leading_site, i.terminal_site) for i in intrs}
+        assert bonds == {(k, k + 2) for k in range(4)} | {(0, 4), (1, 5)}
+
+    def test_nn_and_nnn_together(self):
+        """n2x and n3x both on: the two families are emitted side by side."""
+        intrs = intrcmap_1dchain(_geo(lx=6, n2x=True, n3x=True))
+        nn  = {(i.leading_site, i.terminal_site) for i in intrs if 'NN'  in i.label}
+        nnn = {(i.leading_site, i.terminal_site) for i in intrs if 'NNN' in i.label}
+        assert nn  == {(k, k + 1) for k in range(5)}
+        assert nnn == {(k, k + 2) for k in range(4)}
+
+
+# ---------------------------------------------------------------------------
+# Infinite boundary conditions
+# ---------------------------------------------------------------------------
+
+class TestChainIBC:
+    """Bonds of an infinite chain unit cell, which may reach past the cell."""
+
+    @pytest.mark.parametrize("lx", [1, 2, 5, 10])
+    def test_ibc_bond_count(self, lx):
+        """An IBC unit cell of lx sites produces exactly lx NN bonds."""
+        intrs = intrcmap_1dchain(_geo(lx=lx, bcx='IBC'))
+        assert len(intrs) == lx
+
+    def test_ibc_bonds_reach_past_the_cell(self):
+        """4-site IBC cell: bonds are (0,1), (1,2), (2,3) and (3,4)."""
+        intrs = intrcmap_1dchain(_geo(lx=4, bcx='IBC'))
+        bonds = {(i.leading_site, i.terminal_site) for i in intrs}
+        assert bonds == {(0, 1), (1, 2), (2, 3), (3, 4)}
+
+    def test_ibc_single_site_cell(self):
+        """A 1-site cell carries the single bond (0, 1) into the next cell."""
+        intrs = intrcmap_1dchain(_geo(lx=1, bcx='IBC'))
+        assert [(i.leading_site, i.terminal_site) for i in intrs] == [(0, 1)]
+
+    def test_ibc_nnn_bonds(self):
+        """3-site IBC cell with n3x: NNN bonds are (0,2), (1,3) and (2,4)."""
+        intrs = intrcmap_1dchain(_geo(lx=3, bcx='IBC', n2x=False, n3x=True))
+        bonds = {(i.leading_site, i.terminal_site) for i in intrs}
+        assert bonds == {(0, 2), (1, 3), (2, 4)}
+
+    def test_ibc_labels_carry_no_pbc_marker(self):
+        """IBC bonds are plain bulk bonds; no bond is tagged 'PBC'."""
+        for intr in intrcmap_1dchain(_geo(lx=5, bcx='IBC')):
+            assert set(intr.label) == {'NN', 'N2X'}
+
+    def test_ibc_leading_site_within_cell(self):
+        """Every IBC bond starts inside the unit cell."""
+        lx = 5
+        for intr in intrcmap_1dchain(_geo(lx=lx, bcx='IBC')):
+            assert 0 <= intr.leading_site < lx
+
+    def test_unknown_bcx_rejected(self):
+        """An unrecognized boundary condition is an error, not a silent OBC."""
+        geo = _geo(lx=5)
+        geo.cfg['bcx'] = 'ABC'
+        with pytest.raises(ValueError, match='bcx'):
+            intrcmap_1dchain(geo)

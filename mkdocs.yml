@@ -68,6 +68,18 @@ nav:
       - Options: algorithms/dmrg/options.md
       - Summary: algorithms/dmrg/summary.md
       - Launch: algorithms/dmrg/run.md
+    - VUMPS:
+      - Overview: algorithms/vumps/index.md
+      - Options: algorithms/vumps/options.md
+      - Summary: algorithms/vumps/summary.md
+      - Lessons: algorithms/vumps/lessons.md
+      - Launch: algorithms/vumps/run.md
+    - TDVP:
+      - Overview: algorithms/tdvp/index.md
+      - Options: algorithms/tdvp/options.md
+      - Summary: algorithms/tdvp/summary.md
+      - Artifact: algorithms/tdvp/artifact.md
+      - Launch: algorithms/tdvp/run.md
     - XTRG:
       - Overview: algorithms/xtrg/index.md
       - Options: algorithms/xtrg/options.md
@@ -75,12 +87,6 @@ nav:
       - Artifact: algorithms/xtrg/artifact.md
       - Lessons: algorithms/xtrg/lessons.md
       - Launch: algorithms/xtrg/run.md
-    - TDVP:
-      - Overview: algorithms/tdvp/index.md
-      - Options: algorithms/tdvp/options.md
-      - Summary: algorithms/tdvp/summary.md
-      - Artifact: algorithms/tdvp/artifact.md
-      - Launch: algorithms/tdvp/run.md
   - API Reference:
     - Overview: api/index.md
     - Logging: api/logging.md
@@ -89,8 +95,12 @@ nav:
       - Network: api/network/network.md
       - MPS: api/network/mps.md
       - MPO: api/network/mpo.md
+      - iNetwork: api/network/inetwork.md
+      - iMPS: api/network/imps.md
+      - iMPO: api/network/impo.md
       - NormalMPO: api/network/normal-mpo.md
-      - initialize: api/network/init-mps.md
+      - initialize (finite): api/network/init-mps.md
+      - initialize (infinite): api/network/init-imps.md
       - observe: api/network/observe.md
       - thermal_mpo: api/network/thermal-mpo.md
     - Interaction:
@@ -116,6 +126,7 @@ nav:
     - Hamiltonian:
       - Overview: api/hamiltonian/index.md
       - build_hamiltonian: api/hamiltonian/build-hamiltonian.md
+      - build_ihamiltonian: api/hamiltonian/build-ihamiltonian.md
       - build_heisenberg: api/hamiltonian/build-heisenberg.md
       - build_free_fermion: api/hamiltonian/build-free-fermion.md
       - build_hubbard: api/hamiltonian/build-hubbard.md
@@ -125,15 +136,20 @@ nav:
       - Heisenberg chain: examples/dmrg/heisenberg.md
       - Free fermion: examples/dmrg/free-fermion.md
       - Hubbard model: examples/dmrg/hubbard.md
-    - XTRG:
-      - Free fermion: examples/xtrg/free-fermion.md
-      - Hubbard model: examples/xtrg/hubbard.md
+    - VUMPS:
+      - Heisenberg chain: examples/vumps/heisenberg.md
+      - Majumdar-Ghosh: examples/vumps/majumdar-ghosh.md
+      - Free fermion: examples/vumps/free-fermion.md
+      - Hubbard model: examples/vumps/hubbard.md
     - TDVP:
       - Free fermion: examples/tdvp/free-fermion.md
       - Domain wall: examples/tdvp/domain-wall.md
       - Hubbard model: examples/tdvp/hubbard.md
       - Hubbard quench: examples/tdvp/hubbard-quench.md
       - Scheme comparison: examples/tdvp/scheme-comparison.md
+    - XTRG:
+      - Free fermion: examples/xtrg/free-fermion.md
+      - Hubbard model: examples/xtrg/hubbard.md
     - AutoMPO from TOML: examples/autompo-toml.md
     - Extensions:
       - Custom geometry: examples/extensions/custom-geometry.md

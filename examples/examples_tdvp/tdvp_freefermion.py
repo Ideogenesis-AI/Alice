@@ -73,13 +73,9 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
-import sys
-from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
-
-sys.path.insert(0, str(Path(__file__).parent))
 
 import alice
 from alice import build_hamiltonian, build_interaction, observe, tdvp

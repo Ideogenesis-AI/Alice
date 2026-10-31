@@ -23,13 +23,17 @@ With the assistance of various AI coding agents, Alice pairs a physicist-friendl
 
 Ground-state search and optimization via alternating sweep optimization of MPS tensors. Three complementary update schemes are available — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — each with a Davidson eigensolver and energy-based convergence criterion.
 
-### XTRG (eXponential Tensor Renormalization Group)
+### VUMPS (Variational Uniform Matrix Product States)
 
-Finite-temperature thermodynamics via exponential cooling of the thermal density matrix. Three update schemes drive the underlying variational MPO-MPO compression — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — solving a linear least-squares minimization at each step.
+Ground-state search directly in the thermodynamic limit, on a uniform MPS described by a unit cell that tiles an infinite chain. Two update schemes are available — 1-site and 2-site — with the environments solved as transfer-operator fixed points and convergence measured on the tangent-space gradient.
 
 ### TDVP (Time-Dependent Variational Principle)
 
 Real-time evolution within the MPS manifold via tangent-space projection of the Schrödinger equation. Three update schemes are available — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — each with a Krylov matrix-exponential solver and a first- or second-order symmetric integrator.
+
+### XTRG (eXponential Tensor Renormalization Group)
+
+Finite-temperature thermodynamics via exponential cooling of the thermal density matrix. Three update schemes drive the underlying variational MPO-MPO compression — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — solving a linear least-squares minimization at each step.
 
 ### Upcoming
 

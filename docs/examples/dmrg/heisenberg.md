@@ -15,7 +15,8 @@ The exact ground-state energy per site in the thermodynamic limit (Bethe ansatz)
 import alice
 alice.configure_logging()  # optional: write diagnostics to .logging/
 
-from alice import build_interaction, build_hamiltonian, MPS, dmrg
+from alice import build_interaction, build_hamiltonian, init_mps, dmrg
+from nicole import load_space
 ```
 
 ## 2. Build the Hamiltonian from TOML
@@ -23,13 +24,13 @@ from alice import build_interaction, build_hamiltonian, MPS, dmrg
 Save the following as `heisenberg.toml`:
 
 ```toml
-[model.geometry]
+[geometry]
 lattice = "chain"
 lx      = 20
 bcx     = "OBC"
 n2x     = true
 
-[model.model]
+[model]
 category = "bosonic"
 label    = "Heisenberg"
 symmetry = "U1"
@@ -40,7 +41,8 @@ J        = 1.0
 Then load it:
 
 ```python
-interactions, spc, L = build_interaction("heisenberg.toml")
+interactions, spc, geo = build_interaction("heisenberg.toml")
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 print(f"L = {L}, MPO bond dims: {hamiltonian.bond_dims}")
 ```
@@ -53,35 +55,28 @@ config = {
     "model": {"category": "bosonic", "label": "Heisenberg",
               "symmetry": "U1", "spin": 0.5, "J": 1.0},
 }
-interactions, spc, L = build_interaction(config)
+interactions, spc, geo = build_interaction(config)
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
 ```
 
 ## 3. Build an initial MPS
 
-Alice does not include a general MPS initializer in its public API (use the examples or your own initialization). Here we build a simple Néel-state product MPS:
+`init_mps` builds a symmetry-aware initial MPS from the physical space and
+operators of the model. A bond-dimension-1 product state is the simplest
+choice and pairs well with the 2-site scheme, which grows the bond dimension
+as it sweeps:
 
 ```python
-from nicole import isometry, Direction
-from nicole.index import Index, Sector
-
-ndigits = max(2, len(str(L)))
-bond_trivial_out = Index([Sector(0, 1)], Direction.OUT)
-bond_trivial_in  = bond_trivial_out.flip()
-
-tensors = []
-for i in range(L):
-    # Alternate up (charge +1) and down (charge -1) to target Sz=0
-    charge = 1 if i % 2 == 0 else -1
-    phys = Index([Sector(charge, 1)], Direction.IN)
-    t = isometry(bond_trivial_out.flip(), phys)
-    t.insert_index(1, direction=Direction.OUT, itag=f'A{i+1:0{ndigits}d}')
-    t.retag(0, f'A{i:0{ndigits}d}')
-    t.retag(2, f's{i:02d}')
-    tensors.append(t)
-
-mps = MPS(tensors)
+Spc, Op = load_space("Spin", "U1", {"J": 0.5})
+mps = init_mps(L, Spc, Op, bond_dim=1)
 ```
+
+Passing `bond_dim > 1` instead gives a random MPS whose bond sectors come from
+a search around the center-bond charge. Note that neither state carries the
+bond sectors of the ground state, so the 1-site scheme — which never changes
+them — would converge above the true energy; see
+[init_mps](../../api/network/init-mps.md).
 
 ## 4. Run DMRG
 
@@ -118,11 +113,15 @@ To use full SU(2) spin-rotation symmetry, change `symmetry` to `"SU2"`:
 
 ```python
 config["model"]["symmetry"] = "SU2"
-interactions, spc, L = build_interaction(config)
+interactions, spc, geo = build_interaction(config)
+L = geo.L
 hamiltonian = build_hamiltonian(interactions, L, spc)
+
+Spc, Op = load_space("Spin", "SU2", {"J": 0.5})
+mps = init_mps(L, Spc, Op, bond_dim=1)
 ```
 
-With SU(2), the bond dimension in the symmetry-resolved basis is much smaller for the same physical accuracy. The DMRG run is identical.
+With SU(2), the bond dimension in the symmetry-resolved basis is much smaller for the same physical accuracy. Only the initial MPS has to be rebuilt from the SU(2) space; the DMRG call itself is identical.
 
 ## 6. Save and reload
 

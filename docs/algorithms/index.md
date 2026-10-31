@@ -13,18 +13,17 @@ Ground-state search via alternating sweep optimization of MPS tensors.
 | [Summary](dmrg/summary.md) | DMRG output dataclass |
 | [Launch](dmrg/run.md) | Top-level DMRG entry point |
 
-## XTRG
+## VUMPS
 
-Finite-temperature thermodynamics via exponential cooling of the thermal density matrix.
+Ground-state search directly in the thermodynamic limit, on a uniform MPS described by a unit cell.
 
 | Symbol | Description |
 |--------|-------------|
-| [Overview](xtrg/index.md) | Update schemes, temperature grid, usage pattern |
-| [Options](xtrg/options.md) | XTRG run options |
-| [Summary](xtrg/summary.md) | XTRG output dataclass |
-| [Artifact](xtrg/artifact.md) | Density-matrix snapshot at one cooling step |
-| [Lessons](xtrg/lessons.md) | Practical pitfalls, starting with the absolute truncation scale |
-| [Launch](xtrg/run.md) | Top-level XTRG entry point |
+| [Overview](vumps/index.md) | Update schemes, the gradient, environments as fixed points, usage pattern |
+| [Options](vumps/options.md) | VUMPS run options |
+| [Summary](vumps/summary.md) | VUMPS output dataclass |
+| [Lessons](vumps/lessons.md) | Practical notes, starting with the environment budget |
+| [Launch](vumps/run.md) | Top-level VUMPS entry point |
 
 ## TDVP
 
@@ -37,6 +36,19 @@ Real-time evolution under a Hamiltonian MPO, by projecting the Schrödinger equa
 | [Summary](tdvp/summary.md) | TDVP output dataclass |
 | [Artifact](tdvp/artifact.md) | State snapshot at one time step |
 | [Launch](tdvp/run.md) | Top-level TDVP entry point |
+
+## XTRG
+
+Finite-temperature thermodynamics via exponential cooling of the thermal density matrix.
+
+| Symbol | Description |
+|--------|-------------|
+| [Overview](xtrg/index.md) | Update schemes, temperature grid, usage pattern |
+| [Options](xtrg/options.md) | XTRG run options |
+| [Summary](xtrg/summary.md) | XTRG output dataclass |
+| [Artifact](xtrg/artifact.md) | Density-matrix snapshot at one cooling step |
+| [Lessons](xtrg/lessons.md) | Practical pitfalls, starting with the absolute truncation scale |
+| [Launch](xtrg/run.md) | Top-level XTRG entry point |
 
 ## See Also
 
