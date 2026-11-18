@@ -1,7 +1,7 @@
 """MkDocs build hook for Alice documentation.
 
 Post-processes rendered HTML to fix bullet lists that mkdocstrings emits
-inside table cells as raw markdown text rather than <ul>/<li> elements.
+inside table cells as raw markdown text instead of <ul>/<li> elements.
 """
 
 import re
