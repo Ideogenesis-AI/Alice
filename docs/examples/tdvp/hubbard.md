@@ -23,8 +23,8 @@ S(\ell, t) = 2\,S^{\text{spinless}}(\ell, t)
 
 So the [domain-wall reference](domain-wall.md) carries over verbatim to a
 four-dimensional local space with non-Abelian symmetry. That combination —
-exact reference *and* intertwiners — is what makes this the decisive test of
-the SU(2) code path.
+exact reference *and* intertwiners — makes this the decisive test of the
+SU(2) code path.
 
 The factor of two is not a fitted constant: it follows from the channels being
 independent, and it would fail immediately if the SU(2) bookkeeping mixed them.
@@ -48,8 +48,8 @@ the wall as written is a legitimate \(S = 0\) state.
 ## Symmetry groups
 
 This example supports `'U1,U1'` and `'U1,SU2'`. The `Z2` variants are excluded
-by the initial state rather than by TDVP: under `Z2` charge, the even-parity
-sector merges \(|0\rangle\) with \(|\!\uparrow\downarrow\rangle\) into one
+by the initial state, not by TDVP: under `Z2` charge, the even-parity sector
+merges \(|0\rangle\) with \(|\!\uparrow\downarrow\rangle\) into one
 two-dimensional sector, so a site configuration cannot name them apart. The
 [quench example](hubbard-quench.md) starts from a DMRG ground state instead and
 covers all four.
@@ -182,13 +182,13 @@ uv run python examples/examples_tdvp/tdvp_hubbard.py \
 | `'2s'`   | 5.959e-05         | 1.295e-04       | 32         | 60     |
 
 Comparable accuracy on both quantities from a state carrying 28 multiplets
-rather than 32. Note that the two savings compose: SU(2) stores 52 states as 28
-multiplets, and the expansion is what kept the count at 28 instead of 32 in the
-first place.
+and not 32. Note that the two savings compose: SU(2) stores 52 states as 28
+multiplets, and the expansion kept the count at 28 instead of 32 in the first
+place.
 
 The default `expand_k=4` therefore admits more states per bond here than it
 would under `U1,U1`, since each multiplet it adds stands for \(2S+1\) states.
-Raise it when the bond profile looks capped rather than converged.
+Raise it when the bond profile looks capped instead of converged.
 
 ## Cross-symmetry agreement at finite U
 
@@ -222,7 +222,7 @@ match because it is the same state; the multiplet counts are what each group
 actually stores, and SU(2) needs 61 against 104 summed over all bonds.
 
 `--compare-symmetries` honors `--scheme`, and the comparison is noticeably
-looser under `'1sp'` — the same run agrees to 1.6e-08 rather than 3.2e-14:
+looser under `'1sp'` — the same run agrees to 1.6e-08 instead of 3.2e-14:
 
 ```text
 Abelian vs non-Abelian  (L = 6, t = 1.0, U = 4.0, t_final = 1.0, dt = 0.025, scheme = 1sp)
@@ -236,13 +236,13 @@ Abelian vs non-Abelian  (L = 6, t = 1.0, U = 4.0, t_final = 1.0, dt = 0.025, sch
          max |delta S|                                          1.04e-08
 ```
 
-This is expected rather than a bug, and it is specific to the expansion. Which
+This is expected, not a bug, and it is specific to the expansion. Which
 complement directions a bond receives depends on the basis the state is carried
 in, and the two groups do not make identical choices, so the truncation that
 follows differs slightly and the trajectories separate at that level. The
-quantities protected by symmetry rather than by the expansion — energy and
-particle number — still agree to 1e-13. Use `'2s'` when cross-group agreement
-is itself the measurement.
+quantities protected by symmetry and not by the expansion — energy and particle
+number — still agree to 1e-13. Use `'2s'` when cross-group agreement is itself
+the measurement.
 
 ## See Also
 
