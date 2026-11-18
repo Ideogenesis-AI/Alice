@@ -630,19 +630,19 @@ class TestInitMpsEmptyBonds:
     fusion steps from it leaves the bonds near the boundaries with no allowed
     sector. The canonicalization then empties every bond. The sector itself is
     reachable — `bond_dim=1` builds it — so the random mode has to say that it
-    could not, rather than return an object with no blocks and zero norm.
+    could not, and not return an object with no blocks and zero norm.
     """
 
     @pytest.mark.parametrize('L, target_qn', [(13, -3), (10, -4), (16, 4)])
     def test_unrealizable_target_qn_raises(self, ferm_u1, L, target_qn):
-        """ValueError rather than an all-zero MPS."""
+        """ValueError, not an all-zero MPS."""
         Spc, Op = ferm_u1
         with pytest.raises(ValueError, match="could not build a random MPS"):
             init_mps(L, Spc, Op, bond_dim=16, seed=0, target_qn=target_qn)
 
     @pytest.mark.parametrize('L, target_qn', [(13, -3), (10, -4), (16, 4)])
     def test_product_state_still_builds_the_same_sector(self, ferm_u1, L, target_qn):
-        """`bond_dim=1` is unaffected, which is what the error message advises."""
+        """`bond_dim=1` is unaffected, as the error message advises."""
         Spc, Op = ferm_u1
         mps = init_mps(L, Spc, Op, bond_dim=1, seed=0, target_qn=target_qn)
         assert min(mps.bond_dims) == 1
@@ -737,7 +737,7 @@ class TestTargetQn:
         """ValueError when target_qn has the wrong parity for the given L (product state).
 
         Same parity argument as the random-mode test: L=4 Spin U1 cannot reach
-        an odd charge, so bond_dim=1 must also raise rather than silently produce
+        an odd charge, so bond_dim=1 must also raise instead of silently producing
         an MPS in the wrong sector.
         """
         Spc, Op = spin_u1
