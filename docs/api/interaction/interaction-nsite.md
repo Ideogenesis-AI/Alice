@@ -14,7 +14,7 @@ Unlike `Interaction1Site` and `Interaction2Site`, which name their sites explici
 - `tnsrs[offset]` is placed at site `min(sites) + offset`. Every tensor has axes `(L_bond_IN, R_bond_OUT, bra_OUT, ket_IN)`; the two outer bonds of the window must be trivial (dim-1, charge-neutral) so the term composes with the identity tensors on the remaining sites.
 - `build_hamiltonian` scales only the **last** window tensor by `cpl` — do not bake the coupling into the tensors.
 
-Since the window is taken verbatim, a term whose operators are not contiguous is expressed by padding the gaps with identity (or string) tensors rather than by splitting the term.
+Since the window is taken verbatim, a term whose operators are not contiguous is expressed by padding the gaps with identity (or string) tensors instead of by splitting the term.
 
 ## See Also
 
