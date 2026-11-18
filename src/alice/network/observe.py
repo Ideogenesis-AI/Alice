@@ -36,7 +36,7 @@ from .network import MPS, MPO
 # magnitude but with an absolute floor of the same size. Contracting a
 # Hermitian observable against a complex state leaves an imaginary residue at
 # roundoff level, which is discarded; anything larger means the observable is
-# not Hermitian and is reported as an error rather than silently dropped.
+# not Hermitian and is reported as an error instead of silently dropped.
 _IMAG_TOL = 1e-10
 
 
@@ -159,15 +159,15 @@ def _observe_thermal(rho, observable: Union[MPO, Sequence[Tensor]]) -> float:
     against `O`'s phys_out (closing the physical trace loop) in a single
     `einsum` call.
 
-    The ratio is computed via log-space combination (rather than
-    `trace() / trace()`), so it remains correct even when either trace
-    would overflow float64 (e.g. deep into an XTRG run at low
-    temperature), even though the ratio itself is a well-behaved O(1)
-    number. The denominator uses `rho.log_trace()` directly (a single MPO
-    trace sweep — already cheap). The numerator's raw magnitude comes
-    from the environment sweep on `rho` and `O_norm`'s internal
-    (unit-normed) tensors, so it is combined with `rho.log_scale +
-    O_norm.log_scale` to recover the full log-magnitude.
+    The ratio is computed via log-space combination, not as the quotient
+    `trace() / trace()`, so it stays correct even when either trace would
+    overflow float64 (e.g. deep into an XTRG run at low temperature), even
+    though the ratio itself is a well-behaved O(1) number. The denominator
+    uses `rho.log_trace()` directly (a single MPO trace sweep — already
+    cheap). The numerator's raw magnitude comes from the environment sweep
+    on `rho` and `O_norm`'s internal (unit-normed) tensors, so it is
+    combined with `rho.log_scale + O_norm.log_scale` to recover the full
+    log-magnitude.
 
     Parameters
     ----------
