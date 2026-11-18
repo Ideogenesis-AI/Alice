@@ -38,18 +38,27 @@ The unit of work is therefore an iteration, not a sweep. One iteration solves ev
 
 | Name | Alias | Description |
 |------|-------|-------------|
-| `'2s'` | `'2-site'`, `'two-site'` | Two-site update with SVD; the only scheme that can grow the bond dimension |
+| `'2s'` | `'2-site'`, `'two-site'` | Two-site update with SVD; grows the bond dimension through the split |
 | `'1s'` | `'1-site'`, `'one-site'` | Single-site update with a polar gauge step; preserves bond dimension and charge sectors |
+| `'1sp'` | `'1-site-plus'`, `'one-site-plus'` | Single-site update on a bond widened by controlled bond expansion; grows the bond dimension at one-site cost |
 
 The one-site scheme solves two eigenproblems per cell position, one for the center tensor and one for the bond matrix, and glues them back together with a polar decomposition. It discards nothing, so it cannot grow the bond dimension, and it also cannot move weight from one charge sector to another: the sectors the initial state carried are the sectors the converged state carries. On the Heisenberg chain that limit shows up as an energy error around `1e-3` at a bond dimension where the two-site scheme reaches `1e-4`, with a gradient down near `1e-9` reporting, correctly, that the state is stationary within the manifold it is confined to.
 
 The two-site scheme splits a solved pair, so it both widens bonds up to `max_bond` and redistributes weight between sectors. It is the default, and the scheme to reach for unless the state already carries both the bond dimension and the sectors the answer needs.
 
+### Controlled bond expansion
+
+The one-site-plus scheme reaches the same freedom through a different route. Before each center-tensor solve it widens the bond the solve sits on by `expand_k` directions, drawn from a cheap factored approximation of the two-site gradient: the Hamiltonian is applied to a truncated two-site tensor from each side separately, each half is projected onto the complement of what the state already spans, and the leading singular vectors of what survives are the directions the bond is missing. The one-site eigenproblem then fills them, and the split that follows cuts the bond back down to `max_bond`.
+
+So the local problem stays one-site sized — a factor of `d` smaller on each side than a two-site solve — while the bond dimension still grows, by up to `expand_k` per bond per iteration rather than by the factor of `d` a split gives. Two knobs govern it. `expand_k` sets how many directions are offered, and so both the quality of the expanded space and how fast the state can widen. `expand_alpha` truncates the two-site tensor the expansion applies the Hamiltonian to; it is what keeps the expansion cheap against the Davidson solve it precedes, and `round(sqrt(max_bond))` is a reasonable starting point for both.
+
+The expansion never moves the state: only the neighbor behind the bond is widened, and the center tensor is then re-expressed exactly in the widened basis, so the new directions enter with zero amplitude. A bond with no complement left — saturated, or simply out of the Hamiltonian's reach from the current state — is detected and left alone, and the step degenerates into a plain one-site update rather than expanding on roundoff.
+
 ## What the gradient means
 
 Convergence is measured on `|AC - AL·C|`, the norm of the energy gradient on the uniform MPS manifold, maximized over the cell. The Davidson eigenvalues cannot be used: they belong to regularized local problems, and the energy of an infinite chain is infinite, so the energy density comes from the environment fixed point instead. The gradient keeps falling long after the energy between iterations has flattened out, which makes it the more honest stopping criterion.
 
-Two floors limit how far it can fall. It can never go below `davidson_tol`, since it compares two quantities neither of which is known better than that. And under `'2s'` against a bond cap that bites, it settles at a floor set by the discarded weight rather than falling at all: the two-site solve keeps asking for a wider bond than it is allowed. A run that has grown to `max_bond` and stopped improving is converged in every sense that matters.
+Two floors limit how far it can fall. It can never go below `davidson_tol`, since it compares two quantities neither of which is known better than that. And under either scheme that splits, against a bond cap that bites, it settles at a floor set by the discarded weight rather than falling at all: the solve keeps asking for a wider bond than it is allowed. A run that has grown to `max_bond` and stopped improving is converged in every sense that matters.
 
 ## Why the environment solver warns
 

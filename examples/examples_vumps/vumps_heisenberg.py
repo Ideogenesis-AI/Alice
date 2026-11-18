@@ -33,16 +33,19 @@ so the difference printed at the end is truncation error alone.
 Two initializations are supported via --init:
 
 - `random` (default): random unit cell of width `bond_dim`, each bond
-  carrying the charges reachable at its position. Ready for either scheme.
-- `product`: deterministic cell of width one. Only the two-site scheme can
-  widen it, so pair it with `--scheme 2s`, which then grows the state up to
-  `--bond-dim` on its own.
+  carrying the charges reachable at its position. Ready for any scheme.
+- `product`: deterministic cell of width one. The one-site scheme cannot
+  widen it, so pair it with `--scheme 2s` or `--scheme 1sp`, either of which
+  then grows the state up to `--bond-dim` on its own.
 
-The two schemes differ in what they can reach. The two-site scheme splits a
+The schemes differ in what they can reach. The two-site scheme splits a
 solved pair and so can both grow the bond dimension and move weight between
 charge sectors. The one-site scheme does neither: it optimizes within the
 bond dimension and the sectors the state it is handed already carries, so a
-run started under `'1s'` reaches no further than that state allows.
+run started under `'1s'` reaches no further than that state allows. The
+one-site-plus scheme widens each bond by `--expand-k` directions before
+solving the one-site problem on it, so it grows as `'2s'` does while every
+local solve stays one-site sized.
 
 Run from the repository root:
 
@@ -51,6 +54,7 @@ Run from the repository root:
     uv run python examples/examples_vumps/vumps_heisenberg.py --cell 4 --bond-dim 16 --history
     uv run python examples/examples_vumps/vumps_heisenberg.py --cell 2 --bond-dim 16 --init product
     uv run python examples/examples_vumps/vumps_heisenberg.py --cell 2 --bond-dim 16 --scheme 1s
+    uv run python examples/examples_vumps/vumps_heisenberg.py --cell 2 --bond-dim 16 --scheme 1sp
     uv run python examples/examples_vumps/vumps_heisenberg.py --cell 2 --bond-dim 16 --env-cache-dir /tmp/env_cache
     uv run python examples/examples_vumps/vumps_heisenberg.py --help
 """
@@ -84,6 +88,8 @@ def vumps_heisenberg(
     env_tol: float = 1e-8,
     env_maxiter: int = 200,
     trunc_thresh: float = 1e-15,
+    expand_k: int = 4,
+    expand_alpha: int = None,
     init: str = 'random',
     seed: int = 42,
     env_cache_dir: str = None,
@@ -115,7 +121,8 @@ def vumps_heisenberg(
         Symmetry exploited: `'U1'` (conserve S^z) or `'SU2'` (full
         spin-rotation symmetry).
     scheme:
-        Update scheme: `'2s'` (two-site, default) or `'1s'` (one-site).
+        Update scheme: `'2s'` (two-site, default), `'1s'` (one-site), or
+        `'1sp'` (one-site on a bond widened by controlled bond expansion).
     grad_tol:
         Convergence criterion on the gradient norm `|AC - AL C|`.
     davidson_tol:
@@ -129,10 +136,17 @@ def vumps_heisenberg(
     env_maxiter:
         Maximum number of unit cells absorbed by the environment solver.
     trunc_thresh:
-        Smallest singular value a two-site split may keep.
+        Smallest singular value a split may keep.
+    expand_k:
+        Directions added to a bond per expansion, and so the most it can
+        grow by in one iteration. Only used when `scheme='1sp'`.
+    expand_alpha:
+        Internal bond dimension of the cheap two-site tensor the expansion
+        applies the iMPO to. `None` keeps the full bond. Only used when
+        `scheme='1sp'`.
     init:
         Initial cell: `'random'` (default) or `'product'`, which starts at
-        width one and needs `scheme='2s'` to grow.
+        width one and needs `scheme='2s'` or `'1sp'` to grow.
     seed:
         Base random seed used when `init='random'`.
     env_cache_dir:
@@ -213,6 +227,8 @@ def vumps_heisenberg(
         env_cache_dir=env_cache_dir,
         env_async_io=env_async_io,
         env_window=env_window,
+        expand_k=expand_k,
+        expand_alpha=expand_alpha,
     )
     summary = vumps.run(imps, impo, opts)
 
@@ -281,8 +297,11 @@ def _parse_args():
         help='symmetry group exploited (default: U1)',
     )
     p.add_argument(
-        '--scheme', choices=['1s', '2s'], default='2s',
-        help='update scheme: 2s (two-site, default) or 1s (one-site)',
+        '--scheme', choices=['1s', '2s', '1sp'], default='2s',
+        help=(
+            'update scheme: 2s (two-site, default), 1s (one-site) or '
+            '1sp (one-site with controlled bond expansion)'
+        ),
     )
     p.add_argument(
         '--grad-tol', type=float, default=1e-10, metavar='TOL',
@@ -302,13 +321,24 @@ def _parse_args():
     )
     p.add_argument(
         '--trunc-thresh', type=float, default=1e-15, metavar='THR',
-        help='SVD truncation threshold for two-site splits (default: 1e-15)',
+        help='SVD truncation threshold for splits (default: 1e-15)',
+    )
+    p.add_argument(
+        '--expand-k', type=int, default=4, metavar='K',
+        help='directions added to a bond per expansion, --scheme 1sp only (default: 4)',
+    )
+    p.add_argument(
+        '--expand-alpha', type=int, default=None, metavar='A',
+        help=(
+            'internal bond dimension of the cheap two-site tensor the '
+            'expansion uses, --scheme 1sp only (default: the full bond)'
+        ),
     )
     p.add_argument(
         '--init', choices=['random', 'product'], default='random',
         help=(
             'initial unit cell: random (default) or product, which starts at '
-            'width one and needs --scheme 2s to grow'
+            'width one and needs --scheme 2s or 1sp to grow'
         ),
     )
     p.add_argument(
@@ -359,6 +389,8 @@ if __name__ == '__main__':
         env_tol=args.env_tol,
         env_maxiter=args.env_maxiter,
         trunc_thresh=args.trunc_thresh,
+        expand_k=args.expand_k,
+        expand_alpha=args.expand_alpha,
         init=args.init,
         seed=args.seed,
         env_cache_dir=args.env_cache_dir,

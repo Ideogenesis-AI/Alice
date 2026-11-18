@@ -116,7 +116,7 @@ class TestCellEnvironments:
 class TestCellUpdate:
     """An iteration must leave a usable state and move downhill."""
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     @pytest.mark.parametrize('N', [2, 4])
     def test_state_stays_canonical_and_normalized(self, spin_half, N, scheme):
         imps = random_imps(spin_half, N)
@@ -148,7 +148,7 @@ class TestCellUpdate:
         cell_update(imps, impo, env_left, env_right, Options(scheme='1s'))
         assert imps.bond_dims == before
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     def test_energy_decreases(self, spin_half, scheme):
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
@@ -157,7 +157,7 @@ class TestCellUpdate:
         _, _, after = cell_environments(imps, impo)
         assert after < before
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     def test_exact_ground_state_is_stationary(self, spin_half, scheme):
         # The dimer state solves the Majumdar-Ghosh point exactly, so an
         # iteration must report no gradient and leave the energy alone.
@@ -172,7 +172,9 @@ class TestCellUpdate:
         assert before / 2 == pytest.approx(DIMER_ENERGY, abs=TABLE_TOL)
         assert after / 2 == pytest.approx(DIMER_ENERGY, abs=TABLE_TOL)
 
-    def test_only_the_two_site_scheme_reports_a_discarded_weight(self, spin_half):
+    def test_the_one_site_scheme_reports_no_discarded_weight(self, spin_half):
+        # It is the one scheme that never splits anything, so there is
+        # nothing for a truncation to throw away.
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
@@ -181,12 +183,12 @@ class TestCellUpdate:
         )
         assert discarded == 0.0
 
-    def test_unimplemented_scheme_is_rejected(self, spin_half):
+    def test_unknown_scheme_is_rejected(self, spin_half):
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
         opts = Options()
-        opts.scheme = '1sp'
+        opts.scheme = 'no-such-scheme'
         with pytest.raises(NotImplementedError, match='unknown scheme'):
             cell_update(imps, impo, env_left, env_right, opts)
 
@@ -199,7 +201,7 @@ class TestCellUpdate:
         with pytest.raises(NotImplementedError, match='right-to-left'):
             cell_update(imps, impo, env_right, env_left, Options())
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     def test_two_sides_in_one_shape_are_rejected(self, spin_half, scheme):
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
@@ -250,6 +252,60 @@ class TestTwoSiteCellUpdate:
         with pytest.raises(ValueError, match='at least two sites'):
             cell_update(
                 imps, impo, impo[0], Environment(1), Options(scheme='2s'),
+            )
+
+
+class TestOneSitePlusCellUpdate:
+    """Growth without a two-site solve, and what it refuses."""
+
+    def test_bond_dimension_grows_from_a_product_state(self, spin_half):
+        # Every bond of the Neel state is one-dimensional, which is the
+        # case the one-site scheme can never leave and the expansion exists
+        # to leave at one-site cost.
+        imps = neel_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        assert imps.bond_dims == [1, 1]
+        env_left, env_right, _ = cell_environments(imps, impo)
+        cell_update(imps, impo, env_left, env_right, Options(scheme='1sp'))
+        assert max(imps.bond_dims) > 1
+
+    def test_growth_is_capped_by_what_was_asked_for(self, spin_half):
+        # Unlike the two-site split, which multiplies the bond by the
+        # physical dimension, the expansion adds at most `expand_k`.
+        imps = random_imps(spin_half, 2, width=1, dim=1)
+        impo = ihamiltonian(HEISENBERG, 2)
+        before = max(imps.bond_dims)
+        env_left, env_right, _ = cell_environments(imps, impo)
+        cell_update(
+            imps, impo, env_left, env_right, Options(scheme='1sp', expand_k=2),
+        )
+        assert before < max(imps.bond_dims) <= before + 2
+
+    def test_growth_respects_the_bond_cap(self, spin_half):
+        imps = random_imps(spin_half, 2, width=1, dim=1)
+        impo = ihamiltonian(HEISENBERG, 2)
+        opts = Options(scheme='1sp', max_bond=3)
+        for _ in range(3):
+            env_left, env_right, _ = cell_environments(imps, impo)
+            cell_update(imps, impo, env_left, env_right, opts)
+            assert max(imps.bond_dims) <= 3
+
+    def test_truncation_is_reported(self, spin_half):
+        # A cap tight enough to bite must show up as a discarded weight.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        env_left, env_right, _ = cell_environments(imps, impo)
+        _, discarded = cell_update(
+            imps, impo, env_left, env_right, Options(scheme='1sp', max_bond=2),
+        )
+        assert discarded > 0.0
+
+    def test_single_site_cell_is_rejected(self, spin_half):
+        imps = single_site_imps(spin_half)
+        impo = ihamiltonian(HEISENBERG, 1)
+        with pytest.raises(ValueError, match='at least two sites'):
+            cell_update(
+                imps, impo, impo[0], Environment(1), Options(scheme='1sp'),
             )
 
 

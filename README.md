@@ -25,7 +25,7 @@ Ground-state search and optimization via alternating sweep optimization of MPS t
 
 ### VUMPS (Variational Uniform Matrix Product States)
 
-Ground-state search directly in the thermodynamic limit, on a uniform MPS described by a unit cell that tiles an infinite chain. Two update schemes are available — 1-site and 2-site — with the environments solved as transfer-operator fixed points and convergence measured on the tangent-space gradient.
+Ground-state search in the thermodynamic limit, on a uniform MPS described by a unit cell that tiles an infinite chain. Three update schemes are available — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — with the environments solved as transfer-operator fixed points and convergence measured on the tangent-space gradient.
 
 ### TDVP (Time-Dependent Variational Principle)
 

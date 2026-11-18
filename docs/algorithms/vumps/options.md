@@ -32,6 +32,16 @@ grad_tol      = 1e-10
 env_tol       = 1e-8
 ```
 
+Under `scheme = "1sp"`, two further keys govern the bond expansion:
+
+```toml
+[heisenberg.algorithm]
+scheme        = "1sp"
+max_bond      = 32
+expand_k      = 6
+expand_alpha  = 6
+```
+
 ## See Also
 
 - [Summary](summary.md) — output dataclass.

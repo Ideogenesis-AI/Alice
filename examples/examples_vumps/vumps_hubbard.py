@@ -51,7 +51,8 @@ fastest of the four.
 Two initializations are supported via --init:
 
 - `product` (default): deterministic cell of width one, one electron per
-  site, widened by the two-site scheme over the first few iterations.
+  site, widened by the two-site or one-site-plus scheme over the first few
+  iterations.
 - `random`: random unit cell of width `bond_dim`, each bond carrying the
   charges reachable at its position.
 
@@ -70,6 +71,7 @@ Run from the repository root:
     uv run python examples/examples_vumps/vumps_hubbard.py --cell 2 --bond-dim 32 --n-iters 30
     uv run python examples/examples_vumps/vumps_hubbard.py --symmetry U1,SU2 --bond-dim 16
     uv run python examples/examples_vumps/vumps_hubbard.py --cell 2 --bond-dim 16 --init random
+    uv run python examples/examples_vumps/vumps_hubbard.py --cell 2 --bond-dim 16 --scheme 1sp
     uv run python examples/examples_vumps/vumps_hubbard.py --cell 2 --bond-dim 16 --history
     uv run python examples/examples_vumps/vumps_hubbard.py --help
 """
@@ -192,6 +194,8 @@ def vumps_hubbard(
     env_tol: float = 1e-8,
     env_maxiter: int = 200,
     trunc_thresh: float = 1e-15,
+    expand_k: int = 4,
+    expand_alpha: int = None,
     init: str = 'product',
     seed: int = 42,
     env_cache_dir: str = None,
@@ -228,7 +232,8 @@ def vumps_hubbard(
           and the cheapest per iteration)
 
     scheme:
-        Update scheme: `'2s'` (two-site, default) or `'1s'` (one-site).
+        Update scheme: `'2s'` (two-site, default), `'1s'` (one-site), or
+        `'1sp'` (one-site on a bond widened by controlled bond expansion).
     grad_tol:
         Convergence criterion on the gradient norm `|AC - AL C|`.
     davidson_tol:
@@ -242,10 +247,17 @@ def vumps_hubbard(
     env_maxiter:
         Maximum number of unit cells absorbed by the environment solver.
     trunc_thresh:
-        Smallest singular value a two-site split may keep.
+        Smallest singular value a split may keep.
+    expand_k:
+        Directions added to a bond per expansion, and so the most it can
+        grow by in one iteration. Only used when `scheme='1sp'`.
+    expand_alpha:
+        Internal bond dimension of the cheap two-site tensor the expansion
+        applies the iMPO to. `None` keeps the full bond. Only used when
+        `scheme='1sp'`.
     init:
         Initial cell: `'product'` (default), which starts at width one and
-        needs `scheme='2s'` to grow, or `'random'`.
+        needs `scheme='2s'` or `'1sp'` to grow, or `'random'`.
     seed:
         Base random seed used when `init='random'`.
     env_cache_dir:
@@ -329,6 +341,8 @@ def vumps_hubbard(
         env_cache_dir=env_cache_dir,
         env_async_io=env_async_io,
         env_window=env_window,
+        expand_k=expand_k,
+        expand_alpha=expand_alpha,
     )
     summary = vumps.run(imps, impo, opts)
 
@@ -397,8 +411,11 @@ def _parse_args():
         help='band symmetry exploited (default: Z2,SU2, the cheapest)',
     )
     p.add_argument(
-        '--scheme', choices=['1s', '2s'], default='2s',
-        help='update scheme: 2s (two-site, default) or 1s (one-site)',
+        '--scheme', choices=['1s', '2s', '1sp'], default='2s',
+        help=(
+            'update scheme: 2s (two-site, default), 1s (one-site) or '
+            '1sp (one-site with controlled bond expansion)'
+        ),
     )
     p.add_argument(
         '--grad-tol', type=float, default=1e-10, metavar='TOL',
@@ -418,13 +435,24 @@ def _parse_args():
     )
     p.add_argument(
         '--trunc-thresh', type=float, default=1e-15, metavar='THR',
-        help='SVD truncation threshold for two-site splits (default: 1e-15)',
+        help='SVD truncation threshold for splits (default: 1e-15)',
+    )
+    p.add_argument(
+        '--expand-k', type=int, default=4, metavar='K',
+        help='directions added to a bond per expansion, --scheme 1sp only (default: 4)',
+    )
+    p.add_argument(
+        '--expand-alpha', type=int, default=None, metavar='A',
+        help=(
+            'internal bond dimension of the cheap two-site tensor the '
+            'expansion uses, --scheme 1sp only (default: the full bond)'
+        ),
     )
     p.add_argument(
         '--init', choices=['product', 'random'], default='product',
         help=(
             'initial unit cell: product (default), which starts at width one '
-            'and needs --scheme 2s to grow, or random'
+            'and needs --scheme 2s or 1sp to grow, or random'
         ),
     )
     p.add_argument(
@@ -475,6 +503,8 @@ if __name__ == '__main__':
         env_tol=args.env_tol,
         env_maxiter=args.env_maxiter,
         trunc_thresh=args.trunc_thresh,
+        expand_k=args.expand_k,
+        expand_alpha=args.expand_alpha,
         init=args.init,
         seed=args.seed,
         env_cache_dir=args.env_cache_dir,
