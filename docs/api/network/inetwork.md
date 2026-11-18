@@ -29,7 +29,7 @@ alike.
 
 Canonicalization does not live here, unlike in [Network](network.md). An
 infinite cell has no end to sweep orthogonality in from, so the gauge is
-solved for rather than swept, and [iMPS](imps.md) carries that machinery
+solved for and not swept, and [iMPS](imps.md) carries that machinery
 alone. An [iMPO](impo.md) is never canonicalized at all.
 
 ## See Also

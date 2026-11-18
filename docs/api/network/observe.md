@@ -14,7 +14,7 @@ Compute the expectation value of an observable for a given state.
 
 Nicole contracts only operands sharing a single dtype. When either the state or the observable carries complex blocks — as a state evolved in real time by [tdvp.run](../../algorithms/tdvp/run.md) does — `observe` promotes the whole sweep to `complex128`, including the real-valued MPO and the identity-derived boundary tensor. The bra side is conjugated, so the result is the physical ⟨ψ|O|ψ⟩.
 
-The imaginary part of the final scalar is discarded once it has been checked to be at roundoff level. A larger imaginary part means the observable is not Hermitian on this state, and raises `ValueError` rather than returning a misleading real number.
+The imaginary part of the final scalar is discarded once it has been checked to be at roundoff level. A larger imaginary part means the observable is not Hermitian on this state, and raises `ValueError` instead of returning a misleading real number.
 
 ## See Also
 
