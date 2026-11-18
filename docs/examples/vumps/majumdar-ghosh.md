@@ -7,7 +7,7 @@ H = J_1 \sum_i \mathbf{S}_i \cdot \mathbf{S}_{i+1}
   + J_2 \sum_i \mathbf{S}_i \cdot \mathbf{S}_{i+2}, \quad J_2 = J_1 / 2
 \]
 
-At \(J_2 = J_1/2\) the ground state is a product of nearest-neighbor singlets and the energy per site is exactly \(-3J_1/8 = -0.375\). This is the only example here whose exact ground state lies inside the variational class, so VUMPS reproduces it rather than converging towards it: the error reaches machine precision and the gradient reaches `grad_tol`, instead of settling on the floor a bond cap imposes in the [Heisenberg](heisenberg.md), [free-fermion](free-fermion.md), and [Hubbard](hubbard.md) examples.
+At \(J_2 = J_1/2\) the ground state is a product of nearest-neighbor singlets and the energy per site is exactly \(-3J_1/8 = -0.375\). This is the only example here whose exact ground state lies inside the variational class, so VUMPS reproduces it instead of converging towards it: the error reaches machine precision and the gradient reaches `grad_tol`, instead of settling on the floor a bond cap imposes in the [Heisenberg](heisenberg.md), [free-fermion](free-fermion.md), and [Hubbard](hubbard.md) examples.
 
 The dimer covering is a uniform MPS of bond dimension two on a cell of two sites. Under SU(2) that is a single spin-1/2 multiplet per bond, so bond dimension one.
 
@@ -63,7 +63,7 @@ print(f"Difference:            {summary.energy - exact:+.2e}")
 print(f"Gradient:              {summary.gradients[-1]:.2e}")
 ```
 
-Seven iterations and a few seconds later the energy is `6e-14` from exact and the gradient has fallen to `2e-11`, below `grad_tol`, so the run reports itself converged and stops. Note that `env_tol` is left at the library default rather than loosened to `1e-8` as on the critical chains: the dimer state has no correlations beyond a single bond, so the environment fixed point is reached almost immediately.
+Seven iterations and a few seconds later the energy is `6e-14` from exact and the gradient has fallen to `2e-11`, below `grad_tol`, so the run reports itself converged and stops. Note that `env_tol` is left at the library default, not loosened to `1e-8` as on the critical chains: the dimer state has no correlations beyond a single bond, so the environment fixed point is reached almost immediately.
 
 ## 5. What the two symmetries cost
 
