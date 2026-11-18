@@ -7,7 +7,7 @@
   <a href="https://github.com/Ideogenesis-AI/Alice/blob/stable/LICENSE"><img src="https://img.shields.io/github/license/Ideogenesis-AI/Alice?color=orange" alt="License"></a>
   <a href="https://ideogenesis-ai.github.io/Alice"><img src="https://img.shields.io/badge/docs-github.io-c9a400" alt="Documentation"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-%E2%89%A5_3.11-228b22" alt="Python ≥ 3.11"></a>
-  <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-2.5+-blue?logo=pytorch&logoColor=white" alt="PyTorch"></a>
+  <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-%E2%89%A5_2.5-blue?logo=pytorch&logoColor=white" alt="PyTorch ≥ 2.5"></a>
   <a href="https://github.com/Ideogenesis-AI/Nicole"><img src="https://img.shields.io/badge/built%20on-Nicole-blueviolet" alt="Built on Nicole"></a>
   <a href="https://pypi.org/project/alice-net/"><img src="https://img.shields.io/pypi/status/alice-net?color=4b0082" alt="Status"></a>
 </p>
