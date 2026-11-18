@@ -14,7 +14,7 @@ def on_post_page(output: str, **kwargs) -> str:
     """Convert inline bullet-point text inside <td> elements to proper lists.
 
     mkdocstrings sometimes renders a Parameters/Returns section inside a
-    table cell as a plain string such as "- item1\\n- item2".  This hook
+    table cell as a plain string such as "- item1\\n- item2". This hook
     detects those cells and wraps them in <ul><li>…</li></ul> so they
     display correctly in all browsers.
     """
