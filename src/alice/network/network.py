@@ -355,8 +355,8 @@ class Network:
         promoting an already-complex state to `complex128` costs nothing.
 
         Casting the blocks also casts the Bridge intertwiner weights, which
-        is what a generic symmetry group needs: the two must agree for the
-        tensor to contract.
+        a generic symmetry group needs: the two must agree for the tensor
+        to contract.
 
         Parameters
         ----------
