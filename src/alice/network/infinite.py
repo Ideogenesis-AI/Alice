@@ -22,22 +22,22 @@ An infinite network stores one translation-invariant unit cell of `N` site
 tensors, which tiles the chain. Site `N` is site `0` of the next copy, so
 the right bond of site `N-1` is the *same* index as the left bond of site
 `0`: the cell has `N` bonds, and both of its ends carry a full virtual
-index rather than a trivial dimension-1 boundary.
+index, not a trivial dimension-1 boundary.
 
 This is a tiling, not a closed loop. The chain is genuinely infinite, and
 the index identification above says that translating by `N` sites changes
-nothing. It does not bond two distant sites to each other, which is what
-periodic boundary conditions do; the finite closed chain is `Network` with
+nothing. It does not bond two distant sites to each other, as periodic
+boundary conditions do; the finite closed chain is `Network` with
 `bc='PBC'`, and it is a different physical system solved by a different
 algorithm.
 
-That tiling is why this family stands apart from `Network`. An infinite
-chain has no boundary vector to contract against and no open end to start
-a sweep from, so counting bonds, fixing a gauge, taking a norm and
-compacting an operator all need their own definitions here. Keeping the
-two families unrelated also makes `isinstance(x, MPS)` `False` for an
-infinite state, so the finite entry points reject one rather than silently
-producing nonsense.
+That tiling sets this family apart from `Network`. An infinite chain has
+no boundary vector to contract against and no open end to start a sweep
+from, so counting bonds, fixing a gauge, taking a norm and compacting an
+operator all need their own definitions here. Keeping the two families
+unrelated also makes `isinstance(x, MPS)` `False` for an infinite state,
+so the finite entry points reject one instead of silently producing
+nonsense.
 
 Axis layout (shared with the finite family):
 
@@ -49,9 +49,9 @@ Axis layout (shared with the finite family):
 Bond itag convention: the left bond of site *i* carries itag
 `{prefix}{i % N:0M}` and the right bond carries `{prefix}{(i+1) % N:0M}`,
 where `prefix` is `itag_prefix` (`'A'` for `iMPS`, `'W'` for `iMPO`) and *M*
-is `max(2, len(str(N)))`. The modulo is what makes the cell tile: at
-`i = N-1` the right bond is tagged `{prefix}00`, matching the left bond of
-site `0` in the next copy.
+is `max(2, len(str(N)))`. The modulo makes the cell tile: at `i = N-1`
+the right bond is tagged `{prefix}00`, matching the left bond of site `0`
+in the next copy.
 
 Physical itag convention: site *i* physical axis carries itag `s{i:02d}`,
 exactly as in the finite family.
@@ -130,7 +130,7 @@ def _qr_positive(
     That is harmless once, but fatal inside a fixed-point iteration, where it
     lets the gauge alternate between `+R` and `-R` and never meet its
     tolerance. Pinning the phase of the diagonal makes the factorization
-    unique, which is what the Majumdar-Ghosh dimer state needs to converge
+    unique, without which the Majumdar-Ghosh dimer state does not converge
     at all.
 
     Parameters
@@ -302,8 +302,8 @@ class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics conventio
         """Return the itag for bond index *k*, wrapped into `[0, N)`.
 
         The left bond of site *i* has index *i* and the right bond has index
-        *i+1*; the modulo is what identifies bond `N` with bond `0`, which
-        is what makes the cell tile.
+        *i+1*; the modulo identifies bond `N` with bond `0`, which makes the
+        cell tile.
         """
         N = self.N
         ndigits = max(2, len(str(N)))
@@ -387,8 +387,8 @@ class iNetwork:  # noqa: N801 — iMPS/iMPO naming follows the physics conventio
 
         Both arguments are optional and an omitted one leaves that aspect of
         the tensors alone. Casting the blocks also casts the Bridge
-        intertwiner weights, which is what a generic symmetry group needs:
-        the two must agree for the tensor to contract.
+        intertwiner weights, which a generic symmetry group needs: the two
+        must agree for the tensor to contract.
 
         Parameters
         ----------
@@ -568,11 +568,11 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         Returns the left-orthonormal tensors and the triangular factor that
         falls off the right end, which the tiling puts back on bond 0.
 
-        The `'<<'` flow sends the new bond out of `AL` rather than into it,
-        which is what makes `AL` carry the same index directions as `AR` and
-        the carried gauge an ordinary `(IN, OUT)` matrix. Without it the two
-        canonical forms end up in dual bases, and `AC` can no longer be
-        dropped into the chain in place of `AR`.
+        The `'<<'` flow sends the new bond out of `AL`, not into it, so `AL`
+        carries the same index directions as `AR` and the carried gauge is
+        an ordinary `(IN, OUT)` matrix. Without it the two canonical forms
+        end up in dual bases, and `AC` can no longer be dropped into the
+        chain in place of `AR`.
         """
         isometries: List[Tensor] = []
         for i, t in enumerate(tensors):
@@ -596,7 +596,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             m = einsum('lrs,br->lbs', tensors[i], gauge)
             q, gauge = _qr_positive(m, [1, 2], _GAUGE_ITAG)
             # Here the appended bond is the site's *left* bond, so it moves
-            # to the front rather than to the middle.
+            # to the front, not to the middle.
             q.permute([2, 0, 1], in_place=True)
             q.retag([0, 1], [self._bond_itag(i), self._bond_itag(i + 1)])
             isometries[i] = q
@@ -618,8 +618,8 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         iterations that know nothing of each other: `L` comes back upper
         triangular and `R^dag` lower, so the product is a general matrix
         whose off-diagonal entries are of order its diagonal ones. `C` is
-        diagonal exactly when `AL` and `AR` are already Schmidt-aligned,
-        which is what this rotation establishes rather than assumes.
+        diagonal exactly when `AL` and `AR` are already Schmidt-aligned;
+        this rotation establishes that alignment instead of assuming it.
         Writing `C[k] = U[k] S[k] Vh[k]` and setting
 
             AL'[i] = U[i]^dag AL[i] U[i+1]
@@ -681,7 +681,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         Parameters
         ----------
         to_left:
-            Sweep right to left (producing `AR`) rather than left to right.
+            Sweep right to left (producing `AR`) in place of left to right.
         tol:
             Convergence threshold on the change in the gauge matrix.
         maxiter:
@@ -728,15 +728,15 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
                 logger.debug("%s gauge converged after %d sweeps", side, step)
                 return isometries, gauge
             # A two-cycle is not slow convergence, it is a mismatch between
-            # the cell and the state, so say so rather than spin to maxiter.
+            # the cell and the state, so say so and do not spin to maxiter.
             if older is not None and float((gauge - older).norm()) < tol:
                 raise ValueError(
                     f"{side} gauge fixing fell into a two-cycle after {step} "
                     f"sweeps: the unit-cell transfer operator has two "
                     f"dominant eigenvalues of opposite sign. That happens "
                     f"when the physical charges split the bond charges into "
-                    f"two classes that N={self.N} sites map into each other "
-                    f"rather than onto themselves, so the cell cannot host a "
+                    f"two classes that N={self.N} sites map into each other, "
+                    f"not onto themselves, so the cell cannot host a "
                     f"translation-invariant state. Double the unit cell, or "
                     f"give each bond only the charges reachable at that "
                     f"position."
@@ -808,7 +808,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             matrices.append(einsum('lms,lbs->mb', left_isos[i].conj(), centered))
 
         # Propagating through a whole cell must return the bond matrix it
-        # started from, since that is what translation invariance means. If
+        # started from, since translation invariance means exactly that. If
         # it does not, the two iterations converged to gauges that describe
         # different states and nothing below is valid.
         drift = float((matrices[self.N] - matrices[0]).norm())
@@ -1042,7 +1042,7 @@ class iMPO(iNetwork):  # noqa: N801 — physics convention
     the upper-triangular automaton structure: bond sector `0` is the "start"
     channel and the last bond sector is the "finish" channel, both acting as
     the identity on the diagonal. The environment solver relies on that
-    structure, which is why an iMPO is never canonicalized or compressed.
+    structure, so an iMPO is never canonicalized or compressed.
     """
 
     def __init__(
