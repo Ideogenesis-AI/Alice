@@ -48,7 +48,11 @@ splits the answer, and that split is what lets the bond dimension grow
 from one iteration to the next, up to `max_bond`. The one-site scheme
 solves single sites and bonds, and takes polar decompositions rather
 than splits, so it never discards anything and never gains width: a run
-under `'1s'` stays at the bond dimension its initial state carried.
+under `'1s'` stays at the bond dimension its initial state carried. The
+one-site-plus scheme has it both ways, widening each bond by controlled
+bond expansion before solving the one-site problem on it and cutting it
+back down afterwards, so the bond grows by up to `expand_k` per
+iteration without the local problem ever growing at all.
 
 Convergence is measured on the gradient. The Davidson eigenvalues belong
 to regularized local problems and carry no physical scale, since the
@@ -96,7 +100,7 @@ _SCHEME_ALIASES: Dict[str, str] = {
     'one-site-plus': '1sp',
 }
 
-_IMPLEMENTED_SCHEMES = {'1s', '2s'}
+_IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 
 def _resolve_scheme(alias: str) -> str:
@@ -144,21 +148,23 @@ class Options(AlgorithmOptions):
         Update scheme. Canonical values and their aliases:
 
         - `'2s'` / `'2-site'` / `'two-site'`: two-site VUMPS, the default.
-          The only scheme that can change the bond dimension.
         - `'1s'` / `'1-site'` / `'one-site'`: one-site VUMPS. Cheaper per
           iteration, but confined to the bond dimension of the initial
           state.
-        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: recognised but not
-          implemented, so a config written for it fails with a clear
-          message rather than a typo error.
+        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: one-site VUMPS on a
+          bond widened by controlled bond expansion. It grows the bond
+          dimension as `'2s'` does, but its eigenproblem stays the one-site
+          one, so the local solve is `d` times smaller on each side. See
+          `expand_k` and `expand_alpha`.
     n_iters:
         Maximum number of VUMPS iterations. Each one solves every position
         of the cell against one set of environments.
     max_bond:
         Largest bond dimension a split may keep. `None` means no limit, in
-        which case every split multiplies the bond dimension by the
-        physical dimension and the state grows until `trunc_thresh` stops
-        it. Ignored by `'1s'`, which never splits anything.
+        which case the state grows until `trunc_thresh` stops it: under
+        `'2s'` every split multiplies the bond dimension by the physical
+        dimension, and under `'1sp'` it adds `expand_k`. Ignored by `'1s'`,
+        which never splits anything.
     trunc_thresh:
         Smallest singular value a split may keep, applied before
         `max_bond`. Ignored by `'1s'`.
@@ -177,10 +183,10 @@ class Options(AlgorithmOptions):
     grad_tol:
         Convergence criterion on the VUMPS gradient norm `|AC - AL C|`,
         maximized over the cell. Cannot be met unless `davidson_tol` is
-        smaller. Under `'2s'` against a bond cap that bites, it cannot be
-        met at all: the two-site solve keeps asking for a wider bond than
-        it is allowed, and the gradient settles at a floor set by the
-        discarded weight rather than falling. A run that has grown to
+        smaller. Under either scheme that splits, against a bond cap that
+        bites, it cannot be met at all: the solve keeps asking for a wider
+        bond than it is allowed, and the gradient settles at a floor set by
+        the discarded weight rather than falling. A run that has grown to
         `max_bond` and stopped improving is converged in every sense that
         matters.
     gauge_tol:
@@ -230,8 +236,21 @@ class Options(AlgorithmOptions):
     env_window:
         Number of right environment blocks kept in memory at once, the
         one being read plus those prefetched ahead. Defaults to `2`, which
-        is the smallest value both schemes can run at. Only relevant when
-        `env_cache_dir` is set.
+        is the smallest value any of the schemes can run at. Only relevant
+        when `env_cache_dir` is set.
+    expand_k:
+        Largest number of complement directions added to a bond per
+        expansion. Only used when `scheme = '1sp'`, where it is also the
+        most the bond dimension can grow by in one iteration. Larger values
+        give a richer expanded space at higher cost. A typical choice is
+        `round(sqrt(max_bond))`.
+    expand_alpha:
+        Internal bond dimension used when forming the cheap two-site tensor
+        the expansion applies the iMPO to. Only used when
+        `scheme = '1sp'`. `None` keeps the full bond, which is the
+        expansion's largest cost; truncating it is what makes the
+        expansion cheap against the Davidson solve it precedes. A typical
+        choice is `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     checkpoint_dir:
         Directory to write checkpoint files into. An `vumps.ckpt` file
         (PyTorch format, loadable via `vumps.Summary.load`) is written after
@@ -262,7 +281,7 @@ class Options(AlgorithmOptions):
 
     Half of those blocks were never needed. A pass produces its left
     blocks in the order it consumes them, so one running tensor does the
-    work of `N`, and that is now how both schemes run whether or not
+    work of `N`, and that is now how every scheme runs whether or not
     anything is cached. Only the right side is stored, and only it can be
     evicted. See `alice.algorithm.vumps.sweep` for the argument.
     """
@@ -282,6 +301,8 @@ class Options(AlgorithmOptions):
     env_cache_dir: Optional[str] = None
     env_async_io: bool = True
     env_window: int = 2
+    expand_k: int = 4
+    expand_alpha: Optional[int] = None
     checkpoint_dir: Optional[str] = None
     artifacts_dir: Optional[str] = None
 
@@ -485,8 +506,8 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     imps:
         Initial infinite MPS. Gauge-fixed in place before the first
         iteration and after every one, so it is left in canonical form.
-        Under `'2s'` it may come out wider than it went in; under `'1s'`
-        its bond dimension is kept throughout.
+        Under `'2s'` and `'1sp'` it may come out wider than it went in;
+        under `'1s'` its bond dimension is kept throughout.
     impo:
         Hamiltonian iMPO sharing the unit cell of `imps`.
     opts:
@@ -506,8 +527,8 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     TypeError
         If `imps` or `impo` is a finite network; use `dmrg.run` instead.
     ValueError
-        If `imps` and `impo` have different unit cells, or if `'2s'` is
-        asked for a one-site cell.
+        If `imps` and `impo` have different unit cells, or if a scheme that
+        splits is asked for a one-site cell.
     """
     if opts is None:
         opts = Options()
@@ -568,6 +589,10 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
         max_bond_str = str(opts.max_bond) if opts.max_bond is not None else 'unlimited'
         logger.info("  max bond dim      : %s", max_bond_str)
         logger.info("  trunc thresh      : %.2e", opts.trunc_thresh)
+    if opts.scheme == '1sp':
+        alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'full bond'
+        logger.info("  expand k          : %d", opts.expand_k)
+        logger.info("  expand alpha      : %s", alpha_str)
     logger.info("  max iterations    : %d", opts.n_iters)
     logger.info("  grad thresh       : %.2e", opts.grad_tol)
     logger.info("  davidson tol      : %.2e", opts.davidson_tol)
