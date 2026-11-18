@@ -11,7 +11,7 @@ Top-level TDVP entry point.
     The returned `Artifact` holds the *same* `MPS` object that was passed in,
     not a copy, so the caller's reference to the initial state is advanced
     along with it. Snapshot it first if the initial state is needed for
-    comparison — cloning tensor by tensor rather than with `copy.deepcopy`,
+    comparison — cloning tensor by tensor instead of with `copy.deepcopy`,
     which cannot pickle the intertwiners of a non-Abelian tensor:
 
     ```python

@@ -49,7 +49,7 @@ integration-limited; one that sees no change is truncation-limited and needs a
 larger `max_bond`.
 
 Entanglement grows roughly linearly in time after a quench, so the bond
-dimension needed grows exponentially. This, not the step size, is what sets the
+dimension needed grows exponentially. This, not the step size, sets the
 reachable time horizon.
 
 ## Choosing `expand_k`
@@ -67,13 +67,13 @@ that improve when `expand_k` is raised at fixed `max_bond` and `dt`. Too large
 a value costs a slightly bigger SVD per update and changes nothing else — if
 raising it does not move the answer, the complement, not the cap, was the
 limit. Setting `expand_k = 0` disables the expansion and reproduces `'1s'`
-exactly, which is a useful control when attributing an error to the expansion
-rather than to the integrator.
+exactly, a useful control when attributing an error to the expansion instead
+of to the integrator.
 
 `expand_alpha` truncates the two-site tensor the complement search is built
-from, which is what keeps the search cheaper than a 2-site step; `None` leaves
-the bond intact, making the search exact and the step no cheaper than `'2s'`.
-A typical choice is `round(sqrt(max_bond))`, the same scale as `expand_k`.
+from, which keeps the search cheaper than a 2-site step; `None` leaves the
+bond intact, making the search exact and the step no cheaper than `'2s'`. A
+typical choice is `round(sqrt(max_bond))`, the same scale as `expand_k`.
 
 ## See Also
 

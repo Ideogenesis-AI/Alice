@@ -7,7 +7,7 @@ State snapshot at one TDVP time step (`state`, `time`, `step`).
       heading_level: 2
 
 `Artifact` is both the input and the output of [`run`](run.md): it carries the
-initial state in, and the final state out. This is what makes a resumed run
+initial state in, and the final state out, which makes a resumed run
 indistinguishable from a fresh one.
 
 ## On-disk layout
@@ -51,9 +51,9 @@ to a sparse, evenly spaced sample of the trajectory.
 ## The grid
 
 Step `k` is archived when `k % save_artifacts_every == 0`. The stride is keyed
-on the absolute step index rather than on where the run started, so a
-trajectory stitched together from several resumed calls lands on exactly the
-same grid as one that ran straight through.
+on the absolute step index and not on where the run started, so a trajectory
+stitched together from several resumed calls lands on exactly the same grid as
+one that ran straight through.
 
 A run never evolves past the last grid point. When `n_steps` is not a multiple
 of the stride, [`run`](run.md) stops at the largest multiple that is not
@@ -66,8 +66,8 @@ step 992 instead so the final state lands on the artifact grid
 
 The reason is that `tdvp.ckpt` is removed on success, so an off-grid endpoint
 would finish the run with no snapshot of its own final state anywhere on disk.
-Only the endpoint is constrained — a run may *start* at any step, which is why
-resuming from a crash at an off-grid step still works.
+Only the endpoint is constrained — a run may *start* at any step, so resuming
+from a crash at an off-grid step still works.
 
 ## See Also
 
