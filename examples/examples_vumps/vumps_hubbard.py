@@ -39,14 +39,15 @@ contributes exactly -U/2 per site at <n> = 1, so the energy VUMPS reports
 sits that far below the Lieb-Wu value, and the comparison below shifts the
 reference to match.
 
-Half filling is not a setting here, it is what a unit cell is. The cell has
-to carry no net charge for the bond charges to come back to themselves after
-`N` sites, which for a band means one electron per site on average.
+Half filling is not a setting here, it follows from what a unit cell is. The
+cell has to carry no net charge for the bond charges to come back to
+themselves after `N` sites, which for a band means one electron per site on
+average.
 
 All four band symmetries are available via --symmetry. The two SU(2) groups
-count spin multiplets rather than states, so a given `--bond-dim` buys more
-of the Hilbert space there, and `Z2,SU2` is both the coarsest and the
-fastest of the four.
+count spin multiplets, not states, so a given `--bond-dim` buys more of the
+Hilbert space there, and `Z2,SU2` is both the coarsest and the fastest of
+the four.
 
 Two initializations are supported via --init:
 
@@ -242,8 +243,8 @@ def vumps_hubbard(
     env_tol:
         Convergence tolerance for the environment fixed point. The default
         is loose enough for the metallic case at `U = 0`, where the
-        correlation length is cut off by the bond dimension rather than by
-        a gap; at `U > 0` the library default of 1e-12 is within reach.
+        correlation length is cut off by the bond dimension and not by a
+        gap; at `U > 0` the library default of 1e-12 is within reach.
     env_maxiter:
         Maximum number of unit cells absorbed by the environment solver.
     trunc_thresh:
