@@ -21,7 +21,7 @@
 Every driver resolves `checkpoint_dir=None` to `Path.cwd()` when `run()` is
 called, so a test that leaves the options at their defaults writes its
 checkpoints and artifacts wherever the session happens to stand. These two
-fixtures keep that out of the project root, and live here rather than in the
+fixtures keep that out of the project root, and live here instead of in the
 per-algorithm conftests so a new test directory is covered without having to
 remember them.
 """
