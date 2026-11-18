@@ -205,8 +205,8 @@ class TestExpansionReversibility:
 
     A forward-then-reverse pair returns the state only up to the discrepancy
     between the two expanded tangent spaces the two directions choose. That
-    discrepancy is an integration error rather than a leak, so it has to vanish
-    with the step size; if it did not, something would be losing weight.
+    discrepancy is an integration error, not a leak, so it has to vanish with
+    the step size; if it did not, something would be losing weight.
     """
 
     def test_deviation_shrinks_quadratically_with_dt(self, heisenberg_L6):
@@ -285,7 +285,7 @@ class TestBondDynamics:
             assert bond_profile(mps) == settled
 
     def test_2s_can_grow_a_bond(self, heisenberg_L6):
-        """The 2-site tangent space is what lets entanglement build up."""
+        """The 2-site tangent space lets entanglement build up."""
         mps, mpo = heisenberg_L6
         mps.canonical(0)
         mps.normalize()

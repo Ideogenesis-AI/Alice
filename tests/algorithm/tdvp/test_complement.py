@@ -241,8 +241,8 @@ class TestCheapFactors:
         """Untruncated, the isometric factor of Θ overreaches the kept space.
 
         `decomp` keeps every charge sector at full dimension whatever its rank,
-        so the factor's internal bond can exceed the MPS bond. That is why it
-        cannot serve as the center-side projector, however orthonormal it is:
+        so the factor's internal bond can exceed the MPS bond. For that reason
+        it cannot serve as the center-side projector, however orthonormal:
         projecting with it would remove directions the complement needs.
         """
         mps, _ = heisenberg_L6
@@ -382,7 +382,7 @@ class TestProjectComplement:
     def test_center_tensor_is_not_a_projector(self, heisenberg_L6):
         """The orthogonality center fails the idempotence the isometric factor passes.
 
-        This is why the center end projects against the SVD factor rather than
+        For that reason the center end projects against the SVD factor and not
         against its own site tensor: in a forward sweep `mps[i]` is the center,
         and `M M†` is a projector only for an isometry.
         """
@@ -426,7 +426,7 @@ class TestProjectComplement:
         """The test is made on Θ'_disc, which an unthresholded SVD cannot report.
 
         Handed an exactly zero tensor, `decomp` returns a unit-norm singular
-        vector regardless. Those vectors lie in the kept space rather than its
+        vector regardless. Those vectors lie in the kept space, not its
         complement, and `oplus`-ing them would duplicate a kept direction and
         move the state. Each half can also be sizable while their contraction
         cancels, so testing the halves instead would not catch it.
@@ -482,7 +482,7 @@ class TestComplementVectors:
         assert N_L.indices[1].dim == N_R.indices[0].dim
 
     def test_NR_right_isometric(self, heisenberg_L6):
-        """N_R is right-isometric, which is what keeps the expanded neighbor isometric."""
+        """N_R is right-isometric, which keeps the expanded neighbor isometric."""
         mps, mpo = heisenberg_L6
         _, N_R = self._vectors(mps, mpo)
         assert _isometry_error(N_R, left=False) < 1e-9
@@ -494,7 +494,7 @@ class TestComplementVectors:
         assert _isometry_error(N_L, left=True) < 1e-9
 
     def test_NR_orthogonal_to_kept_space(self, heisenberg_L6):
-        """N_R adds genuinely new directions rather than repeating the neighbor."""
+        """N_R adds genuinely new directions instead of repeating the neighbor."""
         mps, mpo = heisenberg_L6
         _, N_R = self._vectors(mps, mpo)
         cross = einsum('bcu,dcu->bd', mps[FWD_SITE + 1].conj(), N_R)
@@ -628,8 +628,8 @@ class TestExpandForward:
         theta = build_bulk(mps[FWD_SITE], mps[FWD_SITE + 1])
         filled = _fill_center_forward(theta, M_i1_exp)
         # Padding by zeros amounts to projecting Θ onto the *old* basis and
-        # embedding the result, which is what contracting with the unexpanded
-        # neighbor and re-expanding does.
+        # embedding it, which contracting with the unexpanded neighbor and
+        # re-expanding also does.
         padded = einsum('acru,bcu,bdv,edv->aer',
                         theta, mps[FWD_SITE + 1].conj(), mps[FWD_SITE + 1], M_i1_exp.conj())
         assert _tensor_norm(filled - padded) < 1e-10 * max(_tensor_norm(filled), 1.0)

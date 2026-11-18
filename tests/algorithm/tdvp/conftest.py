@@ -214,7 +214,7 @@ def product_state_L4(spin_space):
     """Heisenberg L=4 with an antiferromagnetic product state.
 
     Every bond has dimension 1, which is the configuration the 1-site scheme
-    cannot escape, so this is what the frozen-bond warning is tested against.
+    cannot escape, so the frozen-bond warning is tested against it.
     """
     from alice.network import init_mps
 
