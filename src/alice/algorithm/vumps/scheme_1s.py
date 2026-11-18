@@ -212,7 +212,7 @@ def _polar_left(t: Tensor, axes) -> Tensor:
 
     For `t = U S Vh` grouped with `axes` on the left, this is `U Vh`: the
     orthonormal matrix closest to `t`. Discarding `S` is the whole point,
-    since `S` is what carries the conditioning.
+    since `S` carries the conditioning.
     """
     u, _, vh = decomp(t, axes=axes, mode='SVD', flow='<<', itag=_POLAR_ITAG)
     if len(u.indices) == 3:

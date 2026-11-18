@@ -45,8 +45,8 @@ side that was just solved, and only the other side carries a gradient.
 Nothing has to be divided by a bond matrix.
 
 Only the bond between the two sites changes. The outer bonds of the pair
-keep the indices they had, which is what lets a pass walk the cell one
-pair at a time and still leave a cell that tiles.
+keep the indices they had, which lets a pass walk the cell one pair at a
+time and still leave a cell that tiles.
 
 Index convention (shared with `environ.py` and `scheme_1s.py`)
 --------------------------------------------------------------

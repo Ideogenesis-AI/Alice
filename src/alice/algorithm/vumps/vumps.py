@@ -44,10 +44,10 @@ immaterial.
 
 Which positions an iteration solves depends on the scheme. The two-site
 scheme, the default, solves a pair of neighboring sites at a time and
-splits the answer, and that split is what lets the bond dimension grow
-from one iteration to the next, up to `max_bond`. The one-site scheme
-solves single sites and bonds, and takes polar decompositions rather
-than splits, so it never discards anything and never gains width: a run
+splits the answer, and that split lets the bond dimension grow from one
+iteration to the next, up to `max_bond`. The one-site scheme solves
+single sites and bonds, and takes polar decompositions in place of
+splits, so it never discards anything and never gains width: a run
 under `'1s'` stays at the bond dimension its initial state carried. The
 one-site-plus scheme has it both ways, widening each bond by controlled
 bond expansion before solving the one-site problem on it and cutting it
@@ -186,7 +186,7 @@ class Options(AlgorithmOptions):
         smaller. Under either scheme that splits, against a bond cap that
         bites, it cannot be met at all: the solve keeps asking for a wider
         bond than it is allowed, and the gradient settles at a floor set by
-        the discarded weight rather than falling. A run that has grown to
+        the discarded weight instead of falling. A run that has grown to
         `max_bond` and stopped improving is converged in every sense that
         matters.
     gauge_tol:
@@ -214,7 +214,7 @@ class Options(AlgorithmOptions):
         state further does not slow it down. A critical model has no such
         saturation, since there the correlation length is cut off by the
         bond dimension itself. Running out logs a warning and continues
-        with the best estimate rather than abandoning the run and the
+        with the best estimate, and does not abandon the run and the
         nearly converged environment with it.
     env_cache_dir:
         Root directory for environment block cache files. When set,
@@ -223,7 +223,7 @@ class Options(AlgorithmOptions):
         concurrent runs sharing the same config do not overwrite each
         other's blocks. Inside it, `right/{k:05d}.pt` files are written
         and dropped from memory once they leave the sliding window,
-        keeping the footprint proportional to `env_window` rather than to
+        keeping the footprint proportional to `env_window` instead of to
         the length of the cell. Only the right side appears there: the
         left side is carried one block at a time and never reaches disk.
         The subdirectory is removed when `run()` returns or raises.
@@ -248,8 +248,8 @@ class Options(AlgorithmOptions):
         Internal bond dimension used when forming the cheap two-site tensor
         the expansion applies the iMPO to. Only used when
         `scheme = '1sp'`. `None` keeps the full bond, which is the
-        expansion's largest cost; truncating it is what makes the
-        expansion cheap against the Davidson solve it precedes. A typical
+        expansion's largest cost; truncating it makes the expansion
+        cheap against the Davidson solve it precedes. A typical
         choice is `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     checkpoint_dir:
         Directory to write checkpoint files into. An `vumps.ckpt` file
@@ -273,11 +273,11 @@ class Options(AlgorithmOptions):
     Notes
     -----
     An environment block scales as `chi^2 * w`, and a pass over the cell
-    needs one on every bond from each side. On a chain that is what it
-    sounds like, `2N` small tensors, and the defaults keep them all in
-    memory. On a quasi-1D cylinder the unit cell is one column, so `N`
-    runs to dozens while `chi` and `w` both grow with the circumference,
-    and that is the case `env_cache_dir` exists for.
+    needs one on every bond from each side. On a chain that amounts to
+    `2N` small tensors, and the defaults keep them all in memory. On a
+    quasi-1D cylinder the unit cell is one column, so `N` runs to dozens
+    while `chi` and `w` both grow with the circumference, and that is
+    the case `env_cache_dir` exists for.
 
     Half of those blocks were never needed. A pass produces its left
     blocks in the order it consumes them, so one running tensor does the
@@ -472,7 +472,7 @@ def _save_final_artifact(summary: Summary, artifacts_dir: Path) -> None:
 
     Unlike the per-iteration `vumps.ckpt` checkpoint, `summary` here carries
     the correct `converged` flag, since it is built after the loop exits
-    rather than while it is still in progress.
+    and not while it is still in progress.
 
     Parameters
     ----------
@@ -618,7 +618,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
         (_cache / 'right').mkdir(parents=True, exist_ok=True)
 
     # One store for the whole run, so that the cache directory and the
-    # I/O thread are set up once rather than per iteration. The blocks in
+    # I/O thread are set up once instead of per iteration. The blocks in
     # it are overwritten each time the fixed points are re-solved.
     env_right = Environment(
         N,

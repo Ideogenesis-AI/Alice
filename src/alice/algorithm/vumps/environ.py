@@ -53,19 +53,19 @@ close in order:
 
 The cure (Zauner-Stauber et al. 2018) is to subtract, at every step, the
 component along the offending direction. The subtracted amount is one unit
-cell of energy, which is why this module measures the energy rather than
-needing a separate contraction for it. Fixing the component to zero also
-picks one solution out of the family that differ by a multiple of the
-identity, so the environment returned here is well defined.
+cell of energy, so this module measures the energy without needing a
+separate contraction for it. Fixing the component to zero also picks one
+solution out of the family that differ by a multiple of the identity, so
+the environment returned here is well defined.
 
 Nicole has no Krylov solver, so the fixed point is reached by plain
 regularized power iteration, converging as the second eigenvalue of the
 MPS transfer operator to the power of the number of unit cells absorbed.
 A gapped model needs tens of cells. A critical one needs hundreds and may
 not get there at all, because its second eigenvalue approaches one as the
-bond dimension grows: that is why running out of cells is a warning here
-and not an error. This is the accuracy bottleneck of the whole package,
-and the thing a Krylov solve would fix.
+bond dimension grows, so running out of cells is a warning here and not
+an error. This is the accuracy bottleneck of the whole package, and the
+thing a Krylov solve would fix.
 
 Storing the blocks
 ------------------
@@ -214,7 +214,7 @@ def _real_scalar(t: Tensor, label: str) -> float:
 def _capped_identity(idx: Index, itag: str, direction: Direction) -> Tensor:
     """Build an identity on `idx` with a trivial axis wedged in the middle.
 
-    The trivial axis is what lets a boundary vector be attached: the
+    The trivial axis lets a boundary vector be attached: the
     selectors from `boundary_vectors` carry a cap of their own, and
     contracting the two caps leaves a clean 3-index environment.
 
@@ -248,8 +248,7 @@ def transfer_left(rho: Tensor, tensors: Sequence[Tensor]) -> Tensor:
 
     Computes the sum over physical indices of `A.conj() rho A` for each site
     in turn. For left-orthonormal tensors the identity is a fixed point of
-    this map, which is what makes the start channel of the left environment
-    trivial.
+    this map, which makes the start channel of the left environment trivial.
 
     Parameters
     ----------
@@ -479,12 +478,12 @@ def _fixed_point(
             )
             return E, energy
 
-    # The best estimate is returned rather than raised on. Regularized
-    # power iteration converges as the second eigenvalue of the MPS
-    # transfer operator, which approaches one as the bond dimension grows
-    # at a critical point, so the budget a tight tolerance needs is
-    # unbounded there. Discarding a nearly converged environment, and with
-    # it a whole run, would be the worse failure.
+    # The best estimate is returned, not raised on. Regularized power
+    # iteration converges as the second eigenvalue of the MPS transfer
+    # operator, which approaches one as the bond dimension grows at a
+    # critical point, so the budget a tight tolerance needs is unbounded
+    # there. Discarding a nearly converged environment, and with it a
+    # whole run, would be the worse failure.
     logger.warning(
         "%s environment did not converge in %d unit cells (residual %.3e, "
         "tolerance %.3e); continuing with the best estimate. Raise maxiter "
@@ -685,7 +684,7 @@ class Environment:
     Block `k` sits on bond `k` and holds everything on one side of it, so
     a cell of `N` sites has `N` of them and the index wraps: bond `N` is
     bond `0` on the next copy of the cell. This is bond indexing, not site
-    indexing, which is what makes the wrap work out.
+    indexing, which makes the wrap work out.
 
     A block scales as `chi^2 * w`. On a quasi-1D cylinder the unit cell is
     one column of the lattice, so `N` can be dozens while `chi` and `w`
@@ -693,11 +692,10 @@ class Environment:
     exhausts memory. With `path` set, the class keeps `window` blocks in
     memory and the rest on disk, so the footprint stops depending on `N`.
 
-    The sweep direction is an explicit setting rather than something
-    inferred. A cyclic index has no boundary to detect a turn at, and the
-    only pass that exists today runs one way, so having the caller say
-    which way it is going is both simpler and the hook a backward pass
-    would use.
+    The sweep direction is an explicit setting, not something inferred. A
+    cyclic index has no boundary to detect a turn at, and the only pass
+    that exists today runs one way, so having the caller say which way it
+    is going is both simpler and the hook a backward pass would use.
 
     Parameters
     ----------
@@ -776,7 +774,7 @@ class Environment:
         return sum(1 for block in self._blocks if block is not None)
 
     def is_resident(self, k: int) -> bool:
-        """Whether bond `k` is held in memory rather than only on disk."""
+        """Whether bond `k` is held in memory and not only on disk."""
         return self._blocks[k] is not None
 
     def __len__(self) -> int:
@@ -978,7 +976,7 @@ def spread_right_envs(
     ----------
     right_isos:
         Right-orthonormal tensor of each site. Site `0` is never read,
-        since the block on bond `0` is the starting point rather than
+        since the block on bond `0` is the starting point, not
         something to be built.
     impo:
         Hamiltonian iMPO over the same unit cell.

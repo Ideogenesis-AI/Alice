@@ -27,8 +27,8 @@ environments, so the positions are independent of each other and the
 order they are visited in does not matter: `N` center-tensor
 eigenproblems, `N` bond eigenproblems, then the gauge step that turns
 the two sets of answers back into a unit cell. It walks in order only
-because walking in order is what lets it carry one environment block
-instead of holding `N`.
+because walking in order lets it carry one environment block instead
+of holding `N`.
 
 The other two have no choice. Each position they solve ends in an SVD,
 and that SVD replaces the index on one bond, so the pass has to reach
@@ -74,9 +74,9 @@ either side in either shape, and turns away the shapes it cannot run.
 
 Mirroring to a backward sweep
 -----------------------------
-Caching one side only is what ties these passes to one direction; the
-finite algorithm caches both because it sweeps both ways. Four things
-would change in a right-to-left pass, and nothing else:
+Caching one side only ties these passes to one direction; the finite
+algorithm caches both because it sweeps both ways. Four things would
+change in a right-to-left pass, and nothing else:
 
 1. Which side is streamed and which is stored, the two exchanging roles.
    The signatures already allow it; `_forward_pass_envs` and the opening
@@ -89,7 +89,7 @@ would change in a right-to-left pass, and nothing else:
 5. Which side of each bond the one-site-plus expansion meets first, the
    neighbor and the center tensor exchanging places.
 
-`Environment` already takes its direction as a setting rather than
+`Environment` already takes its direction as a setting instead of
 guessing it, so the storage side needs nothing new.
 
 Installing the result
@@ -218,7 +218,7 @@ def cell_environments(
         Storage to fill. `None` builds a plain in-memory one. A caller
         that runs many iterations should build one `Environment` up front
         and pass it in each time, so that its cache directory and its I/O
-        thread are set up once rather than per iteration.
+        thread are set up once instead of per iteration.
 
     Returns
     -------
@@ -276,7 +276,7 @@ def cell_update(
         Hamiltonian iMPO sharing the unit cell.
     env_left:
         Left fixed point on bond 0, from `cell_environments`: the
-        streamed side, which the pass carries forward itself rather than
+        streamed side, which the pass carries forward itself instead of
         being handed every block of.
     env_right:
         Right blocks on every bond, from `cell_environments`: the stored
@@ -386,10 +386,10 @@ def _update_one_site(
     """Solve every center tensor and bond matrix of the cell, then gauge.
 
     Every position is solved against the environments of the state as it
-    stood when the pass began, which is what makes `|AC - AL C|` a
-    gradient: refreshing a block mid-pass would leave the two sets of
-    answers measured against different operators, and their mismatch
-    would no longer vanish at a stationary point.
+    stood when the pass began, which makes `|AC - AL C|` a gradient:
+    refreshing a block mid-pass would leave the two sets of answers
+    measured against different operators, and their mismatch would no
+    longer vanish at a stationary point.
 
     Walking the cell in order does not weaken that. The pass steps its
     left block through the tensors it read at the top, and `set_canonical`
