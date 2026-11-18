@@ -19,8 +19,8 @@
 """Krylov (Lanczos) matrix exponential for TDVP local time evolution.
 
 Computes `exp(-i dt H) v` for a Hermitian operator `H` given only a
-matrix-vector product routine, which is what every TDVP local update needs.
-This module plays the role `davidson.py` plays for DMRG: the one iterative
+matrix-vector product routine, all that every TDVP local update needs. This
+module plays the role `davidson.py` plays for DMRG: the one iterative
 kernel the sweep logic delegates its linear algebra to.
 
 Algorithm outline
@@ -31,8 +31,8 @@ Algorithm outline
    tridiagonal matrix `T` with diagonal `alpha` and off-diagonal `beta`.
 3. Re-orthogonalize each new direction against the whole basis. Plain
    Lanczos loses orthogonality rapidly in floating point, and because the
-   result here is a propagator rather than a single eigenvalue, that loss
-   shows up directly as a non-unitary step.
+   result here is a propagator, not a single eigenvalue, that loss shows
+   up directly as a non-unitary step.
 4. Exponentiate `T` by diagonalizing it with `numpy.linalg.eigh`. For a
    Hermitian `T` this is exact up to roundoff, so no dedicated matrix
    exponential (and no SciPy dependency) is required:
@@ -140,7 +140,7 @@ def lanczos_expv(
         Tensor to propagate. Must be complex, since the propagator is.
     dt:
         Time increment. A positive value evolves forward (`exp(-i dt H)`), a
-        negative value backward, which is how the zero-site update undoes the
+        negative value backward, which the zero-site update uses to undo the
         double counting of the tangent-space projector.
     max_krylov:
         Maximum number of Krylov vectors to build.
