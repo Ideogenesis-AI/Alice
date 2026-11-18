@@ -143,7 +143,7 @@ class Options(AlgorithmOptions):
         sharing the same config do not overwrite each other's blocks. Inside
         that subdirectory, `left/{i:05d}.pt` and `right/{i:05d}.pt` files are
         written and evicted from memory once they exit the sliding window,
-        keeping peak memory proportional to `env_window` rather than to chain
+        keeping peak memory proportional to `env_window` instead of to chain
         length. The unique subdirectory is removed automatically when `run()`
         returns (or raises). `None` (default) keeps all blocks in memory.
         Stored as `str` for TOML compatibility.
@@ -360,7 +360,7 @@ def _save_final_artifact(summary: Summary, artifacts_dir: Path) -> None:
 
     Unlike the per-sweep `dmrg.ckpt` checkpoint, `summary` here carries the
     correct `converged` flag, since it is built after the sweep loop exits
-    rather than while it is still in progress.
+    and not while it is still in progress.
 
     Parameters
     ----------
