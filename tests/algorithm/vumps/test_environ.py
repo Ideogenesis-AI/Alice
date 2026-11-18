@@ -62,8 +62,8 @@ NEEL_ENERGY = -0.25
 
 # Alice's spin operators reach Nicole as single-precision table entries
 # promoted to double, which caps any U(1) spin energy at roughly eight
-# digits. The SU(2) tensors avoid those tables, which is why the same
-# physical check is tightened by five orders of magnitude below.
+# digits. The SU(2) tensors avoid those tables, so the same physical
+# check is tightened by five orders of magnitude below.
 TABLE_TOL = 1e-7
 
 
@@ -163,8 +163,8 @@ class TestEnvironmentConsistency:
     @pytest.mark.parametrize('N', [2, 4])
     def test_both_sides_report_the_same_energy(self, spin_half, N):
         # The two environments describe disjoint halves of one chain, so
-        # agreement is a genuine cross-check rather than a tautology: the
-        # left side sweeps AL forwards and the right side sweeps AR back.
+        # agreement is a genuine cross-check, not a tautology: the left
+        # side sweeps AL forwards and the right side sweeps AR back.
         imps = random_imps(spin_half, N)
         impo = ihamiltonian(HEISENBERG, N)
         _, left = left_environment(imps, impo)
@@ -363,7 +363,7 @@ class TestEnvironmentStore:
         env_right.direction = -1
         env_right.fetch(1)
         # Reading backward, the block that drops is the one ahead of the
-        # read rather than the one behind it, which a forward read keeps.
+        # read and not the one behind it, which a forward read keeps.
         assert not env_right.is_resident(3)
         assert env_right.is_resident(5)
 

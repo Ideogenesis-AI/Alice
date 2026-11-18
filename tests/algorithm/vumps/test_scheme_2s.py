@@ -76,7 +76,7 @@ class TestEffectiveHamiltonian:
     def test_operator_is_hermitian(self, spin_half):
         # Davidson projects onto a real symmetric matrix, so an operator
         # that is not Hermitian would be silently symmetrized and the
-        # eigenvector would be wrong rather than merely inaccurate.
+        # eigenvector would be wrong, not merely inaccurate.
         imps = random_imps(spin_half, 2)
         impo, lefts, rights = _setup(imps)
         u = _pair(imps)
@@ -174,8 +174,8 @@ class TestGaugeHandover:
     """The one-site gauge step must recognise the split for what it is."""
 
     def test_left_factor_comes_back_unchanged(self, spin_half):
-        # `AL = U_l(U S) U_l(S)^dag` is `U`, which is why the split needs no
-        # inverse and why only the far side of the pair carries a gradient.
+        # `AL = U_l(U S) U_l(S)^dag` is `U`, so the split needs no inverse
+        # and only the far side of the pair carries a gradient.
         imps = random_imps(spin_half, 2)
         AC2 = _pair(imps)
         tag = imps.bond_matrix(1).itags[0]

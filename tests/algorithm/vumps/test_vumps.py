@@ -49,7 +49,7 @@ TABLE_TOL = 1e-7
 
 # The critical Heisenberg chain converges only algebraically in the bond
 # dimension, so the small cells used here are nowhere near the exact value
-# and are checked for ordering rather than accuracy.
+# and are checked for ordering, not accuracy.
 HEISENBERG_EXACT = 0.25 - math.log(2.0)
 
 
@@ -57,7 +57,7 @@ def _options(**kwargs):
     """Run options tuned for a small test: loose environments, few iterations.
 
     Pinned to the one-site scheme, so that a test which says nothing about
-    the bond dimension is about the driver rather than about growth.
+    the bond dimension is about the driver, not about growth.
     """
     defaults = dict(
         scheme='1s', n_iters=60, grad_tol=1e-8, env_tol=1e-10, env_maxiter=400,
@@ -95,7 +95,7 @@ class TestOptions:
             Options(scheme='no-such-scheme')
 
     def test_directories_survive_a_toml_round_trip(self, tmp_path):
-        # Both directories are held as str rather than Path so that a run
+        # Both directories are held as str instead of Path so that a run
         # can be configured entirely from a TOML file.
         original = Options(checkpoint_dir='/tmp/ckpt', artifacts_dir='/tmp/archive')
         path = tmp_path / 'vumps.toml'
@@ -250,7 +250,7 @@ class TestRun:
         assert len(summary.energies) == summary.n_iters
         assert len(summary.gradients) == summary.n_iters
         assert summary.energy == summary.energies[-1]
-        # The gradient is what the loop stops on, so it must have fallen.
+        # The loop stops on the gradient, so it must have fallen.
         assert summary.gradients[-1] < summary.gradients[0]
 
     def test_one_site_leaves_the_bond_dimension_alone(self, spin_half):
@@ -310,7 +310,7 @@ class TestRun:
     def test_two_site_under_su2(self, spin_half_su2):
         # The SU(2) tensors are pure Clebsch-Gordan and avoid the spin
         # tables, so this pins the two-site scheme to machine precision
-        # rather than to the eight digits U(1) allows.
+        # and not to the eight digits U(1) allows.
         summary = run(
             dimer_imps_su2(spin_half_su2),
             ihamiltonian(MAJUMDAR_GHOSH_SU2, 2, n3x=True),
@@ -439,7 +439,7 @@ class TestRun:
 
     def test_artifacts_dir_is_decoupled_from_checkpoint_dir(self, spin_half, tmp_path):
         # An explicit archive can live on storage of its own, so it must be
-        # used verbatim rather than nested under the checkpoints.
+        # used verbatim and not nested under the checkpoints.
         ckpt_dir = tmp_path / 'ckpt'
         archive = tmp_path / 'elsewhere' / 'archive'
         run(

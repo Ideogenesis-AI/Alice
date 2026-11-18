@@ -189,11 +189,11 @@ def single_site_imps(Spc):
 def random_imps(Spc, N, *, period=None, width=2, dim=2, seed=1):
     """Build a random gauge-fixable iMPS of `N` sites.
 
-    Bond `k` carries only charges of parity `k`, which is what a physical
-    spin-1/2 state looks like and what keeps the transfer operator out of
-    the bipartite trap described in `iMPS.canonical`. When `period` is given
-    the cell repeats with that period, so the same physical state can be
-    described by unit cells of different sizes.
+    Bond `k` carries only charges of parity `k`, the shape of a physical
+    spin-1/2 state and what keeps the transfer operator out of the bipartite
+    trap described in `iMPS.canonical`. When `period` is given the cell
+    repeats with that period, so the same physical state can be described by
+    unit cells of different sizes.
     """
     period = N if period is None else period
 
