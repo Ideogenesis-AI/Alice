@@ -89,7 +89,7 @@ from .network import MPO
 logger = logging.getLogger(__name__)
 
 # Row/column labels for the two boundary channels of the automaton. A channel
-# of an actual operator string is labelled by the tuple `(k, j)` instead, so a
+# of an actual operator string is labeled by the tuple `(k, j)` instead, so a
 # plain `isinstance(label, str)` separates the two kinds.
 _START = '_start_'
 _FINISH = '_finish_'
