@@ -201,7 +201,7 @@ class TestCenterIsometry:
         """The center tensor itself fails the test its factor passes.
 
         This is the whole reason the factor is taken: the center tensor carries
-        the singular values, so `M† M = Λ²` rather than the identity.
+        the singular values, so `M† M = Λ²` and not the identity.
         """
         mps, _ = heisenberg_L4
         mps.canonical(1)
@@ -386,7 +386,7 @@ class TestProjectComplement:
     def test_left_projection_idempotent(self, heisenberg_L4):
         """Projecting twice equals projecting once — the hallmark of a projector.
 
-        The center-side basis is what makes this hold at the site the sweep is
+        The center-side basis makes this hold at the site the sweep is
         optimizing, where the site tensor carries the singular values.
         """
         mps, mpo = heisenberg_L4
@@ -425,7 +425,7 @@ class TestProjectComplement:
         lh, _, A = _forward_halves(mps, mpo, site_i=1)
         lh_disc = _project_complement_left(lh, A)
         # The unprojected half does overlap the kept space, so the assertion
-        # below is about the projection rather than about an empty half.
+        # below is about the projection, not about an empty half.
         assert _tensor_norm(einsum('abr,aαpr->bαp', A.conj(), lh)) > 1e-3
         overlap = einsum('abr,aαpr->bαp', A.conj(), lh_disc)
         assert _tensor_norm(overlap) < 1e-9
