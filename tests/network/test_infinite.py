@@ -94,8 +94,8 @@ def _dimer_imps(spin_space):
 
     Sites 0 and 1 share a singlet and the pattern repeats, so bond 0 cuts
     no singlet (one Schmidt value) while bond 1 cuts one (two equal Schmidt
-    values). That makes the Schmidt spectrum known in closed form, which is
-    what turns this into a real check rather than a self-consistency one.
+    values). That makes the Schmidt spectrum known in closed form, turning
+    this into a real check instead of a self-consistency one.
     """
     Spc, _ = spin_space
     trivial = _bond(Spc.group, (0,), dim=1)
@@ -128,7 +128,7 @@ def _neel_imps(spin_space, N):
     """
     Spc, _ = spin_space
     # The bond charge records the spin the previous site put there, so it
-    # alternates with the pattern rather than staying at zero.
+    # alternates with the pattern instead of staying at zero.
     bonds = [_bond(Spc.group, (k % 2,), dim=1) for k in range(N + 1)]
     tensors = []
     for i in range(N):
@@ -254,7 +254,7 @@ class TestBondBookkeeping:
         imps = _imps(spin_space, 4)
         assert imps._bond_itag(0) == 'A00'
         assert imps._bond_itag(3) == 'A03'
-        # Bond 4 is bond 0: this identification is what makes the cell tile.
+        # Bond 4 is bond 0: that identification makes the cell tile.
         assert imps._bond_itag(4) == 'A00'
         assert imps._bond_itag(5) == 'A01'
 
@@ -398,8 +398,8 @@ class TestCanonicalForm:
 
     @pytest.mark.parametrize('N', [2, 4, 6])
     def test_gauge_relation_holds(self, spin_space, N):
-        # AL[i] C[i+1] == C[i] AR[i] is what makes AL, AR and C describe one
-        # state rather than three unrelated ones.
+        # AL[i] C[i+1] == C[i] AR[i] makes AL, AR and C describe one state
+        # instead of three unrelated ones.
         imps = _gaugeable_imps(spin_space, N)
         imps.canonical()
         for i in range(N):
@@ -457,8 +457,8 @@ class TestCanonicalForm:
     @pytest.mark.parametrize('N', [2, 4])
     def test_bond_matrices_are_diagonal(self, spin_space, N):
         # The gauge iteration leaves C triangular; a final rotation into the
-        # Schmidt basis makes it diagonal, which is what gives it a cheap
-        # inverse and makes its entries the Schmidt values themselves.
+        # Schmidt basis makes it diagonal, which gives it a cheap inverse
+        # and makes its entries the Schmidt values themselves.
         imps = _gaugeable_imps(spin_space, N)
         imps.canonical()
         for bond in range(N):
@@ -555,7 +555,7 @@ class TestCanonicalKnownStates:
 
 
 class TestCanonicalFailures:
-    """Gauge fixing must refuse rather than hand back an inconsistent state."""
+    """Gauge fixing must refuse instead of handing back an inconsistent state."""
 
     def test_two_cycle_is_reported(self, spin_space):
         # A uniform bond index mixes both charge parities, which the odd
