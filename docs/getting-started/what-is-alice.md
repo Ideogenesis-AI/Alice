@@ -7,7 +7,7 @@ Alice is an open-source library of 1D tensor network algorithms, built on top of
 Tensor network methods are among the most powerful tools for studying strongly-correlated quantum many-body systems. Yet production-quality implementations have historically lived in closed, monolithic codebases that are difficult to modify, extend, or understand. Alice addresses this by:
 
 - Building on **Nicole's exact symmetry engine**, so every operation automatically respects Abelian (U(1), Z(2)) and non-Abelian (SU(2)) conservation laws without additional bookkeeping.
-- Exposing a **TOML-driven configuration system** so that running a new model only requires editing a text file rather than writing Python.
+- Exposing a **TOML-driven configuration system** so that running a new model only requires editing a text file instead of writing Python.
 - Structuring each algorithm as an **independent unit** on top of a shared MPS/MPO core, making it easy for different researchers to contribute, own, and maintain separate algorithms.
 
 ## Algorithms
