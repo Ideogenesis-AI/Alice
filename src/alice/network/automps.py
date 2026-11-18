@@ -462,8 +462,8 @@ def _random_mps(
     mps.canonical(0)
 
     # A bond whose sectors are all charge-forbidden is emptied by the
-    # canonicalization rather than reported, and every bond collapses with it.
-    # The depth-2 sector set is taken around the center-bond charge alone, so a
+    # canonicalization and not reported, and every bond collapses with it. The
+    # depth-2 sector set is taken around the center-bond charge alone, so a
     # charge path that wanders further than two fusion steps from it leaves the
     # bonds near the boundaries with nothing allowed. Returning that object
     # would defer the failure to the first solver that tries to use it.
