@@ -274,7 +274,7 @@ class TestRefusals:
             init_imps(2, Spc, Op, config=[0, 0])
 
     def test_cell_length_that_cannot_be_neutral(self, spin_u1):
-        """An odd spin-1/2 cell is refused rather than built."""
+        """An odd spin-1/2 cell is refused, not built."""
         Spc, Op = spin_u1
         with pytest.raises(ValueError, match='no charge-neutral configuration'):
             init_imps(3, Spc, Op)
