@@ -502,6 +502,29 @@ class TestSetCanonical:
                 off = flat - torch.diag_embed(torch.diagonal(flat))
                 assert float(off.abs().max()) < 1e-12
 
+    def test_the_rotations_relate_what_went_in_to_what_is_stored(self, spin_space):
+        # The returned U and Vh are the only record of how the bond bases
+        # moved, and a caller holding anything written in the old ones
+        # relies on them: applying them by hand to the tensors handed in
+        # has to reproduce the tensors now stored.
+        imps = _gaugeable_imps(spin_space, 2)
+        imps.canonical()
+        left_isos, right_isos = imps.left_isometries(), imps.right_isometries()
+        skewed = [
+            einsum('ars,brs->ba', left_isos[k].conj(), right_isos[k])
+            for k in range(imps.N)
+        ]
+        rot_l, rot_r = imps.set_canonical(left_isos, right_isos, skewed)
+
+        for i in range(imps.N):
+            j = (i + 1) % imps.N
+            al = einsum('am,ars,rn->mns', rot_l[i].conj(), left_isos[i], rot_l[j])
+            ar = einsum('nb,bcs,mc->nms', rot_r[i], right_isos[i], rot_r[j].conj())
+            al.retag([0, 1], list(imps.left_isometries()[i].itags[:2]))
+            ar.retag([0, 1], list(imps.right_isometries()[i].itags[:2]))
+            assert float((al - imps.left_isometries()[i]).norm()) < 1e-12
+            assert float((ar - imps.right_isometries()[i]).norm()) < 1e-12
+
     def test_center_is_recorded(self, spin_space):
         imps = _gaugeable_imps(spin_space, 4)
         imps.canonical()
