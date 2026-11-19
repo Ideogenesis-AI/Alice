@@ -24,7 +24,7 @@ import logging
 
 import pytest
 import torch
-from nicole import einsum, identity
+from nicole import Direction, einsum, identity
 
 from alice.algorithm.vumps import (
     Environment,
@@ -38,12 +38,14 @@ from alice.algorithm.vumps import (
     transfer_right,
 )
 from alice.algorithm.vumps.environ import (
+    _capped_identity,
     rotate_left_env,
     rotate_right_env,
     step_left_env,
     step_right_env,
 )
 from alice.network import iMPS
+from alice.network.autoimpo import boundary_vectors
 
 from .conftest import (
     HEISENBERG,
@@ -301,6 +303,100 @@ class TestRotateEnv:
 
         assert rotate_left_env(left, rot_l[0]).itags == left.itags
         assert rotate_right_env(right, rot_r[0]).itags == right.itags
+
+
+# ---------------------------------------------------------------------------
+# Starting from a previous answer
+# ---------------------------------------------------------------------------
+
+class TestWarmStart:
+    """What a guess may change, which is how long a solve takes and no more."""
+
+    @staticmethod
+    def _cells(caplog):
+        """Read the number of unit cells the last solve absorbed."""
+        for record in reversed(caplog.records):
+            if 'converged after' in record.msg:
+                return record.args[1]
+        raise AssertionError("no solve reported convergence")
+
+    @pytest.mark.parametrize(
+        'solver', [left_environment, right_environment],
+    )
+    def test_the_answer_itself_converges_at_once(self, spin_half, solver, caplog):
+        # The point of the whole exercise: handed the fixed point, the
+        # iteration has to recognize it in a single cell instead of
+        # walking back to it from the entering channel.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        E, energy = solver(imps, impo)
+
+        with caplog.at_level(logging.DEBUG, logger='alice.algorithm.vumps.environ'):
+            warm, warm_energy = solver(imps, impo, guess=E)
+        assert self._cells(caplog) == 1
+        assert _deviation(warm, E) < 1e-12
+        assert warm_energy == pytest.approx(energy, rel=1e-12)
+
+    @pytest.mark.parametrize(
+        'solver', [left_environment, right_environment],
+    )
+    def test_a_guess_does_not_move_the_fixed_point(self, spin_half, solver):
+        # A different state's environment is a poor guess but a legal one.
+        # The iteration has one fixed point, so it must land on the same
+        # place it does from cold.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        cold, cold_energy = solver(imps, impo)
+        elsewhere, _ = solver(random_imps(spin_half, 2, seed=7), impo)
+
+        warm, warm_energy = solver(imps, impo, guess=elsewhere)
+        assert _deviation(warm, cold) < 1e-9
+        assert warm_energy == pytest.approx(cold_energy, rel=1e-9)
+
+    @pytest.mark.parametrize(
+        'solver', [left_environment, right_environment],
+    )
+    def test_the_entering_channel_of_a_guess_is_rebuilt(self, spin_half, solver):
+        # The entering channel is the identity and the transfer operator
+        # carries the identity to itself, so anything extra sitting there
+        # is a fixed point too: it would survive the solve and bias the
+        # energy. Doubling it must leave no trace.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        cold, cold_energy = solver(imps, impo)
+
+        isometries = (
+            imps.left_isometries() if solver is left_environment
+            else imps.right_isometries()
+        )
+        start, finish = boundary_vectors(impo, 0)
+        start.permute([1, 0], in_place=True)
+        if solver is left_environment:
+            edge, entering, direction = isometries[0].indices[0], start, Direction.OUT
+            itag = isometries[0].itags[0]
+        else:
+            last = isometries[imps.N - 1]
+            edge, entering, direction = last.indices[1], finish, Direction.IN
+            itag = last.itags[1]
+        delta = _capped_identity(edge, itag, direction)
+        spoiled = cold + einsum('ayb,oy->aob', delta, entering)
+
+        warm, warm_energy = solver(imps, impo, guess=spoiled)
+        assert _deviation(warm, cold) < 1e-9
+        assert warm_energy == pytest.approx(cold_energy, rel=1e-9)
+
+    def test_a_store_can_be_filled_from_its_own_last_answer(self, spin_half):
+        # What `run` does every iteration: the pass leaves a block on
+        # bond 0 behind it, and the next solve starts from it.
+        imps = random_imps(spin_half, 4)
+        impo = ihamiltonian(HEISENBERG, 4)
+        plain = Environment(4)
+        build_right_envs(imps, impo, plain)
+
+        warm = Environment(4)
+        build_right_envs(imps, impo, warm, guess=plain[0])
+        for k in range(4):
+            assert _deviation(warm[k], plain[k]) < 1e-12
 
 
 # ---------------------------------------------------------------------------
