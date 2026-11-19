@@ -192,6 +192,8 @@ def cell_environments(
     maxiter: int = 200,
     env_left: Optional[Environment] = None,
     env_right: Optional[Environment] = None,
+    guess_left: Optional[Tensor] = None,
+    guess_right: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Environment, float]:
     """Solve the boundary fixed points and set up the environments of a pass.
 
@@ -219,6 +221,13 @@ def cell_environments(
         that runs many iterations should build one `Environment` up front
         and pass it in each time, so that its cache directory and its I/O
         thread are set up once instead of per iteration.
+    guess_left:
+        Left fixed point of an earlier iteration, used to start this
+        solve near its answer. `None` starts cold.
+    guess_right:
+        Right fixed point of an earlier iteration, used the same way. A
+        store that has been filled once already holds it on bond `0`,
+        which `build_right_envs` reads before overwriting.
 
     Returns
     -------
@@ -246,8 +255,12 @@ def cell_environments(
     if env_right is None:
         env_right = Environment(imps.N)
 
-    left_block, energy = left_environment(imps, impo, tol=tol, maxiter=maxiter)
-    build_right_envs(imps, impo, env_right, tol=tol, maxiter=maxiter)
+    left_block, energy = left_environment(
+        imps, impo, tol=tol, maxiter=maxiter, guess=guess_left,
+    )
+    build_right_envs(
+        imps, impo, env_right, tol=tol, maxiter=maxiter, guess=guess_right,
+    )
 
     return left_block, env_right, energy
 
