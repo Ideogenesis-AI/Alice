@@ -66,6 +66,8 @@ The environment fixed point is reached by absorbing copies of the unit cell unti
 
 Running out logs a warning and continues with the best estimate without abandoning the run. Both `env_maxiter` and `env_tol` resolve it, and which to reach for depends on what the number is for: the energy is converged long before the environment tensor is, while the gradient under `'1s'` tracks the environments directly. [Lessons](lessons.md) works through the measurements behind all of this.
 
+Few of those cells are spent from scratch. The state moves less and less as a run proceeds, so each solve starts from the block the previous pass came back around with, which is close to the answer; `env_warm_start` controls it and is on by default. The guess is a starting point and nothing more — the iteration has one fixed point and reaches it either way — but it can take a solve that cost two hundred cells down to a handful.
+
 ## The unit cell
 
 The cell tiles, so bond `N` is bond `0`, and the bond charge has to return to where it started after `N` sites. A cell therefore carries no net charge: half filling for fermions, zero magnetization for spins. A uniform state at any other filling is not representable on a cell of that length, and [init_imps](../../api/network/init-imps.md) refuses to build one instead of producing a cell that cannot be gauge fixed. Spin-1/2 admits no neutral cell of odd length at all, so `N` has to be even there.
