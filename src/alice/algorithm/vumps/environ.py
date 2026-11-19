@@ -167,6 +167,56 @@ def step_right_env(E: Tensor, M: Tensor, W: Tensor) -> Tensor:
     return einsum('cpd,acr,oprs,bds->aob', E, M.conj(), W, M)
 
 
+def rotate_left_env(E: Tensor, u: Tensor) -> Tensor:
+    """Rewrite a left environment in a rotated basis of its bond.
+
+    With `AL' = U^dag AL U`, as `iMPS.set_canonical` leaves the tensors it
+    is given, the block that says about `AL'` what `E` says about `AL` is
+    `U^dag E U`. The rotation renames the bond after the decomposition
+    that produced `U`, so the itags of `E` are put back.
+
+    Parameters
+    ----------
+    E:
+        Left environment with axes `(bra, mpo, ket)`, in the old basis.
+    u:
+        Left rotation `U` of that bond, from `iMPS.set_canonical`.
+
+    Returns
+    -------
+    Tensor
+        The same environment, in the new basis.
+    """
+    rotated = einsum('aob,am,bn->mon', E, u.conj(), u)
+    rotated.retag([0, 2], [E.itags[0], E.itags[2]])
+    return rotated
+
+
+def rotate_right_env(E: Tensor, vh: Tensor) -> Tensor:
+    """Rewrite a right environment in a rotated basis of its bond.
+
+    The mirror of `rotate_left_env`: with `AR' = Vh AR Vh^dag`, the block
+    carried across is `Vh E Vh^dag`. The conjugation sits on the bra axis
+    here too, which is the axis `Vh` enters unconjugated, since a right
+    environment carries the opposite direction on each of its axes.
+
+    Parameters
+    ----------
+    E:
+        Right environment with axes `(bra, mpo, ket)`, in the old basis.
+    vh:
+        Right rotation `Vh` of that bond, from `iMPS.set_canonical`.
+
+    Returns
+    -------
+    Tensor
+        The same environment, in the new basis.
+    """
+    rotated = einsum('aob,ma,nb->mon', E, vh.conj(), vh)
+    rotated.retag([0, 2], [E.itags[0], E.itags[2]])
+    return rotated
+
+
 # ---------------------------------------------------------------------------
 # Scalar extraction
 # ---------------------------------------------------------------------------
