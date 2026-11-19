@@ -609,7 +609,9 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         left_isos: List[Tensor],
         right_isos: List[Tensor],
         matrices: List[Tensor],
-    ) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]:
+    ) -> Tuple[
+        List[Tensor], List[Tensor], List[Tensor], List[Tensor], List[Tensor],
+    ]:
         """Rotate both canonical forms so that every bond matrix is diagonal.
 
         `C` cannot be built diagonal in the first place. It is the change
@@ -630,6 +632,12 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         pairs, and keeps both forms orthonormal, since `U` and `Vh` are
         unitary. The bond matrices are then the Schmidt values themselves.
 
+        The rotations are returned alongside the forms, since they are the
+        only record of how the bond bases moved. Anything a caller holds
+        that is written in the old basis of a bond — a VUMPS environment
+        block, above all — is meaningless against the stored tensors until
+        it has been carried across by the same rotation.
+
         Parameters
         ----------
         left_isos:
@@ -642,7 +650,9 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         Returns
         -------
         tuple
-            `(left_isos, right_isos, matrices)` in the Schmidt basis.
+            `(left_isos, right_isos, matrices, rot_l, rot_r)`, the first
+            three in the Schmidt basis and the last two the per-bond `U`
+            and `Vh` that put them there.
         """
         N = self.N
         rot_l: List[Tensor] = []
@@ -667,7 +677,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             ar.retag([0, 1], tags)
             rotated_l.append(al)
             rotated_r.append(ar)
-        return rotated_l, rotated_r, diagonals
+        return rotated_l, rotated_r, diagonals, rot_l, rot_r
 
     def _gauge_fixed_point(
         self, to_left: bool, tol: float, maxiter: int,
@@ -819,7 +829,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
                 f"{drift:.3e}. Tighten tol or raise maxiter."
             )
 
-        left_isos, right_isos, matrices = self._diagonalize_gauge(
+        left_isos, right_isos, matrices, _, _ = self._diagonalize_gauge(
             left_isos, right_isos, matrices[:self.N],
         )
 
@@ -835,7 +845,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         right_isos: List[Tensor],
         bond_matrices: List[Tensor],
         target: int = 0,
-    ) -> None:
+    ) -> Tuple[List[Tensor], List[Tensor]]:
         """Install a canonical form computed elsewhere, in place.
 
         The counterpart of `canonical` for callers that already know the
@@ -850,7 +860,10 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         size of the mismatch is exactly the convergence measure such an
         update reports. They are rotated into the Schmidt basis on the way
         in, so the stored bond matrices are diagonal as they are after
-        `canonical`.
+        `canonical`, and the rotations that did it are returned. A caller
+        holding anything written in the bases it passed in — the two
+        boundary blocks a VUMPS pass ends with, say — needs them to say
+        the same thing about the tensors now stored here.
 
         Parameters
         ----------
@@ -864,6 +877,13 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         target:
             Site to record as the orthogonality center. Negative values
             count from the end.
+
+        Returns
+        -------
+        tuple
+            `(rot_l, rot_r)`, one `U` and one `Vh` per bond, rotating the
+            basis each bond was given in into the one now stored. Bond `k`
+            is entry `k`.
 
         Raises
         ------
@@ -886,7 +906,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
             if len(seq) != N:
                 raise ValueError(f"{name} must have {N} entries, got {len(seq)}")
 
-        left_isos, right_isos, matrices = self._diagonalize_gauge(
+        left_isos, right_isos, matrices, rot_l, rot_r = self._diagonalize_gauge(
             list(left_isos), list(right_isos), list(bond_matrices),
         )
         self._tensors = right_isos
@@ -894,6 +914,7 @@ class iMPS(iNetwork):  # noqa: N801 — physics convention
         self._bond_matrices = matrices
         self._center = target
         self._validate()
+        return rot_l, rot_r
 
     # ------------------------------------------------------------------
     # Canonical-form accessors
