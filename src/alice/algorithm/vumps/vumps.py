@@ -57,10 +57,12 @@ iteration without the local problem ever growing at all.
 Convergence is measured on the gradient. The Davidson eigenvalues belong
 to regularized local problems and carry no physical scale, since the
 energy of an infinite chain is infinite; the reported energy density comes
-from the environment fixed point instead. The convergence measure is
-`|AC - AL C|`, the norm of the energy gradient on the uniform MPS
-manifold, which vanishes at a stationary point and keeps moving long after
-the energy between iterations has flattened out.
+from the environment fixed point instead. The convergence measure is the
+larger of `|AC - AL C|` and `|AC - C AR|`, the norm of the energy gradient
+on the uniform MPS manifold, which vanishes at a stationary point and
+keeps moving long after the energy between iterations has flattened out.
+Both forms are needed because a scheme that splits satisfies one of them
+by construction on the side it has just solved; see `gauge_tensors`.
 """
 
 from __future__ import annotations
@@ -181,14 +183,14 @@ class Options(AlgorithmOptions):
     davidson_max_subspace:
         Maximum Krylov subspace size before a thick restart.
     grad_tol:
-        Convergence criterion on the VUMPS gradient norm `|AC - AL C|`,
-        maximized over the cell. Cannot be met unless `davidson_tol` is
-        smaller. Under either scheme that splits, against a bond cap that
-        bites, it cannot be met at all: the solve keeps asking for a wider
-        bond than it is allowed, and the gradient settles at a floor set by
-        the discarded weight instead of falling. A run that has grown to
-        `max_bond` and stopped improving is converged in every sense that
-        matters.
+        Convergence criterion on the VUMPS gradient norm, the larger of
+        `|AC - AL C|` and `|AC - C AR|` maximized over the cell. Cannot be
+        met unless `davidson_tol` is smaller. Under either scheme that
+        splits, against a bond cap that bites, it cannot be met at all:
+        the solve keeps asking for a wider bond than it is allowed, and
+        the gradient settles at a floor set by the discarded weight
+        instead of falling. A run that has grown to `max_bond` and stopped
+        improving is converged in every sense that matters.
     gauge_tol:
         Convergence tolerance for the unit-cell gauge iteration. Used only
         to canonicalize the initial state: every iteration after that
@@ -337,7 +339,7 @@ class Summary(AlgorithmSummary):
         Bond dimensions of `state` (length `N`, the last entry being the
         bond onto the next copy of the cell).
     gradients:
-        VUMPS gradient norm `|AC - AL C|` recorded at each iteration.
+        VUMPS gradient norm recorded at each iteration.
     discarded_weights:
         Largest weight discarded by a split, recorded at each iteration.
         All zeros under `'1s'`, which never splits anything.

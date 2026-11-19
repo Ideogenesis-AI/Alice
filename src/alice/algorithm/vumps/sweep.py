@@ -288,10 +288,12 @@ def cell_update(
     Returns
     -------
     gradient:
-        Largest `|AC - AL C|` over the cell: the VUMPS gradient norm, and
-        the quantity `run` converges on. It measures how far the state is
-        from being a stationary point of the energy, which is a sharper
-        signal than the change in energy between iterations.
+        Largest local gauge mismatch over the cell: the VUMPS gradient
+        norm, and the quantity `run` converges on. It measures how far the
+        state is from being a stationary point of the energy, a sharper
+        signal than the change in energy between iterations. `gauge_tensors`
+        gives the mismatch in full; a scheme that splits needs both of the
+        forms it compares, since each step satisfies one of them exactly.
     discarded:
         Largest weight discarded by a split over the cell, or `0.0` for a
         scheme that never splits anything.
@@ -336,7 +338,7 @@ def _reconcile(
     right_isos:
         Right-orthonormal tensors, one per site.
     gradient:
-        Largest `|AC - AL C|` over the cell.
+        Largest local gauge mismatch over the cell, from `gauge_tensors`.
     """
     N = len(centers)
     left_isos: List[Tensor] = []
@@ -386,7 +388,7 @@ def _update_one_site(
     """Solve every center tensor and bond matrix of the cell, then gauge.
 
     Every position is solved against the environments of the state as it
-    stood when the pass began, which makes `|AC - AL C|` a gradient:
+    stood when the pass began, which makes the mismatch a gradient:
     refreshing a block mid-pass would leave the two sets of answers
     measured against different operators, and their mismatch would no
     longer vanish at a stationary point.
@@ -414,7 +416,7 @@ def _update_one_site(
     Returns
     -------
     float
-        Largest `|AC - AL C|` over the cell.
+        Largest local gauge mismatch over the cell.
     """
     N = imps.N
     davidson_opts = _davidson_opts(opts)
@@ -492,7 +494,7 @@ def _update_two_site(
     Returns
     -------
     gradient:
-        Largest `|AC - AL C|` over the cell.
+        Largest local gauge mismatch over the cell.
     discarded:
         Largest weight discarded by a split over the cell.
 
@@ -606,7 +608,7 @@ def _update_one_site_plus(
     Returns
     -------
     gradient:
-        Largest `|AC - AL C|` over the cell.
+        Largest local gauge mismatch over the cell.
     discarded:
         Largest weight discarded by a split over the cell.
 
