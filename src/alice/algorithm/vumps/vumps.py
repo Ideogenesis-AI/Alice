@@ -200,11 +200,11 @@ class Options(AlgorithmOptions):
         initial canonicalization.
     env_tol:
         Convergence tolerance for the environment fixed point. The
-        environments are re-solved from scratch every iteration, so this
-        is among the more expensive settings. The energy is the least
-        sensitive thing it controls, converging well before the
-        environment tensor does; a one-site run is the case that wants it
-        tight, since its gradient tracks the environments directly.
+        environments are re-solved every iteration, so this is among the
+        more expensive settings. The energy is the least sensitive thing
+        it controls, converging well before the environment tensor does;
+        a one-site run is the case that wants it tight, since its
+        gradient tracks the environments directly.
     env_maxiter:
         Maximum number of unit cells absorbed by the environment solver.
         The residual falls geometrically at a rate set by the subleading
@@ -218,6 +218,14 @@ class Options(AlgorithmOptions):
         bond dimension itself. Running out logs a warning and continues
         with the best estimate, and does not abandon the run and the
         nearly converged environment with it.
+    env_warm_start:
+        If `True` (default), each environment solve starts from the block
+        the previous pass came back around with instead of from the
+        entering channel alone. The state moves less and less as a run
+        proceeds, so that block is close to the answer and the solver
+        absorbs far fewer unit cells to reach `env_tol`. It cannot change
+        what is converged to, only how long that takes. Set to `False` to
+        solve cold every time.
     env_cache_dir:
         Root directory for environment block cache files. When set,
         `run()` creates a unique subdirectory inside it (first 8 hex
@@ -300,6 +308,7 @@ class Options(AlgorithmOptions):
     gauge_maxiter: int = 200
     env_tol: float = 1e-12
     env_maxiter: int = 200
+    env_warm_start: bool = True
     env_cache_dir: Optional[str] = None
     env_async_io: bool = True
     env_window: int = 2
@@ -602,6 +611,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     logger.info("  davidson max space: %d", opts.davidson_max_subspace)
     logger.info("  gauge tol         : %.2e", opts.gauge_tol)
     logger.info("  env tol           : %.2e", opts.env_tol)
+    logger.info("  env warm start    : %s", 'on' if opts.env_warm_start else 'off')
     if _cache is not None:
         logger.info("  env cache dir     : %s", _cache)
         logger.info("  env window        : %d", opts.env_window)
@@ -641,16 +651,23 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
                 logger.debug("")
             logger.debug("iteration %*d / %d initiated", w, iter_idx + 1, opts.n_iters)
 
-            gradient, discarded, _ = cell_update(
+            gradient, discarded, carried = cell_update(
                 imps, impo, env_left, env_right, opts,
             )
 
             # The update installs its own gauge, so only the fixed points
             # have to be re-solved. They give the energy density and the
             # environments for the next iteration at once.
+            #
+            # Each solve starts from the block the pass came back around
+            # with, one on each side of bond 0 and both in the basis the
+            # cell ends in. `sweep` gives the argument; the left one is
+            # handed back and the right one is left in the store.
             env_left, env_right, cell_energy = cell_environments(
                 imps, impo, tol=opts.env_tol, maxiter=opts.env_maxiter,
                 env_right=env_right,
+                guess_left=carried if opts.env_warm_start else None,
+                guess_right=env_right[0] if opts.env_warm_start else None,
             )
             energy = cell_energy / N
 
