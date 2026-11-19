@@ -20,6 +20,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from nicole import identity
 
@@ -307,6 +309,51 @@ class TestOneSitePlusCellUpdate:
             cell_update(
                 imps, impo, impo[0], Environment(1), Options(scheme='1sp'),
             )
+
+
+class TestBoundaryBlocks:
+    """What a pass leaves on bond 0 for the next iteration to start from."""
+
+    @staticmethod
+    def _cells(caplog):
+        """Read the number of unit cells the last solve absorbed."""
+        for record in reversed(caplog.records):
+            if 'converged after' in record.msg:
+                return record.args[1]
+        raise AssertionError("no solve reported convergence")
+
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
+    def test_they_seed_the_next_solve(self, spin_half, scheme, caplog):
+        # `rotate_left_env` and its mirror are tested where they live; what
+        # is checked here is that a pass applies them. A block left in the
+        # basis the pass worked in has the right shape and says the wrong
+        # thing about the state now stored, and the only symptom is a solve
+        # that saves nothing. Six iterations is enough for the saving to be
+        # visible while the state is still far from converged.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        opts = Options(scheme=scheme, max_bond=8)
+
+        env_left, env_right, _ = cell_environments(imps, impo)
+        for _ in range(6):
+            _, _, carried = cell_update(imps, impo, env_left, env_right, opts)
+            env_left, env_right, _ = cell_environments(
+                imps, impo, env_right=env_right,
+                guess_left=carried, guess_right=env_right[0],
+            )
+        _, _, carried = cell_update(imps, impo, env_left, env_right, opts)
+
+        with caplog.at_level(logging.DEBUG, logger='alice.algorithm.vumps.environ'):
+            left_environment(imps, impo)
+            cold = self._cells(caplog)
+            left_environment(imps, impo, guess=carried)
+            warm = self._cells(caplog)
+            right_environment(imps, impo)
+            cold_right = self._cells(caplog)
+            right_environment(imps, impo, guess=env_right[0])
+            warm_right = self._cells(caplog)
+        assert warm < 0.9 * cold
+        assert warm_right < 0.9 * cold_right
 
 
 class _Watched(Environment):
