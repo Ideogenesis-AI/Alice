@@ -49,6 +49,46 @@ iteration. That is the dominant cost of the algorithm, around half the
 running time, and it is `O(1)` in the length of the cell: each solve
 iterates a single block around the cell until it stops moving.
 
+Re-solved is not recomputed from nothing. A pass ends where it began,
+and what it is holding when it gets there is a block on each side of
+bond 0 built from the tensors it has just written. Those two go to the
+next iteration's solves as starting points, under `guess_left` and
+`guess_right`. The section below says why they fit a bond that the pass
+may have replaced, and `environ` says what the solver does with them.
+
+Boundary blocks for the next iteration
+--------------------------------------
+The last position a forward pass solves is the one that straddles the
+cell boundary, sites `N-1` and `0`, with a left block on bond `N-1` and
+a right block on bond `1`:
+
+    -- env_left -- site N-1 -- [bond 0] -- site 0 -- env_right --
+
+Both of those are current: the left one was streamed through every
+tensor the pass has written, and the right one was rebuilt backward from
+bond 0 when the pass reached this position. Stepping each one inward
+over the site in front of it lands both on bond 0, and the bond they
+land on is the one the final split has just created, since that split is
+what the two sites were cut apart on. So the pair is expressed in the
+basis the cell ends in, whatever the split did to the width of that
+bond, and the guess can never be the wrong shape for the solve it seeds.
+
+Neither block is the fixed point of the updated state. Each is one cell
+of absorption away from the block the pass started with, which leaves
+the energy of that cell in the channel the solver regularizes and one
+site of the cell as it stood before the last position was solved. Both
+are errors a guess is allowed: the solver removes the first on its first
+step and converges the second away, and it still begins a long way
+closer than the entering channel alone.
+
+One error is not allowed. Installing the canonical form rotates every
+bond into its Schmidt basis, so the blocks the pass built, correct as
+they are about the tensors the pass wrote, say nothing about the tensors
+that end up stored. Each pass therefore ends by carrying its two blocks
+across with the rotations `set_canonical` returns. Without that step a
+guess is a right answer in coordinates that no longer exist, and the
+solver spends undoing it the cells it was meant to save.
+
 What costs memory is the cheap part that follows, spreading a fixed
 point from bond 0 onto every other bond. A block scales as `chi^2 * w`,
 and on a quasi-1D cylinder the cell is one column, so `N` can be dozens
@@ -117,8 +157,11 @@ from .environ import (
     Environment,
     build_right_envs,
     left_environment,
+    rotate_left_env,
+    rotate_right_env,
     spread_right_envs,
     step_left_env,
+    step_right_env,
 )
 from .scheme_1s import gauge_tensors, optimize_bond, optimize_center
 from .scheme_2s import discarded_weight, optimize_two_site, split_two_site
@@ -275,7 +318,7 @@ def cell_update(
     env_left: Union[Tensor, Environment],
     env_right: Union[Tensor, Environment],
     opts: Options,
-) -> Tuple[float, float]:
+) -> Tuple[float, float, Tensor]:
     """Run one VUMPS iteration over the whole unit cell, in place.
 
     `imps` must be gauge-fixed on entry and is left gauge-fixed on return,
@@ -310,6 +353,11 @@ def cell_update(
     discarded:
         Largest weight discarded by a split over the cell, or `0.0` for a
         scheme that never splits anything.
+    env_left:
+        Left block on bond `0` of the updated cell, the streamed side
+        having arrived back where it started. Together with the right
+        block left on bond `0` of `env_right`, this is the pair of
+        boundary blocks of the next iteration's fixed-point solves.
 
     Raises
     ------
@@ -324,7 +372,8 @@ def cell_update(
     env_left, env_right = _forward_pass_envs(env_left, env_right)
 
     if opts.scheme == '1s':
-        return _update_one_site(imps, impo, env_left, env_right, opts), 0.0
+        gradient, carried = _update_one_site(imps, impo, env_left, env_right, opts)
+        return gradient, 0.0, carried
     if opts.scheme == '2s':
         return _update_two_site(imps, impo, env_left, env_right, opts)
     if opts.scheme == '1sp':
@@ -397,7 +446,7 @@ def _update_one_site(
     env_streamed: Tensor,
     env_stored: Environment,
     opts: Options,
-) -> float:
+) -> Tuple[float, Tensor]:
     """Solve every center tensor and bond matrix of the cell, then gauge.
 
     Every position is solved against the environments of the state as it
@@ -428,8 +477,11 @@ def _update_one_site(
 
     Returns
     -------
-    float
+    gradient:
         Largest local gauge mismatch over the cell.
+    env_left:
+        Left block back on bond `0`, having been carried once around the
+        cell and rotated into the basis `set_canonical` installed.
     """
     N = imps.N
     davidson_opts = _davidson_opts(opts)
@@ -464,8 +516,13 @@ def _update_one_site(
         carried = step_left_env(carried, left_isos[i], impo[i])
 
     left_isos, right_isos, gradient = _reconcile(centers, bonds)
-    imps.set_canonical(left_isos, right_isos, bonds)
-    return gradient
+    # Installing the form moves the basis of every bond, and the rotations
+    # it gives back are what anything written in the old ones must follow.
+    rot_l, rot_r = imps.set_canonical(left_isos, right_isos, bonds)
+    # Bond 0 is where it was, so the block the store holds there is still
+    # the one that belongs on it and only has to follow the rotation.
+    env_stored[0] = rotate_right_env(env_stored[0], rot_r[0])
+    return gradient, rotate_left_env(carried, rot_l[0])
 
 
 def _update_two_site(
@@ -474,7 +531,7 @@ def _update_two_site(
     env_streamed: Tensor,
     env_stored: Environment,
     opts: Options,
-) -> Tuple[float, float]:
+) -> Tuple[float, float, Tensor]:
     """Sweep the bonds of the cell, solving and splitting a pair at each.
 
     Pair `k` spans sites `k` and `k+1` and is split on the bond between
@@ -510,6 +567,9 @@ def _update_two_site(
         Largest local gauge mismatch over the cell.
     discarded:
         Largest weight discarded by a split over the cell.
+    env_left:
+        Left block on the bond the last split created, from the pass
+        itself and in the basis `set_canonical` installed.
 
     Raises
     ------
@@ -570,8 +630,17 @@ def _update_two_site(
         left_isos[j], _, _ = gauge_tensors(centers[j], bonds[j], bonds[(j + 1) % N])
 
     left_isos, right_isos, gradient = _reconcile(centers, bonds)
-    imps.set_canonical(left_isos, right_isos, bonds)
-    return gradient, discarded
+    # Installing the form moves the basis of every bond, and the rotations
+    # it gives back are what anything written in the old ones must follow.
+    rot_l, rot_r = imps.set_canonical(left_isos, right_isos, bonds)
+    # The right block belongs on the bond the last split created, where
+    # `carried` already sits: bond 1 stepped inward over the site that
+    # split wrote. Both tensors it reads are the ones the pass left, which
+    # installing the form copied rather than touched, so the step happens
+    # in the pass's basis and the rotation follows it.
+    closing = step_right_env(env_stored[1], right_isos[0], impo[0])
+    env_stored[0] = rotate_right_env(closing, rot_r[0])
+    return gradient, discarded, rotate_left_env(carried, rot_l[0])
 
 
 def _update_one_site_plus(
@@ -580,7 +649,7 @@ def _update_one_site_plus(
     env_streamed: Tensor,
     env_stored: Environment,
     opts: Options,
-) -> Tuple[float, float]:
+) -> Tuple[float, float, Tensor]:
     """Sweep the bonds of the cell, widening and solving one site at each.
 
     The step at site `i` widens the bond in front of it by controlled bond
@@ -631,6 +700,9 @@ def _update_one_site_plus(
         Largest local gauge mismatch over the cell.
     discarded:
         Largest weight discarded by a split over the cell.
+    env_left:
+        Left block on the bond the last split created, from the pass
+        itself and in the basis `set_canonical` installed.
 
     Raises
     ------
@@ -707,5 +779,14 @@ def _update_one_site_plus(
         carried = step_left_env(carried, left_iso, impo[i])
 
     left_isos, right_isos, gradient = _reconcile(centers, bonds)
-    imps.set_canonical(left_isos, right_isos, bonds)
-    return gradient, discarded
+    # Installing the form moves the basis of every bond, and the rotations
+    # it gives back are what anything written in the old ones must follow.
+    rot_l, rot_r = imps.set_canonical(left_isos, right_isos, bonds)
+    # The right block belongs on the bond the last split created, where
+    # `carried` already sits: bond 1 stepped inward over the site that
+    # split wrote. Both tensors it reads are the ones the pass left, which
+    # installing the form copied rather than touched, so the step happens
+    # in the pass's basis and the rotation follows it.
+    closing = step_right_env(env_stored[1], right_isos[0], impo[0])
+    env_stored[0] = rotate_right_env(closing, rot_r[0])
+    return gradient, discarded, rotate_left_env(carried, rot_l[0])

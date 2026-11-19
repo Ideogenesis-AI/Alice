@@ -641,7 +641,9 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
                 logger.debug("")
             logger.debug("iteration %*d / %d initiated", w, iter_idx + 1, opts.n_iters)
 
-            gradient, discarded = cell_update(imps, impo, env_left, env_right, opts)
+            gradient, discarded, _ = cell_update(
+                imps, impo, env_left, env_right, opts,
+            )
 
             # The update installs its own gauge, so only the fixed points
             # have to be re-solved. They give the energy density and the

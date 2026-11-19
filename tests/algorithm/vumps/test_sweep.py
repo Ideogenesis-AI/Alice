@@ -164,7 +164,7 @@ class TestCellUpdate:
         imps = dimer_imps(spin_half)
         impo = ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True)
         env_left, env_right, before = cell_environments(imps, impo)
-        gradient, _ = cell_update(
+        gradient, _, _ = cell_update(
             imps, impo, env_left, env_right, Options(scheme=scheme),
         )
         _, _, after = cell_environments(imps, impo)
@@ -178,7 +178,7 @@ class TestCellUpdate:
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
-        _, discarded = cell_update(
+        _, discarded, _ = cell_update(
             imps, impo, env_left, env_right, Options(scheme='1s'),
         )
         assert discarded == 0.0
@@ -239,7 +239,7 @@ class TestTwoSiteCellUpdate:
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
-        _, discarded = cell_update(
+        _, discarded, _ = cell_update(
             imps, impo, env_left, env_right, Options(scheme='2s', max_bond=2),
         )
         assert discarded > 0.0
@@ -295,7 +295,7 @@ class TestOneSitePlusCellUpdate:
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
-        _, discarded = cell_update(
+        _, discarded, _ = cell_update(
             imps, impo, env_left, env_right, Options(scheme='1sp', max_bond=2),
         )
         assert discarded > 0.0
@@ -339,13 +339,13 @@ class TestCachedCellUpdate:
         plain_imps = random_imps(spin_half, 4)
         plain = cell_update(
             plain_imps, impo, *cell_environments(plain_imps, impo)[:2], opts,
-        )
+        )[:2]
 
         cached_imps = random_imps(spin_half, 4)
         env_left, env_right, _ = cell_environments(
             cached_imps, impo, env_right=Environment(4, tmp_path, window=2),
         )
-        cached = cell_update(cached_imps, impo, env_left, env_right, opts)
+        cached = cell_update(cached_imps, impo, env_left, env_right, opts)[:2]
 
         assert cached == pytest.approx(plain, abs=1e-12)
         _, _, plain_energy = cell_environments(plain_imps, impo)
