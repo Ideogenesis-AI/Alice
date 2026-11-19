@@ -67,6 +67,35 @@ bond dimension grows, so running out of cells is a warning here and not
 an error. This is the accuracy bottleneck of the whole package, and the
 thing a Krylov solve would fix.
 
+Starting from the previous answer
+---------------------------------
+How many cells that takes depends on where the iteration starts, and the
+cold start is the worst place available: an environment holding nothing
+but the entering channel, which has to grow every operator string of the
+Hamiltonian from scratch. A VUMPS run solves the same fixed point once
+per iteration against a state that moves less and less, so the answer
+from the previous iteration is a far better place to start, and both
+solvers take one through `guess`.
+
+The guess only has to be close; it cannot change what is converged to,
+since the iteration has one fixed point and the regularization picks the
+same representative of it either way. One part of it does have to be
+exact, though. The entering channel is the identity and stays the
+identity under the transfer operator, so an error there is a fixed point
+of the iteration as well: it would survive to the end and bias the
+energy. The guess is therefore stripped of whatever it holds in that
+channel and given the exact seed in its place, and nothing else about it
+is touched.
+
+A guess is expected to describe the bond it is handed to, in the basis
+that bond now carries. Passing one that does not is an error and not a
+case to fall back from, since nothing here could detect the second half
+of it: a block in a stale basis has the right shape and the wrong
+content, and the solver would quietly spend its savings undoing it. The
+guesses come from `sweep`, which hands over the two blocks its pass
+ended on, each already carried across the rotation the pass installed.
+Its module docstring makes that case.
+
 Storing the blocks
 ------------------
 A fixed point on bond `0` is one tensor, but a pass over the cell needs a
@@ -468,6 +497,43 @@ def _channel_energy(E: Tensor, projector: Tensor, density: Tensor) -> float:
     return _real_scalar(einsum('ayb,bxa->yx', channel, density), 'energy')
 
 
+def _warm_seed(
+    seed: Tensor,
+    guess: Optional[Tensor],
+    entering: Tensor,
+) -> Tensor:
+    """Build the starting environment, around a previous one where possible.
+
+    The returned environment agrees with `guess` everywhere but the
+    entering channel, which is overwritten with `seed` because the
+    transfer operator carries that channel to itself and so cannot repair
+    it. The module docstring gives the argument in full.
+
+    Parameters
+    ----------
+    seed:
+        Cold seed: the entering channel set to the identity and every
+        other channel zero.
+    guess:
+        Environment from an earlier solve, or `None` to start cold.
+    entering:
+        Selector for the channel the environment enters through, oriented
+        to insert into one rather than read one out: `start` for the left
+        side and `finish` for the right.
+
+    Returns
+    -------
+    Tensor
+        Environment to start the power iteration from, which is `seed`
+        itself when there is no guess.
+    """
+    if guess is None:
+        return seed
+
+    stale = einsum('aob,oy->ayb', guess, entering.conj())
+    return guess - einsum('ayb,oy->aob', stale, entering) + seed
+
+
 def _fixed_point(
     seed: Tensor,
     divergent: Tensor,
@@ -558,6 +624,7 @@ def left_environment(
     *,
     tol: float = 1e-12,
     maxiter: int = 200,
+    guess: Optional[Tensor] = None,
 ) -> Tuple[Tensor, float]:
     """Solve for the left boundary environment of a unit cell.
 
@@ -576,6 +643,10 @@ def left_environment(
         Convergence threshold on the change in the environment.
     maxiter:
         Iteration budget, counted in unit cells.
+    guess:
+        Left environment from an earlier solve, used to start the
+        iteration near its answer. Must describe bond `0` of the state
+        given here. `None` starts cold.
 
     Returns
     -------
@@ -605,7 +676,7 @@ def left_environment(
     density.insert_index(1, direction=Direction.IN, itag=_CAP_ITAG)
 
     return _fixed_point(
-        seed=einsum('ayb,oy->aob', delta, start),
+        seed=_warm_seed(einsum('ayb,oy->aob', delta, start), guess, start),
         divergent=einsum('ayb,oy->aob', delta, finish.conj()),
         projector=finish,
         density=density,
@@ -622,6 +693,7 @@ def right_environment(
     *,
     tol: float = 1e-12,
     maxiter: int = 200,
+    guess: Optional[Tensor] = None,
 ) -> Tuple[Tensor, float]:
     """Solve for the right boundary environment of a unit cell.
 
@@ -641,6 +713,10 @@ def right_environment(
         Convergence threshold on the change in the environment.
     maxiter:
         Iteration budget, counted in unit cells.
+    guess:
+        Right environment from an earlier solve, used to start the
+        iteration near its answer. Must describe bond `0` of the state
+        given here. `None` starts cold.
 
     Returns
     -------
@@ -671,7 +747,7 @@ def right_environment(
     # two boundary channels swap: a right environment enters at finish and
     # diverges at start.
     return _fixed_point(
-        seed=einsum('ayb,oy->aob', delta, finish),
+        seed=_warm_seed(einsum('ayb,oy->aob', delta, finish), guess, finish),
         divergent=einsum('ayb,oy->aob', delta, start.conj()),
         projector=start,
         density=density,
@@ -1058,6 +1134,7 @@ def build_right_envs(
     *,
     tol: float = 1e-12,
     maxiter: int = 200,
+    guess: Optional[Tensor] = None,
 ) -> None:
     """Solve the right fixed point and spread it over the unit cell.
 
@@ -1073,6 +1150,11 @@ def build_right_envs(
         Convergence tolerance forwarded to the fixed-point solver.
     maxiter:
         Maximum number of unit cells absorbed by the fixed-point solver.
+    guess:
+        Right fixed point from an earlier solve, forwarded to
+        `right_environment` to start it near its answer. Read before the
+        store is written to, so the block the store already holds on bond
+        `0` may be passed straight back in.
 
     Raises
     ------
@@ -1084,5 +1166,7 @@ def build_right_envs(
             f"env_right holds {len(env_right)} bonds but the unit cell has "
             f"{imps.N}; build one Environment per cell length"
         )
-    env_right[0], _ = right_environment(imps, impo, tol=tol, maxiter=maxiter)
+    env_right[0], _ = right_environment(
+        imps, impo, tol=tol, maxiter=maxiter, guess=guess,
+    )
     spread_right_envs(imps.right_isometries(), impo, env_right)
