@@ -570,11 +570,18 @@ def _update_one_site_plus(
 ) -> Tuple[float, float]:
     """Sweep the bonds of the cell, widening and solving one site at each.
 
-    The step at bond `k+1` widens it by controlled bond expansion, solves
-    the ordinary one-site eigenproblem on the widened bond, and splits the
-    answer to cut the bond back down. Only that bond changes, as in the
-    two-site sweep, so the next step starts from something consistent and
-    the cell still tiles at the end.
+    The step at site `i` widens the bond in front of it by controlled bond
+    expansion, solves the ordinary one-site eigenproblem on the widened
+    bond, and splits the answer to cut the bond back down. Only bond `i+1`
+    changes, as in the two-site sweep, so the next step starts from
+    something consistent and the cell still tiles at the end.
+
+    Which bond a forward step widens follows from where it leaves the
+    center. A left-to-right pass carries the center rightward, so the step
+    at site `i` ends with the left-orthonormal tensor of that site and the
+    center on bond `i+1`; the bond it is free to change is therefore the
+    one on the *right* of the center tensor, met with the right-orthonormal
+    tensor of site `i+1` on its far side.
 
     What the expansion costs is a few contractions of the size the
     two-site scheme pays for its whole solve, and what it buys is a bond
@@ -587,9 +594,9 @@ def _update_one_site_plus(
     split tensor, since the bond it sits on has just been replaced; the
     right blocks stay valid until the sweep reaches them, which covers
     every bond but the last. The simplification is that the expansion needs
-    no environment of its own: the widened bond is the one *in front* of the
-    block being carried, so a single step over the expanded neighbor puts an
-    exact block on it.
+    no block of its own on the widened bond: that bond sits *behind* the
+    stored block the step already reads, so one step of the right
+    environment over the expanded neighbor puts an exact block on it.
 
     Parameters
     ----------
@@ -616,8 +623,8 @@ def _update_one_site_plus(
     ------
     ValueError
         If the unit cell holds a single site. The expansion then reads the
-        bond it is about to replace, since the neighbor behind the bond and
-        the site in front of it are the same site.
+        bond it is about to replace, since the site behind the bond and the
+        neighbor in front of it are the same site.
     """
     N = imps.N
     if N < 2:
@@ -635,53 +642,56 @@ def _update_one_site_plus(
 
     centers = [imps.center_tensor(i) for i in range(N)]
     bonds = [imps.bond_matrix(k) for k in range(N)]
-    left_isos = list(imps.left_isometries())
+    right_isos = list(imps.right_isometries())
 
     carried = env_streamed
     discarded = 0.0
-    for k in range(N):
-        j = (k + 1) % N
+    for i in range(N):
+        j = (i + 1) % N
         if j == 0:
             # The bond that closes the cell. Bond 0 is the one bond this
             # sweep has not touched, so its right block is still the one
             # solved for, and carrying it back through the sites updated
-            # since puts a current block on every bond behind it.
+            # since puts a current block on every bond behind it. The same
+            # gauge supplies the neighbor of this last step, site 0, whose
+            # right bond the first step of the sweep replaced.
             _, right_isos, _ = _reconcile(centers, bonds)
             spread_right_envs(right_isos, impo, env_stored)
 
         # Both the expansion and the solve read the right block on bond
-        # k+2, which neither of them touches, so one fetch serves both and
+        # i+2, which neither of them touches, so one fetch serves both and
         # the window still slides by one.
-        env_right = env_stored.fetch((k + 2) % N)
+        env_right = env_stored.fetch((i + 2) % N)
 
-        left_iso_exp, AC, env_left_exp = expand_bond(
-            left_isos[k], centers[j], impo[k], impo[j],
+        AC, right_iso_exp, env_right_exp = expand_bond(
+            centers[i], right_isos[j], impo[i], impo[j],
             carried, env_right, **expansion,
         )
-        widened = AC.indices[0].dim
+        widened = AC.indices[1].dim
 
         energy, AC, davidson_error = optimize_center(
-            AC, impo[j], env_left_exp, env_right, davidson_opts,
+            AC, impo[i], carried, env_right_exp, davidson_opts,
         )
         discarded = max(discarded, center_discarded_weight(AC, trunc))
 
-        rotation, bond, right_iso = split_center(AC, bonds[j].itags[0], trunc)
+        left_iso, bond, rotation = split_center(AC, bonds[j].itags[0], trunc)
         bonds[j] = bond
         # The rotation belongs to the neighbor, whose widened bond it turns
         # into the truncated one. Both factors are isometric, so the product
-        # is still the left-orthonormal tensor of site k and can carry the
-        # left environment onto the new bond directly.
-        left_isos[k] = einsum('abr,bc->acr', left_iso_exp, rotation)
-        centers[k] = einsum('abr,bc->acr', left_isos[k], bond)
-        centers[j] = einsum('ab,bcr->acr', bond, right_iso)
+        # is still the right-orthonormal tensor of site j.
+        right_isos[j] = einsum('ab,bcr->acr', rotation, right_iso_exp)
+        centers[i] = einsum('abr,bc->acr', left_iso, bond)
+        centers[j] = einsum('ab,bcr->acr', bond, right_isos[j])
 
         logger.debug(
             "  site %*d: E = %+.12g, davidson err = %.4e, D = %d (%d widened)",
-            w, j, energy, davidson_error, bond.indices[0].dim, widened,
+            w, i, energy, davidson_error, bond.indices[0].dim, widened,
         )
 
-        carried = step_left_env(carried, left_isos[k], impo[k])
-        left_isos[j], _, _ = gauge_tensors(centers[j], bonds[j], bonds[(j + 1) % N])
+        # `left_iso` is already the left-orthonormal tensor of site i, since
+        # the polar factor of `U S` is `U`, so it can carry the left
+        # environment onto the new bond directly.
+        carried = step_left_env(carried, left_iso, impo[i])
 
     left_isos, right_isos, gradient = _reconcile(centers, bonds)
     imps.set_canonical(left_isos, right_isos, bonds)
