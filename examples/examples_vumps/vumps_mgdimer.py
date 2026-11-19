@@ -30,10 +30,10 @@ This is the one example here whose exact ground state lies inside the
 variational class. The dimer covering is a uniform MPS of bond dimension
 two on a cell of two sites — one spin-1/2 multiplet per bond, so bond
 dimension one when SU(2) is exploited — and VUMPS reproduces it to machine
-precision rather than converging towards it. The gradient falls to
-`grad_tol` instead of settling on the floor that a bond cap imposes in the
-Heisenberg, free-fermion, and Hubbard examples, which is what convergence
-looks like when nothing is being truncated.
+precision instead of converging towards it. The gradient falls to
+`grad_tol` and does not settle on the floor that a bond cap imposes in the
+Heisenberg, free-fermion, and Hubbard examples, the signature of
+convergence when nothing is being truncated.
 
 The state is twofold degenerate: the dimers can cover the odd bonds or the
 even ones, and a cell of two sites silently picks whichever the initial
@@ -43,8 +43,8 @@ above the two the state needs — see the lessons page for the measurements.
 
 Two symmetries are available via --symmetry. SU(2) reaches the exact energy
 to around 1e-14; U(1) floors at about 9e-9, which is the precision of
-Alice's spin tables rather than anything the algorithm did. Detuning --J2
-away from 0.5 leaves the Majumdar-Ghosh point, where the dimer state is no
+Alice's spin tables and not anything the algorithm did. Detuning --J2 away
+from 0.5 leaves the Majumdar-Ghosh point, where the dimer state is no
 longer exact and the reference below no longer applies.
 
 Run from the repository root:
@@ -120,7 +120,7 @@ def vumps_mgdimer(
         `'1sp'` (one-site on a bond widened by controlled bond expansion).
     grad_tol:
         Convergence criterion on the gradient norm `|AC - AL C|`. Nothing
-        is truncated at the exact point, so this is reached rather than
+        is truncated at the exact point, so this is reached, not merely
         approached.
     davidson_tol:
         Residual norm tolerance for the Davidson eigensolver. Keep it well
@@ -128,7 +128,7 @@ def vumps_mgdimer(
     env_tol:
         Convergence tolerance for the environment fixed point. The dimer
         state has zero correlation length beyond one bond, so the library
-        default is kept here rather than loosened as on the critical
+        default is kept here instead of loosened as on the critical
         chains.
     env_maxiter:
         Maximum number of unit cells absorbed by the environment solver.

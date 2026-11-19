@@ -52,8 +52,8 @@ A sweep *is* a time step
 This is the structural difference from DMRG. There a sweep is one iteration of
 a variational search that repeats until the energy converges; here a sweep
 advances physical time by a fixed amount and is never repeated. There is no
-inner convergence loop and no `e_tol` analogue, which is why the sweeps below
-take a `dt` argument and return error diagnostics rather than an energy.
+inner convergence loop and no `e_tol` analogue, so the sweeps below take a
+`dt` argument and return error diagnostics instead of an energy.
 
 Integrator orders
 -----------------
@@ -359,7 +359,7 @@ def _forward_1s(
         # Forward evolution of the site tensor.
         M, err_site = evolve_1site(mps[i], mpo[i], E_left, E_right, dt, krylov_opts)
 
-        # Peel off the isometry; the bond tensor is what double counts.
+        # Peel off the isometry; the bond tensor is the double-counted piece.
         itag = mps._bond_itag(i + 1)
         mps[i], C = split_site_forward(M, itag)
         env_left[i + 1] = step_left_env(E_left, mps[i], mpo[i])
@@ -454,7 +454,7 @@ def _forward_2s(
 
     At each bond `(i, i+1)`: evolve the 2-site tensor Θ forward by `dt`, split
     it so that site `i` is left-isometric, then evolve site `i+1` *backward* by
-    `dt`. The back-evolution is a 1-site step rather than a zero-site one — the
+    `dt`. The back-evolution is a 1-site step instead of a zero-site one — the
     2-site forward step over-counts a whole site, not just a bond. The last
     bond is evolved without a back-evolution, since the chain ends there.
 

@@ -36,20 +36,20 @@ Two things follow, and they are the whole difference from `init_mps`.
 **The cell is charge neutral.** Fusing the physical charges of the cell has
 to give back the charge it started from. In Alice's particle-hole symmetric
 conventions that means half filling for fermions and zero magnetization for
-spins, and it is a property of the cell rather than a choice: a doped or
-magnetized uniform state would need the bond charges to come back shifted,
-which is not a cell that tiles. A cell length that admits no neutral
-configuration at all, an odd one for spin-1/2, is refused rather than built.
-There is no `target_qn` here for the same reason; `config` is what chooses
-the pattern within the cell.
+spins, and it is a property of the cell, not a choice: a doped or magnetized
+uniform state would need the bond charges to come back shifted, which is not
+a cell that tiles. A cell length that admits no neutral configuration at
+all, an odd one for spin-1/2, is refused instead of built. There is no
+`target_qn` here for the same reason; `config` chooses the pattern within
+the cell.
 
 **Each bond carries only the charges reachable at its own position.** Bond
 `k` sits after `k` physical sites, so it can only hold charges an even
 number of fusion steps away from the ones its neighbors hold. Giving every
-bond the same sectors instead is what produces a transfer operator with two
+bond the same sectors instead produces a transfer operator with two
 dominant eigenvalues of opposite sign, which `iMPS.canonical` reports as a
-two-cycle: the cell maps the two classes of bond charge into each other
-rather than onto themselves.
+two-cycle: the cell maps the two classes of bond charge into each other,
+not onto themselves.
 """
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ def _even_neighborhood(group, Spc: Index, q, steps: int = 1) -> set:
     Each level of the walk fuses twice, so every charge it returns sits in
     the same class as `q` and can appear on the same bond. Walking an odd
     number of steps instead would mix the classes the cell alternates
-    between, which is what sends gauge fixing into a two-cycle.
+    between, which sends gauge fixing into a two-cycle.
 
     Parameters
     ----------
@@ -384,7 +384,7 @@ def init_imps(
 
     Works for all three particle types without a particle-type argument, as
     the `(Spc, Op)` pair from `load_space` carries the symmetry. The cell is
-    returned gauge-fixed and normalized, which is what `vumps.run` expects.
+    returned gauge-fixed and normalized, as `vumps.run` expects.
 
     Parameters
     ----------

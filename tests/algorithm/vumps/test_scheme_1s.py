@@ -92,7 +92,7 @@ class TestEffectiveHamiltonians:
     def test_center_operator_is_hermitian(self, spin_half):
         # Davidson projects onto a real symmetric matrix, so an operator
         # that is not Hermitian would be silently symmetrized and the
-        # eigenvector would be wrong rather than merely inaccurate.
+        # eigenvector would be wrong, not merely inaccurate.
         imps = random_imps(spin_half, 2)
         impo, lefts, rights = _setup(imps)
         u = imps.center_tensor(0)

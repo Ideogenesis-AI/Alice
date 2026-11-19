@@ -9,9 +9,9 @@ Build a Hamiltonian iMPO over a unit cell from a list of `Interaction` objects.
 
 ## Notes
 
-The interactions come from `build_interaction` on a geometry whose `bcx` is `IBC` and whose `lx` is the length of the unit cell rather than of a chain. An interaction that reaches past the end of the cell wraps onto the next copy, which is how a translation-invariant chain is described by a finite list.
+The interactions come from `build_interaction` on a geometry whose `bcx` is `IBC` and whose `lx` is the length of the unit cell, not of a chain. An interaction that reaches past the end of the cell wraps onto the next copy, the way a translation-invariant chain is described by a finite list.
 
-The operator is left uncompressed on purpose. Its automaton structure, start channel first and finish channel last, is what the environment solver keys on; see [iMPO](../network/impo.md).
+The operator is left uncompressed on purpose. The environment solver keys on its automaton structure, start channel first and finish channel last; see [iMPO](../network/impo.md).
 
 ## See Also
 

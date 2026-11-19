@@ -137,7 +137,7 @@ greedy's `Q[L]` as the effective right boundary.
 2-sector spaces the greedy reaches the target exactly when it is achievable
 (correct parity and magnitude). If the requested sector is unreachable — e.g.
 `target_qn=0` for odd-L spin-½ — `init_mps` raises a `ValueError` in both
-modes rather than silently constructing an MPS in the wrong sector.
+modes instead of silently constructing an MPS in the wrong sector.
 
 ```python
 # Spin-½ U(1), L=7 — both modes work with the same target_qn

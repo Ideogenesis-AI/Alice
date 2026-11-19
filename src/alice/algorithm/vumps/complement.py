@@ -54,7 +54,7 @@ Only the neighbor is expanded by `oplus`, and the center tensor is then
 *filled in* exactly by projecting Θ onto the expanded neighbor basis,
 `AC_exp = AL_exp† · Θ`. Because the expanded basis contains the old one, this
 reproduces Θ exactly; with a left-isometric `AL_exp` the answer is the old
-center tensor padded by zero rows, and writing it as a projection rather than
+center tensor padded by zero rows, and writing it as a projection instead of
 as a zero padding keeps it exact even where the complement is not perfectly
 orthogonal to the kept space.
 
@@ -65,7 +65,7 @@ call on the expanded neighbor, which keeps the cross blocks between `AL` and
 the complement. Nothing has to be assembled block-diagonally, and nothing on
 the `AR` side of the bond has to be expanded at all: the block being stepped
 sits on the bond *behind* the one being widened, which the expansion does not
-touch, and the bond matrix comes out of `split_center` rather than out of an
+touch, and the bond matrix comes out of `split_center`, not out of an
 eigenproblem of its own.
 
 Orthonormal projectors
@@ -172,7 +172,7 @@ def _cheap_factors(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor, Tensor]
     The truncation is the cost-saving measure of the whole scheme: instead of
     applying the iMPO to the full two-site tensor at bond dimension `chi`, the
     SVD reduces the internal bond to at most `alpha`, and the
-    half-applications below then scale with `alpha` rather than with `chi`.
+    half-applications below then scale with `alpha` instead of with `chi`.
 
     The singular values stay on the left factor, so the isometric one is the
     factor on the center side, which is the side whose kept space the center
@@ -365,8 +365,8 @@ def _noise_floor(left_half: Tensor, right_half: Tensor) -> float:
 def _has_complement(theta_disc: Tensor, floor: float) -> bool:
     """Report whether Θ'_disc holds a genuine complement direction.
 
-    The test has to be made on Θ'_disc rather than on the two discarded
-    halves separately. Each half can keep a sizable remainder while their
+    The test has to be made on Θ'_disc, not on the two discarded halves
+    separately. Each half can keep a sizable remainder while their
     contraction cancels it: the surviving sectors of one need not pair with
     those of the other, and then the doubly-discarded tensor vanishes even
     though neither projection removed much. That happens wherever the iMPO
@@ -374,7 +374,7 @@ def _has_complement(theta_disc: Tensor, floor: float) -> bool:
 
     It matters because the SVD cannot report it. Handed an exactly zero
     block, `decomp` returns a unit-norm singular vector anyway. The vectors
-    that come back lie in the kept space rather than in its complement, and
+    that come back lie in the kept space, not in its complement, and
     `oplus`-ing them would duplicate a kept direction, destroy the neighbor's
     isometry, and move the state.
 
@@ -388,8 +388,7 @@ def _has_complement(theta_disc: Tensor, floor: float) -> bool:
     Returns
     -------
     bool
-        `True` when Θ'_disc is large enough to be signal rather than
-        roundoff.
+        `True` when Θ'_disc is large enough to be signal, not roundoff.
     """
     return theta_disc.norm() > floor
 
@@ -403,9 +402,8 @@ def _complement_vectors(theta_disc: Tensor, k_expand: int, floor: float) -> Tens
     exactly against the expanded neighbor instead, so each direction is
     consumed once.
 
-    `flow='<<'` is what gives the new bond a direction matching the
-    neighbor's right bond, the pass always meeting the bond with the neighbor
-    on its left.
+    `flow='<<'` gives the new bond a direction matching the neighbor's right
+    bond, the pass always meeting the bond with the neighbor on its left.
 
     Parameters
     ----------
@@ -427,11 +425,11 @@ def _complement_vectors(theta_disc: Tensor, k_expand: int, floor: float) -> Tens
         right-bond vectors for the neighbor.
     """
     # axes=[0, 2] fuses (a, r) as the row space and (c, u) as the column one.
-    # `nkeep` caps the expansion; `thresh` is what keeps it honest, since a
-    # bond whose complement holds fewer than `k_expand` directions still has
+    # `nkeep` caps the expansion; `thresh` keeps it honest, since a bond
+    # whose complement holds fewer than `k_expand` directions still has
     # singular values to report and they are cancellation noise, lying in the
-    # kept space rather than in the complement. Asking for `k_expand`
-    # directions where fewer exist is the ordinary case, not an edge case.
+    # kept space and not in the complement. Asking for `k_expand` directions
+    # where fewer exist is the ordinary case, not an edge case.
     N_L, _S, _Vh = decomp(
         theta_disc, axes=[0, 2], mode='SVD',
         trunc={'nkeep': k_expand, 'thresh': floor},
@@ -544,8 +542,8 @@ def expand_bond(
     # Step 3: discarded-space projection. Each end projects against the tensor
     # that spans exactly its own kept space: the neighbor itself on the left,
     # whose whole column space the complement must miss for the expanded
-    # neighbor to stay isometric — which is what makes the fill-in exact — and
-    # the orthonormalized center tensor on the right.
+    # neighbor to stay isometric, which makes the fill-in exact, and the
+    # orthonormalized center tensor on the right.
     lh_disc = _project_complement_left(lh, left_iso)
     rh_disc = _project_complement_right(rh, _center_isometry_right(center))
     theta_disc = _discarded_bulk(lh_disc, rh_disc)
@@ -611,8 +609,8 @@ def split_center(
         for this bond.
     trunc:
         Truncation options forwarded to `decomp` (`nkeep`, `thresh`). `None`
-        keeps the widened bond whole, which is what makes the expansion
-        permanent rather than a wider space to solve in.
+        keeps the widened bond whole, so the expansion is permanent and not
+        merely a wider space to solve in.
 
     Returns
     -------

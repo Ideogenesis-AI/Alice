@@ -25,7 +25,7 @@ compared against `env_tol` is the change in the block over one cell,
 with \(\lambda_2\) the subleading eigenvalue of the MPS transfer operator.
 Writing `env_tol` as \(\epsilon\), the budget it needs therefore follows from
 the correlation length \(\xi = -1/\ln \lambda_2\), counted in unit cells
-rather than sites:
+and not sites:
 
 \[
 k \;\approx\; \xi \, \ln\frac{1}{\epsilon} \;\approx\; 28\,\xi
@@ -38,7 +38,7 @@ The default `env_maxiter = 200` covers \(\xi\) up to about seven unit cells.
 
 Measured residuals after a given number of absorbed cells, for states
 converged under the two-site scheme on a two-site cell, with the solver run to
-a fixed budget rather than to a tolerance:
+a fixed budget instead of to a tolerance:
 
 <div class="data-table label-col" markdown>
 
@@ -52,7 +52,7 @@ a fixed budget rather than to a tolerance:
 </div>
 
 Every case reaches machine precision given enough cells. There is no residual
-floor short of it, so `env_tol = 1e-12` is a meaningful default rather than an
+floor short of it, so `env_tol = 1e-12` is a meaningful default, not an
 unreachable one, and the question is only ever how many cells it costs.
 
 ### Gapped models saturate with the bond dimension
@@ -78,8 +78,8 @@ budget. A production run on a gapped model at a bond dimension in the hundreds
 is in the same position as this one at 16.
 
 A critical model has no such saturation. The correlation length of a uniform
-MPS at a critical point is cut off by its own bond dimension rather than by
-the physics, so \(\xi\) grows with `D` without bound, and so does the budget.
+MPS at a critical point is cut off by its own bond dimension and not by the
+physics, so \(\xi\) grows with `D` without bound, and so does the budget.
 On the Heisenberg spin-1/2 chain, \(\lambda_2\) measured on the converged
 state climbs from 0.82 at `D = 8` (\(\xi \approx 5\) cells) to 0.91 at
 `D = 16` (\(\xi \approx 11\)) to 0.96 at `D = 32` (\(\xi \approx 28\)). The
@@ -105,7 +105,7 @@ The rate gets worse as the state is widened past what it needs, which is the
 opposite of the Haldane behavior above. A warning on a model believed to be
 gapped is usually reporting one of these two situations, or saying that the
 model is closer to critical than assumed, and all three are worth knowing
-about rather than silencing.
+about instead of silencing.
 
 ## The Energy Is Not the Environment
 
@@ -157,7 +157,7 @@ on the spin-1 chain under U(1), per call:
 | 2048 | 109 ms | 117 ms | 11.5 s |
 
 The two columns stay within a tenth of each other across a factor of 32 in
-width. Both grow by roughly four per doubling rather than the eight a dense
+width. Both grow by roughly four per doubling, not the eight a dense
 contraction would give, because the symmetry splits the tensors into many
 small blocks and the block count rises with the bond dimension.
 
@@ -168,7 +168,7 @@ of \(N\) sites, against roughly one Davidson matvec per iteration of each
 local solve. Exhaust a 200-cell budget and the environments dominate the
 iteration; converge in twenty and they are a minor term. That balance is the
 same at \(\chi = 64\) and at \(\chi = 2048\), so the budget is worth deciding
-on the correlation length of the model rather than on the size of the
+on the correlation length of the model instead of on the size of the
 calculation. The loop exits on `env_tol`, so a budget raised for safety costs
 nothing on the runs that do not need it.
 

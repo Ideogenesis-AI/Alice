@@ -150,7 +150,7 @@ class TestStepLeftEnv:
 
         # After sweeping all L sites, E is a 1×1×1 tensor. Extract the scalar.
         # The blocks are complex here, and the energy of a Hermitian MPO must
-        # come out real, so the imaginary part is checked rather than dropped.
+        # come out real, so the imaginary part is checked and not dropped.
         k, v = next(iter(E.data.items()))
         weight = 1.0 if E.intw is None else complex(E.intw[k].weights[0, 0].item())
         env_scalar = complex(v.item()) * weight
@@ -184,7 +184,7 @@ class TestStepRightEnv:
 
         # After sweeping all L sites, E is a 1×1×1 tensor. Extract the scalar.
         # The blocks are complex here, and the energy of a Hermitian MPO must
-        # come out real, so the imaginary part is checked rather than dropped.
+        # come out real, so the imaginary part is checked and not dropped.
         k, v = next(iter(E.data.items()))
         weight = 1.0 if E.intw is None else complex(E.intw[k].weights[0, 0].item())
         env_scalar = complex(v.item()) * weight
@@ -632,8 +632,8 @@ class TestComplexBoundaries:
 def _real_heisenberg_L2(spin_space):
     """Build a float64 L=2 Heisenberg `(mps, mpo)` pair.
 
-    The conftest fixtures are complex throughout, since that is what TDVP
-    needs; this is the one place a real pair is required.
+    The conftest fixtures are complex throughout, as TDVP needs; this is
+    the one place a real pair is required.
     """
     from nicole import Direction, Tensor
     from nicole.index import Index, Sector

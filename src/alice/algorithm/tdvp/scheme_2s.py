@@ -29,12 +29,12 @@ This module contains all operations specific to the 2-site update:
 
 The 2-site scheme has no zero-site step. Its back-evolution is a *1-site*
 evolution of the site that the split just loaded with singular values, so this
-module imports `evolve_1site` from `scheme_1s` rather than duplicating it. The
+module imports `evolve_1site` from `scheme_1s` instead of duplicating it. The
 roles are otherwise the same as in the 1-site scheme: the forward update
 over-counts the tangent space and the backward update subtracts the excess.
 
 Unlike the 1-site scheme, the splits here truncate, so the bond dimension can
-both grow and shrink as the state evolves. This is what lets 2-site TDVP follow
+both grow and shrink as the state evolves. That freedom lets 2-site TDVP follow
 an entangling quench — at the price of a truncation error that the 1-site
 scheme does not incur, and of a state that no longer stays on a fixed-rank
 manifold.
@@ -191,8 +191,8 @@ def split_forward(
     """SVD-split Θ for a forward (left-to-right) sweep step.
 
     Decomposes Θ as `M_i · M_{i+1}` where `M_i` is left-isometric and
-    `M_{i+1}` carries the singular values. `M_{i+1}` is what the subsequent
-    1-site back-evolution acts on.
+    `M_{i+1}` carries the singular values. The subsequent 1-site
+    back-evolution acts on `M_{i+1}`.
 
     Parameters
     ----------
@@ -230,8 +230,8 @@ def split_backward(
     """SVD-split Θ for a backward (right-to-left) sweep step.
 
     Decomposes Θ as `M_i · M_{i+1}` where `M_{i+1}` is right-isometric and
-    `M_i` carries the singular values. `M_i` is what the subsequent 1-site
-    back-evolution acts on.
+    `M_i` carries the singular values. The subsequent 1-site
+    back-evolution acts on `M_i`.
 
     Parameters
     ----------

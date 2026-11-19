@@ -214,7 +214,7 @@ class TestDiscardedWeight:
     def test_matches_the_norm_actually_lost(self, heisenberg_L6):
         """The reported weight equals `1 - ‖kept‖²` for a normalized Θ.
 
-        This checks the bookkeeping against the split output, rather than
+        This checks the bookkeeping against the split output instead of
         trusting the two independent SVDs to agree by construction.
         """
         mps, _ = heisenberg_L6
@@ -251,8 +251,8 @@ class TestEvolve2site:
     def test_is_reversible(self, heisenberg_L6):
         """Running the local propagator back recovers Θ.
 
-        The backward leg has to be driven from the split tensors, since
-        `evolve_2site` consumes a site pair rather than a Θ; splitting the
+        The backward step has to be driven from the split tensors, since
+        `evolve_2site` consumes a site pair and not a Θ; splitting the
         forward output without truncation keeps the comparison exact.
         """
         mps, mpo = heisenberg_L6

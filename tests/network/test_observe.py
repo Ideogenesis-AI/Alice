@@ -130,8 +130,8 @@ class TestObserveMPS:
         """An observable that annihilates every sector reports exactly zero.
 
         A block-sparse contraction that keeps no sector leaves the boundary
-        tensor with no block at all, rather than a block holding zero. This
-        arises in practice from a number operator measured on a site that is
+        tensor with no block at all, not a block holding zero. This arises
+        in practice from a number operator measured on a site that is
         certainly empty, and must read as a vanishing expectation value.
         """
         annihilating = mpo_tensors[0].clone()
@@ -167,7 +167,7 @@ class TestObserveComplex:
         """⟨ψ|O|ψ⟩ is unchanged when |ψ⟩ picks up a global phase.
 
         The check only passes if the bra side is genuinely conjugated, so it
-        pins down that `conj()` conjugates complex blocks rather than merely
+        pins down that `conj()` conjugates complex blocks instead of merely
         flipping index directions.
         """
         mps = MPS(mps_tensors, center=None)
@@ -258,7 +258,7 @@ class _ObserveThermalTests:
         Unlike the MPS path, the thermal path normalizes the observable
         via `NormalMPO.from_mpo()` before sweeping, which requires a
         nonzero Frobenius norm — an all-zero observable has zero norm by
-        construction, so this raises rather than silently returning 0.
+        construction, so this raises instead of silently returning 0.
         """
         H_mpo, Spc = hamiltonian
         rho = thermal_mpo(H_mpo, self._BETA, self._ORDER, Spc)

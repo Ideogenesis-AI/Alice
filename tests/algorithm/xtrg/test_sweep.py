@@ -62,10 +62,10 @@ def _make_envs(rho, mpo_c, scheme='1s'):
 def _rescaled(rho, factor):
     """Copy `rho` with every site tensor scaled by `factor`.
 
-    Scaling the site tensors rather than `log_scale` is what makes this a test
-    of the truncation scale: the sweeps read the tensor data and never the
-    tracked scale, so the fitted product changes magnitude by `factor^(2L)`
-    while still describing the same operator up to a constant.
+    Scaling the site tensors instead of `log_scale` makes this a test of the
+    truncation scale: the sweeps read the tensor data and never the tracked
+    scale, so the fitted product changes magnitude by `factor^(2L)` while
+    still describing the same operator up to a constant.
     """
     return NormalMPO(
         [t * factor for t in rho],

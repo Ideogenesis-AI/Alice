@@ -189,7 +189,7 @@ class Options(AlgorithmOptions):
         exponentially with chain length, so an absolute comparison would
         declare any long chain converged after a single sweep. Plays the
         same structural role as DMRG's `e_tol`, but tracks fit convergence
-        via ‖C‖ rather than energy, since the local update here is an exact
+        via ‖C‖ instead of energy, since the local update here is an exact
         least-squares projection (no eigenproblem): at that optimum
         `⟨C, A·B⟩ = ‖C‖²`, so `‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²` and `‖A·B‖` is
         fixed across sweeps, making `‖C‖` convergence equivalent to residual
@@ -292,8 +292,8 @@ class Summary(AlgorithmSummary):
         List of β values at each cooling step: [τ₀, 2τ₀, …, 2^n_steps τ₀].
     log_z:
         `log Z(β_n)` at each step, computed via `NormalMPO.log_trace()`
-        (rather than `log(NormalMPO.trace())`) so that it remains finite
-        even when `Z(β_n)` itself is far outside float64 range.
+        (not `log(NormalMPO.trace())`) so that it remains finite even
+        when `Z(β_n)` itself is far outside float64 range.
     free_energies:
         Free energy per site: f(β_n) = −log Z(β_n) / (β_n L).
     energies:
@@ -542,8 +542,8 @@ def _resume_history(
 
     The history is read from `thermal.ckpt` in `ckpt_dir`, where every prior
     call to `run()` wrote it alongside `xtrg.ckpt`. A history reaching past
-    `state.step` is truncated rather than rejected, so a run can be continued
-    from any archived `artifacts/step_XX.ckpt` — not only from the step the
+    `state.step` is truncated, not rejected, so a run can be continued from
+    any archived `artifacts/step_XX.ckpt` — not only from the step the
     previous run stopped at. The steps beyond `state.step` are then
     recomputed by the caller and overwrite the truncated ones on disk.
 
@@ -748,7 +748,7 @@ def _fit_mpo(
     # absent from mpo_c's scale after compact(). Fold them in now (via
     # scale_by, which combines log-scales additively) so that mpo_c
     # represents the correct physical product A_phys @ B_phys. This is done
-    # in log-space rather than by materializing mpo_a.scale * mpo_b.scale,
+    # in log-space instead of by materializing mpo_a.scale * mpo_b.scale,
     # since the physical scale can be far outside float64 range deep into
     # an XTRG run. The sweeps fit mpo_c directly to mpo_a's and mpo_b's
     # tensor data, so any sign the two operands carry propagates through
@@ -841,7 +841,7 @@ def _ensure_positive_trace(sign: float, beta: float) -> None:
     defensive check, not expected control flow: a non-positive sign here
     means the compressed density matrix has drifted into an unphysical
     regime (e.g. from accumulated truncation error), which should be
-    surfaced immediately rather than silently propagated into a
+    surfaced immediately instead of silently propagated into a
     nonsensical `log_z` entry.
 
     Parameters
@@ -976,7 +976,7 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
     logger.info("  cooling steps     : %d", opts.n_steps)
     if state.step > 0:
         # On a resumed run the remaining work starts at the state's own β, so
-        # report that grid rather than the τ₀-derived one, which describes the
+        # report that grid and not the τ₀-derived one, which describes the
         # full run only when starting from step 0.
         logger.info("  resuming at step  : %d  (%d step(s) remaining)",
                     state.step, opts.n_steps - state.step)
@@ -1008,8 +1008,8 @@ def run(state: Artifact, opts: Optional[Options] = None) -> Tuple[Summary, Artif
         # and handed it in as `state`; this call just records its (β, log Z)
         # as the first grid point.
         betas: list[float] = [state.beta]
-        # log_trace() (rather than log(rho.trace())) keeps log_z finite even
-        # when Z(beta) itself would overflow float64 deep into the cooling run.
+        # log_trace() (not log(rho.trace())) keeps log_z finite even when
+        # Z(beta) itself would overflow float64 deep into the cooling run.
         log_abs_z, sign_z = rho.log_trace()
         _ensure_positive_trace(sign_z, betas[-1])
         log_z: list[float] = [log_abs_z]

@@ -170,7 +170,7 @@ class _Truncation:
     sets the scale for all of them, and carrying the smallest norm of the
     sweep, it makes the cutoff err on the side of keeping.
 
-    Resolution is deferred to the first `at()` call rather than done at
+    Resolution is deferred to the first `at()` call instead of done at
     construction because, on the opening half-sweep of a fit, `mpo_c` is still
     the unit-norm copy of `mpo_a` it was initialized from. Only after the
     first local update does it sit on the `‖A·B‖` scale the cutoff must track.
@@ -209,9 +209,9 @@ class _Truncation:
         resolved = dict(self._trunc)
         norm = ref.norm()
         if norm == 0.0 or not math.isfinite(norm):
-            # No scale to measure against. Drop the threshold rather than
-            # compare bare singular values to a relative number, which for a
-            # non-finite norm would wipe out the whole spectrum.
+            # No scale to measure against. Drop the threshold instead of
+            # comparing bare singular values to a relative number, which for
+            # a non-finite norm would wipe out the whole spectrum.
             del resolved['thresh']
             self._trunc = resolved or None
         else:

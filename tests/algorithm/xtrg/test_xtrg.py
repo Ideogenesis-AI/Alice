@@ -563,7 +563,7 @@ class TestResume:
         opts2 = Options(**base, n_steps=2, checkpoint_dir=str(tmp_path))
         summary2, _artifact2 = run(_initial_state(mpo, spc, opts2), opts2)
 
-        # Reload from disk rather than reusing the returned Artifact, as a
+        # Reload from disk instead of reusing the returned Artifact, as a
         # separate process continuing the run would have to.
         state = Artifact.load(tmp_path / 'artifacts' / 'step_02.ckpt')
         opts4 = Options(**base, n_steps=4, max_bond=8, checkpoint_dir=str(tmp_path))

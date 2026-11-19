@@ -80,7 +80,7 @@ def _saturated_imps(Spc):
     A spin-1/2 site shifts the bond charge by one, so a bond carrying both
     charges adjacent to a one-dimensional neighbor spans the entire
     (bond, physical) space of that neighbor. Nothing is left over, so the
-    complement of bond 1 is empty by construction rather than by accident.
+    complement of bond 1 is empty by construction, not by accident.
     """
     trivial = _bond(Spc.group, (0,))
     both = _bond(Spc.group, (-1, 1))
@@ -145,7 +145,7 @@ class TestExpansion:
     def test_a_saturated_bond_is_left_alone(self, spin_half):
         # There is nothing to expand into, and the SVD cannot say so: handed
         # a vanishing block it returns a unit vector lying in the kept space,
-        # which `oplus` would duplicate. The noise floor is what catches it.
+        # which `oplus` would duplicate. The noise floor catches it.
         imps = _saturated_imps(spin_half)
         left_iso, center, *_, left_iso_exp, center_exp, env_left_exp = _expand(imps)
         assert left_iso_exp is left_iso
@@ -166,7 +166,7 @@ class TestExpansion:
 
     def test_a_cheaper_expansion_still_widens_the_bond(self, spin_half):
         # `alpha` truncates the two-site tensor the iMPO is applied to, which
-        # is what keeps the expansion cheap against the solve it precedes.
+        # keeps the expansion cheap against the solve it precedes.
         imps = random_imps(spin_half, 2, width=1, dim=1)
         before = imps.bond_matrix(1).indices[0].dim
         _, _, *_, left_iso_exp, _, _ = _expand(imps, k_expand=2, alpha=1)
@@ -198,8 +198,8 @@ class TestSolveOnTheWidenedBond:
 
     def test_the_expanded_operator_is_hermitian(self, spin_half):
         # The expanded environment is one exact step over the widened
-        # neighbor rather than two blocks stacked block-diagonally, which is
-        # what keeps the cross terms and so the operator symmetric.
+        # neighbor and not two blocks stacked block-diagonally, which keeps
+        # the cross terms and so the operator symmetric.
         imps = random_imps(spin_half, 2, width=1, dim=1)
         _, _, impo, _, rights, _, center_exp, env_left_exp = _expand(imps)
         u = center_exp

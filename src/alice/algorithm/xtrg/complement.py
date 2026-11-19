@@ -83,9 +83,8 @@ def _compress_bond(far_tensor: Tensor, axis: int, alpha: int, itag: str) -> Tens
     treating `axis` (the connector bond shared with the near-side tensor) as
     the left partition and all other axes (own bond, physical indices) as the
     right partition. This SVD depends only on `far_tensor` itself — no
-    object of size O(D²) is ever formed, which is what makes the
-    compression cheap: cost `O(D³d²)` instead of the `O(D⁴d³)` of a direct
-    2-site join.
+    object of size O(D²) is ever formed, which makes the compression cheap:
+    cost `O(D³d²)` instead of the `O(D⁴d³)` of a direct 2-site join.
 
     Parameters
     ----------

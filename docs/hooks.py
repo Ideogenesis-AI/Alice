@@ -1,7 +1,7 @@
 """MkDocs build hook for Alice documentation.
 
 Post-processes rendered HTML to fix bullet lists that mkdocstrings emits
-inside table cells as raw markdown text rather than <ul>/<li> elements.
+inside table cells as raw markdown text instead of <ul>/<li> elements.
 """
 
 import re
@@ -14,7 +14,7 @@ def on_post_page(output: str, **kwargs) -> str:
     """Convert inline bullet-point text inside <td> elements to proper lists.
 
     mkdocstrings sometimes renders a Parameters/Returns section inside a
-    table cell as a plain string such as "- item1\\n- item2".  This hook
+    table cell as a plain string such as "- item1\\n- item2". This hook
     detects those cells and wraps them in <ul><li>…</li></ul> so they
     display correctly in all browsers.
     """

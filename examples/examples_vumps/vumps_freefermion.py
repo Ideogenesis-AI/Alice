@@ -26,11 +26,12 @@ directly in the thermodynamic limit, on an infinite chain built by tiling a
 unit cell of `N` sites. The exact energy per site at half filling is
 E/N = -2t/π ≈ -0.6366 t, with no finite-size correction to subtract.
 
-Half filling is not a setting here, it is what a unit cell is. The cell has
-to carry no net charge for the bond charges to come back to themselves after
-`N` sites, so a uniform state at any other filling is not representable on a
-cell of this length, and `init_imps` refuses to build one. A doped state
-needs a longer cell, which fixes the filling at a rational number of its own.
+Half filling is not a setting here, it follows from what a unit cell is. The
+cell has to carry no net charge for the bond charges to come back to
+themselves after `N` sites, so a uniform state at any other filling is not
+representable on a cell of this length, and `init_imps` refuses to build one.
+A doped state needs a longer cell, which fixes the filling at a rational
+number of its own.
 
 Two initializations are supported via --init:
 

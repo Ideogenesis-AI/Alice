@@ -54,12 +54,12 @@ rests on three things that do not require one:
 3. **Agreement across symmetry groups.** The four groups share no tensor
    structure — two carry intertwiners, two do not; two resolve `S_z`, two
    only total spin — yet must produce identical observables. `Z2` conserves
-   only fermion parity rather than particle number, so the four are genuinely
+   only fermion parity, not particle number, so the four are genuinely
    different bookkeeping, not relabelings.
 
 All three update schemes run here, the ground state having open bonds for a
-fixed-rank update to rotate within, and check 2 is what makes `--scheme 1sp`
-worth running: the expansion widens a bond and then truncates it back, and an
+fixed-rank update to rotate within, and check 2 makes `--scheme 1sp` worth
+running: the expansion widens a bond and then truncates it back, and an
 eigenstate has to come through both untouched. An overlap that drifts below
 one under `'1sp'` while `'1s'` and `'2s'` hold it at one is the expansion
 losing part of the state — and nothing in checks 1 or 3 would report it.
@@ -250,7 +250,7 @@ def tdvp_hubbard_quench(
         `'2s'` (default), `'1s'`, or `'1sp'`. The DMRG ground state already
         has open bonds, so `'1s'` is usable here unlike in a product-state
         quench, and `'1sp'` is free to spend its expansion on the rank the
-        quench actually asks for rather than on opening bonds at all.
+        quench actually asks for and not on opening bonds at all.
     order:
         Integrator order, `1` or `2`.
     bond_dim:
@@ -320,7 +320,7 @@ def tdvp_hubbard_quench(
     e_conserved = observe(state, mpo)
 
     # Snapshot the initial state for the overlap. Cloning tensor by tensor
-    # rather than `copy.deepcopy`: a non-Abelian tensor carries intertwiners
+    # instead of `copy.deepcopy`: a non-Abelian tensor carries intertwiners
     # holding a `CGSpec` that cannot be pickled, so deepcopy fails outright
     # under SU(2).
     reference = MPS([state[i].clone() for i in range(L)], center=state.center)
@@ -330,7 +330,7 @@ def tdvp_hubbard_quench(
         print(f"DMRG ground state at U = {U_init}")
         print(f"  energy <H(U_init)>  : {e_init:+.10f}")
         print(f"  energy <H(U_final)> : {e_conserved:+.10f}  "
-              f"(this is what must stay fixed)")
+              f"(this must stay fixed)")
         print(f"  bond multiplets     : {state.bond_dims}")
         print(f"  bond states         : {state.bond_states}")
         print(f"  double occupancy    : "
@@ -526,7 +526,7 @@ def compare_symmetries(
               f"{np.max(np.abs(r['S'] - ref['S'])):>11.2e}")
     print()
     print("Z2 conserves only fermion parity while U1 conserves particle")
-    print("number, and the SU(2) groups resolve total spin rather than S_z, so")
+    print("number, and the SU(2) groups resolve total spin and not S_z, so")
     print("these four are genuinely different bookkeepings of one state.")
     print()
     print("The floor here is the initial state, not the evolution: each group")

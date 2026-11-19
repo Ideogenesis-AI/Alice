@@ -350,7 +350,7 @@ def mps_entropy(mps: MPS, ell: int) -> float:
     spectrum of the cut. Mutates the center of `mps`, nothing else.
 
     Under a non-Abelian group each singular value describes a whole *multiplet*
-    rather than one Schmidt state, so it stands for `g = irrep_dim(q)`
+    and not one Schmidt state, so it stands for `g = irrep_dim(q)`
     degenerate states of equal weight. Writing `w_a` for the total weight of
     multiplet `a`, every one of its `g_a` states carries probability
     `w_a / g_a` and the entropy is

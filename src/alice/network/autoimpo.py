@@ -35,9 +35,9 @@ survives on an infinite chain:
            [0, 0, I]].
 
   A plain `oplus` of two such operators duplicates both channels. That is not
-  a harmless redundancy: the start channel is what propagates "no term has
-  begun yet" down the chain, and a second copy of it generates a whole extra
-  family of spurious terms.
+  a harmless redundancy: the start channel propagates "no term has begun yet"
+  down the chain, and a second copy of it generates a whole extra family of
+  spurious terms.
 - `MPO.compact()` is an open-boundary two-sweep canonicalization. A unit cell
   has no open end for it to start from, and it would scramble the
   upper-triangular structure that the VUMPS environment solver depends on.
@@ -89,7 +89,7 @@ from .network import MPO
 logger = logging.getLogger(__name__)
 
 # Row/column labels for the two boundary channels of the automaton. A channel
-# of an actual operator string is labelled by the tuple `(k, j)` instead, so a
+# of an actual operator string is labeled by the tuple `(k, j)` instead, so a
 # plain `isinstance(label, str)` separates the two kinds.
 _START = '_start_'
 _FINISH = '_finish_'
@@ -287,7 +287,7 @@ def build_ihamiltonian(
 
     A two-site interaction names its bond by the unit-cell site that leads it,
     so `leading_site` must lie in `[0, N)`. Its `terminal_site` may run past
-    the cell, which is how a bond reaching into the next unit cell is spelled:
+    the cell, the spelling for a bond reaching into the next unit cell:
     `Interaction2Site(leading_site=N-1, terminal_site=N)` couples the last site
     of one cell to the first site of the next. `intrcmap_1dchain` emits exactly
     that when `bcx='IBC'`.

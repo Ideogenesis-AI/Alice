@@ -59,8 +59,9 @@ Two further things this example shows:
 - **The 1-site trap.** A product state has every bond at dimension 1, and the
   1-site scheme cannot grow a bond. Running `--scheme 1s` from this initial
   state therefore does not evolve at all — silently, since the norm and the
-  energy stay perfectly conserved. This is why `Options.scheme` defaults to
-  `'2s'`, and why `run()` warns when a `1s` run starts from such a state.
+  energy stay perfectly conserved. For that reason `Options.scheme`
+  defaults to `'2s'`, and `run()` warns when a `1s` run starts from such a
+  state.
 - **The way out of it.** `--scheme 1sp` widens each bond before updating it,
   so the rank adapts as it does under `'2s'` while every local exponential
   stays 1-site sized. It melts the wall from the same product state, truncates
@@ -377,7 +378,7 @@ def bond_scan(
 
     Under `'1sp'` there is a third source, since `expand_k` caps how fast the
     bond profile can follow the entanglement. A scan whose plateau does not
-    drop when `dt` is halved is pointing at the expansion rather than the
+    drop when `dt` is halved is pointing at the expansion and not the
     integrator; raise `expand_k` to tell the two apart.
 
     Parameters
@@ -467,7 +468,7 @@ def bond_scan(
     if scheme in ('1sp', '1-site-plus', 'one-site-plus'):
         print()
         print(f"If the last row did not improve, expand_k = {expand_k} is the")
-        print("binding constraint rather than dt: the bonds never reached the")
+        print("binding constraint and not dt: the bonds never reached the")
         print("rank the melting asked for. Raise it and run the scan again.")
 
 

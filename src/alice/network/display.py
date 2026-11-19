@@ -198,7 +198,7 @@ def infinite_summary(net: iNetwork, max_sites: int = 9) -> str:
 
     Mirrors `network_summary` but draws a `···─` continuation marker at both
     ends, standing for the unit cells that repeat away to either side. The
-    info block reports the unit-cell size rather than a chain length, and
+    info block reports the unit-cell size instead of a chain length, and
     omits the norm: the Frobenius norm of an infinite state is not a finite
     quantity, so there is nothing honest to print there.
 

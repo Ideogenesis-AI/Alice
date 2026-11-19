@@ -50,7 +50,7 @@ Spc, Op = load_space('Band', 'Z2,SU2')
 imps = init_imps(geo.L, Spc, Op, bond_dim=1)
 ```
 
-Half filling is not a setting here, it is what a unit cell is. The bond charge has to return to itself after `N` sites, so the cell carries no net charge, which for a band means one electron per site on average. That is exactly the filling the Lieb–Wu integral describes.
+Half filling is not a setting here, it follows from what a unit cell is. The bond charge has to return to itself after `N` sites, so the cell carries no net charge, which for a band means one electron per site on average. That is exactly the filling the Lieb–Wu integral describes.
 
 Note the `bond_dim=1`: a product cell, one electron per site, which the two-site scheme widens over the first few iterations. This is the opposite of the choice in the [spin](heisenberg.md) and [spinless](free-fermion.md) examples, and it matters more here. With four states per site a random cell of a given width spreads its weight over many more charge sectors than the ground state uses, and the two-site splits spend their iterations undoing that.
 
@@ -75,7 +75,7 @@ print(f"Error:                 {summary.energy - exact:+.2e}")
 
 `lieb_wu_energy` is in the script: it evaluates the integral above with a Bessel function built from its own periodic integral representation, so the example needs nothing beyond NumPy.
 
-At `max_bond = 16` the run lands `2.6e-4` above the exact value, with the energy stable to ten digits and the gradient flat at `1.3e-3`. That floor is the two-site scheme working against a bond cap that bites, with a discarded weight of `3.4e-5` per split, and it is what convergence looks like here rather than a sign of trouble.
+At `max_bond = 16` the run lands `2.6e-4` above the exact value, with the energy stable to ten digits and the gradient flat at `1.3e-3`. That floor is the two-site scheme working against a bond cap that bites, with a discarded weight of `3.4e-5` per split, and that is how convergence looks here, not a sign of trouble.
 
 ## 5. Two contrasts worth running
 
@@ -85,7 +85,7 @@ The same run started from a random cell of width 16 reaches only `1.2e-3`, with 
 uv run python examples/examples_vumps/vumps_hubbard.py --cell 2 --bond-dim 16 --init random
 ```
 
-Both runs are converged in the sense that their energies have stopped moving; they have simply converged to different states, and the product start found the better one. Widening the bond is what closes the remaining gap in either case.
+Both runs are converged in the sense that their energies have stopped moving; they have simply converged to different states, and the product start found the better one. Widening the bond closes the remaining gap in either case.
 
 Setting `U = 0` turns the Mott insulator into a metal and the exact answer into \(-4t/\pi\):
 

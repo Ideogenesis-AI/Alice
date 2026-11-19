@@ -127,10 +127,10 @@ class NormalMPO(MPO):
 
     Represents the physical operator as `exp(log_scale) × mpo`, where the
     internal MPO satisfies `mpo.norm() ≈ 1` after `compact()` or
-    `from_mpo()`. Tracking the magnitude in log form (rather than as a raw
-    float) keeps it representable even when it is far outside float64
-    range — this matters for XTRG, where `Tr[ρ]` is repeatedly squared and
-    can reach `~10^500` or beyond at low temperature.
+    `from_mpo()`. Tracking the magnitude in log form (not as a raw float)
+    keeps it representable even when it is far outside float64 range —
+    this matters for XTRG, where `Tr[ρ]` is repeatedly squared and can
+    reach `~10^500` or beyond at low temperature.
 
     The *sign* of the physical operator lives directly in the internal
     MPO's tensor data. This works because `mpo.norm() ≈ 1` does not pin
@@ -250,11 +250,11 @@ class NormalMPO(MPO):
         """Multiply the tracked scale magnitude in-place by `exp(log_scale_delta)`.
 
         This is the safe, in-place counterpart to `__init__`: it combines
-        two log-magnitudes by addition rather than ever exponentiating
-        either one, so it cannot overflow even when the combined scale
-        would be far outside float64 range. Used by XTRG's `_fit_mpo` to
-        fold pre-computed physical scale magnitudes into an
-        already-compacted `NormalMPO`.
+        two log-magnitudes by addition without ever exponentiating either
+        one, so it cannot overflow even when the combined scale would be
+        far outside float64 range. Used by XTRG's `_fit_mpo` to fold
+        pre-computed physical scale magnitudes into an already-compacted
+        `NormalMPO`.
 
         Parameters
         ----------
@@ -304,7 +304,7 @@ class NormalMPO(MPO):
 
         # Fold the extracted norm into log_scale; tensors remain unit-normed.
         # n is a Frobenius norm (always >= 0); guard n == 0 explicitly since
-        # math.log(0.0) raises rather than giving -inf.
+        # math.log(0.0) raises instead of giving -inf.
         self._log_scale += math.log(n) if n != 0.0 else -math.inf
 
         # Restore the standard IN/OUT bond arrow convention. Canonical sweeps
