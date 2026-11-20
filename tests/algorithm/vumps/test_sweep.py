@@ -20,6 +20,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from nicole import identity
 
@@ -164,7 +166,7 @@ class TestCellUpdate:
         imps = dimer_imps(spin_half)
         impo = ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True)
         env_left, env_right, before = cell_environments(imps, impo)
-        gradient, _ = cell_update(
+        gradient, _, _ = cell_update(
             imps, impo, env_left, env_right, Options(scheme=scheme),
         )
         _, _, after = cell_environments(imps, impo)
@@ -178,7 +180,7 @@ class TestCellUpdate:
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
-        _, discarded = cell_update(
+        _, discarded, _ = cell_update(
             imps, impo, env_left, env_right, Options(scheme='1s'),
         )
         assert discarded == 0.0
@@ -239,7 +241,7 @@ class TestTwoSiteCellUpdate:
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
-        _, discarded = cell_update(
+        _, discarded, _ = cell_update(
             imps, impo, env_left, env_right, Options(scheme='2s', max_bond=2),
         )
         assert discarded > 0.0
@@ -295,7 +297,7 @@ class TestOneSitePlusCellUpdate:
         imps = random_imps(spin_half, 2)
         impo = ihamiltonian(HEISENBERG, 2)
         env_left, env_right, _ = cell_environments(imps, impo)
-        _, discarded = cell_update(
+        _, discarded, _ = cell_update(
             imps, impo, env_left, env_right, Options(scheme='1sp', max_bond=2),
         )
         assert discarded > 0.0
@@ -307,6 +309,51 @@ class TestOneSitePlusCellUpdate:
             cell_update(
                 imps, impo, impo[0], Environment(1), Options(scheme='1sp'),
             )
+
+
+class TestBoundaryBlocks:
+    """What a pass leaves on bond 0 for the next iteration to start from."""
+
+    @staticmethod
+    def _cells(caplog):
+        """Read the number of unit cells the last solve absorbed."""
+        for record in reversed(caplog.records):
+            if 'converged after' in record.msg:
+                return record.args[1]
+        raise AssertionError("no solve reported convergence")
+
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
+    def test_they_seed_the_next_solve(self, spin_half, scheme, caplog):
+        # `rotate_left_env` and its mirror are tested where they live; what
+        # is checked here is that a pass applies them. A block left in the
+        # basis the pass worked in has the right shape and says the wrong
+        # thing about the state now stored, and the only symptom is a solve
+        # that saves nothing. Six iterations is enough for the saving to be
+        # visible while the state is still far from converged.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        opts = Options(scheme=scheme, max_bond=8)
+
+        env_left, env_right, _ = cell_environments(imps, impo)
+        for _ in range(6):
+            _, _, carried = cell_update(imps, impo, env_left, env_right, opts)
+            env_left, env_right, _ = cell_environments(
+                imps, impo, env_right=env_right,
+                guess_left=carried, guess_right=env_right[0],
+            )
+        _, _, carried = cell_update(imps, impo, env_left, env_right, opts)
+
+        with caplog.at_level(logging.DEBUG, logger='alice.algorithm.vumps.environ'):
+            left_environment(imps, impo)
+            cold = self._cells(caplog)
+            left_environment(imps, impo, guess=carried)
+            warm = self._cells(caplog)
+            right_environment(imps, impo)
+            cold_right = self._cells(caplog)
+            right_environment(imps, impo, guess=env_right[0])
+            warm_right = self._cells(caplog)
+        assert warm < 0.9 * cold
+        assert warm_right < 0.9 * cold_right
 
 
 class _Watched(Environment):
@@ -339,13 +386,13 @@ class TestCachedCellUpdate:
         plain_imps = random_imps(spin_half, 4)
         plain = cell_update(
             plain_imps, impo, *cell_environments(plain_imps, impo)[:2], opts,
-        )
+        )[:2]
 
         cached_imps = random_imps(spin_half, 4)
         env_left, env_right, _ = cell_environments(
             cached_imps, impo, env_right=Environment(4, tmp_path, window=2),
         )
-        cached = cell_update(cached_imps, impo, env_left, env_right, opts)
+        cached = cell_update(cached_imps, impo, env_left, env_right, opts)[:2]
 
         assert cached == pytest.approx(plain, abs=1e-12)
         _, _, plain_energy = cell_environments(plain_imps, impo)

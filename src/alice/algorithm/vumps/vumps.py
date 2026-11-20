@@ -49,7 +49,7 @@ iteration to the next, up to `max_bond`. The one-site scheme solves
 single sites and bonds, and takes polar decompositions in place of
 splits, so it never discards anything and never gains width: a run
 under `'1s'` stays at the bond dimension its initial state carried. The
-one-site-plus scheme has it both ways, widening each bond by controlled
+one-site-plus scheme has it both ways, expanding each bond by controlled
 bond expansion before solving the one-site problem on it and cutting it
 back down afterwards, so the bond grows by up to `expand_k` per
 iteration without the local problem ever growing at all.
@@ -57,10 +57,12 @@ iteration without the local problem ever growing at all.
 Convergence is measured on the gradient. The Davidson eigenvalues belong
 to regularized local problems and carry no physical scale, since the
 energy of an infinite chain is infinite; the reported energy density comes
-from the environment fixed point instead. The convergence measure is
-`|AC - AL C|`, the norm of the energy gradient on the uniform MPS
-manifold, which vanishes at a stationary point and keeps moving long after
-the energy between iterations has flattened out.
+from the environment fixed point instead. The convergence measure is the
+larger of `|AC - AL C|` and `|AC - C AR|`, the norm of the energy gradient
+on the uniform MPS manifold, which vanishes at a stationary point and
+keeps moving long after the energy between iterations has flattened out.
+Both forms are needed because a scheme that splits satisfies one of them
+by construction on the side it has just solved; see `gauge_tensors`.
 """
 
 from __future__ import annotations
@@ -152,7 +154,7 @@ class Options(AlgorithmOptions):
           iteration, but confined to the bond dimension of the initial
           state.
         - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: one-site VUMPS on a
-          bond widened by controlled bond expansion. It grows the bond
+          bond expanded by controlled bond expansion. It grows the bond
           dimension as `'2s'` does, but its eigenproblem stays the one-site
           one, so the local solve is `d` times smaller on each side. See
           `expand_k` and `expand_alpha`.
@@ -181,14 +183,14 @@ class Options(AlgorithmOptions):
     davidson_max_subspace:
         Maximum Krylov subspace size before a thick restart.
     grad_tol:
-        Convergence criterion on the VUMPS gradient norm `|AC - AL C|`,
-        maximized over the cell. Cannot be met unless `davidson_tol` is
-        smaller. Under either scheme that splits, against a bond cap that
-        bites, it cannot be met at all: the solve keeps asking for a wider
-        bond than it is allowed, and the gradient settles at a floor set by
-        the discarded weight instead of falling. A run that has grown to
-        `max_bond` and stopped improving is converged in every sense that
-        matters.
+        Convergence criterion on the VUMPS gradient norm, the larger of
+        `|AC - AL C|` and `|AC - C AR|` maximized over the cell. Cannot be
+        met unless `davidson_tol` is smaller. Under either scheme that
+        splits, against a bond cap that bites, it cannot be met at all:
+        the solve keeps asking for a wider bond than it is allowed, and
+        the gradient settles at a floor set by the discarded weight
+        instead of falling. A run that has grown to `max_bond` and stopped
+        improving is converged in every sense that matters.
     gauge_tol:
         Convergence tolerance for the unit-cell gauge iteration. Used only
         to canonicalize the initial state: every iteration after that
@@ -198,11 +200,11 @@ class Options(AlgorithmOptions):
         initial canonicalization.
     env_tol:
         Convergence tolerance for the environment fixed point. The
-        environments are re-solved from scratch every iteration, so this
-        is among the more expensive settings. The energy is the least
-        sensitive thing it controls, converging well before the
-        environment tensor does; a one-site run is the case that wants it
-        tight, since its gradient tracks the environments directly.
+        environments are re-solved every iteration, so this is among the
+        more expensive settings. The energy is the least sensitive thing
+        it controls, converging well before the environment tensor does;
+        a one-site run is the case that wants it tight, since its
+        gradient tracks the environments directly.
     env_maxiter:
         Maximum number of unit cells absorbed by the environment solver.
         The residual falls geometrically at a rate set by the subleading
@@ -210,12 +212,20 @@ class Options(AlgorithmOptions):
         needs is roughly the correlation length in unit cells times
         `log(1 / env_tol)`, and the default covers a correlation length of
         about seven cells. On a gapped model that rate saturates once the
-        bond dimension captures the correlation length, and widening the
+        bond dimension captures the correlation length, and expanding the
         state further does not slow it down. A critical model has no such
         saturation, since there the correlation length is cut off by the
         bond dimension itself. Running out logs a warning and continues
         with the best estimate, and does not abandon the run and the
         nearly converged environment with it.
+    env_warm_start:
+        If `True` (default), each environment solve starts from the block
+        the previous pass came back around with instead of from the
+        entering channel alone. The state moves less and less as a run
+        proceeds, so that block is close to the answer and the solver
+        absorbs far fewer unit cells to reach `env_tol`. It cannot change
+        what is converged to, only how long that takes. Set to `False` to
+        solve cold every time.
     env_cache_dir:
         Root directory for environment block cache files. When set,
         `run()` creates a unique subdirectory inside it (first 8 hex
@@ -298,6 +308,7 @@ class Options(AlgorithmOptions):
     gauge_maxiter: int = 200
     env_tol: float = 1e-12
     env_maxiter: int = 200
+    env_warm_start: bool = True
     env_cache_dir: Optional[str] = None
     env_async_io: bool = True
     env_window: int = 2
@@ -337,7 +348,7 @@ class Summary(AlgorithmSummary):
         Bond dimensions of `state` (length `N`, the last entry being the
         bond onto the next copy of the cell).
     gradients:
-        VUMPS gradient norm `|AC - AL C|` recorded at each iteration.
+        VUMPS gradient norm recorded at each iteration.
     discarded_weights:
         Largest weight discarded by a split, recorded at each iteration.
         All zeros under `'1s'`, which never splits anything.
@@ -600,6 +611,7 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
     logger.info("  davidson max space: %d", opts.davidson_max_subspace)
     logger.info("  gauge tol         : %.2e", opts.gauge_tol)
     logger.info("  env tol           : %.2e", opts.env_tol)
+    logger.info("  env warm start    : %s", 'on' if opts.env_warm_start else 'off')
     if _cache is not None:
         logger.info("  env cache dir     : %s", _cache)
         logger.info("  env window        : %d", opts.env_window)
@@ -639,14 +651,23 @@ def run(imps: iMPS, impo: iMPO, opts: Optional[Options] = None) -> Summary:
                 logger.debug("")
             logger.debug("iteration %*d / %d initiated", w, iter_idx + 1, opts.n_iters)
 
-            gradient, discarded = cell_update(imps, impo, env_left, env_right, opts)
+            gradient, discarded, carried = cell_update(
+                imps, impo, env_left, env_right, opts,
+            )
 
             # The update installs its own gauge, so only the fixed points
             # have to be re-solved. They give the energy density and the
             # environments for the next iteration at once.
+            #
+            # Each solve starts from the block the pass came back around
+            # with, one on each side of bond 0 and both in the basis the
+            # cell ends in. `sweep` gives the argument; the left one is
+            # handed back and the right one is left in the store.
             env_left, env_right, cell_energy = cell_environments(
                 imps, impo, tol=opts.env_tol, maxiter=opts.env_maxiter,
                 env_right=env_right,
+                guess_left=carried if opts.env_warm_start else None,
+                guess_right=env_right[0] if opts.env_warm_start else None,
             )
             energy = cell_energy / N
 

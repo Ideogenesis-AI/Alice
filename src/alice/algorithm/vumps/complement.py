@@ -24,7 +24,7 @@ a cheap, factored approximation of the two-site gradient: the iMPO is applied
 independently from the left and the right to a truncated two-site tensor, the
 kept subspace is projected out of each half, and the resulting
 "doubly-discarded" outer product is decomposed by SVD into new basis vectors
-that widen the bond. Those directions are what the one-site eigenproblem that
+that expand the bond. Those directions are what the one-site eigenproblem that
 follows can then fill, so the bond dimension adapts as it does under `'2s'`
 while every local solve stays one-site sized.
 
@@ -35,51 +35,52 @@ nothing and so cannot replace a bond index: a `'1s'` run is confined to the
 bond dimension its initial cell happened to carry. The two-site update
 escapes that by solving a pair and splitting the answer, at a local problem
 `d` times larger on each side. CBE buys the same freedom at the one-site
-price, by widening the bond *before* the solve instead of letting a larger
+price, by expanding the bond *before* the solve instead of letting a larger
 solve discover the width on its own.
 
 What the pass sees
 ------------------
-A forward pass reaches bond `j` with the left-orthonormal tensor of the site
-behind it and the center tensor of the site in front, which is exactly the
-geometry of a backward sweep in the finite algorithm: the neighbor is on the
-left and the center is on the right. So only one of the two complement
-factors is ever used here, the one facing the neighbor.
+A forward pass arrives at site `i` with the center tensor there and the
+right-orthonormal tensor of site `i+1` in front of it, and the bond it
+expands is the one between them: the bond on the *right* of the center
+tensor. That is the geometry of a forward sweep in the finite algorithm, the
+center on the left and the neighbor on the right, so only one of the two
+complement factors is ever used here, the one facing the neighbor.
 
 Exact state preservation
 ------------------------
 The expansion must not move the state. Concatenating complement vectors onto
-*both* tensors would, since `Θ = AL ⊗ AC` picks up the extra outer product.
+*both* tensors would, since `Θ = AC ⊗ AR` picks up the extra outer product.
 Only the neighbor is expanded by `oplus`, and the center tensor is then
 *filled in* exactly by projecting Θ onto the expanded neighbor basis,
-`AC_exp = AL_exp† · Θ`. Because the expanded basis contains the old one, this
-reproduces Θ exactly; with a left-isometric `AL_exp` the answer is the old
-center tensor padded by zero rows, and writing it as a projection instead of
-as a zero padding keeps it exact even where the complement is not perfectly
-orthogonal to the kept space.
+`AC_exp = Θ · AR_exp†`. Because the expanded basis contains the old one, this
+reproduces Θ exactly; with a right-isometric `AR_exp` the answer is the old
+center tensor padded by zero columns, and writing it as a projection instead
+of as a zero padding keeps it exact even where the complement is not
+perfectly orthogonal to the kept space.
 
 Exact expanded environment
 --------------------------
-The left environment facing the expanded bond is a single `step_left_env`
-call on the expanded neighbor, which keeps the cross blocks between `AL` and
+The right environment facing the expanded bond is a single `step_right_env`
+call on the expanded neighbor, which keeps the cross blocks between `AR` and
 the complement. Nothing has to be assembled block-diagonally, and nothing on
-the `AR` side of the bond has to be expanded at all: the block being stepped
-sits on the bond *behind* the one being widened, which the expansion does not
-touch, and the bond matrix comes out of `split_center`, not out of an
-eigenproblem of its own.
+the `AL` side of the bond has to be expanded at all: the block being stepped
+sits on the bond *in front* of the one being expanded, which the expansion
+does not touch, and the bond matrix comes out of `split_center`, not out of
+an eigenproblem of its own.
 
 Orthonormal projectors
 ----------------------
 Each end of the bond projects out its own kept space, and the two ends call
 for different tensors. On the neighbor side the tensor itself is used: it is
-exactly isometric there, and its column space is the whole space the
-complement has to avoid for the expanded neighbor to stay isometric. On the
-center side a one-site split of the center tensor supplies an orthonormal
-basis of the same space the center tensor spans, since `M M†` is a projector
-only for an isometry and the center tensor is not one.
+exactly isometric there, and its row space is the whole space the complement
+has to avoid for the expanded neighbor to stay isometric. On the center side
+a one-site split of the center tensor supplies an orthonormal basis of the
+same space the center tensor spans, since `M M†` is a projector only for an
+isometry and the center tensor is not one.
 
 What must *not* be used on the center side is the isometric factor of Θ, even
-though it is orthonormal and spans the center tensor's row space.
+though it is orthonormal and spans the center tensor's column space.
 Untruncated it spans more: `decomp` keeps every sector at full dimension
 regardless of rank, so that factor can cover the entire (bond, physical)
 space and project the complement away entirely, leaving Θ'_disc at roundoff
@@ -91,14 +92,14 @@ Index convention (shared with `environ.py`, `scheme_1s.py`, `scheme_2s.py`)
 - `a, b, c, d` — virtual bond indices of the iMPS (bra or ket side)
 - `α`          — internal reduced bond of the truncated two-site tensor
 - `o, p, q`    — virtual bond indices of the iMPO
-- `r, s`       — physical indices of the neighbor site (bra `r`, ket `s`)
-- `u, v`       — physical indices of the center site (bra `u`, ket `v`)
+- `r, s`       — physical indices of the center site (bra `r`, ket `s`)
+- `u, v`       — physical indices of the neighbor site (bra `u`, ket `v`)
 
 Tensor shapes used in this module:
 
-- `left_half  [a, α, p, r]` — (bra_left, internal, mpo_mid, phys_bra_neighbor)
-- `right_half [α, p, c, u]` — (internal, mpo_mid, bra_right, phys_bra_center)
-- `N_L        [a, k, r]`    — complement vectors for the neighbor's right bond
+- `left_half  [a, α, p, r]` — (bra_left, internal, mpo_mid, phys_bra_center)
+- `right_half [α, p, c, u]` — (internal, mpo_mid, bra_right, phys_bra_neighbor)
+- `N_R        [k, c, u]`    — complement vectors for the neighbor's left bond
 """
 
 from __future__ import annotations
@@ -108,7 +109,7 @@ from typing import Optional, Tuple
 from nicole import Tensor, decomp, einsum, merge_axes, oplus
 from nicole.decomp import svd
 
-from .environ import step_left_env
+from .environ import step_right_env
 
 # itag worn by the truncated internal bond of the cheap two-site factors.
 _TRUNC_ITAG: str = '_cbe_trunc_'
@@ -139,11 +140,11 @@ _CBE_TOL: float = 1e-10
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _center_isometry_right(AC: Tensor) -> Tensor:
-    """Orthonormalize the center tensor's row space.
+def _center_isometry_left(AC: Tensor) -> Tensor:
+    """Orthonormalize the center tensor's column space.
 
     Returns the isometric factor of a one-site split of the center tensor,
-    which spans exactly what the center tensor spans over its (right bond,
+    which spans exactly what the center tensor spans over its (left bond,
     physical) indices — the kept space the center end of the bond has to
     project out. The bond tensor the split also produces is discarded; it is
     the non-orthonormal part that makes the center tensor itself unusable
@@ -157,13 +158,14 @@ def _center_isometry_right(AC: Tensor) -> Tensor:
     Returns
     -------
     Tensor
-        Right-isometric tensor with axes `(internal, ket_right, phys)`.
+        Left-isometric tensor with axes `(ket_left, internal, phys)`.
     """
-    # rows = left bond only → LV gives the isometry with axes
-    # (internal, ket_right, phys), already in the iMPS axis order.
-    _C, B = decomp(AC, axes=0, flow='<<', mode='LV')
-    B.retag(0, _CENTER_ITAG)
-    return B
+    # cols = right bond only → LV gives the isometry with axes
+    # (internal, ket_left, phys); restore the iMPS axis order.
+    _C, A = decomp(AC, axes=1, flow='<<', mode='LV')
+    A.permute([1, 0, 2], in_place=True)
+    A.retag(1, _CENTER_ITAG)
+    return A
 
 
 def _cheap_factors(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor, Tensor]:
@@ -174,57 +176,57 @@ def _cheap_factors(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor, Tensor]
     SVD reduces the internal bond to at most `alpha`, and the
     half-applications below then scale with `alpha` instead of with `chi`.
 
-    The singular values stay on the left factor, so the isometric one is the
+    The singular values stay on the right factor, so the isometric one is the
     factor on the center side, which is the side whose kept space the center
     tensor's own split describes.
 
     Parameters
     ----------
     theta:
-        Two-site bond tensor with axes `(ket_left, ket_right, phys_neighbor,
-        phys_center)`.
+        Two-site bond tensor with axes `(ket_left, ket_right, phys_center,
+        phys_neighbor)`.
     alpha:
         Largest internal bond dimension kept. `None` keeps every singular
         value, which is equivalent to using the full two-site tensor.
 
     Returns
     -------
-    L:
-        `U·S` with axes `(ket_left, internal_α, phys_neighbor)`.
-    B:
-        Right-isometric factor with axes `(internal_α, ket_right,
-        phys_center)`.
+    A:
+        Left-isometric factor with axes `(ket_left, internal_α, phys_center)`.
+    R:
+        `S·Vh` with axes `(internal_α, ket_right, phys_neighbor)`.
     """
     trunc = {'nkeep': alpha} if alpha is not None else None
-    # mode='LV' → L = U·S carries the singular values and B is right-isometric.
-    L, B = decomp(theta, axes=[0, 2], mode='LV', trunc=trunc)
+    # mode='UR' → A is left-isometric and R = S·Vh carries the singular values.
+    A, R = decomp(theta, axes=[0, 2], mode='UR', trunc=trunc)
 
-    # L comes back unmerged as (ket_left, phys_neighbor, internal); restore the
+    # A comes back unmerged as (ket_left, phys_center, internal); restore the
     # iMPS axis order.
-    L.permute([0, 2, 1], in_place=True)
-    L.retag(1, _TRUNC_ITAG)
-    B.retag(0, _TRUNC_ITAG)
+    A.permute([0, 2, 1], in_place=True)
+    A.retag(1, _TRUNC_ITAG)
+    R.retag(0, _TRUNC_ITAG)
 
-    return L, B
+    return A, R
 
 
-def _left_half(E_left: Tensor, L: Tensor, W: Tensor) -> Tensor:
+def _left_half(E_left: Tensor, A: Tensor, W: Tensor) -> Tensor:
     """Apply the iMPO to the cheap left factor from the left.
 
     Contracts the left environment, the left factor of Θ and the iMPO tensor
-    of the neighbor site, leaving the internal reduced bond and the iMPO bond
+    of the center site, leaving the internal reduced bond and the iMPO bond
     free. Together with `_right_half` this reconstructs `H·Θ̃` as
     `einsum('aαpr,αpcu->acru', left_half, right_half)`.
 
     Parameters
     ----------
     E_left:
-        Left environment on the neighbor's left bond, axes `(bra, mpo, ket)`.
-    L:
+        Left environment on the center site's left bond, axes
+        `(bra, mpo, ket)`.
+    A:
         Cheap left factor, axes `(ket_left, internal_α, phys_ket)`.
     W:
-        iMPO tensor of the neighbor site, axes `(mpo_left, mpo_right,
-        phys_bra, phys_ket)`.
+        iMPO tensor of the center site, axes `(mpo_left, mpo_right, phys_bra,
+        phys_ket)`.
 
     Returns
     -------
@@ -233,22 +235,22 @@ def _left_half(E_left: Tensor, L: Tensor, W: Tensor) -> Tensor:
     """
     # b (ket_left), o (mpo_left) and s (phys_ket) are contracted; a (bra_left),
     # α (internal), p (mpo_right) and r (phys_bra) stay free.
-    return einsum('aob,bαs,oprs->aαpr', E_left, L, W)
+    return einsum('aob,bαs,oprs->aαpr', E_left, A, W)
 
 
-def _right_half(E_right: Tensor, B: Tensor, W: Tensor) -> Tensor:
+def _right_half(E_right: Tensor, R: Tensor, W: Tensor) -> Tensor:
     """Apply the iMPO to the cheap right factor from the right.
 
     Parameters
     ----------
     E_right:
-        Right environment on the center site's right bond, axes
+        Right environment on the neighbor's right bond, axes
         `(bra, mpo, ket)`.
-    B:
+    R:
         Cheap right factor, axes `(internal_α, ket_right, phys_ket)`.
     W:
-        iMPO tensor of the center site, axes `(mpo_left, mpo_right, phys_bra,
-        phys_ket)`.
+        iMPO tensor of the neighbor site, axes `(mpo_left, mpo_right,
+        phys_bra, phys_ket)`.
 
     Returns
     -------
@@ -257,7 +259,7 @@ def _right_half(E_right: Tensor, B: Tensor, W: Tensor) -> Tensor:
     """
     # d (ket_right), q (mpo_right) and v (phys_ket) are contracted; α
     # (internal), p (mpo_left), c (bra_right) and u (phys_bra) stay free.
-    return einsum('cqd,αdv,pquv->αpcu', E_right, B, W)
+    return einsum('cqd,αdv,pquv->αpcu', E_right, R, W)
 
 
 def _project_complement_left(left_half: Tensor, A: Tensor) -> Tensor:
@@ -396,14 +398,14 @@ def _has_complement(theta_disc: Tensor, floor: float) -> bool:
 def _complement_vectors(theta_disc: Tensor, k_expand: int, floor: float) -> Tensor:
     """Extract the neighbor's new bond directions from Θ'_disc.
 
-    Decomposes Θ'_disc by truncated SVD and keeps the left singular vectors,
-    which are the directions the neighbor's right bond is widened with. The
-    right singular vectors are not used: the center tensor is filled in
+    Decomposes Θ'_disc by truncated SVD and keeps the right singular vectors,
+    which are the directions the neighbor's left bond is expanded with. The
+    left singular vectors are not used: the center tensor is filled in
     exactly against the expanded neighbor instead, so each direction is
     consumed once.
 
-    `flow='<<'` gives the new bond a direction matching the neighbor's right
-    bond, the pass always meeting the bond with the neighbor on its left.
+    `flow='<<'` gives the new bond a direction matching the neighbor's left
+    bond, the pass always meeting the bond with the neighbor on its right.
 
     Parameters
     ----------
@@ -421,8 +423,8 @@ def _complement_vectors(theta_disc: Tensor, k_expand: int, floor: float) -> Tens
     Returns
     -------
     Tensor
-        `N_L` with axes `(bra_left, k, phys)`, left-orthonormal: the new
-        right-bond vectors for the neighbor.
+        `N_R` with axes `(k, bra_right, phys)`, right-orthonormal: the new
+        left-bond vectors for the neighbor.
     """
     # axes=[0, 2] fuses (a, r) as the row space and (c, u) as the column one.
     # `nkeep` caps the expansion; `thresh` keeps it honest, since a bond
@@ -430,44 +432,43 @@ def _complement_vectors(theta_disc: Tensor, k_expand: int, floor: float) -> Tens
     # singular values to report and they are cancellation noise, lying in the
     # kept space and not in the complement. Asking for `k_expand` directions
     # where fewer exist is the ordinary case, not an edge case.
-    N_L, _S, _Vh = decomp(
+    _U, _S, N_R = decomp(
         theta_disc, axes=[0, 2], mode='SVD',
         trunc={'nkeep': k_expand, 'thresh': floor},
         flow='<<', itag=_COMPLEMENT_ITAG,
     )
-    # decomp unmerges the left factor back to (a, r, k); the iMPS layout wants
-    # the bond on axis 1.
-    N_L.permute([0, 2, 1], in_place=True)
-    return N_L
+    # decomp hands the right factor back as (k, c, u), which is already the
+    # iMPS layout.
+    return N_R
 
 
-def _fill_center(theta: Tensor, left_iso_exp: Tensor) -> Tensor:
+def _fill_center(theta: Tensor, right_iso_exp: Tensor) -> Tensor:
     """Represent Θ exactly in the expanded neighbor basis.
 
-    Projects Θ onto the expanded, left-orthonormal neighbor,
-    `AC_exp = AL_exp† · Θ`. Since the expanded basis contains the old one,
-    the pair `(AL_exp, AC_exp)` describes the same state as before the
+    Projects Θ onto the expanded, right-orthonormal neighbor,
+    `AC_exp = Θ · AR_exp†`. Since the expanded basis contains the old one,
+    the pair `(AC_exp, AR_exp)` describes the same state as before the
     expansion — the new bond directions simply enter with zero amplitude,
     ready for the one-site eigenproblem to fill.
 
     Parameters
     ----------
     theta:
-        Two-site bond tensor with axes `(ket_left, ket_right, phys_neighbor,
-        phys_center)`.
-    left_iso_exp:
-        Expanded left-orthonormal neighbor, axes `(ket_left, ket_right_exp,
+        Two-site bond tensor with axes `(ket_left, ket_right, phys_center,
+        phys_neighbor)`.
+    right_iso_exp:
+        Expanded right-orthonormal neighbor, axes `(ket_left_exp, ket_right,
         phys)`.
 
     Returns
     -------
     Tensor
-        `AC_exp` with axes `(ket_left_exp, ket_right, phys)`.
+        `AC_exp` with axes `(ket_left, ket_right_exp, phys)`.
     """
-    # a (ket_left) and r (phys_neighbor) are contracted against the conjugated
-    # neighbor; its expanded right bond b becomes the new left bond of the
+    # c (ket_right) and s (phys_neighbor) are contracted against the conjugated
+    # neighbor; its expanded left bond b becomes the new right bond of the
     # center tensor.
-    return einsum('acru,abr->bcu', theta, left_iso_exp.conj())
+    return einsum('acrs,bcs->abr', theta, right_iso_exp.conj())
 
 
 # ---------------------------------------------------------------------------
@@ -475,46 +476,46 @@ def _fill_center(theta: Tensor, left_iso_exp: Tensor) -> Tensor:
 # ---------------------------------------------------------------------------
 
 def expand_bond(
-    left_iso: Tensor,
     center: Tensor,
-    W_neighbor: Tensor,
+    right_iso: Tensor,
     W_center: Tensor,
+    W_neighbor: Tensor,
     E_left: Tensor,
     E_right: Tensor,
     k_expand: int,
     alpha: Optional[int],
 ) -> Tuple[Tensor, Tensor, Tensor]:
-    """Widen the bond between a left-orthonormal tensor and a center tensor.
+    """Expand the bond between a center tensor and a right-orthonormal tensor.
 
-    The bond expanded is the one the two share: the right bond of
-    `left_iso` and the left bond of `center`. The procedure is
+    The bond expanded is the one the two share: the right bond of `center`
+    and the left bond of `right_iso`. The procedure is
 
-    1. truncated SVD of `Θ = left_iso ⊗ center` into cheap factors of
+    1. truncated SVD of `Θ = center ⊗ right_iso` into cheap factors of
        internal bond `alpha`;
     2. factored half-application of the iMPO from each side;
     3. projection of each half onto the complement of its own kept space;
-    4. SVD of Θ'_disc into the new bond directions `N_L`;
-    5. expansion of `left_iso` by `oplus`, and exact fill-in of `center`;
-    6. one step of the left environment over the expanded neighbor.
+    4. SVD of Θ'_disc into the new bond directions `N_R`;
+    5. expansion of `right_iso` by `oplus`, and exact fill-in of `center`;
+    6. one step of the right environment over the expanded neighbor.
 
     Parameters
     ----------
-    left_iso:
-        Left-orthonormal tensor of the site behind the bond, axes `(ket_left,
-        ket_right, phys)`.
     center:
-        Center tensor of the site in front of the bond, axes `(ket_left,
+        Center tensor of the site behind the bond, axes `(ket_left,
         ket_right, phys)`.
-    W_neighbor:
-        iMPO tensor of the neighbor site.
+    right_iso:
+        Right-orthonormal tensor of the site in front of the bond, axes
+        `(ket_left, ket_right, phys)`.
     W_center:
         iMPO tensor of the center site.
+    W_neighbor:
+        iMPO tensor of the neighbor site.
     E_left:
-        Left environment on the neighbor's left bond, which the expansion
+        Left environment on the center site's left bond, which the expansion
         does not touch.
     E_right:
-        Right environment on the center site's right bond, which the
-        expansion does not touch either.
+        Right environment on the neighbor's right bond, which the expansion
+        does not touch either.
     k_expand:
         Largest number of complement directions added to the bond.
     alpha:
@@ -523,29 +524,29 @@ def expand_bond(
 
     Returns
     -------
-    left_iso_exp:
-        Neighbor with its right bond widened, still left-orthonormal.
     center_exp:
-        Center tensor re-expressed on the widened bond, describing the same
+        Center tensor re-expressed on the expanded bond, describing the same
         state as `center` did.
-    E_left_exp:
-        Left environment on the widened bond, exact for `left_iso_exp`.
+    right_iso_exp:
+        Neighbor with its left bond expanded, still right-orthonormal.
+    E_right_exp:
+        Right environment on the expanded bond, exact for `right_iso_exp`.
     """
     # Step 1: cheap factored form of Θ, isometric on the center side.
-    theta = einsum('abr,bcs->acrs', left_iso, center)
-    L, B = _cheap_factors(theta, alpha)
+    theta = einsum('abr,bcs->acrs', center, right_iso)
+    A, R = _cheap_factors(theta, alpha)
 
     # Step 2: factored half-application of the iMPO.
-    lh = _left_half(E_left, L, W_neighbor)
-    rh = _right_half(E_right, B, W_center)
+    lh = _left_half(E_left, A, W_center)
+    rh = _right_half(E_right, R, W_neighbor)
 
     # Step 3: discarded-space projection. Each end projects against the tensor
-    # that spans exactly its own kept space: the neighbor itself on the left,
-    # whose whole column space the complement must miss for the expanded
-    # neighbor to stay isometric, which makes the fill-in exact, and the
-    # orthonormalized center tensor on the right.
-    lh_disc = _project_complement_left(lh, left_iso)
-    rh_disc = _project_complement_right(rh, _center_isometry_right(center))
+    # that spans exactly its own kept space: the orthonormalized center tensor
+    # on the left, and the neighbor itself on the right, whose whole row space
+    # the complement must miss for the expanded neighbor to stay isometric,
+    # which makes the fill-in exact.
+    lh_disc = _project_complement_left(lh, _center_isometry_left(center))
+    rh_disc = _project_complement_right(rh, right_iso)
     theta_disc = _discarded_bulk(lh_disc, rh_disc)
 
     # A bond with no complement — saturated, or simply out of the iMPO's reach
@@ -553,27 +554,27 @@ def expand_bond(
     # and hand back the environment the one-site step would have used anyway.
     floor = _noise_floor(lh, rh)
     if not _has_complement(theta_disc, floor):
-        return left_iso, center, step_left_env(E_left, left_iso, W_neighbor)
+        return center, right_iso, step_right_env(E_right, right_iso, W_neighbor)
 
     # Step 4: new bond directions from the SVD of Θ'_disc.
-    N_L = _complement_vectors(theta_disc, k_expand, floor)
+    N_R = _complement_vectors(theta_disc, k_expand, floor)
 
     # Everything the SVD offered sat below the floor, which leaves no
     # direction worth adding even though Θ'_disc as a whole cleared it.
-    if N_L.indices[1].dim == 0:
-        return left_iso, center, step_left_env(E_left, left_iso, W_neighbor)
+    if N_R.indices[0].dim == 0:
+        return center, right_iso, step_right_env(E_right, right_iso, W_neighbor)
 
-    # Step 5: widen the neighbor's right bond (axis 1), then re-express Θ in
+    # Step 5: expand the neighbor's left bond (axis 0), then re-express Θ in
     # that basis.
-    left_iso_exp = oplus(left_iso, N_L, axes=[1])
-    center_exp = _fill_center(theta, left_iso_exp)
+    right_iso_exp = oplus(right_iso, N_R, axes=[0])
+    center_exp = _fill_center(theta, right_iso_exp)
 
-    # Step 6: left environment on the widened bond. One step over the expanded
-    # neighbor keeps the cross blocks between it and the complement, so the
-    # effective Hamiltonian of the solve that follows is exact.
-    E_left_exp = step_left_env(E_left, left_iso_exp, W_neighbor)
+    # Step 6: right environment on the expanded bond. One step over the
+    # expanded neighbor keeps the cross blocks between it and the complement,
+    # so the effective Hamiltonian of the solve that follows is exact.
+    E_right_exp = step_right_env(E_right, right_iso_exp, W_neighbor)
 
-    return left_iso_exp, center_exp, E_left_exp
+    return center_exp, right_iso_exp, E_right_exp
 
 
 # ---------------------------------------------------------------------------
@@ -585,14 +586,14 @@ def split_center(
     itag: str,
     trunc: Optional[dict] = None,
 ) -> Tuple[Tensor, Tensor, Tensor]:
-    """Split a center tensor across its left bond, truncating as it goes.
+    """Split a center tensor across its right bond, truncating as it goes.
 
-    The bipartition puts the left bond alone on one side, which is the cut
-    the widened bond sits on, so this is the step that cuts it back down. The
-    three factors come back ready to use as they are: `U` rotates the
-    neighbor onto the truncated bond, `S` is the bond matrix, already
+    The bipartition puts the right bond alone on one side, which is the cut
+    the expanded bond sits on, so this is the step that cuts it back down. The
+    three factors come back ready to use as they are: `U` is the
+    left-orthonormal tensor of the site, `S` is the bond matrix, already
     diagonal and so already in the Schmidt basis `iMPS.set_canonical`
-    expects, and `Vh` is the right-orthonormal tensor of the site.
+    expects, and `Vh` rotates the neighbor onto the truncated bond.
 
     The gauge step of the one-site scheme reproduces those factors unchanged,
     since the orthonormal polar factor of `S` is the identity and that of
@@ -602,29 +603,35 @@ def split_center(
     Parameters
     ----------
     AC:
-        Center tensor with axes `(ket_left, ket_right, phys)`, its left bond
-        the widened one.
+        Center tensor with axes `(ket_left, ket_right, phys)`, its right bond
+        the expanded one.
     itag:
         itag for the truncated bond, which is the itag the cell already uses
         for this bond.
     trunc:
         Truncation options forwarded to `decomp` (`nkeep`, `thresh`). `None`
-        keeps the widened bond whole, so the expansion is permanent and not
+        keeps the expanded bond whole, so the expansion is permanent and not
         merely a wider space to solve in.
 
     Returns
     -------
-    rotation:
-        `U` with axes `(widened_bond, new_bond)`, to be absorbed into the
-        neighbor.
+    left_iso:
+        Left-orthonormal tensor with axes `(ket_left, new_bond, phys)`.
     bond:
         Diagonal bond matrix on the new bond.
-    right_iso:
-        Right-orthonormal tensor with axes `(new_bond, ket_right, phys)`.
+    rotation:
+        `Vh` with axes `(new_bond, expanded_bond)`, to be absorbed into the
+        neighbor.
     """
     # '<<' sends the new bond out of the left factor, the same direction
     # convention `split_two_site` and the gauge iteration both follow.
-    return decomp(AC, axes=0, mode='SVD', flow='<<', itag=itag, trunc=trunc)
+    left_iso, bond, rotation = decomp(
+        AC, axes=[0, 2], mode='SVD', flow='<<', itag=itag, trunc=trunc,
+    )
+    # decomp unmerges the left factor back to (ket_left, phys, new_bond); the
+    # iMPS layout wants the bond on axis 1.
+    left_iso.permute([0, 2, 1], in_place=True)
+    return left_iso, bond, rotation
 
 
 def discarded_weight(AC: Tensor, trunc: Optional[dict] = None) -> float:
@@ -649,6 +656,6 @@ def discarded_weight(AC: Tensor, trunc: Optional[dict] = None) -> float:
         Relative sum of the squared singular values dropped, in `[0, 1)`.
         Zero when `trunc` is `None` or nothing is cut.
     """
-    merged, _ = merge_axes(AC, [1, 2], merged_tag=_WEIGHT_ITAG)
+    merged, _ = merge_axes(AC, [0, 2], merged_tag=_WEIGHT_ITAG)
     *_, info = svd(merged, axis=0, trunc=trunc, requires_info=True)
     return float(info['discarded_weight'])

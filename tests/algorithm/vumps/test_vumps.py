@@ -392,7 +392,7 @@ class TestRun:
         assert len(summary.discarded_weights) == summary.n_iters
 
     def test_one_site_plus_grows_by_the_expansion_width(self, spin_half):
-        # What `expand_k` controls is the rate: each iteration widens a bond
+        # What `expand_k` controls is the rate: each iteration expands a bond
         # by at most that much, where a two-site split multiplies it.
         summary = run(
             neel_imps(spin_half, 2),
@@ -482,6 +482,27 @@ class TestRun:
 def _refuses_to_run(*args, **kwargs):
     """Stand in for `cell_update` to make a run fail inside its loop."""
     raise RuntimeError("no iteration for you")
+
+
+class TestEnvironmentWarmStart:
+    """Starting a solve near its answer may cost cells, not accuracy."""
+
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
+    def test_a_warm_run_lands_where_a_cold_one_does(self, spin_half, scheme):
+        # The guess is only the starting point of a solve that has one
+        # fixed point, so every number a run reports comes out the same.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        cold = run(imps, impo, _options(scheme=scheme, n_iters=8, max_bond=8,
+                                        env_warm_start=False))
+        warm = run(random_imps(spin_half, 2), impo,
+                   _options(scheme=scheme, n_iters=8, max_bond=8))
+        assert warm.energy == pytest.approx(cold.energy, abs=1e-10)
+        assert warm.bond_dims == cold.bond_dims
+        assert warm.gradients[-1] == pytest.approx(cold.gradients[-1], rel=1e-6)
+
+    def test_warm_starting_is_the_default(self):
+        assert Options().env_warm_start is True
 
 
 class TestEnvironmentCache:

@@ -1,5 +1,110 @@
 # Changelog
 
+## [0.4.2] - 2026-11-21
+
+**VUMPS: Corrections and Warm Environments**
+
+Corrects two things in VUMPS that an energy could not see, and makes every environment
+solve start from the answer of the previous one. The gradient is now the larger of the two
+gauge mismatches, where reading one of them alone called a moving state converged; the
+`'1sp'` expansion now acts on the bond in front of the center tensor, the only bond a
+forward pass is free to replace, where it was built for the geometry of a backward sweep.
+The warm start cuts the unit cells a run absorbs by a factor of two to three, and the
+energies are unchanged throughout. Also here: a terminology pass that gives controlled
+bond expansion the vocabulary it is named for. No breaking API changes.
+
+### The Convergence Measure
+
+- `gauge_tensors` returns the larger of `|AC - AL C|` and `|AC - C AR|` in place of the
+  left mismatch alone, at the cost of one contraction per position. Both vanish together
+  at a stationary point and are equal on an untouched cell, so `'1s'` is unaffected.
+- What the second form catches is a splitting sweep: each step writes its answer back as
+  `AL C` or as `C AR` and the polar step hands the same factor back, so the matching
+  mismatch is zero at every position the pass solved. Gradients under `'2s'` and `'1sp'`
+  are therefore larger than v0.4.1 reported for the same state, and a run that stopped at
+  `grad_tol` before may now continue to its discarded-weight floor.
+
+### The One-Site-Plus Geometry
+
+- The expansion is mirrored end to end: the complement comes from the right singular
+  vectors of the doubly-discarded tensor, expands the left bond of the right-orthonormal
+  tensor of the next site, and the expanded block is one step of the *right* environment
+  over that neighbor. The center-side projector is a left-isometric split of the center
+  tensor, and the split that follows cuts the center tensor on its right.
+- A forward step ends with the center on the bond in front of the site it solved, so that
+  is the bond it may replace. The v0.4.1 construction expanded the bond *behind* the
+  center, which the pass had already finished with. Energies were unaffected, the
+  expansion preserving the state and the solve being variational either way; what was lost
+  was the point of the expansion.
+
+### Warm Environments
+
+- `left_environment`, `right_environment`, `build_right_envs`, and `cell_environments` take
+  an optional `guess`. Only its entering channel is rebuilt, the transfer operator carrying
+  that channel to itself, so an error there would survive to bias the energy; everything
+  else is taken as given, the iteration having one fixed point regardless of where it
+  starts.
+- What is handed over is the pair of blocks the pass itself ends holding. One step inward
+  on each side lands both on bond `0`, the bond the final split has just created, so the
+  pair fits the next iteration whatever the split did to its width. Previous fixed points
+  would serve `'1s'` alone, whose bonds never move.
+- `iMPS.set_canonical` returns the per-bond `U` and `Vh` that rotate every bond into its
+  Schmidt basis, and new `rotate_left_env` and `rotate_right_env` carry a block across one.
+  Without that step a guess is a right answer in coordinates that no longer exist.
+- `vumps.Options` gains `env_warm_start` (default `True`), logged at startup. Measured on
+  the Heisenberg chain at `D = 16`: cells fall from 7150 to 4408 under `'1s'`, 82532 to
+  33624 under `'2s'`, and 81729 to 35820 under `'1sp'`, with energies agreeing to `1e-13`.
+
+### Terminology
+
+- The "widen" family is replaced throughout the sources, tests, documentation, and
+  examples by the vocabulary of the scheme's own name: controlled bond expansion expands a
+  bond, leaves an expanded neighbor and an expanded basis. Where a passage describes a
+  two-site split, a product cell growing under a raised cap, or the span of an iMPO, the
+  wording is "grow", so that expansion names one mechanism only.
+- The executable part is two local names and one debug line, now `D = %d (%d expanded)`.
+  The v0.4.0 changelog entry keeps the wording it was released with.
+
+### Tests and Documentation
+
+- New cases in `tests/algorithm/vumps/test_environ.py`: rotating a block commutes with
+  absorbing a unit cell on either side, a solver handed its own answer returns it in a
+  single cell, a foreign state's environment does not move the fixed point, and a spoiled
+  entering channel leaves no trace in the energy. New cases in `test_sweep.py` require the saving itself,
+  stripping either rotation making the warm solve cost more cells than the cold one.
+- New driver cases pin each scheme run both ways to the same energy, bond dimensions, and
+  final gradient, and pin the default on. `test_scheme_1s.py` covers the shape a splitting
+  sweep ends in, where only the right mismatch has anything to say, and
+  `test_scheme_1sp.py` follows the mirrored expansion throughout.
+- `docs/algorithms/vumps/index.md` names the bond a `'1sp'` step expands and describes the
+  gradient with both of its forms; `lessons.md` gains **Starting From the Previous Answer**,
+  with the measurements, the reasoning that turns a starting error into a saving in cells,
+  and why a reproducible SVD phase convention looked like a fix while leaving the block in
+  the wrong coordinates.
+
+### Statistics
+
+- **1,779 tests** across 47 test modules (up from 1,760 in v0.4.1).
+- **34 commits** since v0.4.1.
+- **39 files changed**, 1,044 insertions, 377 deletions.
+- **45 source modules** in six subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.vumps`, `alice.algorithm.tdvp`,
+  `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `Summary.gradients` and the logged gradient report the larger of
+  the two gauge mismatches, so the numbers under `'2s'` and `'1sp'` are larger than v0.4.1
+  reported for the same state. `vumps.Options` gains `env_warm_start` after `env_maxiter`,
+  so positional construction past that field shifts. `iMPS.set_canonical` returns the two
+  lists of per-bond rotations where it returned `None`, and `cell_update` returns a third
+  element, the left block the pass ends on. A `'1sp'` run expands the opposite bond of each
+  pair, so its intermediate states differ while the converged energies agree.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.4.2.
+
+---
+
 ## [0.4.1] - 2026-11-20
 
 **VUMPS: The 1-Site-Plus Scheme**
@@ -1662,6 +1767,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.4.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.2
 [0.4.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.0
 [0.3.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.2

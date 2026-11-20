@@ -321,7 +321,7 @@ class TestConservation:
 
     `'1sp'` is included because the expansion is the one step that rewrites
     tensors outside the local update: it re-expresses the center tensor in a
-    widened basis and rebuilds the environment over it, and an error in either
+    expanded basis and rebuilds the environment over it, and an error in either
     would show up here as drifting energy.
     """
 

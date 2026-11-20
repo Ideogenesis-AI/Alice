@@ -79,7 +79,7 @@ between two, so its final state is always among the snapshots; see
 |------|-------|-------------|
 | `'1s'` | `'1-site'`, `'one-site'` | 1-site update; **cannot** change bond dimension |
 | `'2s'` | `'2-site'`, `'two-site'` | 2-site update with SVD truncation; grows bonds as entanglement develops |
-| `'1sp'` | `'1-site-plus'`, `'one-site-plus'` | Update on a bond widened beforehand by controlled bond expansion; grows bonds with SVD truncation as `'2s'` does, at close to 1-site cost |
+| `'1sp'` | `'1-site-plus'`, `'one-site-plus'` | Update on a bond expanded beforehand by controlled bond expansion; grows bonds with SVD truncation as `'2s'` does, at close to 1-site cost |
 
 !!! warning "The 1-site scheme cannot grow bonds"
 
@@ -103,9 +103,9 @@ between two, so its final state is always among the snapshots; see
 
 ## Controlled Bond Expansion
 
-`'1sp'` widens the bond ahead of each update before evolving over it, so the
+`'1sp'` expands the bond ahead of each update before evolving over it, so the
 rank adapts as it does under `'2s'` while every local exponential stays 1-site
-sized. The widening comes from the complement of the space the bond currently
+sized. The expansion comes from the complement of the space the bond currently
 spans: `H` is applied to a cheaply factored two-site tensor, the part of the
 result the current bond already covers is projected out, and up to `expand_k`
 directions are taken from what is left. Those are the directions the next step
@@ -135,7 +135,7 @@ directions the complement offers.
 !!! note "`'1sp'` is not exactly time-reversible"
 
     The expansion is chosen from the state it starts out in, so a forward step
-    and a backward step do not widen the bond into the same subspace, and
+    and a backward step do not expand the bond into the same subspace, and
     reversing a run does not return the initial state to roundoff the way `'1s'`
     and `'2s'` do. The deviation enters at the order of the integrator error and
     falls as `dt²`, so it is bounded by the accuracy already being asked for;

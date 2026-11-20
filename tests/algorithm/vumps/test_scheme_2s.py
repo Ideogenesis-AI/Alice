@@ -131,7 +131,7 @@ class TestSplit:
         )
         assert float((back - AC2).norm()) < 1e-12
 
-    def test_split_widens_the_bond(self, spin_half):
+    def test_split_grows_the_bond(self, spin_half):
         # The point of the scheme: the bipartition of a pair admits more
         # states than the bond between them carried.
         imps = random_imps(spin_half, 2, width=1, dim=1)
@@ -181,6 +181,9 @@ class TestGaugeHandover:
         tag = imps.bond_matrix(1).itags[0]
         left_iso, bond, _ = split_two_site(AC2, tag)
         center = einsum('abr,bc->acr', left_iso, bond)
-        gauged, _, error = gauge_tensors(center, imps.bond_matrix(0), bond)
+        gauged, _, _ = gauge_tensors(center, imps.bond_matrix(0), bond)
         assert float((gauged - left_iso).norm()) < 1e-10
-        assert error < 1e-10
+        # The side the split solved is exact, so `|AC - AL C|` vanishes on
+        # it. What `gauge_tensors` reports is the larger of the two gauge
+        # mismatches, and the far side of the pair still carries one.
+        assert float((center - einsum('abr,bc->acr', gauged, bond)).norm()) < 1e-10

@@ -117,11 +117,11 @@ def vumps_mgdimer(
         multiplets, so the exact state needs only `bond_dim=1` there.
     scheme:
         Update scheme: `'2s'` (two-site, default), `'1s'` (one-site), or
-        `'1sp'` (one-site on a bond widened by controlled bond expansion).
+        `'1sp'` (one-site on a bond expanded by controlled bond expansion).
     grad_tol:
-        Convergence criterion on the gradient norm `|AC - AL C|`. Nothing
-        is truncated at the exact point, so this is reached, not merely
-        approached.
+        Convergence criterion on the gradient norm, the larger of
+        `|AC - AL C|` and `|AC - C AR|` over the cell. Nothing is truncated
+        at the exact point, so this is reached, not merely approached.
     davidson_tol:
         Residual norm tolerance for the Davidson eigensolver. Keep it well
         below `grad_tol`, which can never fall past it.

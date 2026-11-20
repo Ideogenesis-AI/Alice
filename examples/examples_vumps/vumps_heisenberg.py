@@ -35,7 +35,7 @@ Two initializations are supported via --init:
 - `random` (default): random unit cell of width `bond_dim`, each bond
   carrying the charges reachable at its position. Ready for any scheme.
 - `product`: deterministic cell of width one. The one-site scheme cannot
-  widen it, so pair it with `--scheme 2s` or `--scheme 1sp`, either of which
+  grow it, so pair it with `--scheme 2s` or `--scheme 1sp`, either of which
   then grows the state up to `--bond-dim` on its own.
 
 The schemes differ in what they can reach. The two-site scheme splits a
@@ -43,7 +43,7 @@ solved pair and so can both grow the bond dimension and move weight between
 charge sectors. The one-site scheme does neither: it optimizes within the
 bond dimension and the sectors the state it is handed already carries, so a
 run started under `'1s'` reaches no further than that state allows. The
-one-site-plus scheme widens each bond by `--expand-k` directions before
+one-site-plus scheme expands each bond by `--expand-k` directions before
 solving the one-site problem on it, so it grows as `'2s'` does while every
 local solve stays one-site sized.
 
@@ -122,9 +122,10 @@ def vumps_heisenberg(
         spin-rotation symmetry).
     scheme:
         Update scheme: `'2s'` (two-site, default), `'1s'` (one-site), or
-        `'1sp'` (one-site on a bond widened by controlled bond expansion).
+        `'1sp'` (one-site on a bond expanded by controlled bond expansion).
     grad_tol:
-        Convergence criterion on the gradient norm `|AC - AL C|`.
+        Convergence criterion on the gradient norm, the larger of
+        `|AC - AL C|` and `|AC - C AR|` over the cell.
     davidson_tol:
         Residual norm tolerance for the Davidson eigensolver. Keep it well
         below `grad_tol`, which can never fall past it.

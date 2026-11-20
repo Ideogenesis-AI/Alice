@@ -9,7 +9,7 @@ represents only what its bonds allow:
 | Scheme | Local update | Bond dimension decided |
 |--------|--------------|------------------------|
 | `'1s'` | 1 site | Never. The update is confined to a manifold of fixed bond dimension |
-| `'1sp'` | 1 site | Before the update, by widening the bond ahead of it from the complement of the space it currently spans |
+| `'1sp'` | 1 site | Before the update, by expanding the bond ahead of it from the complement of the space it currently spans |
 | `'2s'` | 2 sites | After the update, as a by-product of the 2-site SVD and its truncation |
 
 Everything below follows from that single column: which schemes can start from
@@ -228,5 +228,5 @@ flattened out as `dt` shrank, since choosing a subspace is not an operation
 - [Domain wall](domain-wall.md) — the same initial state studied for its own physics.
 - [Free fermion](free-fermion.md) — the single-particle quench and the same analytic machinery.
 - [Hubbard quench](hubbard-quench.md) — a quench from a DMRG ground state, where `'1s'` is usable.
-- [Controlled bond expansion](../../algorithms/tdvp/index.md#controlled-bond-expansion) — how the widening works.
+- [Controlled bond expansion](../../algorithms/tdvp/index.md#controlled-bond-expansion) — how the expansion works.
 - [tdvp.Options](../../algorithms/tdvp/options.md) — `expand_k` and `expand_alpha`.

@@ -81,9 +81,9 @@ not evolve — silently, since the conserved quantities stay conserved. `run()`
 warns when it is handed such a state.
 
 Reach for `'1sp'` when `'2s'` is too expensive at the bond dimension the state
-wants. It widens the bond ahead of each update with up to `expand_k` directions
+wants. It expands the bond ahead of each update with up to `expand_k` directions
 drawn from the complement of the space that bond currently spans, then evolves
-over the widened space, so the rank adapts as it does under `'2s'` while the
+over the expanded space, so the rank adapts as it does under `'2s'` while the
 local exponential stays 1-site sized. Cost and name are all it shares with
 `'1s'`. It adapts the rank, truncates, and reports a discarded weight, and it
 inherits neither the exact conservation nor the exact reversibility that make
@@ -193,7 +193,7 @@ class Options(AlgorithmOptions):
           dimension fixed. See the module docstring for the product-state
           trap this creates.
         - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: update on a bond
-          widened beforehand by controlled bond expansion, by up to
+          expanded beforehand by controlled bond expansion, by up to
           `expand_k` directions per bond per half-sweep. An adaptive-rank
           scheme of the `'2s'` kind, truncation and discarded weight
           included, at close to 1-site cost, and so free of the

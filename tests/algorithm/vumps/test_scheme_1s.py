@@ -21,7 +21,7 @@
 from __future__ import annotations
 
 import pytest
-from nicole import identity
+from nicole import einsum, identity
 
 from alice.algorithm.vumps import transfer_left, transfer_right
 from alice.algorithm.vumps.davidson import _inner_product
@@ -192,6 +192,26 @@ class TestGaugeStep:
                 imps.center_tensor(i), imps.bond_matrix(i), imps.bond_matrix(i + 1),
             )
             assert error < 1e-10
+
+    def test_a_center_in_left_gauge_form_still_reports_its_other_mismatch(
+        self, spin_half,
+    ):
+        # A pass that ends each step in a split writes its answer back as
+        # `AL C`, which satisfies `|AC - AL C|` exactly at every site it
+        # solved. Were that the whole measure, such a sweep would report a
+        # converged state while its bonds were still moving, which is what
+        # the one-site-plus scheme does from a product start.
+        imps = random_imps(spin_half, 2)
+        other = random_imps(spin_half, 2, seed=7)
+        bond_right = imps.bond_matrix(1)
+        center = einsum('abr,bc->acr', imps.left_isometries()[0], bond_right)
+
+        left_iso, _, error = gauge_tensors(center, other.bond_matrix(0), bond_right)
+        # The left form is exact, by the identity the split relies on.
+        assert float((center - einsum('abr,bc->acr', left_iso, bond_right)).norm()) < 1e-10
+        # The bond on the other side belongs to a different state, so the
+        # position is not stationary and the measure has to say so.
+        assert error > 1e-3
 
     def test_gradient_vanishes_on_an_exact_ground_state(self, spin_half):
         # The dimer state is the exact Majumdar-Ghosh ground state, so the

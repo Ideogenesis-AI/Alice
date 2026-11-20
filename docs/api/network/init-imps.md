@@ -11,7 +11,7 @@ Construct a symmetry-aware initial unit cell for VUMPS.
 
 `init_imps` operates in the same two modes as [init_mps](init-mps.md), selected by `bond_dim`.
 
-**Product cell (`bond_dim=1`)** — every bond carries a single sector, fixed by propagating the physical charges of the chosen site configuration through the group fusion rules. The one-site scheme can never leave a cell this narrow, so pair it with `scheme='2s'`, which widens it from the first iteration.
+**Product cell (`bond_dim=1`)** — every bond carries a single sector, fixed by propagating the physical charges of the chosen site configuration through the group fusion rules. The one-site scheme can never leave a cell this narrow, so pair it with `scheme='2s'`, which grows it from the first iteration.
 
 **Random cell (`bond_dim>1`)** — each bond is given the charges reachable at its own position, and the tensors are filled with random entries. Ready for either scheme.
 
