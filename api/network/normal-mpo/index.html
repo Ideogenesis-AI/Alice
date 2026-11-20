@@ -4245,10 +4245,10 @@
         <p>MPO with a separately tracked overall scale magnitude.</p>
 <p>Represents the physical operator as <code>exp(log_scale) × mpo</code>, where the
 internal MPO satisfies <code>mpo.norm() ≈ 1</code> after <code>compact()</code> or
-<code>from_mpo()</code>. Tracking the magnitude in log form (rather than as a raw
-float) keeps it representable even when it is far outside float64
-range — this matters for XTRG, where <code>Tr[ρ]</code> is repeatedly squared and
-can reach <code>~10^500</code> or beyond at low temperature.</p>
+<code>from_mpo()</code>. Tracking the magnitude in log form (not as a raw float)
+keeps it representable even when it is far outside float64 range —
+this matters for XTRG, where <code>Tr[ρ]</code> is repeatedly squared and can
+reach <code>~10^500</code> or beyond at low temperature.</p>
 <p>The <em>sign</em> of the physical operator lives directly in the internal
 MPO's tensor data. This works because <code>mpo.norm() ≈ 1</code> does not pin
 down a sign (<code>-X</code> and <code>X</code> have the same Frobenius norm), and because
@@ -4544,11 +4544,11 @@ property.</p>
 
         <p>Multiply the tracked scale magnitude in-place by <code>exp(log_scale_delta)</code>.</p>
 <p>This is the safe, in-place counterpart to <code>__init__</code>: it combines
-two log-magnitudes by addition rather than ever exponentiating
-either one, so it cannot overflow even when the combined scale
-would be far outside float64 range. Used by XTRG's <code>_fit_mpo</code> to
-fold pre-computed physical scale magnitudes into an
-already-compacted <code>NormalMPO</code>.</p>
+two log-magnitudes by addition without ever exponentiating either
+one, so it cannot overflow even when the combined scale would be
+far outside float64 range. Used by XTRG's <code>_fit_mpo</code> to fold
+pre-computed physical scale magnitudes into an already-compacted
+<code>NormalMPO</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>

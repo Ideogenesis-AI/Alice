@@ -4332,7 +4332,7 @@ compared against <code>env_tol</code> is the change in the block over one cell,
 <p>with <span class="arithmatex">\(\lambda_2\)</span> the subleading eigenvalue of the MPS transfer operator.
 Writing <code>env_tol</code> as <span class="arithmatex">\(\epsilon\)</span>, the budget it needs therefore follows from
 the correlation length <span class="arithmatex">\(\xi = -1/\ln \lambda_2\)</span>, counted in unit cells
-rather than sites:</p>
+and not sites:</p>
 <div class="arithmatex">\[
 k \;\approx\; \xi \, \ln\frac{1}{\epsilon} \;\approx\; 28\,\xi
 \quad \text{at} \quad \epsilon = 10^{-12}.
@@ -4341,7 +4341,7 @@ k \;\approx\; \xi \, \ln\frac{1}{\epsilon} \;\approx\; 28\,\xi
 <h3 id="nothing-stalls">Nothing stalls<a class="headerlink" href="#nothing-stalls" title="Permanent link">&para;</a></h3>
 <p>Measured residuals after a given number of absorbed cells, for states
 converged under the two-site scheme on a two-site cell, with the solver run to
-a fixed budget rather than to a tolerance:</p>
+a fixed budget instead of to a tolerance:</p>
 <div class="data-table label-col">
 <table>
 <thead>
@@ -4401,7 +4401,7 @@ a fixed budget rather than to a tolerance:</p>
 </table>
 </div>
 <p>Every case reaches machine precision given enough cells. There is no residual
-floor short of it, so <code>env_tol = 1e-12</code> is a meaningful default rather than an
+floor short of it, so <code>env_tol = 1e-12</code> is a meaningful default, not an
 unreachable one, and the question is only ever how many cells it costs.</p>
 <h3 id="gapped-models-saturate-with-the-bond-dimension">Gapped models saturate with the bond dimension<a class="headerlink" href="#gapped-models-saturate-with-the-bond-dimension" title="Permanent link">&para;</a></h3>
 <p>For a gapped state, <span class="arithmatex">\(\lambda_2\)</span> converges to a physical value once the bond
@@ -4465,8 +4465,8 @@ gapped with a unique ground state:</p>
 budget. A production run on a gapped model at a bond dimension in the hundreds
 is in the same position as this one at 16.</p>
 <p>A critical model has no such saturation. The correlation length of a uniform
-MPS at a critical point is cut off by its own bond dimension rather than by
-the physics, so <span class="arithmatex">\(\xi\)</span> grows with <code>D</code> without bound, and so does the budget.
+MPS at a critical point is cut off by its own bond dimension and not by the
+physics, so <span class="arithmatex">\(\xi\)</span> grows with <code>D</code> without bound, and so does the budget.
 On the Heisenberg spin-&frac12; chain, <span class="arithmatex">\(\lambda_2\)</span> measured on the converged
 state climbs from 0.82 at <code>D = 8</code> (<span class="arithmatex">\(\xi \approx 5\)</span> cells) to 0.91 at
 <code>D = 16</code> (<span class="arithmatex">\(\xi \approx 11\)</span>) to 0.96 at <code>D = 32</code> (<span class="arithmatex">\(\xi \approx 28\)</span>). The
@@ -4513,7 +4513,7 @@ degenerate, and exactly representable at <code>D = 2</code>:</p>
 opposite of the Haldane behavior above. A warning on a model believed to be
 gapped is usually reporting one of these two situations, or saying that the
 model is closer to critical than assumed, and all three are worth knowing
-about rather than silencing.</p>
+about instead of silencing.</p>
 <h2 id="the-energy-is-not-the-environment">The Energy Is Not the Environment<a class="headerlink" href="#the-energy-is-not-the-environment" title="Permanent link">&para;</a></h2>
 <p>The energy converges long before the environment tensor it is extracted from.
 On the Heisenberg chain at <code>D = 32</code>, taking the environment at 100 cells —
@@ -4627,7 +4627,7 @@ on the spin-1 chain under U(1), per call:</p>
 </tbody>
 </table>
 <p>The two columns stay within a tenth of each other across a factor of 32 in
-width. Both grow by roughly four per doubling rather than the eight a dense
+width. Both grow by roughly four per doubling, not the eight a dense
 contraction would give, because the symmetry splits the tensors into many
 small blocks and the block count rises with the bond dimension.</p>
 <p>The consequence is the useful part: the environment's share of an iteration
@@ -4637,7 +4637,7 @@ of <span class="arithmatex">\(N\)</span> sites, against roughly one Davidson mat
 local solve. Exhaust a 200-cell budget and the environments dominate the
 iteration; converge in twenty and they are a minor term. That balance is the
 same at <span class="arithmatex">\(\chi = 64\)</span> and at <span class="arithmatex">\(\chi = 2048\)</span>, so the budget is worth deciding
-on the correlation length of the model rather than on the size of the
+on the correlation length of the model instead of on the size of the
 calculation. The loop exits on <code>env_tol</code>, so a budget raised for safety costs
 nothing on the runs that do not need it.</p>
 <h2 id="choosing-the-two-settings">Choosing the Two Settings<a class="headerlink" href="#choosing-the-two-settings" title="Permanent link">&para;</a></h2>
@@ -4704,7 +4704,7 @@ nothing on the runs that do not need it.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 28, 2026 12:21:48 UTC"><span class="timeago" datetime="2026-10-28T12:21:48+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 28, 2026 12:21:48 UTC">2026-10-28</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:44 UTC"><span class="timeago" datetime="2026-11-18T15:43:44+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:44 UTC">2026-11-18</span>
   </span>
 
     

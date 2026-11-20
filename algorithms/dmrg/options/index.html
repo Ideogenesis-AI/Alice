@@ -4363,7 +4363,7 @@ UUID4, e.g. <code>{env_cache_dir}/a1b2c3d4/</code>) so that concurrent runs
 sharing the same config do not overwrite each other's blocks. Inside
 that subdirectory, <code>left/{i:05d}.pt</code> and <code>right/{i:05d}.pt</code> files are
 written and evicted from memory once they exit the sliding window,
-keeping peak memory proportional to <code>env_window</code> rather than to chain
+keeping peak memory proportional to <code>env_window</code> instead of to chain
 length. The unique subdirectory is removed automatically when <code>run()</code>
 returns (or raises). <code>None</code> (default) keeps all blocks in memory.
 Stored as <code>str</code> for TOML compatibility.</p>

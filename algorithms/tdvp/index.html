@@ -4233,7 +4233,7 @@ back to that step (with a warning) and recomputes forward, overwriting both
 <code>evolution.ckpt</code> and the affected <code>step_XXXXX.ckpt</code> archives.</p>
 <p>Not every step has to be archived. <code>save_artifacts_every</code> sets the stride, and
 because it is keyed on the absolute step index, a resumed run writes the same
-grid as an uninterrupted one. A run also stops on a grid point rather than
+grid as an uninterrupted one. A run also stops on a grid point and never
 between two, so its final state is always among the snapshots; see
 <a href="artifact/">Artifact</a>.</p>
 <h2 id="update-schemes">Update Schemes<a class="headerlink" href="#update-schemes" title="Permanent link">&para;</a></h2>
@@ -4302,18 +4302,18 @@ can flow into. The split that follows truncates the bond back under
 </tr>
 <tr>
 <td><code>expand_alpha</code></td>
-<td>Internal bond of the cheap factorization, which is what keeps the search below 2-site cost. A typical choice is <code>round(sqrt(max_bond))</code>, as for <code>expand_k</code>; <code>None</code> keeps the full bond</td>
+<td>Internal bond of the cheap factorization, which keeps the search below 2-site cost. A typical choice is <code>round(sqrt(max_bond))</code>, as for <code>expand_k</code>; <code>None</code> keeps the full bond</td>
 </tr>
 </tbody>
 </table>
-<p><code>expand_k</code> is a cap rather than a request. A bond gains however many directions
-its complement actually holds, which is often fewer: directions whose singular
-value falls below the scale the projection cancelled on are discarded, because
-they are products of that cancellation and do not lie in the complement at all.
-For a short-range Hamiltonian the genuine count is small — one or two per update
-on the free-fermion benchmarks — so raising <code>expand_k</code> past it changes nothing.
-A bond profile still climbs steadily, since the cap applies to one bond in one
-half-sweep rather than to the trajectory.</p>
+<p><code>expand_k</code> is a cap, not a request. A bond gains however many directions its
+complement actually holds, which is often fewer: directions whose singular value
+falls below the scale the projection cancelled on are discarded, because they
+are products of that cancellation and do not lie in the complement at all. For a
+short-range Hamiltonian the genuine count is small — one or two per update on
+the free-fermion benchmarks — so raising <code>expand_k</code> past it changes nothing. A
+bond profile still climbs steadily, since the cap applies to one bond in one
+half-sweep and not to the trajectory.</p>
 <p>The scheme escapes the frozen-product-state trap above: a bond of dimension 1
 has a complement like any other, so a quench from a product state evolves. On
 the melting domain wall it matches <code>'2s'</code> to 9e-05 against the exact Gaussian
@@ -4354,7 +4354,7 @@ same sequence, verified to 1e-9.</p>
 <p>The difference is where the snapshots land. Every <code>order=2</code> step ends a complete
 forward-and-backward sweep pair, whereas an <code>order=1</code> snapshot taken after an
 odd step carries first-order error. If observables are measured at every step
-rather than only at the end, prefer <code>order=2</code>.</p>
+instead of only at the end, prefer <code>order=2</code>.</p>
 <p>Note that error scaling in <code>dt</code> is only observable on a <em>restricted</em> manifold.
 At full bond dimension the tangent-space projector is the identity, TDVP is
 exact at any step size, and halving <code>dt</code> changes nothing.</p>
@@ -4390,9 +4390,9 @@ estimate, and a run whose values sit near <code>krylov_tol</code> wants a larger
 <code>krylov_dim</code>.</p>
 <h2 id="conserved-quantities">Conserved Quantities<a class="headerlink" href="#conserved-quantities" title="Permanent link">&para;</a></h2>
 <p>Energy and norm are conserved exactly by the projected flow, which makes them
-diagnostics of numerical health rather than of physical accuracy — a run that
-has truncated away the real physics still conserves both. Trust them to detect
-a broken integrator, not a converged answer. The quantities to converge in
+diagnostics of numerical health and not of physical accuracy — a run that has
+truncated away the real physics still conserves both. Trust them to detect a
+broken integrator, not a converged answer. The quantities to converge in
 <code>max_bond</code> are the observables themselves.</p>
 <p><code>renormalize</code> defaults to <code>False</code> so that norm loss from truncation stays
 visible in <code>Summary.norms</code>.</p>
@@ -4425,7 +4425,7 @@ visible in <code>Summary.norms</code>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 21, 2026 07:28:06 UTC"><span class="timeago" datetime="2026-10-21T07:28:06+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 21, 2026 07:28:06 UTC">2026-10-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:37 UTC"><span class="timeago" datetime="2026-11-18T15:43:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:37 UTC">2026-11-18</span>
   </span>
 
     

@@ -4351,7 +4351,7 @@ means <code>observable</code> is not Hermitian on <code>state</code>.</p>
 <p><code>observe</code> performs a left-to-right MPS–MPO–MPS transfer-matrix sweep. At each site it contracts the bra (conjugated MPS tensor), the MPO tensor, and the ket (MPS tensor) into an updated environment. The final environment is a 1×1×1 tensor; the scalar value — corrected for SU(2) Bridge normalization — is returned.</p>
 <h3 id="complex-states">Complex states<a class="headerlink" href="#complex-states" title="Permanent link">&para;</a></h3>
 <p>Nicole contracts only operands sharing a single dtype. When either the state or the observable carries complex blocks — as a state evolved in real time by <a href="../../../algorithms/tdvp/run/">tdvp.run</a> does — <code>observe</code> promotes the whole sweep to <code>complex128</code>, including the real-valued MPO and the identity-derived boundary tensor. The bra side is conjugated, so the result is the physical ⟨ψ|O|ψ⟩.</p>
-<p>The imaginary part of the final scalar is discarded once it has been checked to be at roundoff level. A larger imaginary part means the observable is not Hermitian on this state, and raises <code>ValueError</code> rather than returning a misleading real number.</p>
+<p>The imaginary part of the final scalar is discarded once it has been checked to be at roundoff level. A larger imaginary part means the observable is not Hermitian on this state, and raises <code>ValueError</code> instead of returning a misleading real number.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../mps/">MPS</a>, <a href="../mpo/">MPO</a> — input types.</li>
@@ -4381,7 +4381,7 @@ means <code>observable</code> is not Hermitian on <code>state</code>.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 1, 2026 09:20:43 UTC"><span class="timeago" datetime="2026-10-01T09:20:43+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 1, 2026 09:20:43 UTC">2026-10-01</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:30 UTC"><span class="timeago" datetime="2026-11-18T15:43:30+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:30 UTC">2026-11-18</span>
   </span>
 
     

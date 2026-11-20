@@ -4572,7 +4572,7 @@ All merges of contributor branches <em>into</em> <code>develop</code> or <code>s
 <ol>
 <li>
 <p><strong>Bringing a contributor branch up to date with <code>develop</code></strong></p>
-<p>When <code>develop</code> has moved forward while you have been working on your branch, you should rebase your branch onto the current tip of <code>develop</code> before opening a pull request. This re-anchors your commits to the latest shared state, resolves conflicts in your own workspace rather than the reviewer's, and keeps the resulting merge commit clean.</p>
+<p>When <code>develop</code> has moved forward while you have been working on your branch, you should rebase your branch onto the current tip of <code>develop</code> before opening a pull request. This re-anchors your commits to the latest shared state, resolves conflicts in your own workspace instead of the reviewer's, and keeps the resulting merge commit clean.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Make sure your local develop is current first (see "Keeping Your Fork Up to Date")</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>git<span class="w"> </span>checkout<span class="w"> </span>feature/my-feature
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>git<span class="w"> </span>rebase<span class="w"> </span>develop
@@ -4649,7 +4649,7 @@ Rebase <strong>rewrites commit hashes</strong>. If your contributor branch is ac
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>git<span class="w"> </span>merge<span class="w"> </span>develop
 </span></code></pre></div>
 <p>This introduces one merge commit from <code>develop</code> into your branch, which is a minor history cost but avoids the coordination overhead of a rebase. Use your judgement: rebase when you are the sole author or when the branch has not yet been pushed; merge when multiple people are working on the same branch.</p>
-<p>Even when merging is necessary, try to <strong>delay it as long as possible</strong>. Only merge <code>develop</code> into your branch when divergence is actively causing problems — conflicts that block your work, or when a dependency you need has been introduced in <code>develop</code>. Merging eagerly on every upstream update accumulates unnecessary merge commits and clutters the history graph. The goal is still to keep the graph as clean as possible; merging from <code>develop</code> should be a deliberate, infrequent act rather than a routine sync step.</p>
+<p>Even when merging is necessary, try to <strong>delay it as long as possible</strong>. Only merge <code>develop</code> into your branch when divergence is actively causing problems — conflicts that block your work, or when a dependency you need has been introduced in <code>develop</code>. Merging eagerly on every upstream update accumulates unnecessary merge commits and clutters the history graph. The goal is still to keep the graph as clean as possible; merging from <code>develop</code> should be a deliberate, infrequent act, not a routine sync step.</p>
 </div>
 <h3 id="syncing-from-the-github-web-interface">Syncing from the GitHub Web Interface<a class="headerlink" href="#syncing-from-the-github-web-interface" title="Permanent link">&para;</a></h3>
 <p>If you prefer not to use the command line for routine syncing, GitHub's web interface offers a <strong>"Sync fork"</strong> button on your fork's main page. This updates <code>develop</code> and <code>stable</code> in your fork directly. You still need to <code>git fetch origin</code> and <code>git merge</code> locally afterwards to bring your local clone in line.</p>
@@ -4685,7 +4685,7 @@ Rebase <strong>rewrites commit hashes</strong>. If your contributor branch is ac
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="May 9, 2026 00:13:25 UTC"><span class="timeago" datetime="2026-05-09T00:13:25+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="May 9, 2026 00:13:25 UTC">2026-05-09</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:10 UTC"><span class="timeago" datetime="2026-11-18T15:43:10+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:10 UTC">2026-11-18</span>
   </span>
 
     
@@ -4713,9 +4713,9 @@ Rebase <strong>rewrites commit hashes</strong>. If your contributor branch is ac
     
     <nav>
       
-        <a href="https://github.com/Phy-David-Zhang" class="md-author" title="@Phy-David-Zhang">
+        <a href="https://github.com/changkai-zhang" class="md-author" title="@changkai-zhang">
           
-          <img src="https://avatars.githubusercontent.com/u/20659726?v=4&size=72" alt="Phy-David-Zhang">
+          <img src="https://avatars.githubusercontent.com/u/20659726?v=4&size=72" alt="changkai-zhang">
         </a>
       
       

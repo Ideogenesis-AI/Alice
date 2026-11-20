@@ -4052,6 +4052,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Update Schemes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#controlled-bond-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Controlled bond expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4173,7 +4190,7 @@
 </span></code></pre></div>
 <h2 id="why-not-a-dmrg-sweep">Why not a DMRG sweep<a class="headerlink" href="#why-not-a-dmrg-sweep" title="Permanent link">&para;</a></h2>
 <p>A DMRG sweep visits every site of a finite chain, carrying environments it builds as it goes. An infinite chain has no site to start at and no environment to build up from a boundary, so the environments are fixed points instead: the left block is the leading eigenvector of the transfer operator built from the cell, and the right block likewise from the other side. They are re-solved from scratch after every iteration, because the state they describe has changed.</p>
-<p>The unit of work is therefore an iteration, not a sweep. One iteration solves every position of the cell against one frozen set of environments, then re-solves the environments against the updated state. The positions within an iteration are independent of each other, which is what makes the state uniform: nothing is carried from one position to the next the way a sweep carries its center.</p>
+<p>The unit of work is therefore an iteration, not a sweep. One iteration solves every position of the cell against one frozen set of environments, then re-solves the environments against the updated state. The positions within an iteration are independent of each other, which makes the state uniform: nothing is carried from one position to the next the way a sweep carries its center.</p>
 <h2 id="update-schemes">Update Schemes<a class="headerlink" href="#update-schemes" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -4187,25 +4204,34 @@
 <tr>
 <td><code>'2s'</code></td>
 <td><code>'2-site'</code>, <code>'two-site'</code></td>
-<td>Two-site update with SVD; the only scheme that can grow the bond dimension</td>
+<td>Two-site update with SVD; grows the bond dimension through the split</td>
 </tr>
 <tr>
 <td><code>'1s'</code></td>
 <td><code>'1-site'</code>, <code>'one-site'</code></td>
 <td>Single-site update with a polar gauge step; preserves bond dimension and charge sectors</td>
 </tr>
+<tr>
+<td><code>'1sp'</code></td>
+<td><code>'1-site-plus'</code>, <code>'one-site-plus'</code></td>
+<td>Single-site update on a bond widened by controlled bond expansion; grows the bond dimension at one-site cost</td>
+</tr>
 </tbody>
 </table>
 <p>The one-site scheme solves two eigenproblems per cell position, one for the center tensor and one for the bond matrix, and glues them back together with a polar decomposition. It discards nothing, so it cannot grow the bond dimension, and it also cannot move weight from one charge sector to another: the sectors the initial state carried are the sectors the converged state carries. On the Heisenberg chain that limit shows up as an energy error around <code>1e-3</code> at a bond dimension where the two-site scheme reaches <code>1e-4</code>, with a gradient down near <code>1e-9</code> reporting, correctly, that the state is stationary within the manifold it is confined to.</p>
 <p>The two-site scheme splits a solved pair, so it both widens bonds up to <code>max_bond</code> and redistributes weight between sectors. It is the default, and the scheme to reach for unless the state already carries both the bond dimension and the sectors the answer needs.</p>
+<h3 id="controlled-bond-expansion">Controlled bond expansion<a class="headerlink" href="#controlled-bond-expansion" title="Permanent link">&para;</a></h3>
+<p>The one-site-plus scheme reaches the same freedom through a different route. Before each center-tensor solve it widens the bond the solve sits on by <code>expand_k</code> directions, drawn from a cheap factored approximation of the two-site gradient: the Hamiltonian is applied to a truncated two-site tensor from each side separately, each half is projected onto the complement of what the state already spans, and the leading singular vectors of what survives are the directions the bond is missing. The one-site eigenproblem then fills them, and the split that follows cuts the bond back down to <code>max_bond</code>.</p>
+<p>So the local problem stays one-site sized — a factor of <code>d</code> smaller on each side than a two-site solve — while the bond dimension still grows, by up to <code>expand_k</code> per bond per iteration instead of by the factor of <code>d</code> a split gives. Two knobs govern it. <code>expand_k</code> sets how many directions are offered, and so both the quality of the expanded space and how fast the state can widen. <code>expand_alpha</code> truncates the two-site tensor the expansion applies the Hamiltonian to; it keeps the expansion cheap against the Davidson solve it precedes, and <code>round(sqrt(max_bond))</code> is a reasonable starting point for both.</p>
+<p>The expansion never moves the state: only the neighbor behind the bond is widened, and the center tensor is then re-expressed exactly in the widened basis, so the new directions enter with zero amplitude. A bond with no complement left — saturated, or simply out of the Hamiltonian's reach from the current state — is detected and left alone, and the step degenerates into a plain one-site update instead of expanding on roundoff.</p>
 <h2 id="what-the-gradient-means">What the gradient means<a class="headerlink" href="#what-the-gradient-means" title="Permanent link">&para;</a></h2>
 <p>Convergence is measured on <code>|AC - AL·C|</code>, the norm of the energy gradient on the uniform MPS manifold, maximized over the cell. The Davidson eigenvalues cannot be used: they belong to regularized local problems, and the energy of an infinite chain is infinite, so the energy density comes from the environment fixed point instead. The gradient keeps falling long after the energy between iterations has flattened out, which makes it the more honest stopping criterion.</p>
-<p>Two floors limit how far it can fall. It can never go below <code>davidson_tol</code>, since it compares two quantities neither of which is known better than that. And under <code>'2s'</code> against a bond cap that bites, it settles at a floor set by the discarded weight rather than falling at all: the two-site solve keeps asking for a wider bond than it is allowed. A run that has grown to <code>max_bond</code> and stopped improving is converged in every sense that matters.</p>
+<p>Two floors limit how far it can fall. It can never go below <code>davidson_tol</code>, since it compares two quantities neither of which is known better than that. And under either scheme that splits, against a bond cap that bites, it settles at a floor set by the discarded weight and does not fall at all: the solve keeps asking for a wider bond than it is allowed. A run that has grown to <code>max_bond</code> and stopped improving is converged in every sense that matters.</p>
 <h2 id="why-the-environment-solver-warns">Why the environment solver warns<a class="headerlink" href="#why-the-environment-solver-warns" title="Permanent link">&para;</a></h2>
 <p>The environment fixed point is reached by absorbing copies of the unit cell until the block stops changing, up to <code>env_maxiter</code> of them. The residual falls geometrically, at a rate set by the subleading eigenvalue of the MPS transfer operator, so the budget a tolerance <span class="arithmatex">\(\epsilon\)</span> needs is roughly <span class="arithmatex">\(\xi \ln(1/\epsilon)\)</span> with the correlation length <span class="arithmatex">\(\xi\)</span> counted in unit cells. The default of 200 cells covers <span class="arithmatex">\(\xi\)</span> up to about seven, which is comfortable on a gapped model at any bond dimension and too little on a critical one past <code>D = 16</code> or so.</p>
-<p>Running out logs a warning and continues with the best estimate rather than abandoning the run. Both <code>env_maxiter</code> and <code>env_tol</code> resolve it, and which to reach for depends on what the number is for: the energy is converged long before the environment tensor is, while the gradient under <code>'1s'</code> tracks the environments directly. <a href="lessons/">Lessons</a> works through the measurements behind all of this.</p>
+<p>Running out logs a warning and continues with the best estimate without abandoning the run. Both <code>env_maxiter</code> and <code>env_tol</code> resolve it, and which to reach for depends on what the number is for: the energy is converged long before the environment tensor is, while the gradient under <code>'1s'</code> tracks the environments directly. <a href="lessons/">Lessons</a> works through the measurements behind all of this.</p>
 <h2 id="the-unit-cell">The unit cell<a class="headerlink" href="#the-unit-cell" title="Permanent link">&para;</a></h2>
-<p>The cell tiles, so bond <code>N</code> is bond <code>0</code>, and the bond charge has to return to where it started after <code>N</code> sites. A cell therefore carries no net charge: half filling for fermions, zero magnetization for spins. A uniform state at any other filling is not representable on a cell of that length, and <a href="../../api/network/init-imps/">init_imps</a> refuses to build one rather than producing a cell that cannot be gauge fixed. Spin-&frac12; admits no neutral cell of odd length at all, so <code>N</code> has to be even there.</p>
+<p>The cell tiles, so bond <code>N</code> is bond <code>0</code>, and the bond charge has to return to where it started after <code>N</code> sites. A cell therefore carries no net charge: half filling for fermions, zero magnetization for spins. A uniform state at any other filling is not representable on a cell of that length, and <a href="../../api/network/init-imps/">init_imps</a> refuses to build one instead of producing a cell that cannot be gauge fixed. Spin-&frac12; admits no neutral cell of odd length at all, so <code>N</code> has to be even there.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="run/">vumps.run</a> — full parameter reference.</li>
@@ -4236,7 +4262,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 28, 2026 12:21:47 UTC"><span class="timeago" datetime="2026-10-28T12:21:47+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 28, 2026 12:21:47 UTC">2026-10-28</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:44 UTC"><span class="timeago" datetime="2026-11-18T15:43:44+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:44 UTC">2026-11-18</span>
   </span>
 
     

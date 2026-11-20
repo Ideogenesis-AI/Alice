@@ -4332,8 +4332,8 @@ S(\ell, t) = 2\,S^{\text{spinless}}(\ell, t)
 \]</div>
 <p>So the <a href="../domain-wall/">domain-wall reference</a> carries over verbatim to a
 four-dimensional local space with non-Abelian symmetry. That combination —
-exact reference <em>and</em> intertwiners — is what makes this the decisive test of
-the SU(2) code path.</p>
+exact reference <em>and</em> intertwiners — makes this the decisive test of the
+SU(2) code path.</p>
 <p>The factor of two is not a fitted constant: it follows from the channels being
 independent, and it would fail immediately if the SU(2) bookkeeping mixed them.</p>
 <h2 id="why-the-initial-state-must-be-all-singlet">Why the initial state must be all-singlet<a class="headerlink" href="#why-the-initial-state-must-be-all-singlet" title="Permanent link">&para;</a></h2>
@@ -4352,8 +4352,8 @@ Q_vac</code> warning. Keep SU(2) product states all-singlet.</p>
 </div>
 <h2 id="symmetry-groups">Symmetry groups<a class="headerlink" href="#symmetry-groups" title="Permanent link">&para;</a></h2>
 <p>This example supports <code>'U1,U1'</code> and <code>'U1,SU2'</code>. The <code>Z2</code> variants are excluded
-by the initial state rather than by TDVP: under <code>Z2</code> charge, the even-parity
-sector merges <span class="arithmatex">\(|0\rangle\)</span> with <span class="arithmatex">\(|\!\uparrow\downarrow\rangle\)</span> into one
+by the initial state, not by TDVP: under <code>Z2</code> charge, the even-parity sector
+merges <span class="arithmatex">\(|0\rangle\)</span> with <span class="arithmatex">\(|\!\uparrow\downarrow\rangle\)</span> into one
 two-dimensional sector, so a site configuration cannot name them apart. The
 <a href="../hubbard-quench/">quench example</a> starts from a DMRG ground state instead and
 covers all four.</p>
@@ -4498,12 +4498,12 @@ just as <code>--bond-dim</code> is:</p>
 </tbody>
 </table>
 <p>Comparable accuracy on both quantities from a state carrying 28 multiplets
-rather than 32. Note that the two savings compose: SU(2) stores 52 states as 28
-multiplets, and the expansion is what kept the count at 28 instead of 32 in the
-first place.</p>
+and not 32. Note that the two savings compose: SU(2) stores 52 states as 28
+multiplets, and the expansion kept the count at 28 instead of 32 in the first
+place.</p>
 <p>The default <code>expand_k=4</code> therefore admits more states per bond here than it
 would under <code>U1,U1</code>, since each multiplet it adds stands for <span class="arithmatex">\(2S+1\)</span> states.
-Raise it when the bond profile looks capped rather than converged.</p>
+Raise it when the bond profile looks capped instead of converged.</p>
 <h2 id="cross-symmetry-agreement-at-finite-u">Cross-symmetry agreement at finite U<a class="headerlink" href="#cross-symmetry-agreement-at-finite-u" title="Permanent link">&para;</a></h2>
 <p>Switching on <span class="arithmatex">\(U\)</span> removes the analytic reference but enables a different
 check — the Abelian and non-Abelian paths must still agree:</p>
@@ -4529,7 +4529,7 @@ share nothing — one carries intertwiners, the other does not. The state counts
 match because it is the same state; the multiplet counts are what each group
 actually stores, and SU(2) needs 61 against 104 summed over all bonds.</p>
 <p><code>--compare-symmetries</code> honors <code>--scheme</code>, and the comparison is noticeably
-looser under <code>'1sp'</code> — the same run agrees to 1.6e-08 rather than 3.2e-14:</p>
+looser under <code>'1sp'</code> — the same run agrees to 1.6e-08 instead of 3.2e-14:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Abelian vs non-Abelian  (L = 6, t = 1.0, U = 4.0, t_final = 1.0, dt = 0.025, scheme = 1sp)
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>              quantity             U1,U1            U1,SU2    difference
@@ -4540,13 +4540,13 @@ looser under <code>'1sp'</code> — the same run agrees to 1.6e-08 rather than 3
 </span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>       max |delta n_j|                                          1.63e-08
 </span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>         max |delta S|                                          1.04e-08
 </span></code></pre></div>
-<p>This is expected rather than a bug, and it is specific to the expansion. Which
+<p>This is expected, not a bug, and it is specific to the expansion. Which
 complement directions a bond receives depends on the basis the state is carried
 in, and the two groups do not make identical choices, so the truncation that
 follows differs slightly and the trajectories separate at that level. The
-quantities protected by symmetry rather than by the expansion — energy and
-particle number — still agree to 1e-13. Use <code>'2s'</code> when cross-group agreement
-is itself the measurement.</p>
+quantities protected by symmetry and not by the expansion — energy and particle
+number — still agree to 1e-13. Use <code>'2s'</code> when cross-group agreement is itself
+the measurement.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../hubbard-quench/">Hubbard quench</a> — interaction quench covering all four symmetry groups.</li>
@@ -4576,7 +4576,7 @@ is itself the measurement.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 22, 2026 04:18:07 UTC"><span class="timeago" datetime="2026-10-22T04:18:07+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 22, 2026 04:18:07 UTC">2026-10-22</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:51 UTC"><span class="timeago" datetime="2026-11-18T15:43:51+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:51 UTC">2026-11-18</span>
   </span>
 
     

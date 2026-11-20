@@ -4180,8 +4180,8 @@ Convergence is measured on the gradient norm.</p>
               <div class="doc-md-description">
                 <p>Initial infinite MPS. Gauge-fixed in place before the first
 iteration and after every one, so it is left in canonical form.
-Under <code>'2s'</code> it may come out wider than it went in; under <code>'1s'</code>
-its bond dimension is kept throughout.</p>
+Under <code>'2s'</code> and <code>'1sp'</code> it may come out wider than it went in;
+under <code>'1s'</code> its bond dimension is kept throughout.</p>
               </div>
             </td>
             <td>
@@ -4294,8 +4294,8 @@ under <code>opts.artifacts_dir</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>imps</code> and <code>impo</code> have different unit cells, or if <code>'2s'</code> is
-asked for a one-site cell.</p>
+                <p>If <code>imps</code> and <code>impo</code> have different unit cells, or if a scheme that
+splits is asked for a one-site cell.</p>
               </div>
             </td>
           </tr>

@@ -4357,7 +4357,7 @@ relative for the same reason <code>trunc_thresh</code> is: <code>‖C‖</code> 
 exponentially with chain length, so an absolute comparison would
 declare any long chain converged after a single sweep. Plays the
 same structural role as DMRG's <code>e_tol</code>, but tracks fit convergence
-via ‖C‖ rather than energy, since the local update here is an exact
+via ‖C‖ instead of energy, since the local update here is an exact
 least-squares projection (no eigenproblem): at that optimum
 <code>⟨C, A·B⟩ = ‖C‖²</code>, so <code>‖C − A·B‖²_F = ‖A·B‖² − ‖C‖²</code> and <code>‖A·B‖</code> is
 fixed across sweeps, making <code>‖C‖</code> convergence equivalent to residual

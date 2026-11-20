@@ -4244,7 +4244,7 @@
         <p>Construct the unit cell of an initial iMPS for VUMPS.</p>
 <p>Works for all three particle types without a particle-type argument, as
 the <code>(Spc, Op)</code> pair from <code>load_space</code> carries the symmetry. The cell is
-returned gauge-fixed and normalized, which is what <code>vumps.run</code> expects.</p>
+returned gauge-fixed and normalized, as <code>vumps.run</code> expects.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4460,7 +4460,7 @@ two-site scheme to widen:</p>
 <p>Both modes are particle-type agnostic: the <code>(Spc, Op)</code> pair returned by Nicole's <code>load_space</code> encodes all the symmetry information, so no <code>spin=</code>, <code>symmetry=</code>, or <code>particle_type=</code> argument is needed.</p>
 <h3 id="what-the-tiling-demands">What the tiling demands<a class="headerlink" href="#what-the-tiling-demands" title="Permanent link">&para;</a></h3>
 <p>Bond <code>N</code> is bond <code>0</code>, and two things follow that have no counterpart in <code>init_mps</code>.</p>
-<p><strong>The cell is charge neutral.</strong> Fusing the physical charges of the cell has to give back the charge it started from, which in Alice's particle-hole symmetric conventions means half filling for fermions and zero magnetization for spins. This is a property of a cell rather than a choice, so there is no <code>target_qn</code> argument: a doped or magnetized uniform state would need the bond charges to come back shifted, which is not a cell that tiles. <code>config</code> is what chooses the pattern within the cell, and a <code>config</code> carrying net charge is refused. So is a cell length that admits no neutral configuration at all, an odd one for spin-&frac12;.</p>
+<p><strong>The cell is charge neutral.</strong> Fusing the physical charges of the cell has to give back the charge it started from, which in Alice's particle-hole symmetric conventions means half filling for fermions and zero magnetization for spins. This is a property of a cell, not a choice, so there is no <code>target_qn</code> argument: a doped or magnetized uniform state would need the bond charges to come back shifted, which is not a cell that tiles. <code>config</code> chooses the pattern within the cell, and a <code>config</code> carrying net charge is refused. So is a cell length that admits no neutral configuration at all, an odd one for spin-&frac12;.</p>
 <p><strong>Each bond carries only the charges reachable at its own position.</strong> Bond <code>k</code> sits after <code>k</code> physical sites, so it can only hold charges an even number of fusion steps away from the ones its neighbors hold. Giving every bond the same sectors instead produces a transfer operator with two dominant eigenvalues of opposite sign, which <a href="../imps/">iMPS</a> gauge fixing reports as a two-cycle.</p>
 <h3 id="random-cells-that-cannot-be-gauge-fixed">Random cells that cannot be gauge fixed<a class="headerlink" href="#random-cells-that-cannot-be-gauge-fixed" title="Permanent link">&para;</a></h3>
 <p>Random amplitudes land often enough on a transfer operator whose two largest eigenvalues are equal and opposite, or too close to separate within the sweep budget, and neither is a cell a gauge can be found for. <code>init_imps</code> repeats the draw with a shifted seed when that happens, up to eight times, which stays deterministic for a given <code>seed</code>. If all of them fail, the error suggests the three ways out: another seed, a different width, or <code>bond_dim=1</code> with <code>scheme='2s'</code>, which grows the width from a product state instead.</p>
@@ -4493,7 +4493,7 @@ two-site scheme to widen:</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 28, 2026 12:21:49 UTC"><span class="timeago" datetime="2026-10-28T12:21:49+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 28, 2026 12:21:49 UTC">2026-10-28</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:30 UTC"><span class="timeago" datetime="2026-11-18T15:43:30+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:30 UTC">2026-11-18</span>
   </span>
 
     

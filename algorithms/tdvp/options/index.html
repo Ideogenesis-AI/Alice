@@ -4425,9 +4425,9 @@ profile adapt faster at higher cost. A typical choice is
             <td>
               <div class="doc-md-description">
                 <p>Internal bond dimension of the cheap factorization of Θ inside the
-expansion, which is what keeps the complement search cheaper than a
-2-site step. Only used when <code>scheme = '1sp'</code>. <code>None</code> keeps the full
-bond, making the search exact but no cheaper than <code>'2s'</code> per bond. A
+expansion, which keeps the complement search cheaper than a 2-site
+step. Only used when <code>scheme = '1sp'</code>. <code>None</code> keeps the full bond,
+making the search exact but no cheaper than <code>'2s'</code> per bond. A
 typical choice is <code>expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))</code>.</p>
               </div>
             </td>
@@ -4621,7 +4621,7 @@ since <code>Summary</code> deliberately carries no MPS.</p>
                 <p>Stride between archived steps: step <code>k</code> is written when
 <code>k % save_artifacts_every == 0</code>. Must be <code>&gt;= 1</code>; <code>1</code> (the default)
 archives every step. The stride is keyed on the absolute step index
-rather than on an offset from where the run started, so a resumed run
+and not on an offset from where the run started, so a resumed run
 archives the same grid as an uninterrupted one.</p>
 <p>A run never evolves past the last grid point. When <code>n_steps</code> is not a
 multiple of the stride, <code>run()</code> stops at the largest multiple that is
@@ -4697,7 +4697,7 @@ Integration error scales as <code>dt²</code> for <code>order=2</code> and is in
 integration-limited; one that sees no change is truncation-limited and needs a
 larger <code>max_bond</code>.</p>
 <p>Entanglement grows roughly linearly in time after a quench, so the bond
-dimension needed grows exponentially. This, not the step size, is what sets the
+dimension needed grows exponentially. This, not the step size, sets the
 reachable time horizon.</p>
 <h2 id="choosing-expand_k">Choosing <code>expand_k</code><a class="headerlink" href="#choosing-expand_k" title="Permanent link">&para;</a></h2>
 <p><code>expand_k</code> matters only for <code>scheme='1sp'</code>, where it caps how many directions a
@@ -4712,12 +4712,12 @@ that improve when <code>expand_k</code> is raised at fixed <code>max_bond</code>
 a value costs a slightly bigger SVD per update and changes nothing else — if
 raising it does not move the answer, the complement, not the cap, was the
 limit. Setting <code>expand_k = 0</code> disables the expansion and reproduces <code>'1s'</code>
-exactly, which is a useful control when attributing an error to the expansion
-rather than to the integrator.</p>
+exactly, a useful control when attributing an error to the expansion instead
+of to the integrator.</p>
 <p><code>expand_alpha</code> truncates the two-site tensor the complement search is built
-from, which is what keeps the search cheaper than a 2-site step; <code>None</code> leaves
-the bond intact, making the search exact and the step no cheaper than <code>'2s'</code>.
-A typical choice is <code>round(sqrt(max_bond))</code>, the same scale as <code>expand_k</code>.</p>
+from, which keeps the search cheaper than a 2-site step; <code>None</code> leaves the
+bond intact, making the search exact and the step no cheaper than <code>'2s'</code>. A
+typical choice is <code>round(sqrt(max_bond))</code>, the same scale as <code>expand_k</code>.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../summary/">Summary</a> — evolution history.</li>
@@ -4746,7 +4746,7 @@ A typical choice is <code>round(sqrt(max_bond))</code>, the same scale as <code>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 21, 2026 07:28:14 UTC"><span class="timeago" datetime="2026-10-21T07:28:14+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 21, 2026 07:28:14 UTC">2026-10-21</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:37 UTC"><span class="timeago" datetime="2026-11-18T15:43:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:37 UTC">2026-11-18</span>
   </span>
 
     

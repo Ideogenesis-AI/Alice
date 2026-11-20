@@ -4496,7 +4496,7 @@
     </div>
 
 </div><p><code>Artifact</code> is both the input and the output of <a href="../run/"><code>run</code></a>: it carries the
-initial state in, and the final state out. This is what makes a resumed run
+initial state in, and the final state out, which makes a resumed run
 indistinguishable from a fresh one.</p>
 <h2 id="on-disk-layout">On-disk layout<a class="headerlink" href="#on-disk-layout" title="Permanent link">&para;</a></h2>
 <p>Under the checkpoint directory (<code>Options.checkpoint_dir</code>, or cwd) and the
@@ -4532,9 +4532,9 @@ thousands of steps long — hence <code>save_artifacts_every</code>, which thins
 to a sparse, evenly spaced sample of the trajectory.</p>
 <h2 id="the-grid">The grid<a class="headerlink" href="#the-grid" title="Permanent link">&para;</a></h2>
 <p>Step <code>k</code> is archived when <code>k % save_artifacts_every == 0</code>. The stride is keyed
-on the absolute step index rather than on where the run started, so a
-trajectory stitched together from several resumed calls lands on exactly the
-same grid as one that ran straight through.</p>
+on the absolute step index and not on where the run started, so a trajectory
+stitched together from several resumed calls lands on exactly the same grid as
+one that ran straight through.</p>
 <p>A run never evolves past the last grid point. When <code>n_steps</code> is not a multiple
 of the stride, <a href="../run/"><code>run</code></a> stops at the largest multiple that is not
 greater than it and warns:</p>
@@ -4543,8 +4543,8 @@ greater than it and warns:</p>
 </span></code></pre></div>
 <p>The reason is that <code>tdvp.ckpt</code> is removed on success, so an off-grid endpoint
 would finish the run with no snapshot of its own final state anywhere on disk.
-Only the endpoint is constrained — a run may <em>start</em> at any step, which is why
-resuming from a crash at an off-grid step still works.</p>
+Only the endpoint is constrained — a run may <em>start</em> at any step, so resuming
+from a crash at an off-grid step still works.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../summary/">Summary</a> — evolution history without the states.</li>
@@ -4575,7 +4575,7 @@ resuming from a crash at an off-grid step still works.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 8, 2026 07:04:39 UTC"><span class="timeago" datetime="2026-10-08T07:04:39+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 8, 2026 07:04:39 UTC">2026-10-08</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:37 UTC"><span class="timeago" datetime="2026-11-18T15:43:37+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:37 UTC">2026-11-18</span>
   </span>
 
     

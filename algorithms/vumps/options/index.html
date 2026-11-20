@@ -4189,9 +4189,11 @@
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">env_cache_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">env_async_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">env_window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">artifacts_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">expand_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">expand_alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">artifacts_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4228,14 +4230,15 @@ TOML section, or <code>Options.load_toml</code> to read directly from a file.</p
               <div class="doc-md-description">
                 <p>Update scheme. Canonical values and their aliases:</p>
 <ul>
-<li><code>'2s'</code> / <code>'2-site'</code> / <code>'two-site'</code>: two-site VUMPS, the default.
-  The only scheme that can change the bond dimension.</li>
+<li><code>'2s'</code> / <code>'2-site'</code> / <code>'two-site'</code>: two-site VUMPS, the default.</li>
 <li><code>'1s'</code> / <code>'1-site'</code> / <code>'one-site'</code>: one-site VUMPS. Cheaper per
   iteration, but confined to the bond dimension of the initial
   state.</li>
-<li><code>'1sp'</code> / <code>'1-site-plus'</code> / <code>'one-site-plus'</code>: recognised but not
-  implemented, so a config written for it fails with a clear
-  message rather than a typo error.</li>
+<li><code>'1sp'</code> / <code>'1-site-plus'</code> / <code>'one-site-plus'</code>: one-site VUMPS on a
+  bond widened by controlled bond expansion. It grows the bond
+  dimension as <code>'2s'</code> does, but its eigenproblem stays the one-site
+  one, so the local solve is <code>d</code> times smaller on each side. See
+  <code>expand_k</code> and <code>expand_alpha</code>.</li>
 </ul>
               </div>
             </td>
@@ -4270,9 +4273,10 @@ of the cell against one set of environments.</p>
             <td>
               <div class="doc-md-description">
                 <p>Largest bond dimension a split may keep. <code>None</code> means no limit, in
-which case every split multiplies the bond dimension by the
-physical dimension and the state grows until <code>trunc_thresh</code> stops
-it. Ignored by <code>'1s'</code>, which never splits anything.</p>
+which case the state grows until <code>trunc_thresh</code> stops it: under
+<code>'2s'</code> every split multiplies the bond dimension by the physical
+dimension, and under <code>'1sp'</code> it adds <code>expand_k</code>. Ignored by <code>'1s'</code>,
+which never splits anything.</p>
               </div>
             </td>
             <td>
@@ -4361,10 +4365,10 @@ the cheaper solves save, and stalls at a gradient around
               <div class="doc-md-description">
                 <p>Convergence criterion on the VUMPS gradient norm <code>|AC - AL C|</code>,
 maximized over the cell. Cannot be met unless <code>davidson_tol</code> is
-smaller. Under <code>'2s'</code> against a bond cap that bites, it cannot be
-met at all: the two-site solve keeps asking for a wider bond than
-it is allowed, and the gradient settles at a floor set by the
-discarded weight rather than falling. A run that has grown to
+smaller. Under either scheme that splits, against a bond cap that
+bites, it cannot be met at all: the solve keeps asking for a wider
+bond than it is allowed, and the gradient settles at a floor set by
+the discarded weight instead of falling. A run that has grown to
 <code>max_bond</code> and stopped improving is converged in every sense that
 matters.</p>
               </div>
@@ -4448,7 +4452,7 @@ bond dimension captures the correlation length, and widening the
 state further does not slow it down. A critical model has no such
 saturation, since there the correlation length is cut off by the
 bond dimension itself. Running out logs a warning and continues
-with the best estimate rather than abandoning the run and the
+with the best estimate, and does not abandon the run and the
 nearly converged environment with it.</p>
               </div>
             </td>
@@ -4471,7 +4475,7 @@ characters of a UUID4, e.g. <code>{env_cache_dir}/a1b2c3d4/</code>) so that
 concurrent runs sharing the same config do not overwrite each
 other's blocks. Inside it, <code>right/{k:05d}.pt</code> files are written
 and dropped from memory once they leave the sliding window,
-keeping the footprint proportional to <code>env_window</code> rather than to
+keeping the footprint proportional to <code>env_window</code> instead of to
 the length of the cell. Only the right side appears there: the
 left side is carried one block at a time and never reaches disk.
 The subdirectory is removed when <code>run()</code> returns or raises.
@@ -4512,12 +4516,53 @@ relevant when <code>env_cache_dir</code> is set.</p>
               <div class="doc-md-description">
                 <p>Number of right environment blocks kept in memory at once, the
 one being read plus those prefetched ahead. Defaults to <code>2</code>, which
-is the smallest value both schemes can run at. Only relevant when
-<code>env_cache_dir</code> is set.</p>
+is the smallest value any of the schemes can run at. Only relevant
+when <code>env_cache_dir</code> is set.</p>
               </div>
             </td>
             <td>
                   <code>2</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>expand_k</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Largest number of complement directions added to a bond per
+expansion. Only used when <code>scheme = '1sp'</code>, where it is also the
+most the bond dimension can grow by in one iteration. Larger values
+give a richer expanded space at higher cost. A typical choice is
+<code>round(sqrt(max_bond))</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>4</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>expand_alpha</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="int">int</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Internal bond dimension used when forming the cheap two-site tensor
+the expansion applies the iMPO to. Only used when
+<code>scheme = '1sp'</code>. <code>None</code> keeps the full bond, which is the
+expansion's largest cost; truncating it makes the expansion
+cheap against the Davidson solve it precedes. A typical
+choice is <code>expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -4573,14 +4618,14 @@ Stored as <code>str</code> for TOML compatibility.</p>
 <details class="note" open>
   <summary>Notes</summary>
   <p>An environment block scales as <code>chi^2 * w</code>, and a pass over the cell
-needs one on every bond from each side. On a chain that is what it
-sounds like, <code>2N</code> small tensors, and the defaults keep them all in
-memory. On a quasi-1D cylinder the unit cell is one column, so <code>N</code>
-runs to dozens while <code>chi</code> and <code>w</code> both grow with the circumference,
-and that is the case <code>env_cache_dir</code> exists for.</p>
+needs one on every bond from each side. On a chain that amounts to
+<code>2N</code> small tensors, and the defaults keep them all in memory. On a
+quasi-1D cylinder the unit cell is one column, so <code>N</code> runs to dozens
+while <code>chi</code> and <code>w</code> both grow with the circumference, and that is
+the case <code>env_cache_dir</code> exists for.</p>
 <p>Half of those blocks were never needed. A pass produces its left
 blocks in the order it consumes them, so one running tensor does the
-work of <code>N</code>, and that is now how both schemes run whether or not
+work of <code>N</code>, and that is now how every scheme runs whether or not
 anything is cached. Only the right side is stored, and only it can be
 evicted. See <code>alice.algorithm.vumps.sweep</code> for the argument.</p>
 </details>
@@ -4630,6 +4675,13 @@ evicted. See <code>alice.algorithm.vumps.sweep</code> for the argument.</p>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">grad_tol</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="mf">1e-10</span>
 </span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">env_tol</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="mf">1e-8</span>
 </span></code></pre></div>
+<p>Under <code>scheme = "1sp"</code>, two further keys govern the bond expansion:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">[heisenberg.algorithm]</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">scheme</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="s2">"1sp"</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">max_bond</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="mi">32</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">expand_k</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="mi">6</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">expand_alpha</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="mi">6</span>
+</span></code></pre></div>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../summary/">Summary</a> — output dataclass.</li>
@@ -4657,7 +4709,7 @@ evicted. See <code>alice.algorithm.vumps.sweep</code> for the argument.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="October 28, 2026 12:21:47 UTC"><span class="timeago" datetime="2026-10-28T12:21:47+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 28, 2026 12:21:47 UTC">2026-10-28</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 10:21:57 UTC"><span class="timeago" datetime="2026-11-18T10:21:57+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 10:21:57 UTC">2026-11-18</span>
   </span>
 
     
