@@ -6,8 +6,8 @@
   <a href="https://pypi.org/project/alice-net/"><img src="https://img.shields.io/pypi/v/alice-net?color=red" alt="PyPI Version"></a>
   <a href="https://github.com/Ideogenesis-AI/Alice/blob/stable/LICENSE"><img src="https://img.shields.io/github/license/Ideogenesis-AI/Alice?color=orange" alt="License"></a>
   <a href="https://ideogenesis-ai.github.io/Alice"><img src="https://img.shields.io/badge/docs-github.io-c9a400" alt="Documentation"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/pypi/pyversions/alice-net?color=228b22" alt="Python Version"></a>
-  <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-2.5+-blue?logo=pytorch&logoColor=white" alt="PyTorch"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-%E2%89%A5_3.11-228b22" alt="Python ≥ 3.11"></a>
+  <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-%E2%89%A5_2.5-blue?logo=pytorch&logoColor=white" alt="PyTorch ≥ 2.5"></a>
   <a href="https://github.com/Ideogenesis-AI/Nicole"><img src="https://img.shields.io/badge/built%20on-Nicole-blueviolet" alt="Built on Nicole"></a>
   <a href="https://pypi.org/project/alice-net/"><img src="https://img.shields.io/pypi/status/alice-net?color=4b0082" alt="Status"></a>
 </p>
@@ -25,7 +25,7 @@ Ground-state search and optimization via alternating sweep optimization of MPS t
 
 ### VUMPS (Variational Uniform Matrix Product States)
 
-Ground-state search directly in the thermodynamic limit, on a uniform MPS described by a unit cell that tiles an infinite chain. Two update schemes are available — 1-site and 2-site — with the environments solved as transfer-operator fixed points and convergence measured on the tangent-space gradient.
+Ground-state search in the thermodynamic limit, on a uniform MPS described by a unit cell that tiles an infinite chain. Three update schemes are available — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — with the environments solved as transfer-operator fixed points and convergence measured on the tangent-space gradient.
 
 ### TDVP (Time-Dependent Variational Principle)
 

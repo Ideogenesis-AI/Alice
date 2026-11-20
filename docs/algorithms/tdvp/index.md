@@ -69,7 +69,7 @@ back to that step (with a warning) and recomputes forward, overwriting both
 
 Not every step has to be archived. `save_artifacts_every` sets the stride, and
 because it is keyed on the absolute step index, a resumed run writes the same
-grid as an uninterrupted one. A run also stops on a grid point rather than
+grid as an uninterrupted one. A run also stops on a grid point and never
 between two, so its final state is always among the snapshots; see
 [Artifact](artifact.md).
 
@@ -115,16 +115,16 @@ can flow into. The split that follows truncates the bond back under
 | Option | Meaning |
 |--------|---------|
 | `expand_k` | Cap on the directions added to a bond per local update. A typical choice is `round(sqrt(max_bond))`; `0` reduces the scheme to `'1s'` |
-| `expand_alpha` | Internal bond of the cheap factorization, which is what keeps the search below 2-site cost. A typical choice is `round(sqrt(max_bond))`, as for `expand_k`; `None` keeps the full bond |
+| `expand_alpha` | Internal bond of the cheap factorization, which keeps the search below 2-site cost. A typical choice is `round(sqrt(max_bond))`, as for `expand_k`; `None` keeps the full bond |
 
-`expand_k` is a cap rather than a request. A bond gains however many directions
-its complement actually holds, which is often fewer: directions whose singular
-value falls below the scale the projection cancelled on are discarded, because
-they are products of that cancellation and do not lie in the complement at all.
-For a short-range Hamiltonian the genuine count is small — one or two per update
-on the free-fermion benchmarks — so raising `expand_k` past it changes nothing.
-A bond profile still climbs steadily, since the cap applies to one bond in one
-half-sweep rather than to the trajectory.
+`expand_k` is a cap, not a request. A bond gains however many directions its
+complement actually holds, which is often fewer: directions whose singular value
+falls below the scale the projection cancelled on are discarded, because they
+are products of that cancellation and do not lie in the complement at all. For a
+short-range Hamiltonian the genuine count is small — one or two per update on
+the free-fermion benchmarks — so raising `expand_k` past it changes nothing. A
+bond profile still climbs steadily, since the cap applies to one bond in one
+half-sweep and not to the trajectory.
 
 The scheme escapes the frozen-product-state trap above: a bond of dimension 1
 has a complement like any other, so a quench from a product state evolves. On
@@ -156,7 +156,7 @@ same sequence, verified to 1e-9.
 The difference is where the snapshots land. Every `order=2` step ends a complete
 forward-and-backward sweep pair, whereas an `order=1` snapshot taken after an
 odd step carries first-order error. If observables are measured at every step
-rather than only at the end, prefer `order=2`.
+instead of only at the end, prefer `order=2`.
 
 Note that error scaling in `dt` is only observable on a *restricted* manifold.
 At full bond dimension the tangent-space projector is the identity, TDVP is
@@ -206,9 +206,9 @@ estimate, and a run whose values sit near `krylov_tol` wants a larger
 ## Conserved Quantities
 
 Energy and norm are conserved exactly by the projected flow, which makes them
-diagnostics of numerical health rather than of physical accuracy — a run that
-has truncated away the real physics still conserves both. Trust them to detect
-a broken integrator, not a converged answer. The quantities to converge in
+diagnostics of numerical health and not of physical accuracy — a run that has
+truncated away the real physics still conserves both. Trust them to detect a
+broken integrator, not a converged answer. The quantities to converge in
 `max_bond` are the observables themselves.
 
 `renormalize` defaults to `False` so that norm loss from truncation stays

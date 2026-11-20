@@ -80,18 +80,18 @@ product state has every bond at dimension 1, so a `'1s'` quench from one does
 not evolve — silently, since the conserved quantities stay conserved. `run()`
 warns when it is handed such a state.
 
-`'1sp'` is what to reach for when `'2s'` is too expensive at the bond dimension
-the state wants. It widens the bond ahead of each update with up to `expand_k`
-directions drawn from the complement of the space that bond currently spans,
-then evolves over the widened space, so the rank adapts as it does under `'2s'`
-while the local exponential stays 1-site sized. Cost and name are all it shares
-with `'1s'`. It adapts the rank, truncates, and reports a discarded weight, and
-it inherits neither the exact conservation nor the exact reversibility that
-make `'1s'` worth having; group it with `'2s'` when reasoning about what it
-guarantees. Its irreversibility is structural rather than incidental: the
-expansion is chosen from the state the step begins in, so forward and backward
-steps do not span the same space. That deviation enters at the order of the
-integrator error and vanishes with `dt`.
+Reach for `'1sp'` when `'2s'` is too expensive at the bond dimension the state
+wants. It widens the bond ahead of each update with up to `expand_k` directions
+drawn from the complement of the space that bond currently spans, then evolves
+over the widened space, so the rank adapts as it does under `'2s'` while the
+local exponential stays 1-site sized. Cost and name are all it shares with
+`'1s'`. It adapts the rank, truncates, and reports a discarded weight, and it
+inherits neither the exact conservation nor the exact reversibility that make
+`'1s'` worth having; group it with `'2s'` when reasoning about what it
+guarantees. Its irreversibility is structural, not incidental: the expansion is
+chosen from the state the step begins in, so forward and backward steps do not
+span the same space. That deviation enters at the order of the integrator error
+and vanishes with `dt`.
 """
 
 from __future__ import annotations
@@ -237,9 +237,9 @@ class Options(AlgorithmOptions):
         `round(sqrt(max_bond))`. `0` reduces the scheme to `'1s'`.
     expand_alpha:
         Internal bond dimension of the cheap factorization of Θ inside the
-        expansion, which is what keeps the complement search cheaper than a
-        2-site step. Only used when `scheme = '1sp'`. `None` keeps the full
-        bond, making the search exact but no cheaper than `'2s'` per bond. A
+        expansion, which keeps the complement search cheaper than a 2-site
+        step. Only used when `scheme = '1sp'`. `None` keeps the full bond,
+        making the search exact but no cheaper than `'2s'` per bond. A
         typical choice is `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     krylov_dim:
         Maximum Krylov subspace dimension per local exponential. The solver
@@ -293,7 +293,7 @@ class Options(AlgorithmOptions):
         Stride between archived steps: step `k` is written when
         `k % save_artifacts_every == 0`. Must be `>= 1`; `1` (the default)
         archives every step. The stride is keyed on the absolute step index
-        rather than on an offset from where the run started, so a resumed run
+        and not on an offset from where the run started, so a resumed run
         archives the same grid as an uninterrupted one.
 
         A run never evolves past the last grid point. When `n_steps` is not a
@@ -600,8 +600,8 @@ def _resume_history(
 
     The history is read from `evolution.ckpt` in `ckpt_dir`, where every prior
     call to `run()` wrote it alongside `tdvp.ckpt`. A history reaching past
-    `state.step` is truncated rather than rejected, so a run can be continued
-    from any archived `artifacts/step_XXXXX.ckpt` — not only from the step the
+    `state.step` is truncated, not rejected, so a run can be continued from
+    any archived `artifacts/step_XXXXX.ckpt` — not only from the step the
     previous run stopped at. The steps beyond `state.step` are then recomputed
     by the caller and overwrite the truncated ones on disk.
 
@@ -845,7 +845,7 @@ def run(
     # removed on success. The floor at `state.step` covers a continuation
     # whose start already sits past the clamped target (reachable when the
     # stride changed between runs) — that becomes the already-at-target
-    # no-op, rather than a summary claiming fewer steps than its own history.
+    # no-op, instead of a summary claiming fewer steps than its own history.
     n_target = opts.n_steps
     if opts.save_artifacts:
         n_target = max(

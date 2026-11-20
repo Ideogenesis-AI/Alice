@@ -49,7 +49,7 @@ TABLE_TOL = 1e-7
 
 # The critical Heisenberg chain converges only algebraically in the bond
 # dimension, so the small cells used here are nowhere near the exact value
-# and are checked for ordering rather than accuracy.
+# and are checked for ordering, not accuracy.
 HEISENBERG_EXACT = 0.25 - math.log(2.0)
 
 
@@ -57,7 +57,7 @@ def _options(**kwargs):
     """Run options tuned for a small test: loose environments, few iterations.
 
     Pinned to the one-site scheme, so that a test which says nothing about
-    the bond dimension is about the driver rather than about growth.
+    the bond dimension is about the driver, not about growth.
     """
     defaults = dict(
         scheme='1s', n_iters=60, grad_tol=1e-8, env_tol=1e-10, env_maxiter=400,
@@ -87,9 +87,7 @@ class TestOptions:
         assert Options(scheme=alias).scheme == '2s'
 
     @pytest.mark.parametrize('alias', ['1sp', '1-site-plus', 'one-site-plus'])
-    def test_planned_scheme_resolves_but_is_not_implemented(self, alias):
-        # Recognising the name and refusing to run it are separate steps, so
-        # a config written for a planned scheme fails with a clear message.
+    def test_one_site_plus_aliases(self, alias):
         assert Options(scheme=alias).scheme == '1sp'
 
     def test_unknown_scheme_raises(self):
@@ -97,7 +95,7 @@ class TestOptions:
             Options(scheme='no-such-scheme')
 
     def test_directories_survive_a_toml_round_trip(self, tmp_path):
-        # Both directories are held as str rather than Path so that a run
+        # Both directories are held as str instead of Path so that a run
         # can be configured entirely from a TOML file.
         original = Options(checkpoint_dir='/tmp/ckpt', artifacts_dir='/tmp/archive')
         path = tmp_path / 'vumps.toml'
@@ -179,9 +177,13 @@ class TestRunValidation:
             run(imps, ihamiltonian(HEISENBERG, 4))
 
     def test_unimplemented_scheme_is_rejected(self, spin_half):
+        # Every recognised scheme runs today, so the guard has to be reached
+        # past the alias resolution that would otherwise refuse the name.
         imps = random_imps(spin_half, 2)
+        opts = Options()
+        opts.scheme = 'planned'
         with pytest.raises(NotImplementedError, match='not yet implemented'):
-            run(imps, ihamiltonian(HEISENBERG, 2), Options(scheme='1sp'))
+            run(imps, ihamiltonian(HEISENBERG, 2), opts)
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +250,7 @@ class TestRun:
         assert len(summary.energies) == summary.n_iters
         assert len(summary.gradients) == summary.n_iters
         assert summary.energy == summary.energies[-1]
-        # The gradient is what the loop stops on, so it must have fallen.
+        # The loop stops on the gradient, so it must have fallen.
         assert summary.gradients[-1] < summary.gradients[0]
 
     def test_one_site_leaves_the_bond_dimension_alone(self, spin_half):
@@ -308,7 +310,7 @@ class TestRun:
     def test_two_site_under_su2(self, spin_half_su2):
         # The SU(2) tensors are pure Clebsch-Gordan and avoid the spin
         # tables, so this pins the two-site scheme to machine precision
-        # rather than to the eight digits U(1) allows.
+        # and not to the eight digits U(1) allows.
         summary = run(
             dimer_imps_su2(spin_half_su2),
             ihamiltonian(MAJUMDAR_GHOSH_SU2, 2, n3x=True),
@@ -339,6 +341,82 @@ class TestRun:
         assert max(summary.bond_dims) == 6
         assert len(summary.discarded_weights) == summary.n_iters
 
+    @pytest.mark.parametrize('alias', ['1sp', 'one-site-plus'])
+    def test_one_site_plus_reaches_the_dimer_from_a_product_state(
+        self, spin_half, alias,
+    ):
+        # The same check that justifies the two-site scheme, passed by a
+        # scheme whose local problem never leaves one site.
+        imps = neel_imps(spin_half, 2)
+        assert imps.bond_dims == [1, 1]
+        summary = run(
+            imps,
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme=alias, max_bond=8),
+        )
+        assert summary.converged
+        assert max(summary.bond_dims) > 1
+        assert summary.energy == pytest.approx(DIMER_ENERGY, abs=TABLE_TOL)
+
+    def test_one_site_plus_agrees_with_two_site(self, spin_half):
+        # Both schemes reach the bond dimension the answer needs, by
+        # different routes, so they must land on the same state.
+        expanded = run(
+            random_imps(spin_half, 2, width=1, dim=1),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme='1sp', max_bond=8),
+        )
+        two = run(
+            random_imps(spin_half, 2, width=1, dim=1),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme='2s', max_bond=8),
+        )
+        assert expanded.energy == pytest.approx(two.energy, abs=TABLE_TOL)
+
+    def test_one_site_plus_under_su2(self, spin_half_su2):
+        summary = run(
+            dimer_imps_su2(spin_half_su2),
+            ihamiltonian(MAJUMDAR_GHOSH_SU2, 2, n3x=True),
+            _options(scheme='1sp', max_bond=8),
+        )
+        assert summary.converged
+        assert summary.energy == pytest.approx(DIMER_ENERGY, abs=1e-11)
+
+    def test_one_site_plus_growth_respects_the_bond_cap(self, spin_half):
+        summary = run(
+            neel_imps(spin_half, 2),
+            ihamiltonian(HEISENBERG, 2),
+            _options(scheme='1sp', max_bond=6, n_iters=8),
+        )
+        assert max(summary.bond_dims) == 6
+        assert len(summary.discarded_weights) == summary.n_iters
+
+    def test_one_site_plus_grows_by_the_expansion_width(self, spin_half):
+        # What `expand_k` controls is the rate: each iteration widens a bond
+        # by at most that much, where a two-site split multiplies it.
+        summary = run(
+            neel_imps(spin_half, 2),
+            ihamiltonian(HEISENBERG, 2),
+            _options(scheme='1sp', max_bond=64, n_iters=3, expand_k=2),
+        )
+        assert max(summary.bond_dims) <= 1 + 3 * 2
+
+    def test_a_cheaper_expansion_lands_where_the_full_one_does(self, spin_half):
+        # `expand_alpha` truncates the two-site tensor the expansion applies
+        # the iMPO to, which changes the directions it proposes but not the
+        # state those directions are converging on.
+        cheap = run(
+            random_imps(spin_half, 2, width=1, dim=1),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme='1sp', max_bond=8, expand_alpha=2),
+        )
+        full = run(
+            random_imps(spin_half, 2, width=1, dim=1),
+            ihamiltonian(MAJUMDAR_GHOSH, 2, n3x=True),
+            _options(scheme='1sp', max_bond=8),
+        )
+        assert cheap.energy == pytest.approx(full.energy, abs=TABLE_TOL)
+
     def test_artifact_is_archived(self, spin_half, tmp_path):
         run(
             dimer_imps(spin_half),
@@ -361,7 +439,7 @@ class TestRun:
 
     def test_artifacts_dir_is_decoupled_from_checkpoint_dir(self, spin_half, tmp_path):
         # An explicit archive can live on storage of its own, so it must be
-        # used verbatim rather than nested under the checkpoints.
+        # used verbatim and not nested under the checkpoints.
         ckpt_dir = tmp_path / 'ckpt'
         archive = tmp_path / 'elsewhere' / 'archive'
         run(

@@ -30,7 +30,7 @@ while every local update stays 1-site sized.
 
 The construction follows DMRG's `'1sp'` scheme (`alice.algorithm.dmrg.complement`)
 and reuses its factored structure, but three points differ because TDVP
-integrates rather than minimizes. In DMRG the expanded center tensor is only an
+integrates where DMRG minimizes. In DMRG the expanded center tensor is only an
 initial guess that Davidson overwrites, and an approximate effective
 Hamiltonian still leaves the energy variational; here both feed straight into
 `exp(-i dt H_eff)`.
@@ -45,7 +45,7 @@ in* exactly by projecting Θ onto the expanded neighbor basis,
 this reproduces Θ exactly; it is the TDVP counterpart of the exact fill-in in
 `alice.algorithm.xtrg.complement`. With a right-isometric `M_i1_exp` the result
 is the old center tensor padded by zero columns, and writing it as a projection
-rather than a zero padding keeps it exact even where the complement is not
+instead of a zero padding keeps it exact even where the complement is not
 perfectly orthogonal to the kept space.
 
 Exact expanded environment
@@ -172,9 +172,9 @@ def _cheap_factors_forward(theta: Tensor, alpha: Optional[int]) -> Tuple[Tensor,
     """Factorize Θ for a forward sweep.
 
     The pair is a cheap factored form of Θ whose internal bond is at most
-    `alpha`, which is what makes the half-applications of H below scale with
-    `alpha` instead of the full bond dimension. The direction of the split
-    follows the sweep, as in the 2-site scheme.
+    `alpha`, so the half-applications of H below scale with `alpha` instead
+    of the full bond dimension. The direction of the split follows the
+    sweep, as in the 2-site scheme.
 
     Parameters
     ----------
@@ -396,7 +396,7 @@ def _noise_floor(left_half: Tensor, right_half: Tensor) -> float:
 def _has_complement(theta_disc: Tensor, floor: float) -> bool:
     """Report whether Θ'_disc holds a genuine complement direction.
 
-    The test has to be made on Θ'_disc rather than on the two discarded halves
+    The test has to be made on Θ'_disc, not on the two discarded halves
     separately. Each half can keep a sizable remainder while their contraction
     cancels it: the surviving sectors of one need not pair with those of the
     other, and then the doubly-discarded tensor vanishes even though neither
@@ -405,9 +405,9 @@ def _has_complement(theta_disc: Tensor, floor: float) -> bool:
 
     It matters because the SVD cannot report it. Handed an exactly zero block,
     `decomp` returns a unit-norm singular vector anyway. The vectors that come
-    back lie in the kept space rather than its complement, and `oplus`-ing them
-    would duplicate a kept direction, destroy the neighbor's isometry, and move
-    the state.
+    back lie in the kept space, not its complement, and `oplus`-ing them would
+    duplicate a kept direction, destroy the neighbor's isometry, and move the
+    state.
 
     Parameters
     ----------
@@ -419,7 +419,7 @@ def _has_complement(theta_disc: Tensor, floor: float) -> bool:
     Returns
     -------
     bool
-        `True` when Θ'_disc is large enough to be signal rather than roundoff.
+        `True` when Θ'_disc is large enough to be signal, not roundoff.
     """
     return theta_disc.norm() > floor
 
@@ -471,10 +471,10 @@ def _complement_vectors(
         new left-bond vectors for site i+1.
     """
     # SVD with axes=[0, 2] fuses (a, r) as left and (c, u) as right. `nkeep`
-    # caps the expansion; `thresh` is what keeps it honest, since a bond whose
+    # caps the expansion; `thresh` keeps it honest, since a bond whose
     # complement holds fewer than `k_expand` directions still has singular
     # values to report and they are cancellation noise, lying in the kept space
-    # rather than in the complement. Asking for `k_expand` directions where one
+    # and not in the complement. Asking for `k_expand` directions where one
     # exists is the ordinary case, not an edge case.
     U, _S, Vh = decomp(
         theta_disc, axes=[0, 2], mode='SVD',
@@ -609,8 +609,8 @@ def expand_forward(
     # Step 3: discarded-space projection. Each end projects against the tensor
     # that spans exactly its own kept space: the orthonormalized center tensor
     # on the left, and M_i1 itself on the right, whose whole row space the
-    # complement must miss for the expanded neighbor to stay isometric — which
-    # is what makes the fill-in below exact.
+    # complement must miss for the expanded neighbor to stay isometric, which
+    # makes the fill-in below exact.
     lh_disc = _project_complement_left(lh,  _center_isometry_forward(M_i))
     rh_disc = _project_complement_right(rh, M_i1)
     theta_disc = _discarded_bulk(lh_disc, rh_disc)
@@ -623,7 +623,7 @@ def expand_forward(
         return M_i, M_i1, step_right_env(E_right_i1, M_i1, W_i1)
 
     # Step 4: complement vectors from the SVD of Θ'_disc. Only N_R is used: the
-    # center tensor is filled in exactly rather than padded with N_L.
+    # center tensor is filled in exactly instead of padded with N_L.
     # flow='<<' gives N_R a new-bond direction matching M_i1's left bond.
     _N_L, N_R = _complement_vectors(theta_disc, k_expand, flow='<<', floor=floor)
 

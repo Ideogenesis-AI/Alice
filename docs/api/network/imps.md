@@ -9,9 +9,9 @@ Infinite matrix product state: a unit cell of `N` site tensors that tiles the ch
 
 ## Notes
 
-The cell is cyclic, so bond `N` is bond `0`. That single fact is what separates an `iMPS` from an [MPS](mps.md) of the same length: there is no first bond and no last bond, nothing is open, and the bond charges have to return to themselves after one cell. A cell therefore carries no net physical charge, which is half filling for fermions and zero magnetization for spins. [init_imps](init-imps.md) enforces that when it builds one.
+The cell is cyclic, so bond `N` is bond `0`. That single fact separates an `iMPS` from an [MPS](mps.md) of the same length: there is no first bond and no last bond, nothing is open, and the bond charges have to return to themselves after one cell. A cell therefore carries no net physical charge, which is half filling for fermions and zero magnetization for spins. [init_imps](init-imps.md) enforces that when it builds one.
 
-Gauge fixing replaces canonicalization. `canonical(0)` solves for the gauge that makes the cell left- and right-orthogonal simultaneously, by finding the fixed point of the transfer operator rather than sweeping orthogonality in from an end. It raises when no such gauge exists, which a random cell can land on: the transfer operator then has two dominant eigenvalues of opposite sign and the cell maps two classes of bond charge into each other rather than onto themselves.
+Gauge fixing replaces canonicalization. `canonical(0)` solves for the gauge that makes the cell left- and right-orthogonal simultaneously, by finding the fixed point of the transfer operator instead of sweeping orthogonality in from an end. It raises when no such gauge exists, which a random cell can land on: the transfer operator then has two dominant eigenvalues of opposite sign and the cell maps two classes of bond charge into each other, not onto themselves.
 
 ## See Also
 

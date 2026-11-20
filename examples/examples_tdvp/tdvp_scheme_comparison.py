@@ -46,9 +46,9 @@ The three answers:
   up to `expand_k` of them. The local exponential stays 1-site sized.
 - `'2s'` decides after each update, as a by-product: it evolves two sites at
   once and splits by SVD, and whatever survives truncation is the new bond.
-  This needs no expansion parameters, which is what makes it the comparison.
+  This needs no expansion parameters, which makes it the comparison.
 
-Correctness is checked against the exact solution rather than against another
+Correctness is checked against the exact solution, not against another
 tensor network. A product state of free fermions stays Gaussian, so the
 equal-time correlation matrix evolves as `C(t) = U C(0) U†` with
 `U = exp(-i h t)` over the `L x L` hopping matrix, giving both the exact
@@ -335,7 +335,7 @@ def expand_k_scan(
     print("`expand_k` is a cap, not a request. What a bond actually receives")
     print("is however many directions its complement holds above the noise")
     print("floor, and for a short-range H that number is small — on this")
-    print("problem never more than two, which is why the table stops moving.")
+    print("problem never more than two, so the table stops moving.")
 
 
 # ---------------------------------------------------------------------------

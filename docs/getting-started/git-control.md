@@ -98,7 +98,7 @@ Rebasing produces a clean, linear history. It has two distinct use cases in the 
 
 1. **Bringing a contributor branch up to date with `develop`**
 
-    When `develop` has moved forward while you have been working on your branch, you should rebase your branch onto the current tip of `develop` before opening a pull request. This re-anchors your commits to the latest shared state, resolves conflicts in your own workspace rather than the reviewer's, and keeps the resulting merge commit clean.
+    When `develop` has moved forward while you have been working on your branch, you should rebase your branch onto the current tip of `develop` before opening a pull request. This re-anchors your commits to the latest shared state, resolves conflicts in your own workspace instead of the reviewer's, and keeps the resulting merge commit clean.
 
     ```bash
     # Make sure your local develop is current first (see "Keeping Your Fork Up to Date")
@@ -204,7 +204,7 @@ git rebase --continue
 
     This introduces one merge commit from `develop` into your branch, which is a minor history cost but avoids the coordination overhead of a rebase. Use your judgement: rebase when you are the sole author or when the branch has not yet been pushed; merge when multiple people are working on the same branch.
 
-    Even when merging is necessary, try to **delay it as long as possible**. Only merge `develop` into your branch when divergence is actively causing problems — conflicts that block your work, or when a dependency you need has been introduced in `develop`. Merging eagerly on every upstream update accumulates unnecessary merge commits and clutters the history graph. The goal is still to keep the graph as clean as possible; merging from `develop` should be a deliberate, infrequent act rather than a routine sync step.
+    Even when merging is necessary, try to **delay it as long as possible**. Only merge `develop` into your branch when divergence is actively causing problems — conflicts that block your work, or when a dependency you need has been introduced in `develop`. Merging eagerly on every upstream update accumulates unnecessary merge commits and clutters the history graph. The goal is still to keep the graph as clean as possible; merging from `develop` should be a deliberate, infrequent act, not a routine sync step.
 
 ### Syncing from the GitHub Web Interface
 

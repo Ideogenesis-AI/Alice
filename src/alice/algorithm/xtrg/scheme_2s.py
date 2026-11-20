@@ -231,7 +231,7 @@ def build_bulk(C_i: Tensor, C_j: Tensor) -> Tensor:
 
     Used to measure the discarded weight at the center bond during a 1s+
     backward half-sweep, mirroring `local_update_2s`'s Θ but built directly
-    from the already-optimized `(C_i, C_j)` pair rather than from the factor
+    from the already-optimized `(C_i, C_j)` pair instead of from the factor
     operands A, B.
 
     Parameters

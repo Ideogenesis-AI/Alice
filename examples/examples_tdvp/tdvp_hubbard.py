@@ -114,7 +114,7 @@ from freefermion_exact import (  # pyright: ignore[reportMissingImports]
     onsite_mpos,
 )
 
-# Groups whose site sectors name a single physical state, which is what the
+# Groups whose site sectors name a single physical state, which the
 # domain-wall configuration needs. See the module docstring on Z2.
 _VALID_SYMMETRIES = ('U1,U1', 'U1,SU2')
 
@@ -168,7 +168,7 @@ def _domain_wall_state(L: int, spc, ops, phys):
 
     The doubly-occupied sector is the last one of the physical space under
     both `U1,U1` and `U1,SU2`, and the empty sector is the first; both carry
-    total spin zero, which is what makes the state SU(2)-representable.
+    total spin zero, which makes the state SU(2)-representable.
 
     Parameters
     ----------
@@ -185,7 +185,7 @@ def _domain_wall_state(L: int, spc, ops, phys):
     -------
     tuple
         `(mps, channel_occ)` where `channel_occ` is the initial occupation of
-        a *single* spin channel, which is what the exact reference needs.
+        a *single* spin channel, which the exact reference needs.
     """
     double, empty = len(phys.sectors) - 1, 0
     config = [double] * (L // 2) + [empty] * (L - L // 2)

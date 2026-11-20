@@ -19,23 +19,26 @@
 """Update orchestration for VUMPS over one unit cell.
 
 `cell_update` does one iteration of whichever scheme the options name.
-Both schemes walk the cell from left to right, one position at a time,
-but for different reasons.
+All three schemes walk the cell from left to right, one position at a
+time, but for different reasons.
 
 The one-site scheme solves every position against the same set of
 environments, so the positions are independent of each other and the
 order they are visited in does not matter: `N` center-tensor
 eigenproblems, `N` bond eigenproblems, then the gauge step that turns
 the two sets of answers back into a unit cell. It walks in order only
-because walking in order is what lets it carry one environment block
-instead of holding `N`.
+because walking in order lets it carry one environment block instead
+of holding `N`.
 
-The two-site scheme has no choice. Each pair it solves is split by an
-SVD, and the split replaces the index on the bond between the pair, so
-the pass has to reach that bond with a left environment built on the
-index the previous split left behind. That makes it a sweep in the
-finite sense, and the price of being able to change the bond dimension
-at all.
+The other two have no choice. Each position they solve ends in an SVD,
+and that SVD replaces the index on one bond, so the pass has to reach
+that bond with a left environment built on the index the previous split
+left behind. That makes them sweeps in the finite sense, and it is the
+price of being able to change the bond dimension at all. What they split
+is where they differ: the two-site scheme solves a pair and cuts it in
+half, while the one-site-plus scheme widens a bond by controlled bond
+expansion first and then cuts the widened bond back down, which reaches
+the same freedom through a solve that stays one-site sized.
 
 Environments
 ------------
@@ -71,9 +74,9 @@ either side in either shape, and turns away the shapes it cannot run.
 
 Mirroring to a backward sweep
 -----------------------------
-Caching one side only is what ties these passes to one direction; the
-finite algorithm caches both because it sweeps both ways. Four things
-would change in a right-to-left pass, and nothing else:
+Caching one side only ties these passes to one direction; the finite
+algorithm caches both because it sweeps both ways. Four things would
+change in a right-to-left pass, and nothing else:
 
 1. Which side is streamed and which is stored, the two exchanging roles.
    The signatures already allow it; `_forward_pass_envs` and the opening
@@ -81,10 +84,12 @@ would change in a right-to-left pass, and nothing else:
    assignment.
 2. Which of `step_left_env` / `step_right_env` advances the running block.
 3. The order the positions are visited in, and so the bond each one reads.
-4. Which end the two-site boundary rebuild starts from: the one bond the
-   pass has not cut, which is bond 0 going right and bond 1 going left.
+4. Which end a boundary rebuild starts from: the one bond the pass has
+   not cut, which is bond 0 going right and bond 1 going left.
+5. Which side of each bond the one-site-plus expansion meets first, the
+   neighbor and the center tensor exchanging places.
 
-`Environment` already takes its direction as a setting rather than
+`Environment` already takes its direction as a setting instead of
 guessing it, so the storage side needs nothing new.
 
 Installing the result
@@ -106,6 +111,8 @@ from nicole import Tensor, einsum
 
 from alice.network import iMPO, iMPS
 
+from .complement import discarded_weight as center_discarded_weight
+from .complement import expand_bond, split_center
 from .environ import (
     Environment,
     build_right_envs,
@@ -211,7 +218,7 @@ def cell_environments(
         Storage to fill. `None` builds a plain in-memory one. A caller
         that runs many iterations should build one `Environment` up front
         and pass it in each time, so that its cache directory and its I/O
-        thread are set up once rather than per iteration.
+        thread are set up once instead of per iteration.
 
     Returns
     -------
@@ -269,7 +276,7 @@ def cell_update(
         Hamiltonian iMPO sharing the unit cell.
     env_left:
         Left fixed point on bond 0, from `cell_environments`: the
-        streamed side, which the pass carries forward itself rather than
+        streamed side, which the pass carries forward itself instead of
         being handed every block of.
     env_right:
         Right blocks on every bond, from `cell_environments`: the stored
@@ -297,7 +304,7 @@ def cell_update(
     TypeError
         If both environments come in the same shape.
     ValueError
-        If the two-site scheme is asked for a one-site unit cell.
+        If a scheme that splits is asked for a one-site unit cell.
     """
     env_left, env_right = _forward_pass_envs(env_left, env_right)
 
@@ -305,6 +312,8 @@ def cell_update(
         return _update_one_site(imps, impo, env_left, env_right, opts), 0.0
     if opts.scheme == '2s':
         return _update_two_site(imps, impo, env_left, env_right, opts)
+    if opts.scheme == '1sp':
+        return _update_one_site_plus(imps, impo, env_left, env_right, opts)
     raise NotImplementedError(f"cell_update: unknown scheme {opts.scheme!r}")
 
 
@@ -362,6 +371,11 @@ def _truncation(opts: Options) -> Optional[dict]:
     return trunc or None
 
 
+def _expansion(opts: Options) -> dict:
+    """Collect the bond-expansion settings out of `opts`."""
+    return {'k_expand': opts.expand_k, 'alpha': opts.expand_alpha}
+
+
 def _update_one_site(
     imps: iMPS,
     impo: iMPO,
@@ -372,10 +386,10 @@ def _update_one_site(
     """Solve every center tensor and bond matrix of the cell, then gauge.
 
     Every position is solved against the environments of the state as it
-    stood when the pass began, which is what makes `|AC - AL C|` a
-    gradient: refreshing a block mid-pass would leave the two sets of
-    answers measured against different operators, and their mismatch
-    would no longer vanish at a stationary point.
+    stood when the pass began, which makes `|AC - AL C|` a gradient:
+    refreshing a block mid-pass would leave the two sets of answers
+    measured against different operators, and their mismatch would no
+    longer vanish at a stationary point.
 
     Walking the cell in order does not weaken that. The pass steps its
     left block through the tensors it read at the top, and `set_canonical`
@@ -538,6 +552,133 @@ def _update_two_site(
         # the polar factor of `U S` is `U` and that of `S` is the identity,
         # so it can carry the left environment onto the new bond directly.
         carried = step_left_env(carried, left_iso, impo[k])
+        left_isos[j], _, _ = gauge_tensors(centers[j], bonds[j], bonds[(j + 1) % N])
+
+    left_isos, right_isos, gradient = _reconcile(centers, bonds)
+    imps.set_canonical(left_isos, right_isos, bonds)
+    return gradient, discarded
+
+
+def _update_one_site_plus(
+    imps: iMPS,
+    impo: iMPO,
+    env_streamed: Tensor,
+    env_stored: Environment,
+    opts: Options,
+) -> Tuple[float, float]:
+    """Sweep the bonds of the cell, widening and solving one site at each.
+
+    The step at bond `k+1` widens it by controlled bond expansion, solves
+    the ordinary one-site eigenproblem on the widened bond, and splits the
+    answer to cut the bond back down. Only that bond changes, as in the
+    two-site sweep, so the next step starts from something consistent and
+    the cell still tiles at the end.
+
+    What the expansion costs is a few contractions of the size the
+    two-site scheme pays for its whole solve, and what it buys is a bond
+    that can grow without ever forming a two-site tensor: the eigenproblem
+    is the one-site one throughout, on a space `expand_k` wider than the
+    bond currently is. See `complement` for the construction.
+
+    The environments work out as they do under `'2s'`, with one
+    simplification. The left block is pushed forward through each freshly
+    split tensor, since the bond it sits on has just been replaced; the
+    right blocks stay valid until the sweep reaches them, which covers
+    every bond but the last. The simplification is that the expansion needs
+    no environment of its own: the widened bond is the one *in front* of the
+    block being carried, so a single step over the expanded neighbor puts an
+    exact block on it.
+
+    Parameters
+    ----------
+    imps:
+        Gauge-fixed infinite MPS, updated in place.
+    impo:
+        Hamiltonian iMPO sharing the unit cell.
+    env_streamed:
+        Streamed side, the left fixed point on bond 0.
+    env_stored:
+        Stored side, the right block of every bond, rewritten in place at
+        the cell boundary.
+    opts:
+        Run options.
+
+    Returns
+    -------
+    gradient:
+        Largest `|AC - AL C|` over the cell.
+    discarded:
+        Largest weight discarded by a split over the cell.
+
+    Raises
+    ------
+    ValueError
+        If the unit cell holds a single site. The expansion then reads the
+        bond it is about to replace, since the neighbor behind the bond and
+        the site in front of it are the same site.
+    """
+    N = imps.N
+    if N < 2:
+        raise ValueError(
+            "the one-site-plus scheme needs a unit cell of at least two "
+            "sites, since the expansion widens the bond between a site and "
+            "its neighbor and leaves the others alone; use scheme='1s' or "
+            "describe the same state with a doubled cell"
+        )
+
+    davidson_opts = _davidson_opts(opts)
+    trunc = _truncation(opts)
+    expansion = _expansion(opts)
+    w = len(str(N - 1))
+
+    centers = [imps.center_tensor(i) for i in range(N)]
+    bonds = [imps.bond_matrix(k) for k in range(N)]
+    left_isos = list(imps.left_isometries())
+
+    carried = env_streamed
+    discarded = 0.0
+    for k in range(N):
+        j = (k + 1) % N
+        if j == 0:
+            # The bond that closes the cell. Bond 0 is the one bond this
+            # sweep has not touched, so its right block is still the one
+            # solved for, and carrying it back through the sites updated
+            # since puts a current block on every bond behind it.
+            _, right_isos, _ = _reconcile(centers, bonds)
+            spread_right_envs(right_isos, impo, env_stored)
+
+        # Both the expansion and the solve read the right block on bond
+        # k+2, which neither of them touches, so one fetch serves both and
+        # the window still slides by one.
+        env_right = env_stored.fetch((k + 2) % N)
+
+        left_iso_exp, AC, env_left_exp = expand_bond(
+            left_isos[k], centers[j], impo[k], impo[j],
+            carried, env_right, **expansion,
+        )
+        widened = AC.indices[0].dim
+
+        energy, AC, davidson_error = optimize_center(
+            AC, impo[j], env_left_exp, env_right, davidson_opts,
+        )
+        discarded = max(discarded, center_discarded_weight(AC, trunc))
+
+        rotation, bond, right_iso = split_center(AC, bonds[j].itags[0], trunc)
+        bonds[j] = bond
+        # The rotation belongs to the neighbor, whose widened bond it turns
+        # into the truncated one. Both factors are isometric, so the product
+        # is still the left-orthonormal tensor of site k and can carry the
+        # left environment onto the new bond directly.
+        left_isos[k] = einsum('abr,bc->acr', left_iso_exp, rotation)
+        centers[k] = einsum('abr,bc->acr', left_isos[k], bond)
+        centers[j] = einsum('ab,bcr->acr', bond, right_iso)
+
+        logger.debug(
+            "  site %*d: E = %+.12g, davidson err = %.4e, D = %d (%d widened)",
+            w, j, energy, davidson_error, bond.indices[0].dim, widened,
+        )
+
+        carried = step_left_env(carried, left_isos[k], impo[k])
         left_isos[j], _, _ = gauge_tensors(centers[j], bonds[j], bonds[(j + 1) % N])
 
     left_isos, right_isos, gradient = _reconcile(centers, bonds)

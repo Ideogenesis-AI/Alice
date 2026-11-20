@@ -265,7 +265,7 @@ class TestCenterIsometry:
     def test_center_tensor_is_not_isometric(self, spinless_fermion_L4):
         """The center tensor itself fails the test its factor passes.
 
-        It carries the singular values, so `C† C = Λ²` rather than the identity.
+        It carries the singular values, so `C† C = Λ²` and not the identity.
         """
         mpo, spc, _ = spinless_fermion_L4
         rho, mpo_c = _build_rho_and_c(mpo, spc)
@@ -404,7 +404,7 @@ class TestProjectComplement:
     def test_left_projection_idempotent(self, spinless_fermion_L4):
         """Projecting twice equals projecting once — the hallmark of a projector.
 
-        The center-side basis is what makes this hold at the site the sweep is
+        The center-side basis makes this hold at the site the sweep is
         updating, where the tensor carries the singular values.
         """
         mpo, spc, _ = spinless_fermion_L4
@@ -437,7 +437,7 @@ class TestProjectComplement:
         A = _center_isometry_forward(mpo_c[1])
         lh_disc = _project_complement_left(lh, A)
         # The unprojected half does overlap the kept space, so the assertion
-        # below is about the projection rather than about an empty half.
+        # below is about the projection, not about an empty half.
         assert _tensor_norm(einsum('cdrs,cpqrs->dpq', A.conj(), lh)) > 1e-3
         overlap = einsum('cdrs,cpqrs->dpq', A.conj(), lh_disc)
         assert _tensor_norm(overlap) < 1e-8

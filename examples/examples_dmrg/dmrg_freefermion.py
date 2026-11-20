@@ -263,7 +263,7 @@ def dmrg_freefermion(
         delta = summary.energy - E_exact_N
         # Under the 1-site scheme the bond sectors stay those of the initial
         # MPS, so the gap to the exact energy is a restricted variational
-        # space rather than SVD truncation.
+        # space and not SVD truncation.
         cause = ('fixed initial bond sectors'
                  if scheme in ('1s', '1-site', 'one-site') else 'truncation error')
         print(f"Difference                     : {delta:+.4e}  ({cause})")

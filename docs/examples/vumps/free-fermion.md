@@ -37,7 +37,7 @@ Spc, Op = load_space('Ferm', 'U1')
 imps = init_imps(geo.L, Spc, Op, bond_dim=16)
 ```
 
-Half filling is not a setting here, it is what a unit cell is. The bond charge has to return to itself after `N` sites, so the cell carries no net charge, and a uniform state at any other filling is not representable on a cell of that length. A doped state needs a longer cell, which fixes the filling at a rational number of its own.
+Half filling is not a setting here, it follows from what a unit cell is. The bond charge has to return to itself after `N` sites, so the cell carries no net charge, and a uniform state at any other filling is not representable on a cell of that length. A doped state needs a longer cell, which fixes the filling at a rational number of its own.
 
 ## 4. Run VUMPS
 
@@ -59,7 +59,7 @@ print(f"Exact energy per site: {exact:.10f}")
 print(f"Error:                 {abs(summary.energy - exact):.2e}")
 ```
 
-At `max_bond = 16` the error is around `9e-5`. The chain is gapless, so the entanglement grows with the bond dimension rather than saturating, and the error falls slowly with it, exactly as on the Heisenberg chain.
+At `max_bond = 16` the error is around `9e-5`. The chain is gapless, so the entanglement grows with the bond dimension instead of saturating, and the error falls slowly with it, exactly as on the Heisenberg chain.
 
 ## 5. Growing from a product state
 

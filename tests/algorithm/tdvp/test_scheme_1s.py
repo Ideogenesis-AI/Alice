@@ -19,13 +19,13 @@
 """Tests for alice.algorithm.tdvp.scheme_1s.
 
 Beyond the usual algebraic checks, this module pins down the two properties
-that make the local updates a tangent-space projection rather than an
-arbitrary local operation:
+that make the local updates a tangent-space projection and not an arbitrary
+local operation:
 
 - `matvec_1s` and `matvec_0s` reproduce `⟨δψ|H|ψ⟩` for a variation `δ` of the
   tensor they act on, so they really are `H` compressed onto the tangent
-  space rather than a local approximation to it.
-- the splits are exact, which is what keeps the surrounding tensors isometric
+  space, not a local approximation to it.
+- the splits are exact, which keeps the surrounding tensors isometric
   and hence keeps that compression an *orthogonal* projection.
 """
 
@@ -255,7 +255,7 @@ class TestSplits:
         assert A2.indices[1].dim == A.indices[1].dim
 
     def test_forward_split_is_left_isometric(self, heisenberg_L6):
-        """A†A = 1, which is what makes the environments projectors."""
+        """A†A = 1, which makes the environments projectors."""
         mps, _ = heisenberg_L6
         A, _ = split_forward(mps[0], mps._bond_itag(1))
         gram = einsum('abr,acr->bc', A.conj(), A)
@@ -322,8 +322,8 @@ class TestTruncatingSplits:
     def test_bond_tensor_keeps_its_orientation(self, heisenberg_L6):
         """Truncation touches the new bond only, not the axis the neighbor shares.
 
-        This asymmetry is what `'1sp'` depends on: the zero-site step closes
-        the truncated axis against the rebuilt environment and the untouched
+        `'1sp'` depends on that asymmetry: the zero-site step closes the
+        truncated axis against the rebuilt environment and the untouched
         axis against the expanded one.
         """
         mps, _ = heisenberg_L6
@@ -340,7 +340,7 @@ class TestTruncatingSplits:
         assert C_cut.norm() < C_exact.norm()
 
     def test_loss_matches_the_reported_discarded_weight(self, heisenberg_L6):
-        """What the forward split drops is what `scheme_2s.discarded_weight` reports.
+        """The forward split drops exactly what `scheme_2s.discarded_weight` reports.
 
         The sweep reads the 1-site truncation error through the 2-site helper,
         which bipartitions its argument into axes `(0, 2)` against the rest —

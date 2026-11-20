@@ -32,7 +32,7 @@ matter. The packet therefore travels, at the lattice group velocity
     v = dε/dk = 2 t sin(k0),   ε(k) = -2 t cos(k),
 
 and it travels to the *right* for `k0 > 0` only because the propagator is
-`exp(-i H t)` rather than `exp(+i H t)`. A sign error in the integrator would
+`exp(-i H t)` and not `exp(+i H t)`. A sign error in the integrator would
 still conserve the norm and the energy, and would still reproduce the exact
 occupations of a *localized* particle (whose profile is symmetric in time),
 but it would send this packet the wrong way. The reported center of mass is
@@ -320,9 +320,9 @@ def dt_scan(
 ) -> None:
     """Report the error against the exact propagator as `dt` is refined.
 
-    The reference is analytic rather than a finer TDVP run, so a systematic
-    error could not hide behind self-consistency. The error must fall by a
-    factor of four per halving of `dt`.
+    The reference is analytic, not a finer TDVP run, so a systematic error
+    could not hide behind self-consistency. The error must fall by a factor
+    of four per halving of `dt`.
 
     Parameters
     ----------

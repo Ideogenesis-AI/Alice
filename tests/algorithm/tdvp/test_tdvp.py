@@ -18,10 +18,10 @@
 
 """Tests for alice.algorithm.tdvp.tdvp: Options, Summary, Artifact, and run.
 
-These cover the driver's contract rather than the physics: option validation,
+These cover the driver's contract, not the physics: option validation,
 round-trips through TOML and torch serialization, the on-disk layout, and the
-property that resuming from a checkpoint continues the same trajectory rather
-than a nearby one.
+property that resuming from a checkpoint continues the same trajectory
+instead of a nearby one.
 """
 
 from __future__ import annotations
@@ -317,8 +317,8 @@ class TestCheckpointing:
     def test_resumed_run_archives_the_same_grid(self, start, tmp_path):
         """The stride keys on the absolute step, not on where the run began.
 
-        This is what keeps a trajectory stitched from two calls on the same
-        grid as one that ran straight through.
+        That keeps a trajectory stitched from two calls on the same grid as
+        one that ran straight through.
         """
         state, mpo = start
         split = tmp_path / 'split'
@@ -461,7 +461,7 @@ class TestFrozenBonds:
 
 
 class TestExpansionDriver:
-    """`'1sp'` through the full driver rather than a bare sweep.
+    """`'1sp'` through the full driver instead of a bare sweep.
 
     What the driver adds over `sweep.py` is the environment fetch windows,
     the per-step bookkeeping, and the resume path; each has to cope with a

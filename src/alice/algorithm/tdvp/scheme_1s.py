@@ -35,7 +35,7 @@ about what the 1-site scheme preserves applies to it. See `sweep.py`.
   the neighboring site.
 
 The zero-site step has no DMRG analogue and is the piece that makes TDVP a
-projector-splitting integrator rather than a sequence of local evolutions. The
+projector-splitting integrator instead of a sequence of local evolutions. The
 tangent-space projector double counts each bond once it is reached from both
 sides, and evolving the bond tensor *backwards* in time cancels that excess
 exactly. Dropping it does not merely degrade the accuracy order — it destroys
@@ -162,7 +162,7 @@ def matvec_0s(C: Tensor, E_left: Tensor, E_right: Tensor) -> Tensor:
     # 'aob,bd,cod->ac'
     # contracted: b (ket_left), d (ket_right), o (shared MPO bond)
     # free:       a (bra_left), c (bra_right)
-    # Contracting C first keeps the intermediate at 3rd order rather than closing
+    # Contracting C first keeps the intermediate at 3rd order instead of closing
     # the two environments into a full bond-by-bond matrix.
     return einsum('aob,bd,cod->ac', E_left, C, E_right)
 
@@ -279,7 +279,7 @@ def split_forward(
         left environment that `A` updates, axis 1 faces the right environment.
         Under `'1sp'` the two axes sit on different bonds: the new one is
         truncated, while `ket_right` is still the expanded bond the neighbor
-        carries, which is what keeps the zero-site step exact.
+        carries, which keeps the zero-site step exact.
     """
     # cols = right bond only → LV gives isometry with axes (new_bond, left, phys).
     C, A = decomp(M, axes=1, flow='<<', mode='LV', trunc=trunc)

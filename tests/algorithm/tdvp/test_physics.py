@@ -137,7 +137,7 @@ class TestFreeFermionPropagator:
     def test_second_order_convergence_to_the_analytic_result(self, free_fermion):
         """Halving `dt` must quarter the error against the exact propagator.
 
-        Measured against analytic values rather than a finer TDVP run, so a
+        Measured against analytic values, not a finer TDVP run, so a
         systematically wrong propagator cannot hide behind self-consistency.
         """
         mpo, n_obs, make_state = free_fermion
@@ -179,7 +179,7 @@ class TestFreeFermion1Site:
     def test_converges_once_the_bonds_are_open(self, free_fermion):
         """After a 2-site warm-up, `1s` converges at second order.
 
-        The comparison is against a converged 2-site run rather than the
+        The comparison is against a converged 2-site run instead of the
         analytic values: the warm-up itself carries error, and the fixed-rank
         manifold the 1-site scheme is confined to cannot represent the exact
         state anyway.
@@ -255,7 +255,7 @@ class TestMeltingDomainWall:
     same work. A melting domain wall runs its bonds up to full rank instead,
     which is where asking for more directions than the complement holds has
     to stay safe — and where it did not, until the SVD threshold was tied to
-    the scale of the halves rather than to Θ'_disc itself.
+    the scale of the halves and not to Θ'_disc itself.
 
     Product states of fermions stay Gaussian, so the reference is still
     analytic: the equal-time correlation matrix evolves as `C(t) = U C(0) U†`.
@@ -351,8 +351,8 @@ class TestConservation:
     def test_u1_charge(self, heisenberg_L6, scheme, order):
         """The symmetry structure forbids charge leaking between sectors.
 
-        Nicole's block sparsity makes this structural rather than numerical,
-        so the test is that no sector outside the initial charge appears.
+        Nicole's block sparsity makes this structural, not numerical, so the
+        test is that no sector outside the initial charge appears.
         """
         mps, mpo = heisenberg_L6
         mps.canonical(0)
@@ -486,8 +486,8 @@ class TestConvergenceRate:
         Once the manifold is the whole Hilbert space the tangent projector is
         the identity, the sum over sites telescopes exactly, and the sweep
         reproduces `exp(-i H dt)` with no discretization error. Worth pinning:
-        it is why a convergence rate cannot be measured at full rank, and it
-        is the sense in which TDVP is "exact" — on its own manifold.
+        it explains why a convergence rate cannot be measured at full rank,
+        and it is the sense in which TDVP is "exact" — on its own manifold.
         """
         mps, mpo = heisenberg_L4
         mps.canonical(0)

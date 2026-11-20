@@ -191,10 +191,10 @@ accuracy has to come from `dt`.
 
 Under `--scheme 1sp` the same scan carries one more candidate, since `expand_k`
 caps how fast the bond profile can follow the entanglement. A plateau that
-*also* survives halving `dt` is pointing at the expansion rather than the
-integrator, and `expand_k` is what to raise. `--bond-scan` rejects `--scheme
-1s` outright: with every bond pinned at 1, each row of the table would be
-identical.
+*also* survives halving `dt` is pointing at the expansion and not the
+integrator, and `expand_k` is the knob to raise. `--bond-scan` rejects
+`--scheme 1s` outright: with every bond pinned at 1, each row of the table
+would be identical.
 
 ## See Also
 

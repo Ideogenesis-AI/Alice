@@ -21,7 +21,7 @@ exponentiating an \(L \times L\) hopping matrix:
 That reference is exact to machine precision at any time, with no bond
 dimension and no step size, so every digit of disagreement belongs to TDVP.
 
-The choice of a *moving* packet rather than a static configuration is
+The choice of a *moving* packet instead of a static configuration is
 deliberate. Conservation laws and overlap magnitudes are blind to the sign of
 the propagator: `exp(+iHt)` conserves energy and norm just as well. A packet
 with mean momentum \(k_0 > 0\) travels right under `exp(-iHt)` and left under

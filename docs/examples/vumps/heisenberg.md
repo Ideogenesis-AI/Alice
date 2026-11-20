@@ -20,7 +20,7 @@ from nicole import load_space
 
 ## 2. Build the Hamiltonian iMPO
 
-The geometry describes the unit cell rather than a chain, so `lx` is the cell length and `bcx` is `IBC`:
+The geometry describes the unit cell, not a chain, so `lx` is the cell length and `bcx` is `IBC`:
 
 ```python
 config = {
@@ -63,7 +63,7 @@ print(f"Error:                 {abs(summary.energy - exact):.2e}")
 print(f"Gradient:              {summary.gradients[-1]:.2e}")
 ```
 
-At `max_bond = 16` the energy per site comes out around `5e-5` above the exact value. Widening to 32 or 64 brings it down further; the gradient settles at a floor set by the discarded weight rather than falling to `grad_tol`, which is what a two-site run against a bond cap looks like when it has converged.
+At `max_bond = 16` the energy per site comes out around `5e-5` above the exact value. Widening to 32 or 64 brings it down further; the gradient settles at a floor set by the discarded weight and never falls to `grad_tol`, the signature of a converged two-site run against a bond cap.
 
 The chain is critical, so `env_tol = 1e-8` is deliberate: the environment fixed point converges at a rate set by a correlation length that the bond dimension itself cuts off, and reaching `1e-12` takes more cells than `env_maxiter` allows. The energy is unaffected either way, so loosening the tolerance is the cheaper of the two fixes. See [Lessons](../../algorithms/vumps/lessons.md#the-environment-budget).
 

@@ -100,7 +100,7 @@ same node can share one cache root without overwriting each other's blocks. That
 subdirectory is reused by every squaring step of the run and removed when
 `run()` finishes or raises, leaving `env_cache_dir` itself empty.
 
-Peak memory then scales with `env_window` rather than with chain length, at the
+Peak memory then scales with `env_window` instead of with chain length, at the
 cost of one serialize/deserialize round trip per block. Leave `env_async_io`
 enabled so those writes overlap with the variational sweeps.
 

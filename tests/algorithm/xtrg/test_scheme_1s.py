@@ -75,7 +75,7 @@ def _mixed_canonical_envs(mpo_c, mpo_a, mpo_b, center):
     `mpo_c` must already be canonicalized at `center`, so that sites left of
     it are left-isometric and sites right of it are right-isometric. Both
     environments are then accumulated from their respective boundaries, which
-    is what makes the 1-site update at `center` a true variational optimum.
+    makes the 1-site update at `center` a true variational optimum.
 
     Parameters
     ----------

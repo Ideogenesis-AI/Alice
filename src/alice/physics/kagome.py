@@ -154,7 +154,7 @@ def _log_kagome_diagram(
             continue
 
         # For the last row in a vertically truncated diagram, use a visual
-        # stagger that places it right after the ⋮ line rather than at its
+        # stagger that places it right after the ⋮ line instead of at its
         # true (far-right) position.
         if v_truncate and row == ly - 1:
             stagger = 6 * _DIAG_ROWS_HEAD

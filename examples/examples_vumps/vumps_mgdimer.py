@@ -30,10 +30,10 @@ This is the one example here whose exact ground state lies inside the
 variational class. The dimer covering is a uniform MPS of bond dimension
 two on a cell of two sites — one spin-1/2 multiplet per bond, so bond
 dimension one when SU(2) is exploited — and VUMPS reproduces it to machine
-precision rather than converging towards it. The gradient falls to
-`grad_tol` instead of settling on the floor that a bond cap imposes in the
-Heisenberg, free-fermion, and Hubbard examples, which is what convergence
-looks like when nothing is being truncated.
+precision instead of converging towards it. The gradient falls to
+`grad_tol` and does not settle on the floor that a bond cap imposes in the
+Heisenberg, free-fermion, and Hubbard examples, the signature of
+convergence when nothing is being truncated.
 
 The state is twofold degenerate: the dimers can cover the odd bonds or the
 even ones, and a cell of two sites silently picks whichever the initial
@@ -43,8 +43,8 @@ above the two the state needs — see the lessons page for the measurements.
 
 Two symmetries are available via --symmetry. SU(2) reaches the exact energy
 to around 1e-14; U(1) floors at about 9e-9, which is the precision of
-Alice's spin tables rather than anything the algorithm did. Detuning --J2
-away from 0.5 leaves the Majumdar-Ghosh point, where the dimer state is no
+Alice's spin tables and not anything the algorithm did. Detuning --J2 away
+from 0.5 leaves the Majumdar-Ghosh point, where the dimer state is no
 longer exact and the reference below no longer applies.
 
 Run from the repository root:
@@ -52,6 +52,7 @@ Run from the repository root:
     uv run python examples/examples_vumps/vumps_mgdimer.py
     uv run python examples/examples_vumps/vumps_mgdimer.py --symmetry U1
     uv run python examples/examples_vumps/vumps_mgdimer.py --init product
+    uv run python examples/examples_vumps/vumps_mgdimer.py --init product --scheme 1sp
     uv run python examples/examples_vumps/vumps_mgdimer.py --cell 4 --history
     uv run python examples/examples_vumps/vumps_mgdimer.py --bond-dim 8
     uv run python examples/examples_vumps/vumps_mgdimer.py --help
@@ -84,6 +85,8 @@ def vumps_mgdimer(
     env_tol: float = 1e-12,
     env_maxiter: int = 200,
     trunc_thresh: float = 1e-15,
+    expand_k: int = 4,
+    expand_alpha: int = None,
     init: str = 'random',
     seed: int = 42,
     env_cache_dir: str = None,
@@ -113,10 +116,11 @@ def vumps_mgdimer(
         Symmetry exploited: `'SU2'` (default) or `'U1'`. SU(2) counts spin
         multiplets, so the exact state needs only `bond_dim=1` there.
     scheme:
-        Update scheme: `'2s'` (two-site, default) or `'1s'` (one-site).
+        Update scheme: `'2s'` (two-site, default), `'1s'` (one-site), or
+        `'1sp'` (one-site on a bond widened by controlled bond expansion).
     grad_tol:
         Convergence criterion on the gradient norm `|AC - AL C|`. Nothing
-        is truncated at the exact point, so this is reached rather than
+        is truncated at the exact point, so this is reached, not merely
         approached.
     davidson_tol:
         Residual norm tolerance for the Davidson eigensolver. Keep it well
@@ -124,15 +128,22 @@ def vumps_mgdimer(
     env_tol:
         Convergence tolerance for the environment fixed point. The dimer
         state has zero correlation length beyond one bond, so the library
-        default is kept here rather than loosened as on the critical
+        default is kept here instead of loosened as on the critical
         chains.
     env_maxiter:
         Maximum number of unit cells absorbed by the environment solver.
     trunc_thresh:
-        Smallest singular value a two-site split may keep.
+        Smallest singular value a split may keep.
+    expand_k:
+        Directions added to a bond per expansion, and so the most it can
+        grow by in one iteration. Only used when `scheme='1sp'`.
+    expand_alpha:
+        Internal bond dimension of the cheap two-site tensor the expansion
+        applies the iMPO to. `None` keeps the full bond. Only used when
+        `scheme='1sp'`.
     init:
         Initial cell: `'random'` (default) or `'product'`, which starts at
-        width one and needs `scheme='2s'` to grow.
+        width one and needs `scheme='2s'` or `'1sp'` to grow.
     seed:
         Base random seed used when `init='random'`.
     env_cache_dir:
@@ -221,6 +232,8 @@ def vumps_mgdimer(
         env_cache_dir=env_cache_dir,
         env_async_io=env_async_io,
         env_window=env_window,
+        expand_k=expand_k,
+        expand_alpha=expand_alpha,
     )
     summary = vumps.run(imps, impo, opts)
 
@@ -261,6 +274,7 @@ def _parse_args():
             "  uv run python examples/examples_vumps/vumps_mgdimer.py\n"
             "  uv run python examples/examples_vumps/vumps_mgdimer.py --symmetry U1\n"
             "  uv run python examples/examples_vumps/vumps_mgdimer.py --init product\n"
+            "  uv run python examples/examples_vumps/vumps_mgdimer.py --init product --scheme 1sp\n"
             "  uv run python examples/examples_vumps/vumps_mgdimer.py --cell 4 --history\n"
             "  uv run python examples/examples_vumps/vumps_mgdimer.py --bond-dim 8"
         ),
@@ -291,8 +305,11 @@ def _parse_args():
         help='symmetry group exploited (default: SU2)',
     )
     p.add_argument(
-        '--scheme', choices=['1s', '2s'], default='2s',
-        help='update scheme: 2s (two-site, default) or 1s (one-site)',
+        '--scheme', choices=['1s', '2s', '1sp'], default='2s',
+        help=(
+            'update scheme: 2s (two-site, default), 1s (one-site) or '
+            '1sp (one-site with controlled bond expansion)'
+        ),
     )
     p.add_argument(
         '--grad-tol', type=float, default=1e-10, metavar='TOL',
@@ -312,13 +329,24 @@ def _parse_args():
     )
     p.add_argument(
         '--trunc-thresh', type=float, default=1e-15, metavar='THR',
-        help='SVD truncation threshold for two-site splits (default: 1e-15)',
+        help='SVD truncation threshold for splits (default: 1e-15)',
+    )
+    p.add_argument(
+        '--expand-k', type=int, default=4, metavar='K',
+        help='directions added to a bond per expansion, --scheme 1sp only (default: 4)',
+    )
+    p.add_argument(
+        '--expand-alpha', type=int, default=None, metavar='A',
+        help=(
+            'internal bond dimension of the cheap two-site tensor the '
+            'expansion uses, --scheme 1sp only (default: the full bond)'
+        ),
     )
     p.add_argument(
         '--init', choices=['random', 'product'], default='random',
         help=(
             'initial unit cell: random (default) or product, which starts at '
-            'width one and needs --scheme 2s to grow'
+            'width one and needs --scheme 2s or 1sp to grow'
         ),
     )
     p.add_argument(
@@ -369,6 +397,8 @@ if __name__ == '__main__':
         env_tol=args.env_tol,
         env_maxiter=args.env_maxiter,
         trunc_thresh=args.trunc_thresh,
+        expand_k=args.expand_k,
+        expand_alpha=args.expand_alpha,
         init=args.init,
         seed=args.seed,
         env_cache_dir=args.env_cache_dir,

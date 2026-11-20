@@ -46,9 +46,9 @@ energy and norm just as faithfully.
 
 **Cross-symmetry agreement.** The four groups share no tensor structure: two
 carry intertwiners and two do not, two resolve \(S_z\) and two only total spin,
-and `Z2` conserves fermion parity rather than particle number. Identical
-observables from four genuinely different bookkeepings is strong evidence that
-all of them are right.
+and `Z2` conserves fermion parity, not particle number. Identical observables
+from four genuinely different bookkeepings is strong evidence that all of them
+are right.
 
 ## 1. Prepare the ground state
 
@@ -93,7 +93,7 @@ state = summary.state
 ## 2. Snapshot the initial state
 
 `tdvp.run` evolves in place, so the overlap check needs its own copy. Clone
-tensor by tensor rather than with `copy.deepcopy`, which cannot pickle the
+tensor by tensor instead of with `copy.deepcopy`, which cannot pickle the
 `CGSpec` held by a non-Abelian tensor's intertwiners:
 
 ```python
@@ -115,7 +115,7 @@ summary, artifact = tdvp.run(
 Unlike a product-state quench, `scheme='1s'` is usable here — the ground state
 already has open bonds for the 1-site manifold to rotate within. `'1sp'` is
 likewise free to spend its expansion on the rank the quench actually asks for,
-rather than on opening bonds that should never have been closed.
+and not on opening bonds that should never have been closed.
 
 ## Running the script
 
@@ -130,7 +130,7 @@ Symmetry       : U1,SU2   (non-Abelian, particle number conserved)
 
 DMRG ground state at U = 2.0
   energy <H(U_init)>  : -10.5463137944
-  energy <H(U_final)> : -18.7450277022  (this is what must stay fixed)
+  energy <H(U_final)> : -18.7450277022  (this must stay fixed)
   double occupancy    : 0.9503215231
 
      t          D(t)     E drift             N  |<psi0|psi>|      S_max   mult  states
@@ -146,7 +146,7 @@ The double occupancy falls from 0.950 to 0.199 and rebounds to 0.218 —
 stronger repulsion suppressing the doubly-occupied configurations, then
 overshooting into an oscillation. Particle number stays exact, the energy of
 the evolving Hamiltonian holds to 7e-12, and the overlap with the initial state
-decays to 0.617, confirming the quench genuinely moved the state rather than
+decays to 0.617, confirming the quench genuinely moved the state instead of
 only accumulating a phase.
 
 ## The eigenstate-phase check

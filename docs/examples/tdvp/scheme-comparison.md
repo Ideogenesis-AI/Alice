@@ -28,7 +28,7 @@ it puts both hard parts in one run: every bond starts at dimension 1, which a
 fixed-rank scheme can never leave, and the front then keeps demanding more room
 as it advances. The [domain wall](domain-wall.md) page studies this state for
 its own sake — entropy growth, truncation error, the exact Gaussian solution in
-full. Here it is the instrument rather than the object.
+full. Here it is the instrument, not the object.
 
 Why not the simpler starting point? The single-particle quench of the
 [free fermion example](free-fermion.md) shows the frozen `'1s'` start just as
@@ -140,8 +140,8 @@ Read the `bonds`, `S` and `density` columns together. Under `'1s'` the bond
 profile never leaves 1, the entropy stays at zero where the exact value climbs
 to 0.71, and the density pattern is still the initial wall — all while the
 energy sits at 1.7e-15, the norm at 1.000000 and the particle number at exactly
-6. That is a frozen run with every conservation law intact, which is why the
-conserved quantities are the wrong place to look for trouble.
+6. That is a frozen run with every conservation law intact, so the conserved
+quantities are the wrong place to look for trouble.
 
 Under `'1sp'` and `'2s'` the wall melts, the entropy tracks the exact curve to
 four digits, and the occupations land within 9e-05 of the Gaussian solution.
@@ -161,8 +161,8 @@ threshold.
     them until every bond has opened.
     ```
 
-    The warning is what makes the `'1s'` row above an expected outcome rather
-    than a silent failure.
+    The warning makes the `'1s'` row above an expected outcome instead of a
+    silent failure.
 
 ## How much expansion is enough
 
@@ -188,7 +188,7 @@ must reproduce `'1s'` exactly — 4.211e-01, the same number as the summary tabl
 above — which separates an error in the expansion from an error in the
 integrator around it.
 
-Above that the table stops moving, which is worth understanding rather than
+Above that the table stops moving, which is worth understanding instead of
 dismissing. `expand_k` is a **cap, not a request**: a bond receives however
 many directions its complement actually holds above the noise floor, and for a
 short-range Hamiltonian that number is small — never more than two anywhere in
