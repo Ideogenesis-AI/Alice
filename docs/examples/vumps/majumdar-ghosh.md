@@ -83,7 +83,7 @@ A cell of width one is already the dimer state under SU(2), so there is nothing 
 uv run python examples/examples_vumps/vumps_mgdimer.py --init product
 ```
 
-One iteration, a difference of `1.8e-15`, and the bonds never widen past one multiplet. This is the fixture the test suite leans on for exactly that reason.
+One iteration, a difference of `1.8e-15`, and the bonds never grow past one multiplet. This is the fixture the test suite leans on for exactly that reason.
 
 The ground state is twofold degenerate: the dimers can cover the odd bonds or the even ones, at the same energy. A cell of two sites silently picks whichever the initial state leans towards, and the two answers are indistinguishable by energy. That degeneracy has a visible consequence — it slows the transfer-operator fixed point, so a cell of four sites or a bond dimension of eight, both far more than the state needs, make the environment solver run out its budget and warn:
 

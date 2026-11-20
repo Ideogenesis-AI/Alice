@@ -63,7 +63,7 @@ At `max_bond = 16` the error is around `9e-5`. The chain is gapless, so the enta
 
 ## 5. Growing from a product state
 
-A cell of bond dimension one is a deterministic alternating occupied and empty pattern, and the two-site scheme widens it from the first iteration:
+A cell of bond dimension one is a deterministic alternating occupied and empty pattern, and the two-site scheme grows it from the first iteration:
 
 ```python
 imps = init_imps(geo.L, Spc, Op, bond_dim=1)
