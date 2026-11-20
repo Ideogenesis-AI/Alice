@@ -428,7 +428,7 @@ def init_imps(
     Examples
     --------
     Product cell for the spin-1/2 Heisenberg chain under U(1), ready for the
-    two-site scheme to widen:
+    two-site scheme to expand:
 
     >>> from nicole import load_space
     >>> from alice import init_imps
