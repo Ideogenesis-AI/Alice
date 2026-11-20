@@ -79,7 +79,7 @@ summary, artifact = tdvp.run(
 
 !!! tip "`scheme='1sp'` is the way out of it"
 
-    The 1-site-plus scheme widens each bond before updating it, drawing up to
+    The 1-site-plus scheme expands each bond before updating it, drawing up to
     `expand_k` directions from the complement of the space that bond currently
     spans. The rank adapts as it does under `'2s'`, but every local
     exponential stays 1-site sized. It melts this wall from the same product

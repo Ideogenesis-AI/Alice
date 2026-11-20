@@ -180,10 +180,10 @@ machinery.
 
 !!! tip "The eigenstate limit is also the test for `scheme='1sp'`"
 
-    The expansion widens a bond and then truncates it back, and an eigenstate
+    The expansion grows a bond and then truncates it back, and an eigenstate
     has to come through both operations untouched. Adding `--scheme 1sp` to the
     run above holds the overlap at 1.000000000000 with a phase deviation of
-    6.7e-14 and a discarded weight of exactly zero, so the widening and the
+    6.7e-14 and a discarded weight of exactly zero, so the expansion and the
     cutting cancel as they should.
 
     This is the check worth running after touching the expansion, because the
