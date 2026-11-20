@@ -24,7 +24,7 @@ import logging
 
 import pytest
 import torch
-from nicole import identity
+from nicole import Direction, einsum, identity
 
 from alice.algorithm.vumps import (
     Environment,
@@ -37,7 +37,15 @@ from alice.algorithm.vumps import (
     transfer_left,
     transfer_right,
 )
-from alice.algorithm.vumps.environ import step_right_env
+from alice.algorithm.vumps.environ import (
+    _capped_identity,
+    rotate_left_env,
+    rotate_right_env,
+    step_left_env,
+    step_right_env,
+)
+from alice.network import iMPS
+from alice.network.autoimpo import boundary_vectors
 
 from .conftest import (
     HEISENBERG,
@@ -220,6 +228,175 @@ class TestEnvironmentConsistency:
             energy_density(random_imps(spin_half, 2), ihamiltonian(HEISENBERG, 2)),
             rel=1e-10,
         )
+
+
+# ---------------------------------------------------------------------------
+# Carrying a block across a change of basis
+# ---------------------------------------------------------------------------
+
+class TestRotateEnv:
+    """A rotated block must say about the rotated state what it said before."""
+
+    @staticmethod
+    def _rotated(spin_half):
+        """Install a canonical form and return the state with its rotations.
+
+        The bond matrices read off a gauge-fixed state are diagonal, so
+        feeding them back would rotate by nothing. Mixing the two
+        canonical forms gives a general matrix and a rotation with
+        something in it.
+        """
+        imps = random_imps(spin_half, 2)
+        left_isos, right_isos = imps.left_isometries(), imps.right_isometries()
+        bonds = [
+            einsum('ars,brs->ba', left_isos[k].conj(), right_isos[k])
+            for k in range(imps.N)
+        ]
+        rotated = iMPS(list(right_isos), imps.N)
+        rot_l, rot_r = rotated.set_canonical(left_isos, right_isos, bonds)
+        return imps, rotated, left_isos, right_isos, rot_l, rot_r
+
+    def test_rotating_commutes_with_absorbing_a_cell(self, spin_half):
+        # The statement that makes a block transportable: it does not
+        # matter whether a cell is absorbed before or after the change of
+        # basis, so a block carried across is the block the new basis
+        # would have produced.
+        imps, rotated, left_isos, _, rot_l, _ = self._rotated(spin_half)
+        impo = ihamiltonian(HEISENBERG, imps.N)
+        E, _ = left_environment(imps, impo)
+
+        before = E
+        for i in range(imps.N):
+            before = step_left_env(before, left_isos[i], impo[i])
+        before = rotate_left_env(before, rot_l[0])
+
+        after = rotate_left_env(E, rot_l[0])
+        for i, iso in enumerate(rotated.left_isometries()):
+            after = step_left_env(after, iso, impo[i])
+        assert _deviation(before, after) < 1e-12
+        # The basis really did move, so the agreement above says something.
+        assert _deviation(rotate_left_env(E, rot_l[0]), E) > 1e-3
+
+    def test_the_right_side_carries_across_the_same_way(self, spin_half):
+        imps, rotated, _, right_isos, _, rot_r = self._rotated(spin_half)
+        impo = ihamiltonian(HEISENBERG, imps.N)
+        E, _ = right_environment(imps, impo)
+
+        before = E
+        for i in reversed(range(imps.N)):
+            before = step_right_env(before, right_isos[i], impo[i])
+        before = rotate_right_env(before, rot_r[0])
+
+        after = rotate_right_env(E, rot_r[0])
+        for i in reversed(range(imps.N)):
+            after = step_right_env(after, rotated.right_isometries()[i], impo[i])
+        assert _deviation(before, after) < 1e-12
+
+    def test_the_bond_keeps_its_name(self, spin_half):
+        # A rotation is a change of basis on one bond, not a move to
+        # another, so the block comes back tagged as the bond it sits on
+        # and not as the internal bond of the decomposition.
+        imps, _, _, _, rot_l, rot_r = self._rotated(spin_half)
+        impo = ihamiltonian(HEISENBERG, imps.N)
+        left, _ = left_environment(imps, impo)
+        right, _ = right_environment(imps, impo)
+
+        assert rotate_left_env(left, rot_l[0]).itags == left.itags
+        assert rotate_right_env(right, rot_r[0]).itags == right.itags
+
+
+# ---------------------------------------------------------------------------
+# Starting from a previous answer
+# ---------------------------------------------------------------------------
+
+class TestWarmStart:
+    """What a guess may change, which is how long a solve takes and no more."""
+
+    @staticmethod
+    def _cells(caplog):
+        """Read the number of unit cells the last solve absorbed."""
+        for record in reversed(caplog.records):
+            if 'converged after' in record.msg:
+                return record.args[1]
+        raise AssertionError("no solve reported convergence")
+
+    @pytest.mark.parametrize(
+        'solver', [left_environment, right_environment],
+    )
+    def test_the_answer_itself_converges_at_once(self, spin_half, solver, caplog):
+        # The point of the whole exercise: handed the fixed point, the
+        # iteration has to recognize it in a single cell instead of
+        # walking back to it from the entering channel.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        E, energy = solver(imps, impo)
+
+        with caplog.at_level(logging.DEBUG, logger='alice.algorithm.vumps.environ'):
+            warm, warm_energy = solver(imps, impo, guess=E)
+        assert self._cells(caplog) == 1
+        assert _deviation(warm, E) < 1e-12
+        assert warm_energy == pytest.approx(energy, rel=1e-12)
+
+    @pytest.mark.parametrize(
+        'solver', [left_environment, right_environment],
+    )
+    def test_a_guess_does_not_move_the_fixed_point(self, spin_half, solver):
+        # A different state's environment is a poor guess but a legal one.
+        # The iteration has one fixed point, so it must land on the same
+        # place it does from cold.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        cold, cold_energy = solver(imps, impo)
+        elsewhere, _ = solver(random_imps(spin_half, 2, seed=7), impo)
+
+        warm, warm_energy = solver(imps, impo, guess=elsewhere)
+        assert _deviation(warm, cold) < 1e-9
+        assert warm_energy == pytest.approx(cold_energy, rel=1e-9)
+
+    @pytest.mark.parametrize(
+        'solver', [left_environment, right_environment],
+    )
+    def test_the_entering_channel_of_a_guess_is_rebuilt(self, spin_half, solver):
+        # The entering channel is the identity and the transfer operator
+        # carries the identity to itself, so anything extra sitting there
+        # is a fixed point too: it would survive the solve and bias the
+        # energy. Doubling it must leave no trace.
+        imps = random_imps(spin_half, 2)
+        impo = ihamiltonian(HEISENBERG, 2)
+        cold, cold_energy = solver(imps, impo)
+
+        isometries = (
+            imps.left_isometries() if solver is left_environment
+            else imps.right_isometries()
+        )
+        start, finish = boundary_vectors(impo, 0)
+        start.permute([1, 0], in_place=True)
+        if solver is left_environment:
+            edge, entering, direction = isometries[0].indices[0], start, Direction.OUT
+            itag = isometries[0].itags[0]
+        else:
+            last = isometries[imps.N - 1]
+            edge, entering, direction = last.indices[1], finish, Direction.IN
+            itag = last.itags[1]
+        delta = _capped_identity(edge, itag, direction)
+        spoiled = cold + einsum('ayb,oy->aob', delta, entering)
+
+        warm, warm_energy = solver(imps, impo, guess=spoiled)
+        assert _deviation(warm, cold) < 1e-9
+        assert warm_energy == pytest.approx(cold_energy, rel=1e-9)
+
+    def test_a_store_can_be_filled_from_its_own_last_answer(self, spin_half):
+        # What `run` does every iteration: the pass leaves a block on
+        # bond 0 behind it, and the next solve starts from it.
+        imps = random_imps(spin_half, 4)
+        impo = ihamiltonian(HEISENBERG, 4)
+        plain = Environment(4)
+        build_right_envs(imps, impo, plain)
+
+        warm = Environment(4)
+        build_right_envs(imps, impo, warm, guess=plain[0])
+        for k in range(4):
+            assert _deviation(warm[k], plain[k]) < 1e-12
 
 
 # ---------------------------------------------------------------------------

@@ -45,7 +45,10 @@ factor of `X`. The two polar factors are taken separately, because the
 polar decomposition of the product `AC C^dag` would square the condition
 number of `C`, which is ill-conditioned by construction, since its small
 singular values are the ones the bond dimension is about to stop
-resolving.
+resolving. `AR` is the mirror statement, the minimizer of `|AC - C AR|`,
+and `gauge_tensors` reports the larger of the two mismatches, the only
+measure that survives a pass writing its answers back in one of the two
+forms.
 
 Index convention (shared with `environ.py`)
 --------------------------------------------
@@ -255,9 +258,20 @@ def gauge_tensors(
     right_iso:
         Right-orthonormal tensor `AR` for the site.
     error:
-        `|AC - AL C_right|`, the local VUMPS gradient norm. It is zero
-        exactly when the two eigenproblems agree, which is the fixed point
-        the algorithm is looking for.
+        The larger of `|AC - AL C_right|` and `|AC - C_left AR|`, the local
+        VUMPS gradient norm. It is zero exactly when the two eigenproblems
+        agree, which is the fixed point the algorithm is looking for.
+
+    Notes
+    -----
+    Both mismatches vanish together at a stationary point, and on a cell
+    that no pass has touched they are equal, so either would do as a
+    convergence measure for the one-site scheme. Taking the larger is what
+    a pass that ends each step in a split needs: such a step writes its
+    answer back as `AL C` or as `C AR` depending on which way it is going,
+    and the matching mismatch is then zero by construction at every site
+    the pass solved. Measuring only that one would read a sweep whose
+    bonds are still moving as a converged state.
     """
     polar_ac_l = _polar_left(AC, [0, 2])
     polar_ac_r = _polar_left(AC, 0)
@@ -267,5 +281,6 @@ def gauge_tensors(
     left_iso = einsum('acr,bc->abr', polar_ac_l, polar_c_r.conj())
     right_iso = einsum('ab,acr->bcr', polar_c_l.conj(), polar_ac_r)
 
-    error = float((AC - einsum('abr,bc->acr', left_iso, C_right)).norm())
-    return left_iso, right_iso, error
+    left_error = float((AC - einsum('abr,bc->acr', left_iso, C_right)).norm())
+    right_error = float((AC - einsum('ab,bcr->acr', C_left, right_iso)).norm())
+    return left_iso, right_iso, max(left_error, right_error)

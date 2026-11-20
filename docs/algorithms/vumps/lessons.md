@@ -107,6 +107,72 @@ gapped is usually reporting one of these two situations, or saying that the
 model is closer to critical than assumed, and all three are worth knowing
 about instead of silencing.
 
+## Starting From the Previous Answer
+
+Everything above counts the cells a solve absorbs from a cold start, meaning
+an environment holding nothing but its entering channel. A run does not have
+to start there. The state moves less and less as the iterations proceed, so
+an answer from the iteration before is close to the one being looked for, and
+`env_warm_start` (on by default) hands one to the solver as a starting point.
+It cannot change what the iteration converges to, which has one fixed point
+either way; it changes only how many cells reaching it costs.
+
+What gets handed over is not the previous fixed point but the pair of blocks
+the pass itself ends holding. The last position a forward pass solves
+straddles the cell boundary, with a left block on bond `N-1` and a right
+block on bond `1`; stepping each one inward over the site in front of it puts
+both on bond `0`. That bond is the one the final split has just created, so
+the pair is expressed in the basis the cell ends in and fits the solve it
+seeds no matter what the split did to the width of the bond. Taking the
+previous iteration's fixed points instead would work only for `'1s'`, whose
+bonds never move.
+
+How much that saves follows from the geometry of the residual. The iteration
+needs \(k \approx \xi \ln(\delta_0/\epsilon)\) cells to bring a starting
+error \(\delta_0\) down to `env_tol`, so a warm start saves the fraction
+\(\ln(\delta_{\text{cold}}/\delta_{\text{warm}}) / \ln(\delta_{\text{cold}}/\epsilon)\)
+of them. A cold start is always \(\delta_0 \approx 0.8\) in relative terms;
+what matters is how small \(\delta_{\text{warm}}\) gets. Measured on the
+Heisenberg spin-1/2 chain at `D = 16`, `env_tol = 1e-10`, two-site cell:
+
+<div class="data-table label-col" markdown>
+
+| scheme | cells, cold | cells, warm | cells per solve, late in the run | wall clock |
+|---|---|---|---|---|
+| `'1s'`, 90 iterations to `grad_tol` | 7150 | 4408 | 40 → 5 | 1.16x |
+| `'2s'`, 200 iterations | 82532 | 33624 | 209 → 77 | 1.34x |
+| `'1sp'`, 200 iterations | 81729 | 35820 | 208 → 78 | 1.42x |
+
+</div>
+
+The energies agree to `1e-13`, as they must. The saving in cells is larger
+than the saving in wall clock because the environments are only about half of
+an iteration; the other half is the Davidson solves, which this does not
+touch. The cold column climbs to a plateau — 209 cells is what this state
+costs from nothing, every iteration, forever — while the warm column falls
+away from it as the state settles.
+
+### The basis has to come with it
+
+A block is a statement about a particular basis of a particular bond, and
+installing a canonical form moves that basis: `set_canonical` rotates every
+bond into its Schmidt basis on the way in. A block built by the pass is
+therefore correct about the tensors the pass wrote and says nothing about the
+tensors that end up stored, unless it is carried across by the same rotation.
+`set_canonical` returns those rotations for exactly that purpose, and
+`rotate_left_env` and `rotate_right_env` apply them.
+
+This is easy to get wrong in a way that looks like it works. An SVD fixes `U`
+only up to one phase per singular value, so pinning that phase makes the
+rotation reproducible from one iteration to the next; near convergence a
+reproducible rotation is nearly the identity, and a block left untransported
+is then nearly right. Alice carried such a convention for a while and it did
+help, by most of the margin the table above reports — but it was compensating
+for coordinates that were wrong rather than making them right, and it left
+the one-site scheme, whose rotation is the only non-trivial one, saving the
+least of the three. Transporting the block is both better and indifferent to
+what LAPACK returns, so the convention is gone.
+
 ## The Energy Is Not the Environment
 
 The energy converges long before the environment tensor it is extracted from.
@@ -189,7 +255,8 @@ Ordered by what the run is for:
 
 ## See Also
 
-- [Options](options.md) — `env_tol`, `env_maxiter`, and the caching settings.
+- [Options](options.md) — `env_tol`, `env_maxiter`, `env_warm_start`, and the
+  caching settings.
 - [Overview](index.md) — why the environments are fixed points at all.
 - [Heisenberg example](../../examples/vumps/heisenberg.md) — a critical chain
   run at a loosened tolerance.
