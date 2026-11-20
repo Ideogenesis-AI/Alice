@@ -58,7 +58,7 @@ unreachable one, and the question is only ever how many cells it costs.
 ### Gapped models saturate with the bond dimension
 
 For a gapped state, \(\lambda_2\) converges to a physical value once the bond
-dimension is large enough to capture the correlation length, and widening the
+dimension is large enough to capture the correlation length, and expanding the
 state further does not slow the iteration down. The Haldane chain, which is
 gapped with a unique ground state:
 
@@ -101,7 +101,7 @@ degenerate, and exactly representable at `D = 2`:
 | 64 | 0.98 | ~1200 |
 | 128 | 0.97 | ~1040 |
 
-The rate gets worse as the state is widened past what it needs, which is the
+The rate gets worse as the state is expanded past what it needs, which is the
 opposite of the Haldane behavior above. A warning on a model believed to be
 gapped is usually reporting one of these two situations, or saying that the
 model is closer to critical than assumed, and all three are worth knowing
