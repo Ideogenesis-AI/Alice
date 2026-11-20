@@ -135,7 +135,7 @@ class TestEvenNeighborhood:
         assert _even_neighborhood(Spc.group, Spc, 1) == {-1, 1, 3}
 
     def test_more_steps_reach_further(self, spin_u1):
-        """Each double step widens the set it returns."""
+        """Each double step grows the set it returns."""
         Spc, _ = spin_u1
         near = _even_neighborhood(Spc.group, Spc, 0, steps=1)
         far = _even_neighborhood(Spc.group, Spc, 0, steps=2)
