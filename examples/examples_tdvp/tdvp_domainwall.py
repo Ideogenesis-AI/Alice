@@ -62,7 +62,7 @@ Two further things this example shows:
   energy stay perfectly conserved. For that reason `Options.scheme`
   defaults to `'2s'`, and `run()` warns when a `1s` run starts from such a
   state.
-- **The way out of it.** `--scheme 1sp` widens each bond before updating it,
+- **The way out of it.** `--scheme 1sp` expands each bond before updating it,
   so the rank adapts as it does under `'2s'` while every local exponential
   stays 1-site sized. It melts the wall from the same product state, truncates
   and reports discarded weight like `'2s'`, and `--bond-scan` accepts it

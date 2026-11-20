@@ -426,7 +426,7 @@ class TestLongRange:
         )
 
     @pytest.mark.parametrize("span", [1, 2, 3, 4])
-    def test_span_widens_the_bond(self, span):
+    def test_span_grows_the_bond(self, span):
         """A span of d holds the operator string across d bonds."""
         template, spc = self._template(8)
         impo = build_ihamiltonian(self._stretch(template, [0], span), 1, spc)

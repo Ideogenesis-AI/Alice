@@ -59,7 +59,7 @@ rests on three things that do not require one:
 
 All three update schemes run here, the ground state having open bonds for a
 fixed-rank update to rotate within, and check 2 makes `--scheme 1sp` worth
-running: the expansion widens a bond and then truncates it back, and an
+running: the expansion grows a bond and then truncates it back, and an
 eigenstate has to come through both untouched. An overlap that drifts below
 one under `'1sp'` while `'1s'` and `'2s'` hold it at one is the expansion
 losing part of the state — and nothing in checks 1 or 3 would report it.

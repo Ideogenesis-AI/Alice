@@ -41,7 +41,7 @@ The three answers:
   manifold of *fixed* bond dimension. Nothing crosses a bond of dimension 1,
   so the state does not move, while the norm, the particle number and the
   energy stay conserved to machine precision and the run looks healthy.
-- `'1sp'` decides before each update, by widening the bond ahead of it with
+- `'1sp'` decides before each update, by expanding the bond ahead of it with
   directions drawn from the complement of the space that bond currently spans,
   up to `expand_k` of them. The local exponential stays 1-site sized.
 - `'2s'` decides after each update, as a by-product: it evolves two sites at

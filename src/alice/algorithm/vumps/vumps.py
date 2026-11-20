@@ -49,7 +49,7 @@ iteration to the next, up to `max_bond`. The one-site scheme solves
 single sites and bonds, and takes polar decompositions in place of
 splits, so it never discards anything and never gains width: a run
 under `'1s'` stays at the bond dimension its initial state carried. The
-one-site-plus scheme has it both ways, widening each bond by controlled
+one-site-plus scheme has it both ways, expanding each bond by controlled
 bond expansion before solving the one-site problem on it and cutting it
 back down afterwards, so the bond grows by up to `expand_k` per
 iteration without the local problem ever growing at all.
@@ -154,7 +154,7 @@ class Options(AlgorithmOptions):
           iteration, but confined to the bond dimension of the initial
           state.
         - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: one-site VUMPS on a
-          bond widened by controlled bond expansion. It grows the bond
+          bond expanded by controlled bond expansion. It grows the bond
           dimension as `'2s'` does, but its eigenproblem stays the one-site
           one, so the local solve is `d` times smaller on each side. See
           `expand_k` and `expand_alpha`.
@@ -212,7 +212,7 @@ class Options(AlgorithmOptions):
         needs is roughly the correlation length in unit cells times
         `log(1 / env_tol)`, and the default covers a correlation length of
         about seven cells. On a gapped model that rate saturates once the
-        bond dimension captures the correlation length, and widening the
+        bond dimension captures the correlation length, and expanding the
         state further does not slow it down. A critical model has no such
         saturation, since there the correlation length is cut off by the
         bond dimension itself. Running out logs a warning and continues

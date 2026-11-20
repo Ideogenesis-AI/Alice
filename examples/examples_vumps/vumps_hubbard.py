@@ -52,7 +52,7 @@ the four.
 Two initializations are supported via --init:
 
 - `product` (default): deterministic cell of width one, one electron per
-  site, widened by the two-site or one-site-plus scheme over the first few
+  site, grown by the two-site or one-site-plus scheme over the first few
   iterations.
 - `random`: random unit cell of width `bond_dim`, each bond carrying the
   charges reachable at its position.
@@ -234,7 +234,7 @@ def vumps_hubbard(
 
     scheme:
         Update scheme: `'2s'` (two-site, default), `'1s'` (one-site), or
-        `'1sp'` (one-site on a bond widened by controlled bond expansion).
+        `'1sp'` (one-site on a bond expanded by controlled bond expansion).
     grad_tol:
         Convergence criterion on the gradient norm, the larger of
         `|AC - AL C|` and `|AC - C AR|` over the cell.

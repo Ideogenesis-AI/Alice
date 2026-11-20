@@ -52,7 +52,7 @@ imps = init_imps(geo.L, Spc, Op, bond_dim=1)
 
 Half filling is not a setting here, it follows from what a unit cell is. The bond charge has to return to itself after `N` sites, so the cell carries no net charge, which for a band means one electron per site on average. That is exactly the filling the Lieb–Wu integral describes.
 
-Note the `bond_dim=1`: a product cell, one electron per site, which the two-site scheme widens over the first few iterations. This is the opposite of the choice in the [spin](heisenberg.md) and [spinless](free-fermion.md) examples, and it matters more here. With four states per site a random cell of a given width spreads its weight over many more charge sectors than the ground state uses, and the two-site splits spend their iterations undoing that.
+Note the `bond_dim=1`: a product cell, one electron per site, which the two-site scheme grows over the first few iterations. This is the opposite of the choice in the [spin](heisenberg.md) and [spinless](free-fermion.md) examples, and it matters more here. With four states per site a random cell of a given width spreads its weight over many more charge sectors than the ground state uses, and the two-site splits spend their iterations undoing that.
 
 ## 4. Run VUMPS
 
@@ -85,7 +85,7 @@ The same run started from a random cell of width 16 reaches only `1.2e-3`, with 
 uv run python examples/examples_vumps/vumps_hubbard.py --cell 2 --bond-dim 16 --init random
 ```
 
-Both runs are converged in the sense that their energies have stopped moving; they have simply converged to different states, and the product start found the better one. Widening the bond closes the remaining gap in either case.
+Both runs are converged in the sense that their energies have stopped moving; they have simply converged to different states, and the product start found the better one. Growing the bond closes the remaining gap in either case.
 
 Setting `U = 0` turns the Mott insulator into a metal and the exact answer into \(-4t/\pi\):
 

@@ -36,8 +36,8 @@ that bond with a left environment built on the index the previous split
 left behind. That makes them sweeps in the finite sense, and it is the
 price of being able to change the bond dimension at all. What they split
 is where they differ: the two-site scheme solves a pair and cuts it in
-half, while the one-site-plus scheme widens a bond by controlled bond
-expansion first and then cuts the widened bond back down, which reaches
+half, while the one-site-plus scheme expands a bond by controlled bond
+expansion first and then cuts the expanded bond back down, which reaches
 the same freedom through a solve that stays one-site sized.
 
 Environments
@@ -650,15 +650,15 @@ def _update_one_site_plus(
     env_stored: Environment,
     opts: Options,
 ) -> Tuple[float, float, Tensor]:
-    """Sweep the bonds of the cell, widening and solving one site at each.
+    """Sweep the bonds of the cell, expanding and solving one site at each.
 
-    The step at site `i` widens the bond in front of it by controlled bond
-    expansion, solves the ordinary one-site eigenproblem on the widened
+    The step at site `i` expands the bond in front of it by controlled bond
+    expansion, solves the ordinary one-site eigenproblem on the expanded
     bond, and splits the answer to cut the bond back down. Only bond `i+1`
     changes, as in the two-site sweep, so the next step starts from
     something consistent and the cell still tiles at the end.
 
-    Which bond a forward step widens follows from where it leaves the
+    Which bond a forward step expands follows from where it leaves the
     center. A left-to-right pass carries the center rightward, so the step
     at site `i` ends with the left-orthonormal tensor of that site and the
     center on bond `i+1`; the bond it is free to change is therefore the
@@ -676,7 +676,7 @@ def _update_one_site_plus(
     split tensor, since the bond it sits on has just been replaced; the
     right blocks stay valid until the sweep reaches them, which covers
     every bond but the last. The simplification is that the expansion needs
-    no block of its own on the widened bond: that bond sits *behind* the
+    no block of its own on the expanded bond: that bond sits *behind* the
     stored block the step already reads, so one step of the right
     environment over the expanded neighbor puts an exact block on it.
 
@@ -715,7 +715,7 @@ def _update_one_site_plus(
     if N < 2:
         raise ValueError(
             "the one-site-plus scheme needs a unit cell of at least two "
-            "sites, since the expansion widens the bond between a site and "
+            "sites, since the expansion acts on the bond between a site and "
             "its neighbor and leaves the others alone; use scheme='1s' or "
             "describe the same state with a doubled cell"
         )
@@ -752,7 +752,7 @@ def _update_one_site_plus(
             centers[i], right_isos[j], impo[i], impo[j],
             carried, env_right, **expansion,
         )
-        widened = AC.indices[1].dim
+        expanded = AC.indices[1].dim
 
         energy, AC, davidson_error = optimize_center(
             AC, impo[i], carried, env_right_exp, davidson_opts,
@@ -761,7 +761,7 @@ def _update_one_site_plus(
 
         left_iso, bond, rotation = split_center(AC, bonds[j].itags[0], trunc)
         bonds[j] = bond
-        # The rotation belongs to the neighbor, whose widened bond it turns
+        # The rotation belongs to the neighbor, whose expanded bond it turns
         # into the truncated one. Both factors are isometric, so the product
         # is still the right-orthonormal tensor of site j.
         right_isos[j] = einsum('ab,bcr->acr', rotation, right_iso_exp)
@@ -769,8 +769,8 @@ def _update_one_site_plus(
         centers[j] = einsum('ab,bcr->acr', bond, right_isos[j])
 
         logger.debug(
-            "  site %*d: E = %+.12g, davidson err = %.4e, D = %d (%d widened)",
-            w, i, energy, davidson_error, bond.indices[0].dim, widened,
+            "  site %*d: E = %+.12g, davidson err = %.4e, D = %d (%d expanded)",
+            w, i, energy, davidson_error, bond.indices[0].dim, expanded,
         )
 
         # `left_iso` is already the left-orthonormal tensor of site i, since

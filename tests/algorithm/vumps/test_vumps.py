@@ -392,7 +392,7 @@ class TestRun:
         assert len(summary.discarded_weights) == summary.n_iters
 
     def test_one_site_plus_grows_by_the_expansion_width(self, spin_half):
-        # What `expand_k` controls is the rate: each iteration widens a bond
+        # What `expand_k` controls is the rate: each iteration expands a bond
         # by at most that much, where a two-site split multiplies it.
         summary = run(
             neel_imps(spin_half, 2),

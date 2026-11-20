@@ -39,7 +39,7 @@ arithmetic, a 1-site-sized update being the same arithmetic whatever space it
 is carried out on. That reuse is where the kinship ends. `'1s'` integrates on a
 manifold of fixed rank, and its sweep is an exact splitting of one fixed
 tangent-space projector; `'1sp'` assembles the space it projects onto afresh at
-every bond out of the state it finds there, truncates each bond it has widened,
+every bond out of the state it finds there, truncates each bond it has expanded,
 and carries the resulting discarded weight. It is a scheme of the `'2s'` kind
 whose local exponential happens to be 1-site sized, and the expectations that
 make `'1s'` worth having — fixed rank, nothing discarded, reversibility to
@@ -574,9 +574,9 @@ def _forward_1sp(
 
     At every site `i < L-1`:
 
-    1. `expand_forward` widens bond `(i, i+1)` by up to `k_expand` complement
+    1. `expand_forward` expands bond `(i, i+1)` by up to `k_expand` complement
        directions, leaving the state unchanged and returning a right
-       environment that is exact in the widened basis.
+       environment that is exact in the expanded basis.
     2. The expanded site tensor is evolved forward by `dt`. The step is 1-site
        sized, but the space it is taken in was built from the current state at
        this bond and is neither the fixed-rank tangent space of `'1s'` nor the
