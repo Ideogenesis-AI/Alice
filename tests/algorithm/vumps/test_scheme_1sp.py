@@ -49,7 +49,7 @@ DAVIDSON = {'max_iter': 100, 'tol': 1e-10, 'max_subspace': 20}
 def _setup(imps):
     """Return the iMPO and the environment blocks of a gauge-fixed state.
 
-    Both block lists are indexed by bond, so the step that widens bond 1
+    Both block lists are indexed by bond, so the step that expands bond 1
     reads the left block on bond 0 and the right one on bond 2.
     """
     impo = ihamiltonian(HEISENBERG, imps.N)
@@ -58,7 +58,7 @@ def _setup(imps):
 
 
 def _expand(imps, k_expand=4, alpha=None):
-    """Widen bond 1 of a gauge-fixed cell and return everything in play.
+    """Expand bond 1 of a gauge-fixed cell and return everything in play.
 
     Bond 1 is met with the center tensor of site 0 behind it and the
     right-orthonormal tensor of site 1 in front, which is the geometry
@@ -67,11 +67,11 @@ def _expand(imps, k_expand=4, alpha=None):
     impo, lefts, rights = _setup(imps)
     center = imps.center_tensor(0)
     right_iso = imps.right_isometries()[1]
-    widened = expand_bond(
+    expanded = expand_bond(
         center, right_iso, impo[0], impo[1],
         lefts[0], rights[2 % imps.N], k_expand, alpha,
     )
-    return (center, right_iso, impo, lefts, rights) + widened
+    return (center, right_iso, impo, lefts, rights) + expanded
 
 
 def _saturated_imps(Spc):
@@ -101,7 +101,7 @@ def _saturated_imps(Spc):
 # ---------------------------------------------------------------------------
 
 class TestExpansion:
-    """The expansion must widen the bond without moving the state."""
+    """The expansion must grow the bond without moving the state."""
 
     @pytest.mark.parametrize('N', [2, 4])
     def test_the_state_is_unchanged(self, spin_half, N):
@@ -122,9 +122,9 @@ class TestExpansion:
         assert before < after <= before + 3
 
     def test_the_neighbor_stays_orthonormal(self, spin_half):
-        # `oplus` widens the bond with directions the projection put in the
+        # `oplus` expands the bond with directions the projection put in the
         # complement of what the neighbor already spans. Were they not, the
-        # widened neighbor would stop being an isometry and the fill-in that
+        # expanded neighbor would stop being an isometry and the fill-in that
         # preserves the state would stop being exact.
         imps = random_imps(spin_half, 2, width=1, dim=1)
         _, _, *_, right_iso_exp, _ = _expand(imps)
@@ -164,7 +164,7 @@ class TestExpansion:
         assert not _has_complement(center - center, floor)
         assert _has_complement(center, floor)
 
-    def test_a_cheaper_expansion_still_widens_the_bond(self, spin_half):
+    def test_a_cheaper_expansion_still_grows_the_bond(self, spin_half):
         # `alpha` truncates the two-site tensor the iMPO is applied to, which
         # keeps the expansion cheap against the solve it precedes.
         imps = random_imps(spin_half, 2, width=1, dim=1)
@@ -174,15 +174,15 @@ class TestExpansion:
 
 
 # ---------------------------------------------------------------------------
-# What the widened bond buys
+# What the expanded bond buys
 # ---------------------------------------------------------------------------
 
-class TestSolveOnTheWidenedBond:
-    """The point of widening: a lower Ritz value than the bond allowed."""
+class TestSolveOnTheExpandedBond:
+    """The point of expanding: a lower Ritz value than the bond allowed."""
 
-    def test_the_widened_solve_cannot_do_worse(self, spin_half):
+    def test_the_expanded_solve_cannot_do_worse(self, spin_half):
         # The expanded space contains the old one, so its lowest eigenvalue
-        # is bounded by the one the unwidened bond admits. A complement drawn
+        # is bounded by the one the unexpanded bond admits. A complement drawn
         # from the kept space, or an expansion that moved the state, would
         # both show up here.
         imps = random_imps(spin_half, 2, width=1, dim=1)
@@ -191,13 +191,13 @@ class TestSolveOnTheWidenedBond:
         plain, _, _ = optimize_center(
             center, impo[0], lefts[0], rights[1], DAVIDSON,
         )
-        widened, _, _ = optimize_center(
+        expanded, _, _ = optimize_center(
             center_exp, impo[0], lefts[0], env_right_exp, DAVIDSON,
         )
-        assert widened <= plain + 1e-10
+        assert expanded <= plain + 1e-10
 
     def test_the_expanded_operator_is_hermitian(self, spin_half):
-        # The expanded environment is one exact step over the widened
+        # The expanded environment is one exact step over the expanded
         # neighbor and not two blocks stacked block-diagonally, which keeps
         # the cross terms and so the operator symmetric.
         imps = random_imps(spin_half, 2, width=1, dim=1)
@@ -210,7 +210,7 @@ class TestSolveOnTheWidenedBond:
 
 
 # ---------------------------------------------------------------------------
-# Splitting the widened bond back down
+# Splitting the expanded bond back down
 # ---------------------------------------------------------------------------
 
 class TestSplit:
@@ -238,8 +238,8 @@ class TestSplit:
         assert float((overlap - einsum('ab,bc->ac', overlap, overlap)).norm()) < 1e-10
         assert abs(float(bond.norm()) - 1.0) < 1e-10
 
-    def test_the_split_cuts_the_widened_bond_back_down(self, spin_half):
-        # The widened bond lives only for the length of one solve; what the
+    def test_the_split_cuts_the_expanded_bond_back_down(self, spin_half):
+        # The expanded bond lives only for the length of one solve; what the
         # cell keeps is whatever the cap allows.
         imps = random_imps(spin_half, 2, width=1, dim=1)
         *_, center_exp, _, _ = _expand(imps)

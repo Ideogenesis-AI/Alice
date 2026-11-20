@@ -131,7 +131,7 @@ class TestSplit:
         )
         assert float((back - AC2).norm()) < 1e-12
 
-    def test_split_widens_the_bond(self, spin_half):
+    def test_split_grows_the_bond(self, spin_half):
         # The point of the scheme: the bipartition of a pair admits more
         # states than the bond between them carried.
         imps = random_imps(spin_half, 2, width=1, dim=1)
