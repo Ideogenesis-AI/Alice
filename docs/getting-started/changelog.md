@@ -1,5 +1,116 @@
 # Changelog
 
+## [0.4.1] - 2026-11-20
+
+**VUMPS: The 1-Site-Plus Scheme**
+
+Implements `'1sp'`, the third VUMPS update scheme, which v0.4.0 accepted in `Options` and
+rejected in `run()`. Before each center-tensor solve it expands the bond the solve sits on
+with up to `expand_k` directions drawn from the complement of the space that bond currently
+spans, solves the ordinary one-site eigenproblem there, and splits the answer to cut the
+bond back — so the bond dimension adapts as it does under `'2s'` while every local solve
+stays one-site sized. Each of the four algorithms in Alice now carries the same three
+schemes. Also here: a language regularization pass over the comments, docstrings, and
+documentation of the whole tree, and Python 3.13 through 3.15 declared supported. No
+breaking API changes.
+
+### The 1-Site-Plus Scheme
+
+- `run()` accepts `scheme='1sp'` and `_IMPLEMENTED_SCHEMES` now holds all three schemes, so
+  the `NotImplementedError` v0.4.0 raised for it is gone. The one-site update ends in a pair
+  of polar decompositions, which discard nothing and so cannot replace a bond index; `'1sp'`
+  buys the two-site scheme's freedom at the one-site price by expanding the bond *before* the
+  solve instead of letting a larger solve discover the width on its own.
+- Growth is additive where a split is multiplicative: an expansion adds at most `expand_k`
+  directions per bond per iteration, where a two-site split multiplies the bond by the
+  physical dimension. `max_bond` and `trunc_thresh` apply as they do to `'2s'`, and
+  `Summary.discarded_weights` is populated. A one-site unit cell is refused with a
+  `ValueError`, the expansion otherwise reading the bond it is about to replace.
+- New `alice.algorithm.vumps.complement` with `expand_bond`, `split_center`, and
+  `discarded_weight`, following TDVP's `'1sp'`: the iMPO is applied independently from each
+  side to a cheaply factored two-site tensor, the kept subspace is projected out of each
+  half, and the SVD of the doubly-discarded outer product supplies the new directions.
+- **Only one side exists here.** A VUMPS pass meets bond `j` with the left-orthonormal
+  tensor behind it and the center tensor in front, the geometry of a backward half-sweep in
+  the finite algorithms, so only the complement factor facing the neighbor is ever used.
+- **Exact state preservation**: only the neighbor is expanded by `oplus`, and the center
+  tensor is filled in by projecting Θ onto the expanded neighbor basis, which is exact
+  because the expanded basis contains the old one. **Exact expanded environment**: one
+  `step_left_env` call over the expanded neighbor, keeping the cross blocks. Nothing on the
+  `AR` side has to be expanded at all — the right block read sits on the bond *behind* the
+  one being expanded, and the bond matrix comes out of `split_center`.
+- **Orthonormal projectors**: the neighbor side projects against the tensor itself, exactly
+  isometric there; the center side uses a one-site split of the center tensor, since
+  `M M†` is a projector only for an isometry. The isometric factor of Θ must not be used,
+  as `decomp` keeps every sector at full dimension and it can span the whole (bond,
+  physical) space and project the complement away entirely.
+- Directions below `1e-10` times `‖lh‖·‖rh‖` are cancellation artifacts, lie in the kept
+  space, and are dropped; the same absolute floor gates Θ'_disc as a whole, and that is
+  where the test must be made, since two discarded halves can each keep a remainder while
+  their contraction cancels it. A bond with no complement — saturated, or out of the iMPO's
+  reach — is left alone and the step degenerates into a plain one-site update.
+- New `_update_one_site_plus` in `sweep.py`. Like the two-site pass it is a sweep in the
+  finite sense, the split replacing the index the next step's left environment must be built
+  on, and the expansion needs no environment of its own, so one right block serves both it
+  and the solve and the sliding window still advances by one.
+- `vumps.Options` gains `expand_k` (default `4`) and `expand_alpha` (default `None`),
+  matching the other three algorithms, logged at startup under `'1sp'`;
+  `round(sqrt(max_bond))` is a reasonable starting point for both.
+
+### Tests and Documentation
+
+- New `tests/algorithm/vumps/test_scheme_1sp.py`: the state unchanged, the bond growing by
+  at most what was asked for, the neighbor still orthonormal, the center-side basis, a
+  saturated bond left alone, the floor rejecting a vanishing complement, a cheaper `alpha`
+  still expanding, the solve on the expanded bond never doing worse, and the split.
+- The shared `TestCellUpdate` cases are parametrized over all three schemes, and new
+  `TestOneSitePlusCellUpdate` and driver tests cover growth from a Néel cell, growth capped
+  by `expand_k` and by `max_bond`, the discarded weight, agreement with `'2s'` from the same
+  start, SU(2), and a truncated `expand_alpha` landing where the full expansion does.
+- `docs/algorithms/vumps/index.md` gains a **Controlled bond expansion** section and lists
+  `'1sp'` in its scheme table; the claim that `'2s'` is the only scheme that can grow a bond
+  is gone from the docs and the `Options` docstring. `options.md` shows the two expansion
+  keys in TOML, the README counts three schemes, and all four VUMPS example scripts accept
+  `--scheme 1sp` with `--expand-k` and `--expand-alpha`.
+
+### Language Regularization
+
+- The prose of comments, docstrings, and Markdown documentation across `src/`, `docs/`,
+  `tests/`, and `examples/` is brought in line with the Language section of the project
+  conventions. Each site was a judgment call and not a find-and-replace.
+- Two terminology fixes: the one misuse of "leg" for an index, in
+  `tests/algorithm/tdvp/test_scheme_2s.py`, and the one British spelling, `labelled` in
+  `src/alice/network/autoimpo.py`. Nothing in the pass changes behavior; the one runtime
+  string it touches is the gauge-fixing two-cycle message in `iMPS`.
+
+### Packaging
+
+- Python 3.13, 3.14, and 3.15 are declared in the trove classifiers; `requires-python`
+  stays at `>= 3.11`. The README's Python badge is static in place of the dynamic
+  `pypi/pyversions` one, which reported whatever the last published release declared, and
+  the PyTorch badge follows the same `≥ 2.5` form.
+
+### Statistics
+
+- **1,760 tests** across 47 test modules (up from 1,728 / 46 modules in v0.4.0).
+- **55 commits** since v0.4.0.
+- **92 files changed**, 1,864 insertions, 512 deletions.
+- **45 source modules** in six subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.vumps`, `alice.algorithm.tdvp`,
+  `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `vumps.run` no longer raises `NotImplementedError` for
+  `scheme='1sp'`; it runs the scheme. `vumps.Options` gains `expand_k` and `expand_alpha`,
+  so positional construction past `env_window` shifts. `cell_update` raises `ValueError` for
+  `'1sp'` on a one-site cell, where it previously raised `NotImplementedError` for the
+  scheme itself. The gauge-fixing two-cycle message of `iMPS` is reworded.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.4.2.
+
+---
+
 ## [0.4.0] - 2026-10-31
 
 **VUMPS: The Infinite Chain**
@@ -1551,6 +1662,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.4.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.0
 [0.3.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.2
 [0.3.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.3.1
