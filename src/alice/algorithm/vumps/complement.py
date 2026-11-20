@@ -24,7 +24,7 @@ a cheap, factored approximation of the two-site gradient: the iMPO is applied
 independently from the left and the right to a truncated two-site tensor, the
 kept subspace is projected out of each half, and the resulting
 "doubly-discarded" outer product is decomposed by SVD into new basis vectors
-that widen the bond. Those directions are what the one-site eigenproblem that
+that expand the bond. Those directions are what the one-site eigenproblem that
 follows can then fill, so the bond dimension adapts as it does under `'2s'`
 while every local solve stays one-site sized.
 
@@ -35,14 +35,14 @@ nothing and so cannot replace a bond index: a `'1s'` run is confined to the
 bond dimension its initial cell happened to carry. The two-site update
 escapes that by solving a pair and splitting the answer, at a local problem
 `d` times larger on each side. CBE buys the same freedom at the one-site
-price, by widening the bond *before* the solve instead of letting a larger
+price, by expanding the bond *before* the solve instead of letting a larger
 solve discover the width on its own.
 
 What the pass sees
 ------------------
 A forward pass arrives at site `i` with the center tensor there and the
 right-orthonormal tensor of site `i+1` in front of it, and the bond it
-widens is the one between them: the bond on the *right* of the center
+expands is the one between them: the bond on the *right* of the center
 tensor. That is the geometry of a forward sweep in the finite algorithm, the
 center on the left and the neighbor on the right, so only one of the two
 complement factors is ever used here, the one facing the neighbor.
@@ -65,7 +65,7 @@ The right environment facing the expanded bond is a single `step_right_env`
 call on the expanded neighbor, which keeps the cross blocks between `AR` and
 the complement. Nothing has to be assembled block-diagonally, and nothing on
 the `AL` side of the bond has to be expanded at all: the block being stepped
-sits on the bond *in front* of the one being widened, which the expansion
+sits on the bond *in front* of the one being expanded, which the expansion
 does not touch, and the bond matrix comes out of `split_center`, not out of
 an eigenproblem of its own.
 
@@ -399,7 +399,7 @@ def _complement_vectors(theta_disc: Tensor, k_expand: int, floor: float) -> Tens
     """Extract the neighbor's new bond directions from Θ'_disc.
 
     Decomposes Θ'_disc by truncated SVD and keeps the right singular vectors,
-    which are the directions the neighbor's left bond is widened with. The
+    which are the directions the neighbor's left bond is expanded with. The
     left singular vectors are not used: the center tensor is filled in
     exactly against the expanded neighbor instead, so each direction is
     consumed once.
@@ -485,7 +485,7 @@ def expand_bond(
     k_expand: int,
     alpha: Optional[int],
 ) -> Tuple[Tensor, Tensor, Tensor]:
-    """Widen the bond between a center tensor and a right-orthonormal tensor.
+    """Expand the bond between a center tensor and a right-orthonormal tensor.
 
     The bond expanded is the one the two share: the right bond of `center`
     and the left bond of `right_iso`. The procedure is
@@ -525,12 +525,12 @@ def expand_bond(
     Returns
     -------
     center_exp:
-        Center tensor re-expressed on the widened bond, describing the same
+        Center tensor re-expressed on the expanded bond, describing the same
         state as `center` did.
     right_iso_exp:
-        Neighbor with its left bond widened, still right-orthonormal.
+        Neighbor with its left bond expanded, still right-orthonormal.
     E_right_exp:
-        Right environment on the widened bond, exact for `right_iso_exp`.
+        Right environment on the expanded bond, exact for `right_iso_exp`.
     """
     # Step 1: cheap factored form of Θ, isometric on the center side.
     theta = einsum('abr,bcs->acrs', center, right_iso)
@@ -564,12 +564,12 @@ def expand_bond(
     if N_R.indices[0].dim == 0:
         return center, right_iso, step_right_env(E_right, right_iso, W_neighbor)
 
-    # Step 5: widen the neighbor's left bond (axis 0), then re-express Θ in
+    # Step 5: expand the neighbor's left bond (axis 0), then re-express Θ in
     # that basis.
     right_iso_exp = oplus(right_iso, N_R, axes=[0])
     center_exp = _fill_center(theta, right_iso_exp)
 
-    # Step 6: right environment on the widened bond. One step over the
+    # Step 6: right environment on the expanded bond. One step over the
     # expanded neighbor keeps the cross blocks between it and the complement,
     # so the effective Hamiltonian of the solve that follows is exact.
     E_right_exp = step_right_env(E_right, right_iso_exp, W_neighbor)
@@ -589,7 +589,7 @@ def split_center(
     """Split a center tensor across its right bond, truncating as it goes.
 
     The bipartition puts the right bond alone on one side, which is the cut
-    the widened bond sits on, so this is the step that cuts it back down. The
+    the expanded bond sits on, so this is the step that cuts it back down. The
     three factors come back ready to use as they are: `U` is the
     left-orthonormal tensor of the site, `S` is the bond matrix, already
     diagonal and so already in the Schmidt basis `iMPS.set_canonical`
@@ -604,13 +604,13 @@ def split_center(
     ----------
     AC:
         Center tensor with axes `(ket_left, ket_right, phys)`, its right bond
-        the widened one.
+        the expanded one.
     itag:
         itag for the truncated bond, which is the itag the cell already uses
         for this bond.
     trunc:
         Truncation options forwarded to `decomp` (`nkeep`, `thresh`). `None`
-        keeps the widened bond whole, so the expansion is permanent and not
+        keeps the expanded bond whole, so the expansion is permanent and not
         merely a wider space to solve in.
 
     Returns
@@ -620,7 +620,7 @@ def split_center(
     bond:
         Diagonal bond matrix on the new bond.
     rotation:
-        `Vh` with axes `(new_bond, widened_bond)`, to be absorbed into the
+        `Vh` with axes `(new_bond, expanded_bond)`, to be absorbed into the
         neighbor.
     """
     # '<<' sends the new bond out of the left factor, the same direction
