@@ -38,7 +38,7 @@ Two initializations are supported via --init:
 - `random` (default): random unit cell of width `bond_dim`, each bond
   carrying the charges reachable at its position.
 - `product`: deterministic cell of width one, an alternating occupied and
-  empty pattern. The one-site scheme cannot widen it, so pair it with
+  empty pattern. The one-site scheme cannot grow it, so pair it with
   `--scheme 2s` or `--scheme 1sp`.
 
 Run from the repository root:
@@ -109,7 +109,7 @@ def vumps_freefermion(
         (conserve parity only).
     scheme:
         Update scheme: `'2s'` (two-site, default), `'1s'` (one-site), or
-        `'1sp'` (one-site on a bond widened by controlled bond expansion).
+        `'1sp'` (one-site on a bond expanded by controlled bond expansion).
     grad_tol:
         Convergence criterion on the gradient norm, the larger of
         `|AC - AL C|` and `|AC - C AR|` over the cell.
