@@ -20,7 +20,7 @@
 
 This module holds the operations a 1-site-sized update is assembled from. The
 1-site-plus scheme calls all of them, handing them a site tensor on a bond
-widened by `complement.py`, an environment exact in that widened basis, and a
+expanded by `complement.py`, an environment exact in that expanded basis, and a
 `trunc` for the splits. That is a sharing of arithmetic and not of structure:
 `'1sp'` is an adaptive-rank scheme of the `'2s'` kind, and nothing said below
 about what the 1-site scheme preserves applies to it. See `sweep.py`.
@@ -50,7 +50,7 @@ bond, so discarding singular values would lose norm without buying any
 variational freedom. Use the 2-site or the 1-site-plus scheme when the bond
 dimension has to adapt. The splits still take an optional `trunc`, because
 1-site-plus arrives at them with a bond the complement expansion has just
-widened and needs it cut back; nothing else in this module truncates.
+expanded and needs it cut back; nothing else in this module truncates.
 
 Called exactly, a split reports the attainable rank, which near a chain edge
 can fall below the nominal bond dimension — `dim_left · d` caps it there. The
