@@ -111,7 +111,7 @@ perfectly fine past the constant.
 The exponential grid walks into regime 2 unaided, its step size *being*
 \(\beta\). So the schedule to use is the stacked one — exponential out of the
 high-temperature regime where the Taylor state lives, linear from there on, as
-in the [overview](index.md#step-size-and-the-stacked-schedule) and both
+in the [overview](index.md#stacking-the-two-grids) and both
 [examples](../../examples/tgtrg/free-fermion.md). The default `n_steps` of 13
 ends the exponential phase at \(\beta = 2\), where that handover belongs for a
 spectrum of order a few.

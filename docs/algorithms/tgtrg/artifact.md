@@ -40,7 +40,7 @@ print(artifact.beta, artifact.step)
 
 An `Artifact` is also the handoff between the phases of a stacked schedule —
 the one `run()` returns is passed straight into the next `run()` call. See the
-[overview](index.md#step-size-and-the-stacked-schedule).
+[overview](index.md#stacking-the-two-grids).
 
 ## See Also
 

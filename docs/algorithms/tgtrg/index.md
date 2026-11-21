@@ -105,34 +105,15 @@ The exponential grid covers the high-temperature regime in a handful of steps,
 the way XTRG does. The linear grid places steps where the physics is, the one
 thing TgTRG buys over squaring.
 
-### Step size, and the stacked schedule
+### Stacking the two grids
 
-The backward bond update propagates by \(e^{+\tau H^{(0)}}\), amplifying the
-high-energy end of the local spectrum. Once that amplification exceeds the
-inverse of float64 resolution, what it amplifies is roundoff. Since `order=2`
-propagates in half-steps, the criterion is on the exponent of one local
-propagation:
-
-\[
-\frac{\tau}{2} \Delta E < \log \frac{1}{\epsilon} \approx 36
-\]
-
-with \(\Delta E\) the spectral range of the Hamiltonian — so the limit is on
-the exponent, not on \(\tau\) and not on \(\beta\), and a chain with a wider
-spectrum reaches it at a proportionally smaller step. The exponential grid
-walks into it on its own, its step size *being* \(\beta\).
-
-Measured on an `L = 4` free-fermion chain: reaching \(\beta = 64\) from
-\(\beta = 32\) in one \(\tau = 32\) step loses eight digits of \(\log Z\),
-while four \(\tau = 8\) steps over the same interval are exact to `1e-14`.
-Nothing downstream flags the bad step; the Krylov expansions converge to
-`1e-13` either way. `run()` warns past a fixed soft limit of \(\tau = 8\),
-which is calibrated for a spectral range of order a few and is not universal —
-[Lessons](lessons.md#how-large-a-step-may-be) has the measurements and the
-regime the warning does not cover.
-
-So the schedule to use is the stacked one — exponential out of the
-high-temperature regime, linear from there on:
+A run normally uses both, one after the other: the exponential grid out of
+the high-temperature regime where the Taylor state lives, the linear grid
+from there on. The exponential step size *is* \(\beta\), so carrying that
+mode to low temperature means steps too large for the backward bond update to
+resolve, and `run()` warns past a soft limit of \(\tau = 8\).
+[Lessons](lessons.md#how-large-a-step-may-be) has the criterion, the
+measurements behind it, and the regime the warning does not cover.
 
 ```python
 shared = dict(scheme='2s', tau_0=2 ** -12, max_bond=64,

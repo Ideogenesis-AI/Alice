@@ -54,7 +54,7 @@ print(f"L = {geo.L}, MPO bond dims: {hamiltonian.bond_dims}")
 The exponential phase gets out of the high-temperature regime cheaply; the
 linear phase then takes the chain cold in controlled steps. Stacking the two
 keeps the step size bounded — see
-[step size](../../algorithms/tgtrg/index.md#step-size-and-the-stacked-schedule).
+[step size](../../algorithms/tgtrg/lessons.md#how-large-a-step-may-be).
 
 ```python
 shared = dict(scheme='2s', order=2, tau_0=2 ** -12, taylor_order=10,
