@@ -36,7 +36,7 @@ Each XTRG update solves a linear least-squares fit; thermodynamic observables (`
 
 The following algorithms are planned for future releases. Contributions toward any of them are warmly welcomed — see the [Contributing](contributing.md) page.
 
-- **tanTRG** (tangent-space TRG): finite-temperature simulations with linear cooling steps.
+- **TgTRG** (tangent-space TRG): finite-temperature simulations with linear cooling steps.
 - **TDVP** (Time-Dependent Variational Principle): real-time evolution within the MPS manifold.
 - **TaSK** (Tangent Space Krylov): dynamical spectral functions via a Lanczos scheme on the ground-state tangent space.
 
