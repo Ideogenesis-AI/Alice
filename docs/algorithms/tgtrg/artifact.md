@@ -14,7 +14,7 @@ checkpoint directory):
 
 ```text
 checkpoint_dir/
-  cooling.ckpt         # latest Summary (kept after success)
+  thermal.ckpt         # latest Summary (kept after success)
   tgtrg.ckpt           # latest Artifact while running (removed on success)
   artifacts/           # or Options.artifacts_dir, when set
     step_00.ckpt       # when Options.save_artifacts is True
