@@ -80,6 +80,13 @@ nav:
       - Summary: algorithms/tdvp/summary.md
       - Artifact: algorithms/tdvp/artifact.md
       - Launch: algorithms/tdvp/run.md
+    - TgTRG:
+      - Overview: algorithms/tgtrg/index.md
+      - Options: algorithms/tgtrg/options.md
+      - Summary: algorithms/tgtrg/summary.md
+      - Artifact: algorithms/tgtrg/artifact.md
+      - Lessons: algorithms/tgtrg/lessons.md
+      - Launch: algorithms/tgtrg/run.md
     - XTRG:
       - Overview: algorithms/xtrg/index.md
       - Options: algorithms/xtrg/options.md
@@ -147,6 +154,9 @@ nav:
       - Hubbard model: examples/tdvp/hubbard.md
       - Hubbard quench: examples/tdvp/hubbard-quench.md
       - Scheme comparison: examples/tdvp/scheme-comparison.md
+    - TgTRG:
+      - Free fermion: examples/tgtrg/free-fermion.md
+      - Hubbard model: examples/tgtrg/hubbard.md
     - XTRG:
       - Free fermion: examples/xtrg/free-fermion.md
       - Hubbard model: examples/xtrg/hubbard.md
