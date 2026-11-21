@@ -4481,7 +4481,7 @@ converged gauges disagree across the cell.</p>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">right_isos</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Tensor</span><span class="p">],</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">bond_matrices</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Tensor</span><span class="p">],</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">target</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="n">Tensor</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -4498,7 +4498,10 @@ AR[i]</code>. Away from a variational fixed point they do not, and the
 size of the mismatch is exactly the convergence measure such an
 update reports. They are rotated into the Schmidt basis on the way
 in, so the stored bond matrices are diagonal as they are after
-<code>canonical</code>.</p>
+<code>canonical</code>, and the rotations that did it are returned. A caller
+holding anything written in the bases it passed in — the two
+boundary blocks a VUMPS pass ends with, say — needs them to say
+the same thing about the tensors now stored here.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4576,6 +4579,31 @@ count from the end.</p>
             </td>
             <td>
                   <code>0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>(rot_l, rot_r)</code>, one <code>U</code> and one <code>Vh</code> per bond, rotating the
+basis each bond was given in into the one now stored. Bond <code>k</code>
+is entry <code>k</code>.</p>
+              </div>
             </td>
           </tr>
       </tbody>

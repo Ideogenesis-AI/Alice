@@ -1234,6 +1234,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#starting-from-the-previous-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting From the Previous Answer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Starting From the Previous Answer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-basis-has-to-come-with-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The basis has to come with it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-energy-is-not-the-environment" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4230,6 +4258,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#starting-from-the-previous-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting From the Previous Answer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Starting From the Previous Answer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-basis-has-to-come-with-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The basis has to come with it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-energy-is-not-the-environment" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4405,7 +4461,7 @@ floor short of it, so <code>env_tol = 1e-12</code> is a meaningful default, not 
 unreachable one, and the question is only ever how many cells it costs.</p>
 <h3 id="gapped-models-saturate-with-the-bond-dimension">Gapped models saturate with the bond dimension<a class="headerlink" href="#gapped-models-saturate-with-the-bond-dimension" title="Permanent link">&para;</a></h3>
 <p>For a gapped state, <span class="arithmatex">\(\lambda_2\)</span> converges to a physical value once the bond
-dimension is large enough to capture the correlation length, and widening the
+dimension is large enough to capture the correlation length, and expanding the
 state further does not slow the iteration down. The Haldane chain, which is
 gapped with a unique ground state:</p>
 <div class="data-table">
@@ -4509,11 +4565,95 @@ degenerate, and exactly representable at <code>D = 2</code>:</p>
 </tr>
 </tbody>
 </table>
-<p>The rate gets worse as the state is widened past what it needs, which is the
+<p>The rate gets worse as the state is expanded past what it needs, which is the
 opposite of the Haldane behavior above. A warning on a model believed to be
 gapped is usually reporting one of these two situations, or saying that the
 model is closer to critical than assumed, and all three are worth knowing
 about instead of silencing.</p>
+<h2 id="starting-from-the-previous-answer">Starting From the Previous Answer<a class="headerlink" href="#starting-from-the-previous-answer" title="Permanent link">&para;</a></h2>
+<p>Everything above counts the cells a solve absorbs from a cold start, meaning
+an environment holding nothing but its entering channel. A run does not have
+to start there. The state moves less and less as the iterations proceed, so
+an answer from the iteration before is close to the one being looked for, and
+<code>env_warm_start</code> (on by default) hands one to the solver as a starting point.
+It cannot change what the iteration converges to, which has one fixed point
+either way; it changes only how many cells reaching it costs.</p>
+<p>What gets handed over is not the previous fixed point but the pair of blocks
+the pass itself ends holding. The last position a forward pass solves
+straddles the cell boundary, with a left block on bond <code>N-1</code> and a right
+block on bond <code>1</code>; stepping each one inward over the site in front of it puts
+both on bond <code>0</code>. That bond is the one the final split has just created, so
+the pair is expressed in the basis the cell ends in and fits the solve it
+seeds no matter what the split did to the width of the bond. Taking the
+previous iteration's fixed points instead would work only for <code>'1s'</code>, whose
+bonds never move.</p>
+<p>How much that saves follows from the geometry of the residual. The iteration
+needs <span class="arithmatex">\(k \approx \xi \ln(\delta_0/\epsilon)\)</span> cells to bring a starting
+error <span class="arithmatex">\(\delta_0\)</span> down to <code>env_tol</code>, so a warm start saves the fraction
+<span class="arithmatex">\(\ln(\delta_{\text{cold}}/\delta_{\text{warm}}) / \ln(\delta_{\text{cold}}/\epsilon)\)</span>
+of them. A cold start is always <span class="arithmatex">\(\delta_0 \approx 0.8\)</span> in relative terms;
+what matters is how small <span class="arithmatex">\(\delta_{\text{warm}}\)</span> gets. Measured on the
+Heisenberg spin-&frac12; chain at <code>D = 16</code>, <code>env_tol = 1e-10</code>, two-site cell:</p>
+<div class="data-table label-col">
+<table>
+<thead>
+<tr>
+<th>scheme</th>
+<th>cells, cold</th>
+<th>cells, warm</th>
+<th>cells per solve, late in the run</th>
+<th>wall clock</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>'1s'</code>, 90 iterations to <code>grad_tol</code></td>
+<td>7150</td>
+<td>4408</td>
+<td>40 → 5</td>
+<td>1.16x</td>
+</tr>
+<tr>
+<td><code>'2s'</code>, 200 iterations</td>
+<td>82532</td>
+<td>33624</td>
+<td>209 → 77</td>
+<td>1.34x</td>
+</tr>
+<tr>
+<td><code>'1sp'</code>, 200 iterations</td>
+<td>81729</td>
+<td>35820</td>
+<td>208 → 78</td>
+<td>1.42x</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The energies agree to <code>1e-13</code>, as they must. The saving in cells is larger
+than the saving in wall clock because the environments are only about half of
+an iteration; the other half is the Davidson solves, which this does not
+touch. The cold column climbs to a plateau — 209 cells is what this state
+costs from nothing, every iteration, forever — while the warm column falls
+away from it as the state settles.</p>
+<h3 id="the-basis-has-to-come-with-it">The basis has to come with it<a class="headerlink" href="#the-basis-has-to-come-with-it" title="Permanent link">&para;</a></h3>
+<p>A block is a statement about a particular basis of a particular bond, and
+installing a canonical form moves that basis: <code>set_canonical</code> rotates every
+bond into its Schmidt basis on the way in. A block built by the pass is
+therefore correct about the tensors the pass wrote and says nothing about the
+tensors that end up stored, unless it is carried across by the same rotation.
+<code>set_canonical</code> returns those rotations for exactly that purpose, and
+<code>rotate_left_env</code> and <code>rotate_right_env</code> apply them.</p>
+<p>This is easy to get wrong in a way that looks like it works. An SVD fixes <code>U</code>
+only up to one phase per singular value, so pinning that phase makes the
+rotation reproducible from one iteration to the next; near convergence a
+reproducible rotation is nearly the identity, and a block left untransported
+is then nearly right. Alice carried such a convention for a while and it did
+help, by most of the margin the table above reports — but it was compensating
+for coordinates that were wrong rather than making them right, and it left
+the one-site scheme, whose rotation is the only non-trivial one, saving the
+least of the three. Transporting the block is both better and indifferent to
+what LAPACK returns, so the convention is gone.</p>
 <h2 id="the-energy-is-not-the-environment">The Energy Is Not the Environment<a class="headerlink" href="#the-energy-is-not-the-environment" title="Permanent link">&para;</a></h2>
 <p>The energy converges long before the environment tensor it is extracted from.
 On the Heisenberg chain at <code>D = 32</code>, taking the environment at 100 cells —
@@ -4656,7 +4796,8 @@ nothing on the runs that do not need it.</p>
 </ul>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../options/">Options</a> — <code>env_tol</code>, <code>env_maxiter</code>, and the caching settings.</li>
+<li><a href="../options/">Options</a> — <code>env_tol</code>, <code>env_maxiter</code>, <code>env_warm_start</code>, and the
+  caching settings.</li>
 <li><a href="../">Overview</a> — why the environments are fixed points at all.</li>
 <li><a href="../../../examples/vumps/heisenberg/">Heisenberg example</a> — a critical chain
   run at a loosened tolerance.</li>
@@ -4704,7 +4845,7 @@ nothing on the runs that do not need it.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:44 UTC"><span class="timeago" datetime="2026-11-18T15:43:44+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:44 UTC">2026-11-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 20, 2026 15:49:19 UTC"><span class="timeago" datetime="2026-11-20T15:49:19+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 15:49:19 UTC">2026-11-20</span>
   </span>
 
     

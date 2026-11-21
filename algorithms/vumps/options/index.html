@@ -4186,14 +4186,15 @@
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">gauge_maxiter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">env_tol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span><span class="p">,</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">env_maxiter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">env_cache_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">env_async_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">env_window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">expand_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">expand_alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">artifacts_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="p">)</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">env_warm_start</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">env_cache_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">env_async_io</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">env_window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">expand_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">expand_alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">checkpoint_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="n">artifacts_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="p">)</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4235,7 +4236,7 @@ TOML section, or <code>Options.load_toml</code> to read directly from a file.</p
   iteration, but confined to the bond dimension of the initial
   state.</li>
 <li><code>'1sp'</code> / <code>'1-site-plus'</code> / <code>'one-site-plus'</code>: one-site VUMPS on a
-  bond widened by controlled bond expansion. It grows the bond
+  bond expanded by controlled bond expansion. It grows the bond
   dimension as <code>'2s'</code> does, but its eigenproblem stays the one-site
   one, so the local solve is <code>d</code> times smaller on each side. See
   <code>expand_k</code> and <code>expand_alpha</code>.</li>
@@ -4363,14 +4364,14 @@ the cheaper solves save, and stalls at a gradient around
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Convergence criterion on the VUMPS gradient norm <code>|AC - AL C|</code>,
-maximized over the cell. Cannot be met unless <code>davidson_tol</code> is
-smaller. Under either scheme that splits, against a bond cap that
-bites, it cannot be met at all: the solve keeps asking for a wider
-bond than it is allowed, and the gradient settles at a floor set by
-the discarded weight instead of falling. A run that has grown to
-<code>max_bond</code> and stopped improving is converged in every sense that
-matters.</p>
+                <p>Convergence criterion on the VUMPS gradient norm, the larger of
+<code>|AC - AL C|</code> and <code>|AC - C AR|</code> maximized over the cell. Cannot be
+met unless <code>davidson_tol</code> is smaller. Under either scheme that
+splits, against a bond cap that bites, it cannot be met at all:
+the solve keeps asking for a wider bond than it is allowed, and
+the gradient settles at a floor set by the discarded weight
+instead of falling. A run that has grown to <code>max_bond</code> and stopped
+improving is converged in every sense that matters.</p>
               </div>
             </td>
             <td>
@@ -4422,11 +4423,11 @@ initial canonicalization.</p>
             <td>
               <div class="doc-md-description">
                 <p>Convergence tolerance for the environment fixed point. The
-environments are re-solved from scratch every iteration, so this
-is among the more expensive settings. The energy is the least
-sensitive thing it controls, converging well before the
-environment tensor does; a one-site run is the case that wants it
-tight, since its gradient tracks the environments directly.</p>
+environments are re-solved every iteration, so this is among the
+more expensive settings. The energy is the least sensitive thing
+it controls, converging well before the environment tensor does;
+a one-site run is the case that wants it tight, since its
+gradient tracks the environments directly.</p>
               </div>
             </td>
             <td>
@@ -4448,7 +4449,7 @@ eigenvalue of the MPS transfer operator, so the budget <code>env_tol</code>
 needs is roughly the correlation length in unit cells times
 <code>log(1 / env_tol)</code>, and the default covers a correlation length of
 about seven cells. On a gapped model that rate saturates once the
-bond dimension captures the correlation length, and widening the
+bond dimension captures the correlation length, and expanding the
 state further does not slow it down. A critical model has no such
 saturation, since there the correlation length is cut off by the
 bond dimension itself. Running out logs a warning and continues
@@ -4458,6 +4459,28 @@ nearly converged environment with it.</p>
             </td>
             <td>
                   <code>200</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>env_warm_start</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>True</code> (default), each environment solve starts from the block
+the previous pass came back around with instead of from the
+entering channel alone. The state moves less and less as a run
+proceeds, so that block is close to the answer and the solver
+absorbs far fewer unit cells to reach <code>env_tol</code>. It cannot change
+what is converged to, only how long that takes. Set to <code>False</code> to
+solve cold every time.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
             </td>
           </tr>
           <tr class="doc-section-item">

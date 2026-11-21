@@ -4435,7 +4435,7 @@ no state on the cell that was built.</p>
 
 <p><span class="doc-section-title">Examples:</span></p>
     <p>Product cell for the spin-&frac12; Heisenberg chain under U(1), ready for the
-two-site scheme to widen:</p>
+two-site scheme to expand:</p>
     <div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">nicole</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_space</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">alice</span><span class="w"> </span><span class="kn">import</span> <span class="n">init_imps</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Spc</span><span class="p">,</span> <span class="n">Op</span> <span class="o">=</span> <span class="n">load_space</span><span class="p">(</span><span class="s1">'Spin'</span><span class="p">,</span> <span class="s1">'U1'</span><span class="p">,</span> <span class="p">{</span><span class="s1">'J'</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">})</span>
@@ -4455,7 +4455,7 @@ two-site scheme to widen:</p>
 
 </div><h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <p><code>init_imps</code> operates in the same two modes as <a href="../init-mps/">init_mps</a>, selected by <code>bond_dim</code>.</p>
-<p><strong>Product cell (<code>bond_dim=1</code>)</strong> — every bond carries a single sector, fixed by propagating the physical charges of the chosen site configuration through the group fusion rules. The one-site scheme can never leave a cell this narrow, so pair it with <code>scheme='2s'</code>, which widens it from the first iteration.</p>
+<p><strong>Product cell (<code>bond_dim=1</code>)</strong> — every bond carries a single sector, fixed by propagating the physical charges of the chosen site configuration through the group fusion rules. The one-site scheme can never leave a cell this narrow, so pair it with <code>scheme='2s'</code>, which grows it from the first iteration.</p>
 <p><strong>Random cell (<code>bond_dim&gt;1</code>)</strong> — each bond is given the charges reachable at its own position, and the tensors are filled with random entries. Ready for either scheme.</p>
 <p>Both modes are particle-type agnostic: the <code>(Spc, Op)</code> pair returned by Nicole's <code>load_space</code> encodes all the symmetry information, so no <code>spin=</code>, <code>symmetry=</code>, or <code>particle_type=</code> argument is needed.</p>
 <h3 id="what-the-tiling-demands">What the tiling demands<a class="headerlink" href="#what-the-tiling-demands" title="Permanent link">&para;</a></h3>
@@ -4493,7 +4493,7 @@ two-site scheme to widen:</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 18, 2026 15:43:30 UTC"><span class="timeago" datetime="2026-11-18T15:43:30+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 18, 2026 15:43:30 UTC">2026-11-18</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-timeago" title="November 20, 2026 15:49:56 UTC"><span class="timeago" datetime="2026-11-20T15:49:56+00:00" locale="en"></span></span><span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 15:49:56 UTC">2026-11-20</span>
   </span>
 
     
