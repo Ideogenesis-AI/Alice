@@ -496,7 +496,7 @@ class TestCheckpointing:
 
     def test_cooling_checkpoint_is_written(self, start, tmp_path):
         summary, _ = _cool(start, tmp_path, n_steps=3)
-        reloaded = Summary.load(tmp_path / 'cooling.ckpt')
+        reloaded = Summary.load(tmp_path / 'thermal.ckpt')
 
         assert reloaded.betas == pytest.approx(summary.betas)
         assert reloaded.log_z == pytest.approx(summary.log_z)
@@ -567,7 +567,7 @@ class TestCheckpointing:
         state, mpo, _ = start
         state.step = 2
         state.beta = state.beta * 4
-        with pytest.raises(FileNotFoundError, match='cooling.ckpt'):
+        with pytest.raises(FileNotFoundError, match='thermal.ckpt'):
             run(state, mpo, Options(tau_0=2 ** -8, n_steps=4,
                                     checkpoint_dir=str(tmp_path / 'empty')))
 
