@@ -31,6 +31,10 @@ Ground-state search in the thermodynamic limit, on a uniform MPS described by a 
 
 Real-time evolution within the MPS manifold via tangent-space projection of the Schrödinger equation. Three update schemes are available — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — each with a Krylov matrix-exponential solver and a first- or second-order symmetric integrator.
 
+### TgTRG (Tangent-space Tensor Renormalization Group)
+
+Finite-temperature thermodynamics by cooling the thermal density matrix along the tangent space of the thermal manifold. Two update schemes are available — 1-site and 2-site — each with a Krylov matrix-exponential solver, a first- or second-order symmetric integrator, and an exponential or linear β grid.
+
 ### XTRG (eXponential Tensor Renormalization Group)
 
 Finite-temperature thermodynamics via exponential cooling of the thermal density matrix. Three update schemes drive the underlying variational MPO-MPO compression — 1-site, 2-site, and 1-site-plus (controlled bond expansion) — solving a linear least-squares minimization at each step.
@@ -39,7 +43,6 @@ Finite-temperature thermodynamics via exponential cooling of the thermal density
 
 The following algorithms are planned for future releases. Contributions toward any of them are warmly welcomed — see the [Contributing](#contributing) section to get involved.
 
-- **tanTRG** (tangent-space Tensor Renormalization Group): finite-temperature simulations with linear cooling steps, offering high speed at moderate to high temperatures
 - **TaSK** (Tangent Space Krylov): dynamical properties and real-frequency spectral functions, computed by a Lanczos scheme projected onto the tangent space of the ground-state MPS
 
 

@@ -22,6 +22,35 @@ Ground-state search via alternating sweep optimization of MPS tensors: at each s
 
 All three schemes share a Davidson eigensolver and energy-based convergence criterion. Once converged, the ground-state MPS supports expectation values `⟨ψ|O|ψ⟩` via `observe`, giving access to correlation functions, order parameters, and entanglement entropy from the Schmidt spectrum at each bond.
 
+### VUMPS — Variational Uniform Matrix Product States
+
+Ground-state search directly in the thermodynamic limit. The state is a uniform MPS described by a unit cell of `N` tensors that tiles an infinite chain, and the Hamiltonian is an iMPO over the same cell, so there is no system size, no boundary, and no finite-size extrapolation — the energy reported is an energy per site. The environments are not swept into place but solved as fixed points of the transfer operator, and convergence is measured on the tangent-space gradient, the mismatch between the center tensor and its gauge-transformed forms. The same three update schemes are available:
+
+- **1-site** (`1s`): single-tensor update at fixed bond dimension.
+- **2-site** (`2s`): two-tensor update with SVD truncation; grows the bond toward a target dimension.
+- **1-site-plus** (`1sp`): controlled bond expansion (CBE), at close to 1-site cost with the bond free to grow.
+
+Every iteration starts its environment solves from the blocks the previous pass came back around with, which cuts the unit cells a run absorbs by a factor of two to three and leaves the energies unchanged.
+
+### TDVP — Time-Dependent Variational Principle
+
+Real-time evolution under a Hamiltonian MPO, `|ψ(t)⟩ = e^{-iHt} |ψ(0)⟩`, by projecting the Schrödinger equation onto the tangent space of the MPS manifold at the current state. Each local update is a matrix exponential applied by a Krylov solver; a first-order step is one sweep over the chain, a second-order step a symmetric forward-and-backward pair. Three update schemes are available:
+
+- **1-site** (`1s`): single-tensor update; cannot change bond dimension at all, so the manifold a run starts on is the manifold it stays on.
+- **2-site** (`2s`): pair update with SVD truncation; grows bonds as entanglement develops.
+- **1-site-plus** (`1sp`): controlled bond expansion (CBE); adapts the rank as `2s` does while every local exponential stays 1-site.
+
+A real-valued input state is promoted to `complex128`, evolution being unitary. Times, energies, norms, bond dimensions, and discarded weights are recorded at every step, and a run can be checkpointed and resumed from any archived step.
+
+### TgTRG — Tangent-space Tensor Renormalization Group
+
+Finite-temperature thermodynamics by cooling instead of squaring: the imaginary-time flow `dρ/dβ = -Hρ` is projected onto the tangent space of the MPO manifold, which is TDVP carried into imaginary time and applied to a density matrix. A step costs `O(D³)` against the `O(D⁴)` of XTRG's variational fit, and the β grid need not double — it is exponential (step `τ = β`, so `β_k = 2^k τ₀`) or linear (a fixed `τ`), and a schedule that wants both stacks two runs. Two update schemes are available:
+
+- **1-site** (`1s`): fixed rank; a forward step on each site tensor paired with a backward step on the bond between.
+- **2-site** (`2s`): pair update with SVD truncation; the only scheme that lets `ρ` grow as the chain cools.
+
+`log Z` is read from the cooled density matrix at every step and the free energy follows from it directly, both accurate to roundoff where the bond dimension suffices; internal energy, specific heat, and entropy come from finite differences on whatever β grid the schedule produced.
+
 ### XTRG — eXponential Tensor Renormalization Group
 
 Finite-temperature thermodynamics via exponential cooling: the thermal density matrix `ρ(β) = e^{-βH}` is built at a small `τ₀` and repeatedly squared, `ρ(2β) ≈ compress(ρ(β) ⊗ ρ(β))`, doubling `β` at each step. Three update schemes drive the underlying variational MPO-MPO compression:
@@ -36,8 +65,6 @@ Each XTRG update solves a linear least-squares fit; thermodynamic observables (`
 
 The following algorithms are planned for future releases. Contributions toward any of them are warmly welcomed — see the [Contributing](contributing.md) page.
 
-- **tanTRG** (tangent-space TRG): finite-temperature simulations with linear cooling steps.
-- **TDVP** (Time-Dependent Variational Principle): real-time evolution within the MPS manifold.
 - **TaSK** (Tangent Space Krylov): dynamical spectral functions via a Lanczos scheme on the ground-state tangent space.
 
 ## Key Features
@@ -45,7 +72,7 @@ The following algorithms are planned for future releases. Contributions toward a
 - **Symmetry-aware MPS/MPO**: block-sparse matrix product states and operators supporting any symmetry group or product group that Nicole supports.
 - **AutoMPO construction**: TOML-configured Hamiltonian builder with built-in model presets (Heisenberg, free-fermion, Hubbard) and full support for custom models.
 - **Flexible geometries**: built-in 1D chain, 2D square, and 2D Kagome lattice geometries with configurable traversal orders; custom geometry extensions supported via user-defined functions.
-- **Environment caching**: optional disk-spilling with a sliding in-memory window and asynchronous I/O, enabling DMRG and XTRG on long chains with limited RAM.
+- **Environment caching**: optional disk-spilling with a sliding in-memory window and asynchronous I/O, available to all five algorithms, for long chains on limited RAM.
 - **Systematic logging**: comprehensive sweep-by-sweep diagnostics via Python's `logging` module.
 - **PyTorch backend**: all dense block operations run on PyTorch via Nicole, with optional GPU (CUDA/MPS), Ascend NPU acceleration, and on-demand autograd support.
 

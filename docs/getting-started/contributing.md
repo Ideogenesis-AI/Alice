@@ -6,7 +6,7 @@ If you have never used GitHub before, don't worry: this page walks through every
 
 ## Ways to Contribute
 
-- **Implement a new algorithm.** Each algorithm (XTRG, tanTRG, TDVP, TaSK) is an independent unit on top of the shared MPS/MPO core. If you have expertise in one of these methods, your involvement is especially valued. See [Algorithm contributions](#algorithm-contributions) below.
+- **Implement a new algorithm.** Each algorithm (TDVP, TgTRG, XTRG, TaSK) is an independent unit on top of the shared MPS/MPO core. If you have expertise in one of these methods, your involvement is especially valued. See [Algorithm contributions](#algorithm-contributions) below.
 - **Fix a bug or improve an existing algorithm.**
 - **Improve the documentation.** Clear, accurate docs are as important as correct code.
 - **Report issues and request features** via [GitHub Issues](https://github.com/Ideogenesis-AI/Alice/issues).
@@ -210,7 +210,7 @@ Alice is structured around a shared core (MPS, MPO, network infrastructure) on t
 - Individual algorithms can be contributed, extended, and maintained by different people.
 - Each contributor's work is attributed accordingly. Algorithm ownership is tracked in the source file headers and the release notes.
 
-If you want to implement one of the planned algorithms (XTRG, tanTRG, TDVP, TaSK) or take ownership of its maintenance, please [open an issue](https://github.com/Ideogenesis-AI/Alice/issues) first to discuss the design and coordinate with the maintainers. Early design discussion prevents duplicate work and ensures the implementation integrates cleanly with the shared core.
+If you want to implement one of the planned algorithms (TDVP, TgTRG, XTRG, TaSK) or take ownership of its maintenance, please [open an issue](https://github.com/Ideogenesis-AI/Alice/issues) first to discuss the design and coordinate with the maintainers. Early design discussion prevents duplicate work and ensures the implementation integrates cleanly with the shared core.
 
 ---
 
