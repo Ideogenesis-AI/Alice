@@ -74,7 +74,7 @@ summary, artifact = tgtrg.run(
 ```
 
 The returned `summary` spans both phases: the second call recovers the first
-one's history from `cooling.ckpt` in the checkpoint directory.
+one's history from `thermal.ckpt` in the checkpoint directory.
 
 ## 4. Compare with the exact solution
 
