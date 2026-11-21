@@ -37,6 +37,19 @@ Real-time evolution under a Hamiltonian MPO, by projecting the Schrödinger equa
 | [Artifact](tdvp/artifact.md) | State snapshot at one time step |
 | [Launch](tdvp/run.md) | Top-level TDVP entry point |
 
+## TgTRG (tangent-space TRG)
+
+Finite-temperature thermodynamics by cooling the thermal density matrix along the tangent space of the MPO manifold — imaginary-time TDVP for ρ, with a β grid that need not double.
+
+| Symbol | Description |
+|--------|-------------|
+| [Overview](tgtrg/index.md) | Update schemes, integrator order, grid modes, step size, usage pattern |
+| [Options](tgtrg/options.md) | TgTRG run options |
+| [Summary](tgtrg/summary.md) | TgTRG output dataclass |
+| [Artifact](tgtrg/artifact.md) | Density-matrix snapshot at one cooling step |
+| [Lessons](tgtrg/lessons.md) | Practical notes, starting with how large a step may be |
+| [Launch](tgtrg/run.md) | Top-level TgTRG entry point |
+
 ## XTRG
 
 Finite-temperature thermodynamics via exponential cooling of the thermal density matrix.

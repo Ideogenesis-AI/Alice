@@ -31,7 +31,7 @@ from .network import (
     init_imps,
     observe,
 )
-from .algorithm import dmrg, tdvp, vumps, xtrg
+from .algorithm import dmrg, tdvp, tgtrg, vumps, xtrg
 from .logging import configure_logging
 
 __version__ = version('alice-net')
@@ -62,6 +62,7 @@ __all__ = [
     # algorithms (as submodules)
     'dmrg',
     'tdvp',
+    'tgtrg',
     'vumps',
     'xtrg',
     # logging
