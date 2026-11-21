@@ -1,5 +1,113 @@
 # Changelog
 
+## [0.5.0] - 2026-11-22
+
+**TgTRG: Cooling Along the Tangent Space**
+
+Introduces **TgTRG** (tangent-space Tensor Renormalization Group), Alice's fifth algorithm
+and its second route to finite temperature. Where XTRG reaches `β` by squaring the density
+matrix and fitting the product back down, TgTRG projects the imaginary-time flow
+`dρ/dβ = -Hρ` onto the tangent space of the MPO manifold and takes one sweep per step — the
+projector splitting TDVP uses for real time, applied to `ρ` read as a super-MPS over the
+doubled physical space. A sweep costs `O(D³)` against XTRG's `O(D⁴)` fit, and the `β` grid
+is no longer forced to double. Two schemes ship, `'1s'` and `'2s'`; `'1sp'` follows in a
+later release. No breaking API changes.
+
+### The Algorithm
+
+- New `alice.algorithm.tgtrg` package exporting `Options`, `Summary`, `Artifact`, and
+  `run`, added to the `alice.algorithm` and top-level `alice` namespaces.
+- Each step applies local propagators along a sweep: `e^{-τ H⁽¹⁾}` on a site tensor going
+  forward, `e^{+τ H⁽⁰⁾}` on the bond matrix left behind. The backward sign subtracts the
+  double counting two overlapping site updates introduce, as in TDVP.
+- `H` acts on `ρ` from one side only, so every environment block carries three indices,
+  `(bra_ρ_bond, H_bond, ket_ρ_bond)`, as in DMRG. The doubled physical space shows up in
+  the local tensors, not in the environments.
+- At full rank the projector splitting is **exact**, at either integrator order and for any
+  step size. A step size buys accuracy in the projection, not in the integrator.
+- `tgtrg.run(state, mpo, opts)` takes the Hamiltonian MPO positionally, the one signature
+  difference from `xtrg.run`: XTRG never refers back to `H` after the Taylor state, while
+  TgTRG contracts against it at every step.
+- `'2s'` evolves a pair, splits by SVD, and back-evolves the site it advanced onto; `'1s'`
+  cannot change a bond dimension, so its rank is the rank of the state it is handed, and
+  `max_bond` reaches it only by compacting that state before the first step. `'1sp'` is
+  accepted by `Options` and rejected by `run()` with `NotImplementedError`.
+- `trunc_thresh` is relative to `‖Θ‖`, and every Θ a cooling sweep decomposes sits at
+  norm `1`, measured at `1 ± 4.2e-11` over an `L = 8` run.
+- Checkpointing follows XTRG's layout: the shared `thermal.ckpt` for the history, the
+  algorithm-named `tgtrg.ckpt` for the mid-run artifact, and `artifacts/step_XXXXX.ckpt`,
+  with `save_artifacts_every` thinning the archives by a stride.
+
+### The β Grid, and Its Step Size
+
+- `Options.grid` selects `'exp'` (step `τ = β`, so `β_n = 2^n τ₀`) or `'lin'` (step
+  `τ = Options.tau`). A run uses one or the other; a schedule needing both is two `run()`
+  calls, the second resuming from the first's `Artifact`. `Summary.taus` tells the phases
+  apart afterward, and the non-uniform finite differences need it.
+- The backward bond update amplifies the high-energy end of the local spectrum by
+  `exp(τ ΔE)`, and once that exceeds the inverse of float64 resolution it amplifies
+  roundoff along with the state. The limit is on `τ ΔE`, **not on β**, and nothing
+  downstream notices: the Krylov expansions converge either way, correctly solving the
+  local problem they were handed, while the state they are applied to drifts. `run()`
+  therefore warns when a schedule contains a step past a conservative soft limit.
+- The exponential grid walks into that on its own, its step size *being* `β`. The schedule
+  to use is the stacked one — exponential out of the high-temperature regime, linear from
+  there on — and the default `n_steps` of 13 stops the exponential phase at `β = 2`.
+- `log Z` comes from `NormalMPO.log_trace()` at every step and is accurate to roundoff while
+  the rank suffices; `u`, `c_V`, and `S` are non-uniform finite differences of it and carry
+  the grid's spacing as an error. `Options.obs_exact` adds a direct `Tr[ρH] / (Tr[ρ] L)`
+  measurement, defaulting to `False`; the gap between the two energy columns *is* the
+  discretization error.
+
+### The Krylov Exponential
+
+- New `krylov.py` with `lanczos_expv`. The projected matrix is real symmetric, so `exp(-τT)`
+  goes through `eigh`, and the contract is `exp(-τH) v = exp(log_scale) · w` with
+  `‖w‖ = ‖v‖` exactly: all of the magnitude is factored into `log_scale`, with the
+  propagator column assembled in log space including the eigenvector overlaps. Shifting by
+  an extremal eigenvalue is not enough — imaginary time runs the spectrum over `τ ΔE` in
+  the exponent, so coefficients underflow as readily as they overflow, and an underflowed
+  column arrives as a vector of zero norm.
+
+### Tests, Documentation, and Examples
+
+- Six new modules under `tests/algorithm/tgtrg/` plus a `conftest.py` carrying free-fermion
+  Hamiltonians, thermal states, and the analytic grand-canonical references. The
+  environment blocks are validated against an independent `NormalMPO`-based `Tr[ρ̂Hρ̂]` in
+  both sweep directions before anything is built on them, and `test_sweep.py` states the
+  two things that are actually true in place of the convergence rates one would expect: a
+  full-rank step is exact, and a rank-limited run has a `τ`-independent accuracy floor.
+- New `docs/algorithms/tgtrg/` section and `docs/examples/tgtrg/` walkthroughs, with the
+  algorithms index, examples index, `mkdocs.yml` navigation, and README all gaining TgTRG
+  sections, ordered DMRG, VUMPS, TDVP, TgTRG, XTRG. The README's "Upcoming" list loses the
+  TgTRG entry it has carried since 0.1.0.
+- `docs/algorithms/tgtrg/lessons.md` separates the two step-size regimes — a column that
+  stops being representable past `tau ΔE ≈ 1400`, closed off by the log-space assembly, and
+  the roundoff amplification forty times earlier — and locates the second at
+  `(tau/2) ΔE ≈ log(1/eps) ≈ 36` by varying the hopping, so the fixed soft limit of 8.0 is
+  conservative for a spectrum of order a few and silent past it. Also there: why refining
+  `tau` under a rank limit saturates, the tuning order it implies, why the propagator scale
+  is measured per call instead of precomputed, and that `run()` cools in place.
+- New `examples/examples_tgtrg/tgtrg_spinless.py` and `tgtrg_spinful.py`, both on the
+  stacked schedule and both printing their thermodynamics beside the analytic values.
+
+### Statistics
+
+- **2,057 tests** across 53 test modules (up from 1,779 / 47 in v0.4.2).
+- **33 files changed**, 8,683 insertions, 3 deletions.
+- **51 source modules** in seven subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.vumps`, `alice.algorithm.tdvp`,
+  `alice.algorithm.tgtrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** none. TgTRG is additive; the only changes outside its own
+  package are the two namespace exports and the documentation.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.4.2.
+
+---
+
 ## [0.4.2] - 2026-11-21
 
 **VUMPS: Corrections and Warm Environments**
@@ -1767,6 +1875,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.5.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.5.0
 [0.4.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.2
 [0.4.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.0
