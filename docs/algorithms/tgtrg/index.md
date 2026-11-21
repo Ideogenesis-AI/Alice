@@ -100,8 +100,8 @@ run; a schedule that needs both is two `run()` calls.
 | `'lin'` | `'linear'`, `'uniform'` | `τ = Options.tau` | `β₀ + n τ` |
 
 The exponential grid covers the high-temperature regime in a handful of steps,
-the way XTRG does. The linear grid places steps where the physics is, which is
-what TgTRG buys over squaring.
+the way XTRG does. The linear grid places steps where the physics is, the one
+thing TgTRG buys over squaring.
 
 ### Step size, and the stacked schedule
 
