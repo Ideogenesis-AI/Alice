@@ -518,8 +518,8 @@ def _warm_seed(
         Environment from an earlier solve, or `None` to start cold.
     entering:
         Selector for the channel the environment enters through, oriented
-        to insert into one rather than read one out: `start` for the left
-        side and `finish` for the right.
+        to insert into one: `start` for the left side and `finish` for
+        the right.
 
     Returns
     -------
