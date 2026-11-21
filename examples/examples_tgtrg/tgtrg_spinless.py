@@ -287,7 +287,7 @@ def tgtrg_spinless(
         working directory.
     save_artifacts:
         If `True` (default), archive per-step density matrices under
-        `artifacts/step_XX.ckpt`.
+        `artifacts/step_XXXXX.ckpt`.
     save_artifacts_every:
         Archive stride in steps when `save_artifacts` is `True` (default:
         `1`, every step).

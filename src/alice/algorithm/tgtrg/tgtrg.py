@@ -312,7 +312,7 @@ class Options(AlgorithmOptions):
         `None` (default) resolves to `Path.cwd()` at the time `run()` is
         called. Stored as `str` for TOML compatibility.
     artifacts_dir:
-        Directory for per-step `Artifact` files (`step_XX.ckpt`), written
+        Directory for per-step `Artifact` files (`step_XXXXX.ckpt`), written
         when `save_artifacts` is `True`. `None` (default) resolves to
         `artifacts/` under `checkpoint_dir`. Stored as `str` for TOML
         compatibility.
@@ -854,7 +854,7 @@ def _resume_history(state: Artifact, ckpt_dir: Path, opts: Options) -> _History:
     """Recover the per-step history up to `state.step` from `thermal.ckpt`.
 
     A history reaching past `state.step` is truncated, not rejected, so a
-    run can be continued from any archived `artifacts/step_XX.ckpt` — not
+    run can be continued from any archived `artifacts/step_XXXXX.ckpt` — not
     only from the step the previous run stopped at. The steps beyond are
     then recomputed and overwrite the truncated ones on disk.
 
@@ -1051,7 +1051,7 @@ def run(
     one under new options — the second phase of a stacked exponential-then-
     linear schedule, say — is calling `run()` again with the `Artifact`
     loaded from `tgtrg.ckpt` or from any archived
-    `artifacts/step_XX.ckpt`; the matching history is recovered from
+    `artifacts/step_XXXXX.ckpt`; the matching history is recovered from
     `thermal.ckpt` in `opts.checkpoint_dir`.
 
     Parameters
