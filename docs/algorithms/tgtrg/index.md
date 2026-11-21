@@ -4,26 +4,28 @@ Alice's TgTRG algorithm computes finite-temperature thermodynamic properties
 of a Hamiltonian MPO by cooling along the tangent space of the MPO manifold.
 Read as an imaginary-time TDVP for the density matrix: the exact flow
 
-```
-dρ/dβ = -H ρ
-```
+\[
+\frac{\mathrm{d}\rho}{\mathrm{d}\beta} = -H \rho
+\]
 
-is projected onto the tangent space at the current ρ, and the projection
-splits into local propagators that are applied in a sweep — `exp(-τ H⁽¹⁾)` on
-each site tensor forward, `exp(+τ H⁽⁰⁾)` on each bond backward.
+is projected onto the tangent space at the current \(\rho\), and the
+projection splits into local propagators that are applied in a sweep —
+\(e^{-\tau H^{(1)}}\) on each site tensor forward, \(e^{+\tau H^{(0)}}\) on
+each bond backward.
 
-Where [XTRG](../xtrg/index.md) reaches β by squaring, and so never refers back
-to `H` after the initial Taylor state, TgTRG takes one sweep per step and
-contracts against `H` throughout. One sweep costs `O(D³)`, against XTRG's
-`O(D⁴)` fit, and the β grid is free: it need not double.
+Where [XTRG](../xtrg/index.md) reaches \(\beta\) by squaring, and so never
+refers back to \(H\) after the initial Taylor state, TgTRG takes one sweep per
+step and contracts against \(H\) throughout. One sweep costs \(O(D^3)\),
+against XTRG's \(O(D^4)\) fit, and the \(\beta\) grid is free: it need not
+double.
 
 ## API
 
 | Symbol | Description |
 |--------|-------------|
-| [Options](options.md) | Run options: scheme, grid mode, τ₀, steps, bond dimension, caching, artifacts |
-| [Summary](summary.md) | Thermodynamic history: log Z, free energy, internal energy, specific heat, entropy |
-| [Artifact](artifact.md) | Density-matrix snapshot `ρ(β)` at one cooling step |
+| [Options](options.md) | Run options: scheme, grid mode, \(\tau_0\), steps, bond dimension, caching, artifacts |
+| [Summary](summary.md) | Thermodynamic history: \(\log Z\), free energy, internal energy, specific heat, entropy |
+| [Artifact](artifact.md) | Density-matrix snapshot \(\rho(\beta)\) at one cooling step |
 | [run](run.md) | Top-level entry point |
 
 ## Usage Pattern
@@ -78,26 +80,26 @@ accepted by `Options` for forward compatibility and rejected by `run()` with
 
 | `order` | Composition | Error per step |
 |---------|-------------|----------------|
-| `1` | one forward half-sweep | `O(τ²)` |
-| `2` | forward then backward half-sweep | `O(τ³)` |
+| `1` | one forward half-sweep | \(O(\tau^2)\) |
+| `2` | forward then backward half-sweep | \(O(\tau^3)\) |
 
 At full rank — when the manifold is the whole space — the projector-splitting
-integrator is *exact*, at either order and for any τ. The step size only
-matters once the rank is limited, or once it runs into the arithmetic below.
-Even under a rank limit it saturates quickly: the projection error accrues per
-unit of β, not per step, so refining τ reaches a floor that only `max_bond`
-can lower. [Lessons](lessons.md#step-size-versus-bond-dimension) has the
-numbers.
+integrator is *exact*, at either order and for any \(\tau\). The step size
+only matters once the rank is limited, or once it runs into the arithmetic
+below. Even under a rank limit it saturates quickly: the projection error
+accrues per unit of \(\beta\), not per step, so refining \(\tau\) reaches a
+floor that only `max_bond` can lower.
+[Lessons](lessons.md#step-size-versus-bond-dimension) has the numbers.
 
 ## Temperature Grid
 
 Two modes, chosen with `Options.grid`. They are never combined within a single
 run; a schedule that needs both is two `run()` calls.
 
-| `grid` | Alias | Step | β after step `n` |
+| `grid` | Alias | Step | \(\beta\) after step \(n\) |
 |--------|-------|------|------------------|
-| `'exp'` | `'exponential'`, `'doubling'` | `τ = β` | `2^n τ₀` |
-| `'lin'` | `'linear'`, `'uniform'` | `τ = Options.tau` | `β₀ + n τ` |
+| `'exp'` | `'exponential'`, `'doubling'` | \(\tau = \beta\) | \(2^n \tau_0\) |
+| `'lin'` | `'linear'`, `'uniform'` | `Options.tau` | \(\beta_0 + n \tau\) |
 
 The exponential grid covers the high-temperature regime in a handful of steps,
 the way XTRG does. The linear grid places steps where the physics is, the one
@@ -105,28 +107,29 @@ thing TgTRG buys over squaring.
 
 ### Step size, and the stacked schedule
 
-The backward bond update propagates by `exp(+τ H⁽⁰⁾)`, amplifying the
+The backward bond update propagates by \(e^{+\tau H^{(0)}}\), amplifying the
 high-energy end of the local spectrum. Once that amplification exceeds the
 inverse of float64 resolution, what it amplifies is roundoff. Since `order=2`
 propagates in half-steps, the criterion is on the exponent of one local
 propagation:
 
-```
-(τ / 2) ΔE  <  log(1 / ε)  ≈  36
-```
+\[
+\frac{\tau}{2} \Delta E < \log \frac{1}{\epsilon} \approx 36
+\]
 
-with `ΔE` the spectral range of the Hamiltonian — so the limit is on the
-exponent, not on τ and not on β, and a chain with a wider spectrum reaches it
-at a proportionally smaller step. The exponential grid walks into it on its
-own, its step size *being* β.
+with \(\Delta E\) the spectral range of the Hamiltonian — so the limit is on
+the exponent, not on \(\tau\) and not on \(\beta\), and a chain with a wider
+spectrum reaches it at a proportionally smaller step. The exponential grid
+walks into it on its own, its step size *being* \(\beta\).
 
-Measured on an `L = 4` free-fermion chain: reaching β = 64 from β = 32 in one
-τ = 32 step loses eight digits of log Z, while four τ = 8 steps over the same
-interval are exact to 1e-14. Nothing downstream flags the bad step; the Krylov
-expansions converge to 1e-13 either way. `run()` warns past a fixed soft limit
-of τ = 8, which is calibrated for a spectral range of order a few and is not
-universal — [Lessons](lessons.md#how-large-a-step-may-be) has the measurements
-and the regime the warning does not cover.
+Measured on an `L = 4` free-fermion chain: reaching \(\beta = 64\) from
+\(\beta = 32\) in one \(\tau = 32\) step loses eight digits of \(\log Z\),
+while four \(\tau = 8\) steps over the same interval are exact to `1e-14`.
+Nothing downstream flags the bad step; the Krylov expansions converge to
+`1e-13` either way. `run()` warns past a fixed soft limit of \(\tau = 8\),
+which is calibrated for a spectral range of order a few and is not universal —
+[Lessons](lessons.md#how-large-a-step-may-be) has the measurements and the
+regime the warning does not cover.
 
 So the schedule to use is the stacked one — exponential out of the
 high-temperature regime, linear from there on:
@@ -152,16 +155,22 @@ history from `cooling.ckpt`, so the returned `Summary` spans both phases.
 
 ## Observables
 
-`log Z(β)` comes from `NormalMPO.log_trace()` at every step, which is cheap,
-and the free energy follows from it directly. Both are accurate to roundoff
-when the rank suffices.
+\(\log Z(\beta)\) comes from `NormalMPO.log_trace()` at every step, which is
+cheap, and the free energy follows from it directly. Both are accurate to
+roundoff when the rank suffices.
 
 The internal energy, specific heat, and entropy are finite differences of
-`log Z` on the β grid, so they are only as good as its spacing — `c_V`, a
-second derivative, least of all, and especially across a phase boundary where
-the spacing jumps. Setting `Options.obs_exact` adds a direct measurement of
-`u = Tr[ρH] / (Tr[ρ] L)` at each step, free of discretization error; it is off
-by default so that the cooling pays for nothing it does not need.
+\(\log Z\) on the \(\beta\) grid, so they are only as good as its spacing —
+\(c_V\), a second derivative, least of all, and especially across a phase
+boundary where the spacing jumps. Setting `Options.obs_exact` adds a direct
+measurement of
+
+\[
+u = \frac{\mathrm{Tr}[\rho H]}{L \, \mathrm{Tr}[\rho]}
+\]
+
+at each step, free of discretization error; it is off by default so that the
+cooling pays for nothing it does not need.
 
 ## See Also
 
