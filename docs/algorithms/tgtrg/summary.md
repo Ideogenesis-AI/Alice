@@ -21,11 +21,11 @@ from alice.algorithm.tgtrg import Summary
 summary = Summary.load("cooling_result.ckpt")
 ```
 
-During `run()`, the latest summary is written to `cooling.ckpt` under
+During `run()`, the latest summary is written to `thermal.ckpt` under
 `Options.checkpoint_dir` (or the current working directory when that option is
 unset). Serialization version is `1` (no density matrix in the payload).
 
-`cooling.ckpt` is also where a resumed or continued run recovers its β/log Z
+`thermal.ckpt` is also where a resumed or continued run recovers its β/log Z
 history from, and `finished` is `False` on the mid-run snapshots. A continued
 run appends to that history, so a single summary may merge segments computed
 under different options — the two phases of a stacked exponential-then-linear
