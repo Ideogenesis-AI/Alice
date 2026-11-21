@@ -20,12 +20,14 @@
 
 from . import dmrg
 from . import tdvp
+from . import tgtrg
 from . import vumps
 from . import xtrg
 
 __all__ = [
     'dmrg',
     'tdvp',
+    'tgtrg',
     'vumps',
     'xtrg',
 ]
