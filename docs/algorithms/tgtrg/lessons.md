@@ -13,13 +13,13 @@ imaginary-time one spreads the local spectrum over \(e^{\tau \Delta E}\) in
 magnitude, where \(\Delta E\) is the range of the effective Hamiltonian being
 exponentiated. Everything below follows from that single exponent.
 
-### It is not an accuracy knob
+### Not the only accuracy knob
 
-Start from what the step size does *not* do. When the bond dimension is large
-enough that the manifold is the whole space, the tangent projector is the
-identity and the projector splitting integrates the flow **exactly** — at
-either order, and for any \(\tau\). Verified to `1e-10` on an `L = 4` chain in
-a single `tau = 8` step, and the test
+Start with the case where the step size does nothing at all. When the bond
+dimension is large enough that the manifold is the whole space, the tangent
+projector is the identity and the projector splitting integrates the flow
+**exactly** — at either order, and for any \(\tau\). Verified to `1e-10` on an
+`L = 4` chain in a single `tau = 8` step, and the test
 `test_full_rank_step_is_exact` keeps it honest.
 
 So the exponential grid is not making an approximation when it takes
@@ -118,7 +118,8 @@ spectrum of order a few.
 
 ## Step Size Versus Bond Dimension
 
-The second thing the step size does not do is fix a rank-limited run.
+Under a rank limit the step size does buy accuracy, and not much of it. It is
+no substitute for the bond dimension.
 
 Two error sources are at work, and they scale differently in the number of
 steps. The splitting error is per step and shrinks with \(\tau\) in the usual
@@ -156,9 +157,9 @@ discretization error at all.
 
 **So tune in one order.** Set `max_bond` from the accuracy you need, judged on
 `Summary.discarded_weights`; then take \(\tau\) as large as the exponent
-criterion allows, since a larger step there costs nothing in accuracy and
-saves sweeps. Reaching for a smaller \(\tau\) to improve an answer is the one
-move that reliably does not work.
+criterion allows, the sweeps it saves costing a fraction of what the rank
+already concedes. A refinement of \(\tau\) is worth one or two attempts after
+that, and almost nothing past them.
 
 ## Why the Scale Is Measured Every Call
 
