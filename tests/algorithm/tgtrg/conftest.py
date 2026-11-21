@@ -46,8 +46,8 @@ Dense rendering
 `flatten`, `unflatten`, and `dense` render an effective Hamiltonian as a plain
 matrix by fixing an order on the surviving symmetry blocks. Only allowed
 blocks appear, so the flattened space is the variational space and nothing
-else — the same device the TDVP tests use, carried over to the rank-4 tensors
-of a density matrix.
+else — the same device the TDVP tests use, carried over to the 4th-order
+tensors of a density matrix.
 """
 
 from __future__ import annotations
