@@ -36,6 +36,13 @@ Real-time evolution, each validated against an analytic reference or across symm
 - [Hubbard model](tdvp/hubbard.md) — spinful melting at U = 0, Abelian versus SU(2), against twice the spinless result.
 - [Hubbard quench](tdvp/hubbard-quench.md) — interaction quench from a DMRG ground state, in all four symmetry groups.
 
+### TgTRG
+
+Finite-temperature thermodynamics by tangent-space cooling, on the stacked exponential-then-linear schedule.
+
+- [Free fermion](tgtrg/free-fermion.md) — spinless tight-binding chain against the exact `log Z`, `u`, `c_V`, and `S`.
+- [Hubbard model](tgtrg/hubbard.md) — spinful Hubbard chain with Z(2)×SU(2) symmetry, with the direct energy measurement.
+
 ### XTRG
 
 Finite-temperature thermodynamics via exponential cooling, with the three update schemes.
