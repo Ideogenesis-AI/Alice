@@ -282,7 +282,7 @@ def tgtrg_spinless(
         Sliding-window size for in-memory environment blocks (default `2`).
         Has no effect when `env_cache_dir` is `None`.
     checkpoint_dir:
-        Directory for `cooling.ckpt`, mid-run `tgtrg.ckpt`, and optional
+        Directory for `thermal.ckpt`, mid-run `tgtrg.ckpt`, and optional
         `artifacts/` archives. `None` (default) writes to the current
         working directory.
     save_artifacts:
@@ -574,7 +574,7 @@ def _parse_args():
     )
     p.add_argument(
         '--checkpoint-dir', default=None, metavar='PATH',
-        help='directory for cooling.ckpt / tgtrg.ckpt / artifacts (default: cwd)',
+        help='directory for thermal.ckpt / tgtrg.ckpt / artifacts (default: cwd)',
     )
     p.add_argument(
         '--no-save-artifacts', action='store_true',
