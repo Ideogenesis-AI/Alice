@@ -55,7 +55,7 @@ loaded from `tgtrg.ckpt`:
 
 ```python
 resumed = tgtrg.Artifact.load(ckpt_dir / 'tgtrg.ckpt')
-summary, artifact = tgtrg.run(resumed, H, opts)  # cooling.ckpt auto-loaded
+summary, artifact = tgtrg.run(resumed, H, opts)  # thermal.ckpt auto-loaded
 ```
 
 `n_steps` is the absolute step index to stop at, counted from the Taylor
@@ -131,7 +131,7 @@ summary, artifact = tgtrg.run(
 ```
 
 The second call resumes from the first call's `Artifact` and recovers its
-history from `cooling.ckpt`, so the returned `Summary` spans both phases.
+history from `thermal.ckpt`, so the returned `Summary` spans both phases.
 `Summary.taus` tells the phases apart after the fact.
 
 ## Observables
