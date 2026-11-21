@@ -47,7 +47,7 @@ explicitly.
 
 Resuming an interrupted run is calling `run()` again with the `Artifact`
 written to `tgtrg.ckpt`; the matching β/log Z history is recovered
-automatically from `cooling.ckpt` in `opts.checkpoint_dir`:
+automatically from `thermal.ckpt` in `opts.checkpoint_dir`:
 
     resumed = tgtrg.Artifact.load(ckpt_dir / 'tgtrg.ckpt')
     summary, artifact = tgtrg.run(resumed, H, opts)
@@ -304,11 +304,11 @@ class Options(AlgorithmOptions):
         caching is enabled.
     checkpoint_dir:
         Directory for checkpoint files. After every cooling step a
-        `cooling.ckpt` file (loadable via `tgtrg.Summary.load`) is written
-        using an atomic write (`cooling_lock.ckpt` → rename). Mid-run
+        `thermal.ckpt` file (loadable via `tgtrg.Summary.load`) is written
+        using an atomic write (`thermal_lock.ckpt` → rename). Mid-run
         progress is stored as `tgtrg.ckpt` (an `Artifact`) and removed when
-        `run()` finishes successfully. The name differs from XTRG's
-        `thermal.ckpt` so a TgTRG and an XTRG run can share a directory.
+        `run()` finishes successfully. That mid-run name carries the
+        algorithm, so a TgTRG and an XTRG run can share a directory.
         `None` (default) resolves to `Path.cwd()` at the time `run()` is
         called. Stored as `str` for TOML compatibility.
     artifacts_dir:
@@ -423,7 +423,7 @@ class Summary(AlgorithmSummary):
         Largest bond dimension of `ρ` at each step, aligned with `betas`.
     finished:
         `True` only for the summary returned by a completed `run()` call.
-        `False` for mid-run `cooling.ckpt` snapshots.
+        `False` for mid-run `thermal.ckpt` snapshots.
     n_steps:
         Number of cooling steps reflected in this summary.
     """
@@ -819,9 +819,9 @@ class _History:
         )
 
 
-def _save_cooling(summary: Summary, ckpt_dir: Path) -> None:
-    """Write `cooling.ckpt` atomically in `ckpt_dir`."""
-    _atomic_torch_save(summary.serialize(), ckpt_dir / 'cooling.ckpt')
+def _save_thermal(summary: Summary, ckpt_dir: Path) -> None:
+    """Write `thermal.ckpt` atomically in `ckpt_dir`."""
+    _atomic_torch_save(summary.serialize(), ckpt_dir / 'thermal.ckpt')
 
 
 def _save_checkpoint(artifact: Artifact, ckpt_dir: Path) -> None:
@@ -851,7 +851,7 @@ def _archive_artifact(
 
 
 def _resume_history(state: Artifact, ckpt_dir: Path, opts: Options) -> _History:
-    """Recover the per-step history up to `state.step` from `cooling.ckpt`.
+    """Recover the per-step history up to `state.step` from `thermal.ckpt`.
 
     A history reaching past `state.step` is truncated, not rejected, so a
     run can be continued from any archived `artifacts/step_XX.ckpt` — not
@@ -866,7 +866,7 @@ def _resume_history(state: Artifact, ckpt_dir: Path, opts: Options) -> _History:
     state:
         Starting density matrix with its `beta` and `step`.
     ckpt_dir:
-        Resolved checkpoint directory holding `cooling.ckpt`.
+        Resolved checkpoint directory holding `thermal.ckpt`.
     opts:
         Run options, for `obs_exact`.
 
@@ -878,27 +878,27 @@ def _resume_history(state: Artifact, ckpt_dir: Path, opts: Options) -> _History:
     Raises
     ------
     FileNotFoundError
-        If no `cooling.ckpt` exists in `ckpt_dir`.
+        If no `thermal.ckpt` exists in `ckpt_dir`.
     ValueError
         If the history stops before `state.step`, or if its β at
         `state.step` does not match `state.beta`.
     """
-    path = ckpt_dir / 'cooling.ckpt'
+    path = ckpt_dir / 'thermal.ckpt'
     if not path.exists():
         raise FileNotFoundError(
-            f"resuming from step {state.step} requires an existing cooling.ckpt "
+            f"resuming from step {state.step} requires an existing thermal.ckpt "
             f"in {ckpt_dir} to recover the β/log Z history, but none was found"
         )
     past = Summary.load(path)
 
     if len(past.betas) <= state.step:
         raise ValueError(
-            f"cooling.ckpt at {ckpt_dir} only reaches step {len(past.betas) - 1}, "
+            f"thermal.ckpt at {ckpt_dir} only reaches step {len(past.betas) - 1}, "
             f"but the given state is at step {state.step}; the two are inconsistent"
         )
     if not math.isclose(past.betas[state.step], state.beta, rel_tol=1e-9):
         raise ValueError(
-            f"cooling.ckpt's β at step {state.step} "
+            f"thermal.ckpt's β at step {state.step} "
             f"({past.betas[state.step]:.6g}) in {ckpt_dir} does not match the "
             f"given state's β ({state.beta:.6g}); the two are inconsistent"
         )
@@ -906,7 +906,7 @@ def _resume_history(state: Artifact, ckpt_dir: Path, opts: Options) -> _History:
     last = len(past.betas) - 1
     if last > state.step:
         logger.warning(
-            "cooling.ckpt reaches step %d; continuing from step %d — the %d "
+            "thermal.ckpt reaches step %d; continuing from step %d — the %d "
             "later entries will be recomputed and overwritten",
             last, state.step, last - state.step,
         )
@@ -930,7 +930,7 @@ def _resume_history(state: Artifact, ckpt_dir: Path, opts: Options) -> _History:
             # diagnostic, and the run that wants it should still get it from
             # here on.
             logger.warning(
-                "cooling.ckpt holds %d exact energies for %d steps; the earlier "
+                "thermal.ckpt holds %d exact energies for %d steps; the earlier "
                 "entries were not measured and are recorded as NaN",
                 len(recovered), k + 1,
             )
@@ -1052,7 +1052,7 @@ def run(
     linear schedule, say — is calling `run()` again with the `Artifact`
     loaded from `tgtrg.ckpt` or from any archived
     `artifacts/step_XX.ckpt`; the matching history is recovered from
-    `cooling.ckpt` in `opts.checkpoint_dir`.
+    `thermal.ckpt` in `opts.checkpoint_dir`.
 
     Parameters
     ----------
@@ -1075,7 +1075,7 @@ def run(
     -------
     Summary
         Thermodynamic history (β grid, log Z, derived observables). Written
-        to `cooling.ckpt` under the checkpoint directory.
+        to `thermal.ckpt` under the checkpoint directory.
     Artifact
         Final density matrix with its `beta` and `step`.
 
@@ -1083,12 +1083,12 @@ def run(
     ------
     ValueError
         If `state.step` is past `opts.n_steps`, if the exponential grid
-        disagrees with `state.beta`, or if a recovered `cooling.ckpt` is
+        disagrees with `state.beta`, or if a recovered `thermal.ckpt` is
         inconsistent with `state`.
     NotImplementedError
         If `opts.scheme` is recognized but not yet implemented.
     FileNotFoundError
-        If `state.step > 0` and no `cooling.ckpt` exists in
+        If `state.step > 0` and no `thermal.ckpt` exists in
         `opts.checkpoint_dir`.
     """
     if opts is None:
@@ -1233,7 +1233,7 @@ def run(
                         "krylov err = %.4e,  dw = %.4e",
                         beta, lz, history.max_bonds[-1], err, dw)
 
-            _save_cooling(history.summary(L, step=k, finished=False), _ckpt)
+            _save_thermal(history.summary(L, step=k, finished=False), _ckpt)
             artifact = Artifact(rho=rho, beta=beta, step=k)
             _save_checkpoint(artifact, _ckpt)
             _archive_artifact(artifact, opts, _artifacts, final=k == opts.n_steps)
@@ -1248,7 +1248,7 @@ def run(
     logger.info("")
 
     summary = history.summary(L, step=opts.n_steps, finished=True)
-    _save_cooling(summary, _ckpt)
+    _save_thermal(summary, _ckpt)
 
     # Success path only: drop the mid-run checkpoint so a finished job does
     # not leave a stale tgtrg.ckpt behind. A crash earlier leaves it on disk.
