@@ -73,6 +73,8 @@ class TestOptions:
         assert opts.grid == 'exp'
         assert opts.order == 2
         assert opts.obs_exact is False
+        assert opts.expand_k == 4
+        assert opts.expand_alpha is None
 
     @pytest.mark.parametrize('alias,expected', [
         ('1s', '1s'), ('2s', '2s'), ('1sp', '1sp'),
@@ -124,9 +126,9 @@ class TestOptions:
             Options(**{field: value})
 
     def test_toml_roundtrip(self, tmp_path):
-        opts = Options(scheme='1s', grid='lin', tau=0.05, n_steps=8, order=1,
-                       max_bond=64, krylov_dim=12, obs_exact=True,
-                       save_artifacts_every=2)
+        opts = Options(scheme='1sp', grid='lin', tau=0.05, n_steps=8, order=1,
+                       max_bond=64, expand_k=8, expand_alpha=8, krylov_dim=12,
+                       obs_exact=True, save_artifacts_every=2)
         path = tmp_path / 'tgtrg.toml'
         opts.to_toml(path, section='tgtrg')
         assert Options.load_toml(path, section='tgtrg') == opts
@@ -292,6 +294,42 @@ class TestPhysics:
         # Still visibly worse than the adaptive scheme at the cold end.
         assert abs(summary.log_z[-1] - exact_log_z(summary.betas[-1])) > 1e-12
 
+    def test_one_site_plus_scheme_grows_the_rank_it_needs(self, start, tmp_path):
+        """`'1sp'` adapts the bond upward from the Taylor state's own rank.
+
+        `ρ(τ₀)` arrives at the Hamiltonian's rank, below what a colder `ρ`
+        needs, and the whole reason to pay for the expansion is that the
+        scheme climbs out of it — where `'1s'`, handed the same state, stays
+        put and pays for it in `log Z`.
+        """
+        _, _, exact_log_z = start
+        cap = 16
+
+        summary, _ = _cool(start, tmp_path, scheme='1sp', n_steps=6,
+                           max_bond=cap, expand_k=4, expand_alpha=4)
+        fixed, _ = _cool(start, tmp_path, scheme='1s', n_steps=6)
+
+        assert summary.max_bonds[0] == fixed.max_bonds[0]
+        assert max(summary.max_bonds) > summary.max_bonds[0]
+        assert max(summary.max_bonds) <= cap
+        assert set(fixed.max_bonds) == {fixed.max_bonds[0]}
+
+        beta = summary.betas[-1]
+        assert (abs(summary.log_z[-1] - exact_log_z(beta))
+                < abs(fixed.log_z[-1] - exact_log_z(beta)))
+
+    def test_one_site_plus_tracks_the_two_site_scheme(self, start, tmp_path):
+        """Unconstrained, the two adaptive schemes cool to the same place."""
+        _, _, exact_log_z = start
+
+        one_plus, _ = _cool(start, tmp_path, scheme='1sp', n_steps=6,
+                            expand_k=8)
+        two_site, _ = _cool(start, tmp_path, scheme='2s', n_steps=6)
+
+        for beta, log_z in zip(one_plus.betas, one_plus.log_z):
+            assert log_z == pytest.approx(exact_log_z(beta), rel=1e-6)
+        assert one_plus.betas == two_site.betas
+
     def test_spinful_chain_cools_correctly(self, spinful_fermion_L4, tmp_path):
         """Two symmetry groups, and log Z is twice the spinless value."""
         mpo, spc, exact_log_z = spinful_fermion_L4
@@ -410,10 +448,17 @@ class TestRun:
                                     checkpoint_dir=str(tmp_path)))
 
     def test_unimplemented_scheme_is_rejected(self, start, tmp_path):
+        """Every scheme `Options` accepts is one `run()` can carry out.
+
+        All three are implemented now, so the guard is reached only by
+        bypassing the alias resolution — but it is what keeps a future
+        fourth scheme from running halfway before anyone notices.
+        """
         state, mpo, _ = start
-        with pytest.raises(NotImplementedError, match='1sp'):
-            run(state, mpo, Options(scheme='1sp', tau_0=state.beta,
-                                    checkpoint_dir=str(tmp_path)))
+        opts = Options(tau_0=state.beta, checkpoint_dir=str(tmp_path))
+        opts.scheme = 'nonesuch'
+        with pytest.raises(NotImplementedError, match='nonesuch'):
+            run(state, mpo, opts)
 
     def test_max_bond_caps_the_density_matrix(self, start, tmp_path):
         """The cap holds from the handed-in state onward, not just at splits."""
