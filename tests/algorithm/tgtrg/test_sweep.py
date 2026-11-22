@@ -86,7 +86,7 @@ def _overlap_error(rho_a, rho_b) -> float:
 class TestAgainstTheTaylorSeries:
     """A step of `tau` from ρ(β) must land on ρ(β + tau)."""
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     def test_log_z_matches(self, spinless_fermion_L4, scheme):
         """log Z after one step agrees with the exact value for the new β."""
         mpo, spc, exact_log_z = spinless_fermion_L4
@@ -97,7 +97,7 @@ class TestAgainstTheTaylorSeries:
         assert sign == 1.0
         assert log_z == pytest.approx(exact_log_z(beta + tau), rel=1e-6)
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     def test_density_matrix_matches(self, spinless_fermion_L4, scheme):
         """The cooled ρ overlaps the Taylor ρ(β + tau) to the step's accuracy."""
         mpo, spc, _ = spinless_fermion_L4
@@ -160,7 +160,7 @@ class TestAgainstTheTaylorSeries:
 class TestCoolStep:
     """Tests for the composition and bookkeeping of a step."""
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     def test_order_two_returns_the_center_to_site_zero(self, spinless_fermion_L4,
                                                        scheme):
         """A symmetric step is a full sweep pair, so the center comes back."""
@@ -168,7 +168,7 @@ class TestCoolStep:
         rho, _, _ = _step(mpo, spc, 0.1, 0.05, scheme=scheme, order=2)
         assert rho.center == 0
 
-    @pytest.mark.parametrize('scheme', ['1s', '2s'])
+    @pytest.mark.parametrize('scheme', ['1s', '2s', '1sp'])
     def test_order_one_leaves_the_center_at_the_far_end(self, spinless_fermion_L4,
                                                         scheme):
         """A single forward half-sweep ends where it ends."""
@@ -300,16 +300,160 @@ class TestSweepGuards:
         with pytest.raises(ValueError, match='center at site'):
             backward_sweep(rho, mpo, env_left, env_right, opts, 0.1)
 
-    def test_unimplemented_scheme_is_rejected_by_the_dispatcher(
-        self, spinless_fermion_L4
+    @pytest.mark.parametrize('sweep', [forward_sweep, backward_sweep])
+    def test_unknown_scheme_is_rejected_by_the_dispatcher(
+        self, spinless_fermion_L4, sweep
     ):
-        """`'1sp'` is a name Alice knows but TgTRG cannot yet run."""
+        """Every scheme the dispatcher knows is one it can run.
+
+        `Options` refuses an unrecognized name, so this guard is reached
+        only by bypassing it — but it is the kind of guard that must stay.
+        """
         mpo, spc, _ = spinless_fermion_L4
         rho = thermal_state(mpo, spc, 0.1)
-        opts = Options(scheme='1sp')
-        env_left, env_right = _envs(rho, mpo, Options(scheme='1s'))
-        with pytest.raises(NotImplementedError, match='1sp'):
-            forward_sweep(rho, mpo, env_left, env_right, opts, 0.1)
+        opts = Options(scheme='1s')
+        env_left, env_right = _envs(rho, mpo, opts)
+        if sweep is backward_sweep:
+            rho.canonical(rho.L - 1)
+        opts.scheme = 'nonesuch'
+        with pytest.raises(NotImplementedError, match='nonesuch'):
+            sweep(rho, mpo, env_left, env_right, opts, 0.1)
+
+
+# ---------------------------------------------------------------------------
+# The 1-site-plus scheme
+# ---------------------------------------------------------------------------
+
+class TestOneSitePlus:
+    """What the bond expansion buys, and where it collapses onto `'1s'`."""
+
+    def test_bond_grows_from_a_rank_limited_state(self, spinless_fermion_L4):
+        """The point of the scheme: a 1-site-sized step that adapts the rank."""
+        mpo, spc, _ = spinless_fermion_L4
+        rho = thermal_state(mpo, spc, 0.1)
+        rho.compact({'nkeep': 2})
+        rho.canonical(0)
+        before = max(rho.bond_dims)
+
+        opts = Options(scheme='1sp', expand_k=4)
+        env_left, env_right = _envs(rho, mpo, opts)
+        cool_step(rho, mpo, env_left, env_right, opts, 0.1)
+        assert max(rho.bond_dims) > before
+
+    def test_zero_expansion_reproduces_the_one_site_scheme(self,
+                                                           spinless_fermion_L4):
+        """`expand_k = 0` is the one setting where the two schemes coincide.
+
+        With no complement to add, the expanded space is the space `'1s'`
+        already works in, and the two sweeps become the same arithmetic — so
+        they must agree to roundoff, not merely to the integrator's accuracy.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        beta, tau = 0.1, 0.05
+
+        plain = thermal_state(mpo, spc, beta)
+        plain.compact({'nkeep': 4})
+        plain.canonical(0)
+        opts_1s = Options(scheme='1s')
+        el, er = _envs(plain, mpo, opts_1s)
+        cool_step(plain, mpo, el, er, opts_1s, tau)
+
+        expanded = thermal_state(mpo, spc, beta)
+        expanded.compact({'nkeep': 4})
+        expanded.canonical(0)
+        opts_1sp = Options(scheme='1sp', expand_k=0)
+        el, er = _envs(expanded, mpo, opts_1sp)
+        cool_step(expanded, mpo, el, er, opts_1sp, tau)
+
+        assert list(expanded.bond_dims) == list(plain.bond_dims)
+        assert expanded.log_scale == pytest.approx(plain.log_scale, rel=1e-12)
+        assert _overlap_error(plain, expanded) < 1e-12
+
+    def test_it_tracks_the_two_site_scheme(self, spinless_fermion_L4):
+        """Given room to expand, `'1sp'` lands where `'2s'` lands.
+
+        Both adapt the rank from the same state under the same propagator;
+        they differ in the space each local exponential is taken in, and on
+        one step from a rank-limited state that difference stays well below
+        the step's own accuracy.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        beta, tau = 0.1, 0.05
+
+        two_site = thermal_state(mpo, spc, beta)
+        two_site.compact({'nkeep': 2})
+        two_site.canonical(0)
+        opts = Options(scheme='2s')
+        el, er = _envs(two_site, mpo, opts)
+        cool_step(two_site, mpo, el, er, opts, tau)
+
+        one_plus = thermal_state(mpo, spc, beta)
+        one_plus.compact({'nkeep': 2})
+        one_plus.canonical(0)
+        opts = Options(scheme='1sp', expand_k=8)
+        el, er = _envs(one_plus, mpo, opts)
+        cool_step(one_plus, mpo, el, er, opts, tau)
+
+        assert _overlap_error(two_site, one_plus) < 1e-8
+
+    def test_it_beats_the_one_site_scheme_at_equal_start(self,
+                                                         spinless_fermion_L4):
+        """Adapting the rank is worth something, and this is where it shows."""
+        mpo, spc, exact_log_z = spinless_fermion_L4
+        beta, tau = 0.5, 0.5
+
+        errors = {}
+        for scheme, kwargs in (('1s', {}), ('1sp', {'expand_k': 8})):
+            rho = thermal_state(mpo, spc, beta)
+            rho.compact({'nkeep': 2})
+            rho.canonical(0)
+            opts = Options(scheme=scheme, **kwargs)
+            el, er = _envs(rho, mpo, opts)
+            cool_step(rho, mpo, el, er, opts, tau)
+            log_z, _ = rho.log_trace()
+            errors[scheme] = abs(log_z - exact_log_z(beta + tau))
+
+        assert errors['1sp'] < errors['1s']
+
+    def test_a_bond_limit_is_respected_and_reported(self, spinless_fermion_L4):
+        """`'1sp'` truncates like `'2s'`, cap and discarded weight included."""
+        mpo, spc, _ = spinless_fermion_L4
+        rho = thermal_state(mpo, spc, 0.5)
+        rho.compact({'nkeep': 2})
+        rho.canonical(0)
+
+        opts = Options(scheme='1sp', expand_k=4, max_bond=3)
+        env_left, env_right = _envs(rho, mpo, opts)
+        _err, dw = cool_step(rho, mpo, env_left, env_right, opts, 0.5)
+
+        assert max(rho.bond_dims) <= 3
+        assert dw > 0.0
+
+    def test_alpha_keeps_the_search_cheap_without_breaking_it(self,
+                                                              spinless_fermion_L4):
+        """A truncated Θ̃ still finds directions worth keeping.
+
+        `expand_alpha` caps the internal bond of the factorization the
+        complement is read off, so it degrades which directions are found —
+        never whether they are usable. Measured against the exact search,
+        the cheap one lands on all but indistinguishably the same `ρ`.
+        """
+        mpo, spc, _ = spinless_fermion_L4
+        beta, tau = 0.1, 0.05
+
+        states = []
+        for alpha in (None, 2):
+            rho = thermal_state(mpo, spc, beta)
+            rho.compact({'nkeep': 2})
+            rho.canonical(0)
+            opts = Options(scheme='1sp', expand_k=4, expand_alpha=alpha)
+            el, er = _envs(rho, mpo, opts)
+            cool_step(rho, mpo, el, er, opts, tau)
+            states.append(rho)
+
+        exact_search, cheap_search = states
+        assert max(cheap_search.bond_dims) > 2
+        assert _overlap_error(exact_search, cheap_search) < 1e-8
 
 
 def _args(fixture):
