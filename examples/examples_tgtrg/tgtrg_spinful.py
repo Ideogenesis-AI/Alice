@@ -127,6 +127,8 @@ def tgtrg_spinful(
     trunc_thresh: float = 1e-12,
     krylov_dim: int = 16,
     krylov_tol: float = 1e-12,
+    expand_k: int = 4,
+    expand_alpha: Optional[int] = None,
     obs_exact: bool = False,
     env_cache_dir: Optional[str] = None,
     env_async_io: bool = True,
@@ -164,8 +166,9 @@ def tgtrg_spinful(
         * `'U1,SU2'` — particle number × full SU(2) spin rotation
         * `'Z2,SU2'` — fermion parity × full SU(2) spin rotation (default)
     scheme:
-        Tangent-space update scheme: `'1s'` (1-site, fixed bond dimension)
-        or `'2s'` (2-site, default, adaptive bond dimension).
+        Tangent-space update scheme: `'1s'` (1-site, fixed bond dimension),
+        `'2s'` (2-site, default, adaptive bond dimension), or `'1sp'`
+        (1-site-plus, adaptive at close to 1-site cost).
     order:
         Integrator order per step: `1` for a single forward half-sweep, `2`
         (default) for the symmetric forward-then-backward pair.
@@ -196,6 +199,12 @@ def tgtrg_spinful(
         Maximum Krylov dimension per local propagator (default: 16).
     krylov_tol:
         Krylov convergence tolerance (default: `1e-12`).
+    expand_k:
+        Complement directions added per bond per local update under
+        `'1sp'` (default: 4). Ignored by the other schemes.
+    expand_alpha:
+        Internal bond of the cheap factorization inside the `'1sp'`
+        expansion. `None` (default) keeps the full bond.
     obs_exact:
         If `True`, measure `u = Tr[ρH] / (Tr[ρ] L)` directly at each step
         in addition to the finite-difference estimate. Off by default. The
@@ -309,6 +318,8 @@ def tgtrg_spinful(
         trunc_thresh=trunc_thresh,
         krylov_dim=krylov_dim,
         krylov_tol=krylov_tol,
+        expand_k=expand_k,
+        expand_alpha=expand_alpha,
         obs_exact=obs_exact,
         env_cache_dir=env_cache_dir,
         env_async_io=env_async_io,
@@ -430,8 +441,9 @@ def _parse_args():
         help='band symmetry exploited (default: Z2,SU2)',
     )
     p.add_argument(
-        '--scheme', choices=['1s', '2s'], default='2s',
-        help='tangent-space update scheme: 1s (fixed bond) or 2s (adaptive, default)',
+        '--scheme', choices=['1s', '2s', '1sp'], default='2s',
+        help='tangent-space update scheme: 1s (fixed bond), 2s (adaptive, default), '
+             'or 1sp (adaptive at close to 1-site cost)',
     )
     p.add_argument(
         '--order', type=int, choices=[1, 2], default=2,
@@ -479,6 +491,15 @@ def _parse_args():
     p.add_argument(
         '--krylov-tol', type=float, default=1e-12, metavar='TOL',
         help='Krylov convergence tolerance (default: 1e-12)',
+    )
+    p.add_argument(
+        '--expand-k', type=int, default=4, metavar='K',
+        help='complement directions per bond for the 1sp scheme (default: 4)',
+    )
+    p.add_argument(
+        '--expand-alpha', type=int, default=None, metavar='A',
+        help='internal bond of the cheap factorization inside the 1sp expansion '
+             '(default: full)',
     )
     p.add_argument(
         '--obs-exact', action='store_true',
@@ -541,6 +562,8 @@ if __name__ == '__main__':
         trunc_thresh=args.trunc_thresh,
         krylov_dim=args.krylov_dim,
         krylov_tol=args.krylov_tol,
+        expand_k=args.expand_k,
+        expand_alpha=args.expand_alpha,
         obs_exact=args.obs_exact,
         env_cache_dir=args.env_cache_dir,
         env_async_io=not args.no_env_async_io,
