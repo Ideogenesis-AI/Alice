@@ -97,6 +97,11 @@ reasoning about what it guarantees. The one setting where the two coincide is
 exact and no cheaper than `'2s'` per bond. Neither option is consulted by the
 other two schemes.
 
+One detail of the implementation is worth knowing about if the expansion is
+ever ported or modified: it re-gauges each widened bond, a step the real-time
+version does not need. See
+[Why `'1sp'` re-gauges after expanding](lessons.md#why-1sp-re-gauges-after-expanding).
+
 ## Integrator Order
 
 | `order` | Composition | Error per step |

@@ -198,6 +198,61 @@ log-space assembly within it for 0.08 %. The average Krylov dimension was 5.3.
 Everything expensive is elsewhere: the matvecs at \(O(D^3)\) and the SVD
 splits.
 
+## Why `'1sp'` Re-Gauges After Expanding
+
+The bond expansion stacks the complement onto the kept basis with `oplus`,
+and then immediately re-decomposes the stack to recover an exact isometry.
+TDVP's expansion does no such thing, so the step looks redundant. It is not,
+and the reason is specific to cooling.
+
+The expansion has to be a pure *re-parameterization*: \(\rho\) must come out
+of it unchanged, written in a wider basis with the new directions carrying
+zero weight. That holds only if the expanded neighbor is exactly isometric,
+since the center tensor is filled back in by contracting \(\Theta\) against
+it. The two blocks of the stack are orthogonal by construction — the
+complement comes from \(\Theta'_{\text{disc}}\), which the projection cleared
+of the kept space — but only to the accuracy \(\Theta'_{\text{disc}}\) itself
+carries.
+
+And \(\Theta'_{\text{disc}}\) is a cancellation. Its entries are accurate to
+about \(\epsilon \lVert lh \rVert \lVert rh \rVert\) in absolute terms, so its
+singular vectors come back orthogonal to the kept space only to
+
+\[
+\frac{\epsilon \, \lVert lh \rVert \, \lVert rh \rVert}{\lVert \Theta'_{\text{disc}} \rVert}
+\]
+
+That ratio is the whole story, and it is what separates imaginary time from
+real time. Expanding one interior bond of an `L = 6` chain at rank 6,
+measuring the isometry defect of the stacked neighbor and the relative change
+in \(\rho\) across the expansion:
+
+| β | \(\lVert \Theta'_{\text{disc}} \rVert / \lVert lh \rVert \lVert rh \rVert\) | isometry, stacked | isometry, re-gauged | Δρ, stacked | Δρ, re-gauged |
+|---|---|---|---|---|---|
+| 0.05 | 1.73e-06 | 2.5e-11 | 8.9e-16 | 2.5e-11 | 2.8e-16 |
+| 0.2 | 1.03e-04 | 4.1e-13 | 1.1e-15 | 4.1e-13 | 8.8e-16 |
+| 1.0 | 4.01e-03 | 1.8e-15 | 6.7e-16 | 6.3e-16 | 4.8e-16 |
+| 4.0 | 9.32e-03 | 1.1e-15 | 4.4e-16 | 3.1e-16 | 3.6e-16 |
+
+Read the last two columns against the first. Cold, the ratio is a comfortable
+1e-02 and the stack is already isometric to roundoff, so a real-time quench,
+where the state is generic from the start, never needs this. Hot, it is not: \(H\) barely moves a near-identity \(\rho\) off the
+space it already spans, the ratio collapses to 1e-06, and \(\rho\) shifts by
+2.5e-11 before a single Krylov step has run. Every TgTRG run begins at
+\(\rho(\tau_0) \approx \mathbb{1}\), the top row of that table, so this is
+the normal case and not an edge one.
+
+The re-decomposition removes it outright, and exactly: the new isometry spans
+the same space as the stack, which still contains the old basis, so the
+fill-in against it stays exact whatever orthogonality the complement actually
+had. The cost is one small
+decomposition per bond, set against a Krylov propagation on the same tensor.
+
+The reason to care about 2.5e-11 at all is that nothing downstream would
+flag it. It is not a truncation, so it never reaches
+`Summary.discarded_weights`; it enters `log Z` directly, at every step, and
+accumulates.
+
 ## `run()` Cools In Place
 
 `run()` mutates the `rho` inside the `Artifact` it is handed. The stacked
