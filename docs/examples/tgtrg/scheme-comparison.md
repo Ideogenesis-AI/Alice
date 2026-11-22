@@ -10,7 +10,7 @@ the Hamiltonian's own rank, far below what a cold density matrix needs.
 | Scheme | Local propagator | Bond dimension decided |
 |--------|------------------|------------------------|
 | `'1s'` | 1 site | Never. The update is confined to a manifold of fixed rank |
-| `'1sp'` | 1 site | Before the update, by widening the bond from the complement of the space it currently spans |
+| `'1sp'` | 1 site | Before the update, by expanding the bond from the complement of the space it currently spans |
 | `'2s'` | 2 sites | After the update, as a by-product of the 2-site SVD and its truncation |
 
 Everything below follows from that single column.
@@ -156,7 +156,7 @@ discards nothing because it never looks at anything to discard.
     1.78e-07 against 4.64e-06 — and a *larger* error in `log Z`. The two
     numbers measure different things. `'2s'` truncates the full 2-site
     space, so its discarded weight covers everything the update could have
-    kept; `'1sp'` truncates a space that was only widened by `expand_k`
+    kept; `'1sp'` truncates a space that was only expanded by `expand_k`
     directions, so it reports what it dropped from the subspace it chose to
     look at, not what lay outside it. Compare discarded weights within a
     scheme, across \(\beta\) or across `max_bond`, never between `'1sp'` and

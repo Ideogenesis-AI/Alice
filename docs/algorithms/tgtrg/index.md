@@ -67,7 +67,7 @@ state, not a number of additional steps to perform.
 |------|-------|-------------|
 | `'1s'` | `'1-site'`, `'one-site'` | 1-site propagation with a backward bond update; preserves bond dimension |
 | `'2s'` | `'2-site'`, `'two-site'` | 2-site propagation with an SVD split; lets the bond grow |
-| `'1sp'` | `'1-site-plus'`, `'one-site-plus'` | 1-site propagation on a bond widened beforehand by controlled bond expansion; lets the bond grow at close to 1-site cost |
+| `'1sp'` | `'1-site-plus'`, `'one-site-plus'` | 1-site propagation on a bond expanded beforehand by controlled bond expansion; lets the bond grow at close to 1-site cost |
 
 `'1s'` cannot change a bond dimension, so the rank it runs at is the rank of
 the state it is handed. That is also how `max_bond` reaches it: the initial
@@ -77,9 +77,9 @@ state is compacted to the cap before the first step.
 
 `'2s'` is the default and the right choice for most cooling runs. Reach for
 `'1sp'` when `'2s'` is too expensive at the rank \(\rho(\beta)\) wants: it
-widens each bond ahead of the update with up to `expand_k` directions drawn
+expands each bond ahead of the update by up to `expand_k` directions drawn
 from the complement of the space that bond currently spans, cools over the
-widened space, and truncates back. The rank adapts as it does under `'2s'`
+expanded space, and truncates back. The rank adapts as it does under `'2s'`
 while every local propagator stays 1-site sized.
 
 Cost and name are all it shares with `'1s'`. It adapts the rank, truncates,
@@ -98,7 +98,7 @@ exact and no cheaper than `'2s'` per bond. Neither option is consulted by the
 other two schemes.
 
 One detail of the implementation is worth knowing about if the expansion is
-ever ported or modified: it re-gauges each widened bond, a step the real-time
+ever ported or modified: it re-gauges each expanded bond, a step the real-time
 version does not need. See
 [Why `'1sp'` re-gauges after expanding](lessons.md#why-1sp-re-gauges-after-expanding).
 

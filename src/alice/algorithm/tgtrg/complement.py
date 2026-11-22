@@ -542,7 +542,7 @@ def _complement_vectors(
 
 
 def _regauge_right(M_exp: Tensor, itag: str) -> Tensor:
-    """Restore exact right-isometry of a neighbor just widened by `oplus`.
+    """Restore exact right-isometry of a neighbor just expanded by `oplus`.
 
     `oplus` stacks the complement onto the kept basis, so the expanded tensor
     is isometric only as far as the two blocks are orthogonal. They are
@@ -591,7 +591,7 @@ def _regauge_right(M_exp: Tensor, itag: str) -> Tensor:
 
 
 def _regauge_left(M_exp: Tensor, itag: str) -> Tensor:
-    """Restore exact left-isometry of a neighbor just widened by `oplus`.
+    """Restore exact left-isometry of a neighbor just expanded by `oplus`.
 
     Mirror of `_regauge_right`, over the (right bond, phys_in, phys_out)
     indices.

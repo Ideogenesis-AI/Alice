@@ -42,10 +42,10 @@ The three answers:
   manifold of *fixed* rank. Its bond dimension is whatever the Taylor state
   was handed to it with, and the error in log Z grows with β as ρ outgrows
   the manifold it is confined to.
-- `'1sp'` decides before each update, widening the bond with up to
+- `'1sp'` decides before each update, expanding the bond by up to
   `expand_k` directions drawn from the complement of the space that bond
-  currently spans, then cooling over the widened space. The local propagator
-  stays 1-site sized.
+  currently spans, then cooling over the expanded space. The local
+  propagator stays 1-site sized.
 - `'2s'` decides after each update, as a by-product: it cools a pair at once
   and splits by SVD, and whatever survives truncation is the new bond. This
   needs no expansion parameters, making it the comparison.
