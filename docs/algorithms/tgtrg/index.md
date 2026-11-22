@@ -186,5 +186,6 @@ cooling pays for nothing it does not need.
 - [XTRG](../xtrg/index.md) — the squaring alternative, and the source of the thermal data structures.
 - [TDVP](../tdvp/index.md) — the real-time algorithm this projects the same way.
 - [Free fermion](../../examples/tgtrg/free-fermion.md), [Hubbard model](../../examples/tgtrg/hubbard.md) — worked examples against exact solutions.
+- [Scheme comparison](../../examples/tgtrg/scheme-comparison.md) — the three schemes cooled side by side, and how to size `expand_k`.
 - [NormalMPO](../../api/network/normal-mpo.md) — the density matrix representation.
 - [thermal_mpo](../../api/network/thermal-mpo.md) — used to build the initial `Artifact`.

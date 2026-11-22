@@ -269,4 +269,5 @@ asked for instead of the \(\beta\) it reached.
 - [Overview](index.md) — the schemes, the grid modes, and the stacked schedule.
 - [Options](options.md) — `max_bond`, `trunc_thresh`, `order`, and the grid parameters.
 - [Summary](summary.md) — which columns carry the grid's error and which do not.
+- [Scheme comparison](../../examples/tgtrg/scheme-comparison.md) — the three schemes side by side, and sizing `expand_k`.
 - [XTRG Lessons](../xtrg/lessons.md) — the other route to the same `NormalMPO`, by squaring instead of cooling.
