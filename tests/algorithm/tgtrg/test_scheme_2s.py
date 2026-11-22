@@ -265,7 +265,7 @@ class TestSplitForward:
         Starting from `ρ(τ₀)` at the Hamiltonian's bond dimension, growth is
         the entire reason to prefer this scheme over the 1-site one. The
         density matrix here is compressed first so the mid-chain bond has
-        room to widen; at the ends it is capped by the physical dimension
+        room to grow; at the ends it is capped by the physical dimension
         either way.
         """
         mpo, spc, _ = spinless_fermion_L4
