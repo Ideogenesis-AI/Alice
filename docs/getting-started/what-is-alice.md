@@ -44,10 +44,11 @@ A real-valued input state is promoted to `complex128`, evolution being unitary. 
 
 ### TgTRG — Tangent-space Tensor Renormalization Group
 
-Finite-temperature thermodynamics by cooling instead of squaring: the imaginary-time flow `dρ/dβ = -Hρ` is projected onto the tangent space of the MPO manifold, which is TDVP carried into imaginary time and applied to a density matrix. A step costs `O(D³)` against the `O(D⁴)` of XTRG's variational fit, and the β grid need not double — it is exponential (step `τ = β`, so `β_k = 2^k τ₀`) or linear (a fixed `τ`), and a schedule that wants both stacks two runs. Two update schemes are available:
+Finite-temperature thermodynamics by cooling instead of squaring: the imaginary-time flow `dρ/dβ = -Hρ` is projected onto the tangent space of the MPO manifold, which is TDVP carried into imaginary time and applied to a density matrix. A step costs `O(D³)` against the `O(D⁴)` of XTRG's variational fit, and the β grid need not double — it is exponential (step `τ = β`, so `β_k = 2^k τ₀`) or linear (a fixed `τ`), and a schedule that wants both stacks two runs. Three update schemes are available:
 
 - **1-site** (`1s`): fixed rank; a forward step on each site tensor paired with a backward step on the bond between.
-- **2-site** (`2s`): pair update with SVD truncation; the only scheme that lets `ρ` grow as the chain cools.
+- **2-site** (`2s`): pair update with SVD truncation; lets `ρ` grow as the chain cools.
+- **1-site-plus** (`1sp`): controlled bond expansion (CBE); adapts the rank as `2s` does while every local propagator stays 1-site.
 
 `log Z` is read from the cooled density matrix at every step and the free energy follows from it directly, both accurate to roundoff where the bond dimension suffices; internal energy, specific heat, and entropy come from finite differences on whatever β grid the schedule produced.
 

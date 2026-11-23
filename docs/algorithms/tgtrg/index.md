@@ -67,14 +67,42 @@ state, not a number of additional steps to perform.
 |------|-------|-------------|
 | `'1s'` | `'1-site'`, `'one-site'` | 1-site propagation with a backward bond update; preserves bond dimension |
 | `'2s'` | `'2-site'`, `'two-site'` | 2-site propagation with an SVD split; lets the bond grow |
+| `'1sp'` | `'1-site-plus'`, `'one-site-plus'` | 1-site propagation on a bond expanded beforehand by controlled bond expansion; lets the bond grow at close to 1-site cost |
 
 `'1s'` cannot change a bond dimension, so the rank it runs at is the rank of
 the state it is handed. That is also how `max_bond` reaches it: the initial
 state is compacted to the cap before the first step.
 
-`'1sp'` (1-site-plus / controlled bond expansion), as in XTRG and TDVP, is
-accepted by `Options` for forward compatibility and rejected by `run()` with
-`NotImplementedError`; it lands in a follow-up release.
+### When to reach for `'1sp'`
+
+`'2s'` is the default and the right choice for most cooling runs. Reach for
+`'1sp'` when `'2s'` is too expensive at the rank \(\rho(\beta)\) wants: it
+expands each bond ahead of the update by up to `expand_k` directions drawn
+from the complement of the space that bond currently spans, cools over the
+expanded space, and truncates back. The rank adapts as it does under `'2s'`
+while every local propagator stays 1-site sized.
+
+Cost and name are all it shares with `'1s'`. It adapts the rank, truncates,
+and reports a discarded weight, and it inherits none of the fixed-rank
+exactness that makes `'1s'` worth having — group it with `'2s'` when
+reasoning about what it guarantees. The one setting where the two coincide is
+`expand_k = 0`, which empties the complement and reduces the sweep to `'1s'`.
+
+| Option | Meaning | Typical value |
+|--------|---------|---------------|
+| `expand_k` | Complement directions added per bond per half-sweep | \(\mathrm{round}(\sqrt{D})\) |
+| `expand_alpha` | Internal bond of the cheap factorization of \(\Theta\) inside the search | \(\approx\) `expand_k` |
+
+`expand_alpha` is what keeps the search below 2-site cost; `None` makes it
+exact and no cheaper than `'2s'` per bond. Neither option is consulted by the
+other two schemes.
+
+One detail of the implementation is worth knowing about if the expansion is
+ever ported or modified: it re-gauges each expanded bond, a step the
+real-time version does without. The complement is ill-conditioned wherever a
+bond's kept space already nearly exhausts what \(H\) can reach, and a cooling
+run starts there. See
+[Why `'1sp'` re-gauges after expanding](lessons.md#why-1sp-re-gauges-after-expanding).
 
 ## Integrator Order
 
@@ -160,5 +188,6 @@ cooling pays for nothing it does not need.
 - [XTRG](../xtrg/index.md) — the squaring alternative, and the source of the thermal data structures.
 - [TDVP](../tdvp/index.md) — the real-time algorithm this projects the same way.
 - [Free fermion](../../examples/tgtrg/free-fermion.md), [Hubbard model](../../examples/tgtrg/hubbard.md) — worked examples against exact solutions.
+- [Scheme comparison](../../examples/tgtrg/scheme-comparison.md) — the three schemes cooled side by side, and how to size `expand_k`.
 - [NormalMPO](../../api/network/normal-mpo.md) — the density matrix representation.
 - [thermal_mpo](../../api/network/thermal-mpo.md) — used to build the initial `Artifact`.

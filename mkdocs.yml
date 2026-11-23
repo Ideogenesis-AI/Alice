@@ -157,6 +157,7 @@ nav:
     - TgTRG:
       - Free fermion: examples/tgtrg/free-fermion.md
       - Hubbard model: examples/tgtrg/hubbard.md
+      - Scheme comparison: examples/tgtrg/scheme-comparison.md
     - XTRG:
       - Free fermion: examples/xtrg/free-fermion.md
       - Hubbard model: examples/xtrg/hubbard.md
