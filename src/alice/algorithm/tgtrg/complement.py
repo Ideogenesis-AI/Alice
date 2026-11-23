@@ -545,21 +545,29 @@ def _regauge_right(M_exp: Tensor, itag: str) -> Tensor:
     """Restore exact right-isometry of a neighbor just expanded by `oplus`.
 
     `oplus` stacks the complement onto the kept basis, so the expanded tensor
-    is isometric only as far as the two blocks are orthogonal. They are
-    orthogonal *by construction* — the rows of Θ'_disc are combinations of
-    rows of `rh_disc`, which the projection cleared of the kept space — but
-    only to the accuracy Θ'_disc itself carries, and that is where a cooling
-    run differs from a real-time one.
+    is isometric only as far as the two blocks are orthogonal. In exact
+    arithmetic they are: the rows of Θ'_disc are combinations of rows of
+    `rh_disc`, which the projection cleared of the kept space. The projection
+    is not the weak step either, and measurably so — `rh_disc` comes back
+    orthogonal to the kept space to `1e-15` at every `β`, the subtraction
+    removing a healthy fraction and leaving an `O(1)` remainder.
 
-    Θ'_disc is a cancellation: its entries are correct to about `eps ‖lh‖
-    ‖rh‖` in absolute terms, so the singular vectors it yields lose roughly
-    `eps ‖lh‖ ‖rh‖ / ‖Θ'_disc‖` digits of orthogonality. A run cooling out of
-    `ρ(τ₀) ≈ 1` meets the bad end of that ratio at once: `H` barely moves a
-    near-identity `ρ` off the space it already spans, the ratio reaches `1e-6`
-    at `β` of order `τ₀`, and the complement comes back orthogonal to only
-    `1e-10`. That is enough to cost the expanded neighbor its isometry, the
-    fill-in its exactness, and `log Z` the accuracy the rest of the algorithm
-    is careful to keep.
+    What is weak is the contraction that follows. Θ'_disc is the corner
+    discarded at *both* ends, and the two discarded halves nearly annihilate
+    each other: `H` barely moves a near-identity `ρ` off the space it already
+    spans, so `H·Θ` sits almost entirely in kept ⊗ kept and the doubly
+    discarded corner is second order in a small parameter. At `β` of order
+    `τ₀` only `1e-6` of `‖lh_disc‖ ‖rh_disc‖` survives the contraction.
+
+    The error does not shrink with it. Each half carries an absolute error of
+    about `eps` times its own norm, that error is not confined to the
+    subspace the exact half occupies, and the contraction leaves it behind
+    while cancelling the signal around it. The SVD of Θ'_disc therefore
+    returns vectors whose kept-space content is roughly `eps ‖lh_disc‖
+    ‖rh_disc‖ / ‖Θ'_disc‖` — `1e-10` here, against the `1e-15` the projection
+    itself achieved. That is enough to cost the expanded neighbor its
+    isometry, the fill-in its exactness, and `log Z` the accuracy the rest of
+    the algorithm is careful to keep.
 
     Re-decomposing the stacked tensor fixes it outright. The new isometry
     spans the same space, since a decomposition spans what it decomposes, and

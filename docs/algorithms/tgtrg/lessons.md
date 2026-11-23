@@ -209,44 +209,60 @@ The expansion has to be a pure *re-parameterization*: \(\rho\) must come out
 of it unchanged, written in a wider basis with the new directions carrying
 zero weight. That holds only if the expanded neighbor is exactly isometric,
 since the center tensor is filled back in by contracting \(\Theta\) against
-it. The two blocks of the stack are orthogonal by construction — the
-complement comes from \(\Theta'_{\text{disc}}\), which the projection cleared
-of the kept space — but only to the accuracy \(\Theta'_{\text{disc}}\) itself
-carries.
+it.
 
-And \(\Theta'_{\text{disc}}\) is a cancellation. Its entries are accurate to
-about \(\epsilon \lVert lh \rVert \lVert rh \rVert\) in absolute terms, so its
-singular vectors come back orthogonal to the kept space only to
+In exact arithmetic the two blocks of the stack are orthogonal, and the
+projection is what guarantees it: the complement's rows are combinations of
+rows of \(rh_{\text{disc}}\), which the projection cleared of the kept space.
+It is worth saying plainly that the projection is not the step that fails.
+Projecting \(rh_{\text{disc}}\) a second time finds only 1e-15 left in the
+kept space, at every β, and the subtraction cancels nothing dangerous on the
+way: it removes a healthy fraction of the half and leaves an \(O(1)\)
+remainder.
+
+The weak step is the contraction that follows. \(\Theta'_{\text{disc}}\) is
+the corner discarded at *both* ends, and the two discarded halves nearly
+annihilate each other when contracted. That is the physics of a hot start.
+\(H\) barely moves a near-identity \(\rho\) off the space it already spans,
+so \(H\Theta\) sits almost entirely in kept ⊗ kept, with small pieces in
+kept ⊗ discarded and discarded ⊗ kept, and the corner discarded on both sides
+at once is second order in that small parameter.
+
+The error does not shrink along with it. Each half carries an absolute error
+of about \(\epsilon\) times its own norm, that error is not confined to the
+subspace the exact half occupies, and the contraction cancels the signal
+while leaving the error behind. The SVD of \(\Theta'_{\text{disc}}\)
+therefore returns vectors whose kept-space content is
 
 \[
-\frac{\epsilon \, \lVert lh \rVert \, \lVert rh \rVert}{\lVert \Theta'_{\text{disc}} \rVert}
+\frac{\epsilon \, \lVert lh_{\text{disc}} \rVert \, \lVert rh_{\text{disc}} \rVert}{\lVert \Theta'_{\text{disc}} \rVert}
 \]
 
-That ratio is the whole story, and it is what separates imaginary time from
-real time. Expanding one interior bond of an `L = 6` chain at rank 6,
-measuring the isometry defect of the stacked neighbor and the relative change
-in \(\rho\) across the expansion:
+Expanding one interior bond of an `L = 6` chain at rank 6, with the fraction
+surviving the contraction in the second column and the complement's overlap
+with the neighbor's kept space in the third:
 
-| β | \(\lVert \Theta'_{\text{disc}} \rVert / \lVert lh \rVert \lVert rh \rVert\) | isometry, stacked | isometry, re-gauged | Δρ, stacked | Δρ, re-gauged |
+| β | \(\lVert \Theta'_{\text{disc}} \rVert / \lVert lh_{\text{disc}} \rVert \lVert rh_{\text{disc}} \rVert\) | complement against kept | isometry, stacked | Δρ, stacked | Δρ, re-gauged |
 |---|---|---|---|---|---|
-| 0.05 | 1.73e-06 | 2.5e-11 | 8.9e-16 | 2.5e-11 | 2.8e-16 |
-| 0.2 | 1.03e-04 | 4.1e-13 | 1.1e-15 | 4.1e-13 | 8.8e-16 |
-| 1.0 | 4.01e-03 | 1.8e-15 | 6.7e-16 | 6.3e-16 | 4.8e-16 |
-| 4.0 | 9.32e-03 | 1.1e-15 | 4.4e-16 | 3.1e-16 | 3.6e-16 |
+| 0.05 | 5.5e-06 | 2.5e-11 | 2.5e-11 | 2.5e-11 | 2.8e-16 |
+| 0.2 | 3.4e-04 | 4.1e-13 | 4.1e-13 | 4.1e-13 | 8.8e-16 |
+| 1.0 | 2.6e-02 | 1.9e-15 | 1.8e-15 | 6.3e-16 | 4.8e-16 |
+| 4.0 | 3.8e-02 | 4.1e-16 | 1.1e-15 | 3.1e-16 | 3.6e-16 |
 
-Read the last two columns against the first. Cold, the ratio is a comfortable
+Read the table across. The second column sets the third, the third is the
+off-diagonal block of the stack's Gram matrix and so sets the fourth, and the
+fourth is what moves \(\rho\). Cold, the contraction keeps a comfortable
 1e-02 and the stack is already isometric to roundoff, so a real-time quench,
-where the state is generic from the start, never needs this. Hot, it is not: \(H\) barely moves a near-identity \(\rho\) off the
-space it already spans, the ratio collapses to 1e-06, and \(\rho\) shifts by
-2.5e-11 before a single Krylov step has run. Every TgTRG run begins at
-\(\rho(\tau_0) \approx \mathbb{1}\), the top row of that table, so this is
-the normal case and not an edge one.
+where the state is generic from the start, never needs any of this. Hot it
+keeps 1e-06, and \(\rho\) shifts by 2.5e-11 before a single Krylov step has
+run. Every TgTRG run begins at \(\rho(\tau_0) \approx \mathbb{1}\), the top
+row of that table, so this is the normal case and not an edge one.
 
 The re-decomposition removes it outright, and exactly: the new isometry spans
 the same space as the stack, which still contains the old basis, so the
 fill-in against it stays exact whatever orthogonality the complement actually
-had. The cost is one small
-decomposition per bond, set against a Krylov propagation on the same tensor.
+had. The cost is one small decomposition per bond, set against a Krylov
+propagation on the same tensor.
 
 The reason to care about 2.5e-11 at all is that nothing downstream would
 flag it. It is not a truncation, so it never reaches
