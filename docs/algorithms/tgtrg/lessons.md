@@ -201,7 +201,7 @@ splits.
 ## Why `'1sp'` Re-Gauges After Expanding
 
 The expansion stacks the complement onto the kept basis with `oplus`, then
-immediately re-decomposes the stack to recover an exact isometry. TDVP's
+immediately re-orthogonalizes the stack to recover an exact isometry. TDVP's
 expansion does without that step, so it looks redundant. It is a conditioning
 fix, and the condition it guards against is where cooling starts.
 
@@ -286,7 +286,7 @@ interior bond of an `L = 6` chain at rank 6:
 The second column sets the third and the third is what moves \(\rho\). The
 last two rows are the same code on a generic \(\rho\), with nothing to fix.
 
-### Why the fix is a re-decomposition
+### Why the fix is a re-orthogonalization
 
 A more careful projection cannot help, the projection's own residual being
 amplified identically: contracted against \(\mathcal{L}^{\mathrm{d}}\), the

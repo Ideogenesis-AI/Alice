@@ -547,7 +547,7 @@ class TestRegauge:
     five or six orders below the discarded halves because a bond whose kept
     space nearly exhausts `H`'s reach can only leave it on both sides at
     second order. The fixtures here sit in that regime, so these tests fail
-    without the re-decomposition and pass with it.
+    without the re-orthogonalization and pass with it.
     """
 
     def test_stacked_neighbor_is_not_already_isometric(self, rank_limited_L6):

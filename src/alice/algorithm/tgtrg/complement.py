@@ -69,7 +69,7 @@ It also takes one step the real-time scheme does without. The projection is
 exact against an isometric neighbor, and the stacked neighbor is isometric
 only as far as the complement is orthogonal to the kept space — which, out of
 a near-identity `ρ(τ₀)`, it is only to about `1e-10`. `_regauge_right` and
-`_regauge_left` re-decompose the stack to recover an exact isometry before
+`_regauge_left` re-orthogonalize the stack to recover an exact isometry before
 the fill-in; see their docstrings for where the lost digits come from.
 
 Exact expanded environment
@@ -570,9 +570,9 @@ def _regauge_right(M_exp: Tensor, itag: str) -> Tensor:
     That is enough to cost the expanded neighbor its isometry, the fill-in
     its exactness, and `log Z` the accuracy the rest of the algorithm keeps.
 
-    Re-decomposing the stacked tensor avoids the ratio instead of trying to
-    improve the inputs, `decomp` orthogonalizing against its own input with
-    an error of `eps` relative to it. The new isometry spans the same space,
+    Re-orthogonalizing the stacked tensor avoids the ratio instead of trying
+    to improve the inputs, `decomp` orthogonalizing against its own input
+    with an error of `eps` relative to it. The new isometry spans the same space,
     which still contains the old basis, so the fill-in against it stays exact
     whatever the complement's own orthogonality was. In exact arithmetic the
     step is inert, and it costs one small decomposition per bond against a
