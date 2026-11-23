@@ -200,74 +200,113 @@ splits.
 
 ## Why `'1sp'` Re-Gauges After Expanding
 
-The bond expansion stacks the complement onto the kept basis with `oplus`,
-and then immediately re-decomposes the stack to recover an exact isometry.
-TDVP's expansion does no such thing, so the step looks redundant. It is not,
-and the reason is specific to cooling.
+The expansion stacks the complement onto the kept basis with `oplus`, then
+immediately re-decomposes the stack to recover an exact isometry. TDVP's
+expansion does without that step, so it looks redundant. It is a conditioning
+fix, and the condition it guards against is where cooling starts.
 
-The expansion has to be a pure *re-parameterization*: \(\rho\) must come out
-of it unchanged, written in a wider basis with the new directions carrying
-zero weight. That holds only if the expanded neighbor is exactly isometric,
-since the center tensor is filled back in by contracting \(\Theta\) against
-it.
+### The construction is exact
 
-In exact arithmetic the two blocks of the stack are orthogonal, and the
-projection is what guarantees it: the complement's rows are combinations of
-rows of \(rh_{\text{disc}}\), which the projection cleared of the kept space.
-It is worth saying plainly that the projection is not the step that fails.
-Projecting \(rh_{\text{disc}}\) a second time finds only 1e-15 left in the
-kept space, at every β, and the subtraction cancels nothing dangerous on the
-way: it removes a healthy fraction of the half and leaves an \(O(1)\)
-remainder.
-
-The weak step is the contraction that follows. \(\Theta'_{\text{disc}}\) is
-the corner discarded at *both* ends, and the two discarded halves nearly
-annihilate each other when contracted. That is the physics of a hot start.
-\(H\) barely moves a near-identity \(\rho\) off the space it already spans,
-so \(H\Theta\) sits almost entirely in kept ⊗ kept, with small pieces in
-kept ⊗ discarded and discarded ⊗ kept, and the corner discarded on both sides
-at once is second order in that small parameter.
-
-The error does not shrink along with it. Each half carries an absolute error
-of about \(\epsilon\) times its own norm, that error is not confined to the
-subspace the exact half occupies, and the contraction cancels the signal
-while leaving the error behind. The SVD of \(\Theta'_{\text{disc}}\)
-therefore returns vectors whose kept-space content is
+Write the halves and the neighbor with the indices the code uses,
 
 \[
-\frac{\epsilon \, \lVert lh_{\text{disc}} \rVert \, \lVert rh_{\text{disc}} \rVert}{\lVert \Theta'_{\text{disc}} \rVert}
+\mathcal{L}_{a\alpha prs}, \qquad \mathcal{R}_{\alpha pcuv}, \qquad
+M_{bcuv}, \qquad \sum_{cuv} M^{*}_{bcuv} M_{dcuv} = \delta_{bd},
 \]
 
-Expanding one interior bond of an `L = 6` chain at rank 6, with the fraction
-surviving the contraction in the second column and the complement's overlap
-with the neighbor's kept space in the third:
+so the kept space of the bond is the span of \(M\) over the composite index
+\((cuv)\). The projection subtracts exactly that span, leaving
 
-| β | \(\lVert \Theta'_{\text{disc}} \rVert / \lVert lh_{\text{disc}} \rVert \lVert rh_{\text{disc}} \rVert\) | complement against kept | isometry, stacked | Δρ, stacked | Δρ, re-gauged |
-|---|---|---|---|---|---|
-| 0.05 | 5.5e-06 | 2.5e-11 | 2.5e-11 | 2.5e-11 | 2.8e-16 |
-| 0.2 | 3.4e-04 | 4.1e-13 | 4.1e-13 | 4.1e-13 | 8.8e-16 |
-| 1.0 | 2.6e-02 | 1.9e-15 | 1.8e-15 | 6.3e-16 | 4.8e-16 |
-| 4.0 | 3.8e-02 | 4.1e-16 | 1.1e-15 | 3.1e-16 | 3.6e-16 |
+\[
+\sum_{cuv} \mathcal{R}^{\mathrm{d}}_{\alpha pcuv} M^{*}_{bcuv} = 0,
+\]
 
-Read the table across. The second column sets the third, the third is the
-off-diagonal block of the stack's Gram matrix and so sets the fourth, and the
-fourth is what moves \(\rho\). Cold, the contraction keeps a comfortable
-1e-02 and the stack is already isometric to roundoff, so a real-time quench,
-where the state is generic from the start, never needs any of this. Hot it
-keeps 1e-06, and \(\rho\) shifts by 2.5e-11 before a single Krylov step has
-run. Every TgTRG run begins at \(\rho(\tau_0) \approx \mathbb{1}\), the top
-row of that table, so this is the normal case and not an edge one.
+and the doubly-discarded tensor
+\(\Theta'_{acrsuv} = \sum_{\alpha p} \mathcal{L}^{\mathrm{d}}_{a\alpha prs} \mathcal{R}^{\mathrm{d}}_{\alpha pcuv}\)
+inherits it through the \(\alpha p\) sum. Its singular vectors \(N_{ncuv}\)
+are then orthogonal to the kept space, the stack is isometric, and \(\rho\)
+comes through the expansion unchanged. None of that is approximate, and the
+measurement agrees: projecting \(\mathcal{R}^{\mathrm{d}}\) a second time
+finds 1e-15 left in the kept space, at every β. The projection is not the
+weak step.
 
-The re-decomposition removes it outright, and exactly: the new isometry spans
-the same space as the stack, which still contains the old basis, so the
-fill-in against it stays exact whatever orthogonality the complement actually
-had. The cost is one small decomposition per bond, set against a Krylov
-propagation on the same tensor.
+### The condition
 
-The reason to care about 2.5e-11 at all is that nothing downstream would
-flag it. It is not a truncation, so it never reaches
-`Summary.discarded_weights`; it enters `log Z` directly, at every step, and
-accumulates.
+What fails is the conditioning of the contraction, and the quantity that
+decides it is
+
+\[
+\frac{\lVert \Theta' \rVert}{\lVert \mathcal{L}^{\mathrm{d}} \rVert \, \lVert \mathcal{R}^{\mathrm{d}} \rVert},
+\]
+
+which can sit far below one: the corner discarded at *both* ends is much
+smaller than either single-sided discard suggests. That happens whenever the
+bond's kept space already nearly exhausts what \(H\) can reach from the
+current \(\rho\). Leaving the kept space on one side of the bond is first
+order in \(H\); leaving it on both sides at once needs \(H\) to act twice, so
+the doubly-discarded corner is second order where the halves that build it
+are first, and the ratio is quadratically small.
+
+A cooling run begins exactly there, for a sharper reason than
+\(\rho(\tau_0) \approx \mathbb{1}\). The Taylor state is a Taylor-accurate
+\(e^{-\tau_0 H}\), so its bonds are built from \(H\) and already nearly span
+what \(H\) reaches. This is the approach to saturation, whose endpoint the
+saturation guard and `_noise_floor` already decline. The re-gauge covers the
+band just above that floor, where a genuine complement exists but arrives
+with five fewer correct digits than usual.
+
+### What the ratio costs
+
+In floating point \(\mathrm{fl}(\Theta') = \Theta' + E\) with
+\(\lVert E \rVert \sim \epsilon \lVert \mathcal{L}^{\mathrm{d}} \rVert \lVert \mathcal{R}^{\mathrm{d}} \rVert\).
+The decisive property is that \(E\) does not factorize: the \(\alpha p\) sum
+is rounded independently for each output entry, so no \(X\) exists with
+\(E_{acrsuv} = \sum_{\alpha p} X_{a\alpha prs} \mathcal{R}^{\mathrm{d}}_{\alpha pcuv}\),
+and the exactness above needed that form to route the \((cuv)\) contraction
+into the zero. The leak into the kept space is therefore absolute, fixed by
+the two inputs, while the signal is the small \(\Theta'\):
+
+\[
+\mu_{nb} \equiv \sum_{cuv} N_{ncuv} M^{*}_{bcuv}
+\;\sim\; \frac{\epsilon \, \lVert \mathcal{L}^{\mathrm{d}} \rVert \lVert \mathcal{R}^{\mathrm{d}} \rVert}{\lVert \Theta' \rVert}.
+\]
+
+\(\mu\) is the off-diagonal block of the stacked neighbor's Gram matrix, and
+the fill-in contracts \(\Theta\) against that Gram, so it returns
+\(\Theta(1 + \mu)\) and \(\rho\) moves by \(\lVert \mu \rVert\). Expanding one
+interior bond of an `L = 6` chain at rank 6:
+
+| β | \(\lVert \Theta' \rVert / \lVert \mathcal{L}^{\mathrm{d}} \rVert \lVert \mathcal{R}^{\mathrm{d}} \rVert\) | \(\lVert \mu \rVert\) | Δρ, stacked | Δρ, re-gauged |
+|---|---|---|---|---|
+| 0.05 | 5.5e-06 | 2.5e-11 | 2.5e-11 | 2.8e-16 |
+| 0.2 | 3.4e-04 | 4.1e-13 | 4.1e-13 | 8.8e-16 |
+| 1.0 | 2.6e-02 | 1.9e-15 | 6.3e-16 | 4.8e-16 |
+| 4.0 | 3.8e-02 | 4.1e-16 | 3.1e-16 | 3.6e-16 |
+
+The second column sets the third and the third is what moves \(\rho\). The
+last two rows are the same code on a generic \(\rho\), with nothing to fix.
+
+### Why the fix is a re-decomposition
+
+A more careful projection cannot help, the projection's own residual being
+amplified identically: contracted against \(\mathcal{L}^{\mathrm{d}}\), the
+1e-15 that survives the second projection is itself 1e-10 of \(\Theta'\). The
+only quantity that matters is how far \(\lVert \Theta' \rVert\) sits below the
+product of the halves, so the cure has to avoid that ratio instead of
+improving the inputs. `decomp` orthogonalizes against its own input, with an
+error of \(\epsilon\) relative to \(\lVert M^{\mathrm{exp}} \rVert\) and the
+ratio in no denominator. It is inert in exact arithmetic, returning a
+different basis for the same span against which the fill-in reproduces
+\(\rho\) identically, so it removes a failure mode and changes no result.
+
+The 2.5e-11 earns this page because nothing downstream would flag it. It is
+not a truncation, so it never reaches `Summary.discarded_weights`; it enters
+`log Z` directly, at every step, and accumulates. The asymmetry with TDVP is
+one of regime and not of real against imaginary time: a product-state quench
+leaves almost everything \(H\) can reach outside a bond of dimension 1, the
+ratio is of order one, and the complement comes back orthogonal to
+\(\epsilon\). Cooling has no such option, starting in the bad regime on its
+first step.
 
 ## `run()` Cools In Place
 

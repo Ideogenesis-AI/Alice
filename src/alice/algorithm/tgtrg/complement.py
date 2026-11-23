@@ -545,36 +545,38 @@ def _regauge_right(M_exp: Tensor, itag: str) -> Tensor:
     """Restore exact right-isometry of a neighbor just expanded by `oplus`.
 
     `oplus` stacks the complement onto the kept basis, so the expanded tensor
-    is isometric only as far as the two blocks are orthogonal. In exact
-    arithmetic they are: the rows of Θ'_disc are combinations of rows of
-    `rh_disc`, which the projection cleared of the kept space. The projection
-    is not the weak step either, and measurably so — `rh_disc` comes back
-    orthogonal to the kept space to `1e-15` at every `β`, the subtraction
-    removing a healthy fraction and leaving an `O(1)` remainder.
+    is isometric only as far as the two blocks are orthogonal. The
+    construction makes them so exactly: the complement's directions are
+    combinations of those of `rh_disc`, which the projection cleared of the
+    kept space, and the projection delivers that to `1e-15` at every `β`.
+    This is a conditioning fix, not a correction to the construction.
 
-    What is weak is the contraction that follows. Θ'_disc is the corner
-    discarded at *both* ends, and the two discarded halves nearly annihilate
-    each other: `H` barely moves a near-identity `ρ` off the space it already
-    spans, so `H·Θ` sits almost entirely in kept ⊗ kept and the doubly
-    discarded corner is second order in a small parameter. At `β` of order
-    `τ₀` only `1e-6` of `‖lh_disc‖ ‖rh_disc‖` survives the contraction.
+    What decides the conditioning is the ratio `‖Θ'_disc‖ / (‖lh_disc‖
+    ‖rh_disc‖)`, which falls far below one whenever the bond's kept space
+    already nearly exhausts what `H` can reach from the current `ρ`. Leaving
+    the kept space on one side of the bond is first order in `H`; leaving it
+    on both sides at once needs `H` to act twice, so the corner discarded at
+    both ends is second order where the halves that build it are first.
+    Cooling begins in exactly that regime, `ρ(τ₀)` being a Taylor-accurate
+    `e^{-τ₀ H}` whose bonds are built from `H` and so nearly span its reach.
+    This is the approach to the saturation `_noise_floor` declines outright.
 
-    The error does not shrink with it. Each half carries an absolute error of
-    about `eps` times its own norm, that error is not confined to the
-    subspace the exact half occupies, and the contraction leaves it behind
-    while cancelling the signal around it. The SVD of Θ'_disc therefore
-    returns vectors whose kept-space content is roughly `eps ‖lh_disc‖
-    ‖rh_disc‖ / ‖Θ'_disc‖` — `1e-10` here, against the `1e-15` the projection
-    itself achieved. That is enough to cost the expanded neighbor its
-    isometry, the fill-in its exactness, and `log Z` the accuracy the rest of
-    the algorithm is careful to keep.
+    The cost of a small ratio is that the rounding error of the contraction
+    does not factorize through `rh_disc`, so it does not inherit the zero the
+    exactness above relies on. The leak into the kept space is absolute, set
+    by the two halves, while the signal is the small Θ'_disc, leaving the SVD
+    vectors with a kept-space component of about `eps / ratio` — `1e-10` at
+    the Taylor state, against the `1e-15` the projection itself achieved.
+    That is enough to cost the expanded neighbor its isometry, the fill-in
+    its exactness, and `log Z` the accuracy the rest of the algorithm keeps.
 
-    Re-decomposing the stacked tensor fixes it outright. The new isometry
-    spans the same space, since a decomposition spans what it decomposes, and
-    that space still contains the old basis — so the fill-in against it stays
-    exact whatever the complement's own orthogonality was. One small
-    decomposition per bond buys that, against a Krylov propagation on the
-    same tensor.
+    Re-decomposing the stacked tensor avoids the ratio instead of trying to
+    improve the inputs, `decomp` orthogonalizing against its own input with
+    an error of `eps` relative to it. The new isometry spans the same space,
+    which still contains the old basis, so the fill-in against it stays exact
+    whatever the complement's own orthogonality was. In exact arithmetic the
+    step is inert, and it costs one small decomposition per bond against a
+    Krylov propagation on the same tensor.
 
     Parameters
     ----------

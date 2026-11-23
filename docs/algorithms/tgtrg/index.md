@@ -98,8 +98,10 @@ exact and no cheaper than `'2s'` per bond. Neither option is consulted by the
 other two schemes.
 
 One detail of the implementation is worth knowing about if the expansion is
-ever ported or modified: it re-gauges each expanded bond, a step the real-time
-version does not need. See
+ever ported or modified: it re-gauges each expanded bond, a step the
+real-time version does without. The complement is ill-conditioned wherever a
+bond's kept space already nearly exhausts what \(H\) can reach, and a cooling
+run starts there. See
 [Why `'1sp'` re-gauges after expanding](lessons.md#why-1sp-re-gauges-after-expanding).
 
 ## Integrator Order
