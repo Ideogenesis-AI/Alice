@@ -82,8 +82,8 @@ from the complement of the space that bond currently spans, then cools over
 the expanded space, so the rank adapts as it does under `'2s'` while the
 local propagator stays 1-site sized. Cost and name are all it shares with
 `'1s'`: it adapts the rank, truncates, and reports a discarded weight, and
-it inherits none of the fixed-rank exactness that makes `'1s'` worth having.
-Group it with `'2s'` when reasoning about what it guarantees.
+it inherits none of the fixed-rank exactness that sets `'1s'` apart. Group
+it with `'2s'` when reasoning about what it guarantees.
 
 How large a step is too large
 -----------------------------

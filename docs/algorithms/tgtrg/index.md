@@ -84,8 +84,8 @@ while every local propagator stays 1-site sized.
 
 Cost and name are all it shares with `'1s'`. It adapts the rank, truncates,
 and reports a discarded weight, and it inherits none of the fixed-rank
-exactness that makes `'1s'` worth having — group it with `'2s'` when
-reasoning about what it guarantees. The one setting where the two coincide is
+exactness that sets `'1s'` apart — group it with `'2s'` when reasoning about
+what it guarantees. The one setting where the two coincide is
 `expand_k = 0`, which empties the complement and reduces the sweep to `'1s'`.
 
 | Option | Meaning | Typical value |

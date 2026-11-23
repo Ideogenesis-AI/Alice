@@ -37,8 +37,8 @@ tangent-space projector; `'1sp'` assembles the space it projects onto afresh
 at every bond out of the `ρ` it finds there, truncates each bond it has
 expanded, and carries the resulting discarded weight. It is a scheme of the
 `'2s'` kind whose local exponential happens to be 1-site sized, and the
-expectations that make `'1s'` worth having — fixed rank, nothing discarded —
-do not transfer to it. The single point where the two coincide is
+expectations that set `'1s'` apart — fixed rank, nothing discarded — do not
+transfer to it. The single point where the two coincide is
 `expand_k = 0`: the complement is then empty, the rank stops moving, and a
 `'1sp'` sweep degenerates to a `'1s'` sweep.
 
