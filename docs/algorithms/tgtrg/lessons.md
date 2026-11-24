@@ -198,6 +198,116 @@ log-space assembly within it for 0.08 %. The average Krylov dimension was 5.3.
 Everything expensive is elsewhere: the matvecs at \(O(D^3)\) and the SVD
 splits.
 
+## Why `'1sp'` Re-Gauges After Expanding
+
+The expansion stacks the complement onto the kept basis with `oplus`, then
+immediately re-orthogonalizes the stack to recover an exact isometry. TDVP's
+expansion does without that step, so it looks redundant. It is a conditioning
+fix, and the condition it guards against is where cooling starts.
+
+### The construction is exact
+
+Write the halves and the neighbor with the indices the code uses,
+
+\[
+\mathcal{L}_{a\alpha prs}, \qquad \mathcal{R}_{\alpha pcuv}, \qquad
+M_{bcuv}, \qquad \sum_{cuv} M^{*}_{bcuv} M_{dcuv} = \delta_{bd},
+\]
+
+so the kept space of the bond is the span of \(M\) over the composite index
+\((cuv)\). The projection subtracts exactly that span, leaving
+
+\[
+\sum_{cuv} \mathcal{R}^{\mathrm{d}}_{\alpha pcuv} M^{*}_{bcuv} = 0,
+\]
+
+and the doubly-discarded tensor
+\(\Theta'_{acrsuv} = \sum_{\alpha p} \mathcal{L}^{\mathrm{d}}_{a\alpha prs} \mathcal{R}^{\mathrm{d}}_{\alpha pcuv}\)
+inherits it through the \(\alpha p\) sum. Its singular vectors \(N_{ncuv}\)
+are then orthogonal to the kept space, the stack is isometric, and \(\rho\)
+comes through the expansion unchanged. None of that is approximate, and the
+measurement agrees: projecting \(\mathcal{R}^{\mathrm{d}}\) a second time
+finds 1e-15 left in the kept space, at every β. The projection is not the
+weak step.
+
+### The condition
+
+What fails is the conditioning of the contraction, and the quantity that
+decides it is
+
+\[
+\frac{\lVert \Theta' \rVert}{\lVert \mathcal{L}^{\mathrm{d}} \rVert \, \lVert \mathcal{R}^{\mathrm{d}} \rVert},
+\]
+
+which can sit far below one: the corner discarded at *both* ends is much
+smaller than either single-sided discard suggests. That happens whenever the
+bond's kept space already nearly exhausts what \(H\) can reach from the
+current \(\rho\). Leaving the kept space on one side of the bond is first
+order in \(H\); leaving it on both sides at once needs \(H\) to act twice, so
+the doubly-discarded corner is second order where the halves that build it
+are first, and the ratio is quadratically small.
+
+A cooling run begins exactly there, for a sharper reason than
+\(\rho(\tau_0) \approx \mathbb{1}\). The Taylor state is a Taylor-accurate
+\(e^{-\tau_0 H}\), so its bonds are built from \(H\) and already nearly span
+what \(H\) reaches. This is the approach to saturation, whose endpoint the
+saturation guard and `_noise_floor` already decline. The re-gauge covers the
+band just above that floor, where a genuine complement exists but arrives
+with five fewer correct digits than usual.
+
+### What the ratio costs
+
+In floating point \(\mathrm{fl}(\Theta') = \Theta' + E\) with
+\(\lVert E \rVert \sim \epsilon \lVert \mathcal{L}^{\mathrm{d}} \rVert \lVert \mathcal{R}^{\mathrm{d}} \rVert\).
+The decisive property is that \(E\) does not factorize: the \(\alpha p\) sum
+is rounded independently for each output entry, so no \(X\) exists with
+\(E_{acrsuv} = \sum_{\alpha p} X_{a\alpha prs} \mathcal{R}^{\mathrm{d}}_{\alpha pcuv}\),
+and the exactness above needed that form to route the \((cuv)\) contraction
+into the zero. The leak into the kept space is therefore absolute, fixed by
+the two inputs, while the signal is the small \(\Theta'\):
+
+\[
+\mu_{nb} \equiv \sum_{cuv} N_{ncuv} M^{*}_{bcuv}
+\;\sim\; \frac{\epsilon \, \lVert \mathcal{L}^{\mathrm{d}} \rVert \lVert \mathcal{R}^{\mathrm{d}} \rVert}{\lVert \Theta' \rVert}.
+\]
+
+\(\mu\) is the off-diagonal block of the stacked neighbor's Gram matrix, and
+the fill-in contracts \(\Theta\) against that Gram, so it returns
+\(\Theta(1 + \mu)\) and \(\rho\) moves by \(\lVert \mu \rVert\). Expanding one
+interior bond of an `L = 6` chain at rank 6:
+
+| β | \(\lVert \Theta' \rVert / \lVert \mathcal{L}^{\mathrm{d}} \rVert \lVert \mathcal{R}^{\mathrm{d}} \rVert\) | \(\lVert \mu \rVert\) | Δρ, stacked | Δρ, re-gauged |
+|---|---|---|---|---|
+| 0.05 | 5.5e-06 | 2.5e-11 | 2.5e-11 | 2.8e-16 |
+| 0.2 | 3.4e-04 | 4.1e-13 | 4.1e-13 | 8.8e-16 |
+| 1.0 | 2.6e-02 | 1.9e-15 | 6.3e-16 | 4.8e-16 |
+| 4.0 | 3.8e-02 | 4.1e-16 | 3.1e-16 | 3.6e-16 |
+
+The second column sets the third and the third is what moves \(\rho\). The
+last two rows are the same code on a generic \(\rho\), with nothing to fix.
+
+### Why the fix is a re-orthogonalization
+
+A more careful projection cannot help, the projection's own residual being
+amplified identically: contracted against \(\mathcal{L}^{\mathrm{d}}\), the
+1e-15 that survives the second projection is itself 1e-10 of \(\Theta'\). The
+only quantity that matters is how far \(\lVert \Theta' \rVert\) sits below the
+product of the halves, so the cure has to avoid that ratio instead of
+improving the inputs. `decomp` orthogonalizes against its own input, with an
+error of \(\epsilon\) relative to \(\lVert M^{\mathrm{exp}} \rVert\) and the
+ratio in no denominator. It is inert in exact arithmetic, returning a
+different basis for the same span against which the fill-in reproduces
+\(\rho\) identically, so it removes a failure mode and changes no result.
+
+The 2.5e-11 earns this page because nothing downstream would flag it. It is
+not a truncation, so it never reaches `Summary.discarded_weights`; it enters
+`log Z` directly, at every step, and accumulates. The asymmetry with TDVP is
+one of regime and not of real against imaginary time: a product-state quench
+leaves almost everything \(H\) can reach outside a bond of dimension 1, the
+ratio is of order one, and the complement comes back orthogonal to
+\(\epsilon\). Cooling has no such option, starting in the bad regime on its
+first step.
+
 ## `run()` Cools In Place
 
 `run()` mutates the `rho` inside the `Artifact` it is handed. The stacked
@@ -214,4 +324,5 @@ asked for instead of the \(\beta\) it reached.
 - [Overview](index.md) — the schemes, the grid modes, and the stacked schedule.
 - [Options](options.md) — `max_bond`, `trunc_thresh`, `order`, and the grid parameters.
 - [Summary](summary.md) — which columns carry the grid's error and which do not.
+- [Scheme comparison](../../examples/tgtrg/scheme-comparison.md) — the three schemes side by side, and sizing `expand_k`.
 - [XTRG Lessons](../xtrg/lessons.md) — the other route to the same `NormalMPO`, by squaring instead of cooling.

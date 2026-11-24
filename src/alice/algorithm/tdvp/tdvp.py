@@ -86,12 +86,12 @@ drawn from the complement of the space that bond currently spans, then evolves
 over the expanded space, so the rank adapts as it does under `'2s'` while the
 local exponential stays 1-site sized. Cost and name are all it shares with
 `'1s'`. It adapts the rank, truncates, and reports a discarded weight, and it
-inherits neither the exact conservation nor the exact reversibility that make
-`'1s'` worth having; group it with `'2s'` when reasoning about what it
-guarantees. Its irreversibility is structural, not incidental: the expansion is
-chosen from the state the step begins in, so forward and backward steps do not
-span the same space. That deviation enters at the order of the integrator error
-and vanishes with `dt`.
+inherits neither the exact conservation nor the exact reversibility that set
+`'1s'` apart; group it with `'2s'` when reasoning about what it guarantees. Its
+irreversibility is structural, not incidental: the expansion is chosen from the
+state the step begins in, so forward and backward steps do not span the same
+space. That deviation enters at the order of the integrator error and vanishes
+with `dt`.
 """
 
 from __future__ import annotations

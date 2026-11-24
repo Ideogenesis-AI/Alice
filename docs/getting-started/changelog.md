@@ -1,5 +1,130 @@
 # Changelog
 
+## [0.5.1] - 2026-11-24
+
+**TgTRG: The 1-Site-Plus Scheme**
+
+Implements `'1sp'`, the third TgTRG update scheme, which v0.5.0 accepted in `Options` and
+rejected in `run()`. Before each local propagation it expands the bond the update sits on
+with up to `expand_k` directions drawn from the complement of the space that bond currently
+spans, cools over the expanded space, and truncates back — so the bond dimension adapts as
+it does under `'2s'` while every local exponential stays 1-site sized. All five algorithms
+in Alice now carry the same three schemes. The one thing the real-time construction did not
+need, and this one does, is a re-gauge of every expanded bond. No breaking API changes.
+
+### The 1-Site-Plus Scheme
+
+- `run()` accepts `scheme='1sp'` and `_IMPLEMENTED_SCHEMES` now holds all three schemes, so
+  the `NotImplementedError` v0.5.0 raised for it is gone. A cooling run cannot avoid the
+  question the schemes answer differently: `ρ(τ₀)` arrives at the Hamiltonian's own rank,
+  far below what a cold density matrix needs, and `'1s'` never decides the bond dimension,
+  `'2s'` decides it after the update in its SVD split, and `'1sp'` decides it before.
+- Cost and name are all it shares with `'1s'`. It adapts the rank, truncates, and reports a
+  discarded weight, and it inherits none of the fixed-rank exactness that sets `'1s'` apart
+  — the tangent space it projects onto is rebuilt at every bond out of the `ρ` found
+  there. Group it with `'2s'` when reasoning about what it guarantees. The single setting
+  where the two coincide is `expand_k = 0`, pinned in the tests to roundoff.
+- New `alice.algorithm.tgtrg.complement` with `expand_forward` and `expand_backward`,
+  following TDVP's `'1sp'`: `H` is applied independently from each side to a cheaply
+  factored 2-site tensor, the kept subspace is projected out of each half, and the SVD of
+  the doubly-discarded outer product supplies the new directions. `ρ` is a super-MPS, so the
+  half-applications contract `phys_in` and carry the spectator `phys_out` through untouched,
+  while the complement is sought over the full local space the 1-site propagator moves in.
+- **Exact state preservation**: only the neighbor is expanded by `oplus`, and the center
+  tensor is filled in by projecting Θ onto the expanded neighbor basis, exact because the
+  expanded basis contains the old one. It matters more here than in real time, `log Z(β)`
+  being read off `ρ` at every step. **Exact expanded environment**: one `step_*_env` call
+  over the expanded neighbor, keeping the cross blocks, since a perturbed `H_eff` would
+  perturb the cooling trajectory itself.
+- **Orthonormal projectors**: the neighbor side projects against the tensor itself, exactly
+  isometric there; the center side uses a 1-site split of the center tensor, `M M†` being a
+  projector only for an isometry. The isometric factor of Θ must not be used, as `decomp`
+  keeps every sector at full dimension and it can span the whole local space and project the
+  complement away entirely.
+- The noise floor is TDVP's and VUMPS's, unchanged: `1e-10` times `‖lh‖·‖rh‖`, taken against
+  the product of the halves and never against Θ'_disc, whose smallness is the thing to
+  detect. A bond with no complement — saturated, or out of `H`'s reach from the current `ρ`
+  — is left alone and the step degenerates into a plain 1-site update.
+- New `_forward_1sp` and `_backward_1sp` in `sweep.py`, reusing `scheme_1s` for every piece
+  of local arithmetic. The back-evolution is the one piece that is not `'1s'`'s: where the
+  zero-site step of `'1s'` removes the double counting of a single bond space, this one
+  spans two, `C` being rectangular with the truncated bond on one axis and the expanded bond
+  on the other. The expansion needs no environment of its own, so the blocks are populated
+  exactly as under `'1s'`.
+- `tgtrg.Options` gains `expand_k` (default `4`) and `expand_alpha` (default `None`),
+  matching the other four algorithms and logged at startup under `'1sp'`;
+  `round(sqrt(max_bond))` is a reasonable starting point for both. The docstrings of
+  `max_bond`, `trunc_thresh`, and `Summary.discarded_weights` now mean either scheme that
+  splits where they said "the 2-site scheme".
+
+### Re-Gauging the Expanded Bond
+
+- `_regauge_right` and `_regauge_left` re-orthogonalize the `oplus` stack to an exact
+  isometry before the fill-in, a step TDVP's expansion does without. Nothing about the projection is
+  approximate — projecting the discarded half a second time finds `1e-15` left in the kept
+  space, at every β — and what fails is the conditioning of the contraction that builds
+  Θ'_disc, governed by `‖Θ'‖ / (‖lh‖ ‖rh‖)`. Leaving the kept space on one side of a bond is
+  first order in `H` and on both at once is second, so the ratio is quadratically small
+  wherever a bond's kept space already nearly exhausts what `H` can reach.
+- A cooling run begins exactly there: the Taylor state is a Taylor-accurate `e^{-τ₀H}`, so
+  its bonds are built from `H`. The rounding error of the contraction does not factorize, so
+  it leaks into the kept space by an absolute amount while the signal is the small `Θ'`, and
+  the fill-in returns `Θ(1 + μ)` with `μ ∼ ε ‖lh‖ ‖rh‖ / ‖Θ'‖`. On one interior bond of an
+  `L = 6` chain at rank 6, `β = 0.05` gives a ratio of `5.5e-06` and a state movement of
+  `2.5e-11` stacked against `2.8e-16` re-gauged; by `β = 1` the two agree at roundoff.
+- A more careful projection cannot help, its own residual being amplified identically.
+  `decomp` orthogonalizes against its own input, with the ratio in no denominator, so it
+  avoids the quantity instead of improving the inputs; it is inert in exact arithmetic and
+  changes no result. The `2.5e-11` earns a Lessons section because nothing downstream would
+  flag it: it is not a truncation, so it never reaches `Summary.discarded_weights`, and it
+  enters `log Z` directly at every step.
+
+### Measurements, Tests, Documentation, and Examples
+
+- Spinless free-fermion chain, `L = 10`, `max_bond = 32`, the stacked schedule to `β = 6`,
+  against the exact `log Z`. At `β_max`: `'1s'` off by `8.470e-02` on a bond that never
+  leaves 10, `'1sp'` by `1.336e-03`, `'2s'` by `6.825e-04`. The `expand_k` scan reads
+  `0 → 8.470e-02` (`'1s'`, exactly), `1 → 2.241e-02`, `2 → 1.092e-03`, `4 → 1.336e-03`,
+  `8 → 1.280e-03`; the `k = 1` bond reaches the cap and still carries twenty times the error
+  of `k = 2`, the rank arriving after the steps that needed it. Discarded weights are not
+  comparable across schemes — `'1sp'` truncates only the subspace it chose to look at.
+- New `tests/algorithm/tgtrg/test_complement.py` (50 cases) following the expansion piece by
+  piece: the cheap factors, the center-side orthonormalization, the half-applications, each
+  end removing its own kept space and only that, a real complement told apart from the noise
+  of a cancellation, the SVD of Θ'_disc, the isometry `oplus` leaves only approximately in
+  place, and the two expansions as wholes. `test_sweep.py` parametrizes the shared cases
+  over all three schemes and adds `TestOneSitePlus`; `test_tgtrg.py` adds full runs under
+  both grid modes.
+- `docs/algorithms/tgtrg/index.md` lists `'1sp'` in its scheme table and gains **When to
+  reach for `'1sp'`**; `lessons.md` gains **Why `'1sp'` Re-Gauges After Expanding**, with
+  the conditioning ratio, the table across β, and why the cure is a re-orthogonalization.
+  New `docs/examples/tgtrg/scheme-comparison.md` cools the three schemes side by side and
+  scans `expand_k`. `what-is-alice.md` counts three TgTRG schemes.
+- New `examples/examples_tgtrg/tgtrg_scheme_comparison.py`, with a `--expand-k-scan` mode;
+  `tgtrg_spinless.py` and `tgtrg_spinful.py` accept `--scheme 1sp` and expose `--expand-k`
+  and `--expand-alpha`.
+
+### Statistics
+
+- **2,120 tests** across 54 test modules (up from 2,057 / 53 in v0.5.0).
+- **18 commits** since v0.5.0.
+- **15 files changed**, 3,085 insertions, 59 deletions.
+- **52 source modules** in seven subpackages: `alice.network`, `alice.physics`,
+  `alice.algorithm.dmrg`, `alice.algorithm.vumps`, `alice.algorithm.tdvp`,
+  `alice.algorithm.tgtrg`, `alice.algorithm.xtrg`.
+
+### Compatibility
+
+- **Breaking Changes:** none.
+- **Behavioral Changes:** `tgtrg.run` no longer raises `NotImplementedError` for
+  `scheme='1sp'`; it runs the scheme. `tgtrg.Options` gains `expand_k` and `expand_alpha`
+  after `trunc_thresh`, so positional construction past that field shifts. `forward_sweep`
+  and `backward_sweep` dispatch a third scheme, their `NotImplementedError` now reachable
+  only through a name `Options` would have refused. Nothing changes for `'1s'` or `'2s'`.
+- **Requirements:** Python ≥ 3.11, PyTorch ≥ 2.5, Nicole ≥ 0.4.2.
+
+---
+
 ## [0.5.0] - 2026-11-22
 
 **TgTRG: Cooling Along the Tangent Space**
@@ -1875,6 +2000,7 @@ Initial stable release of Alice.
 - 64 files, ~16,000 lines of code.
 - 16 source modules in three subpackages: `alice.network`, `alice.physics`, `alice.algorithm.dmrg`.
 
+[0.5.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.5.1
 [0.5.0]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.5.0
 [0.4.2]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.2
 [0.4.1]: https://github.com/Ideogenesis-AI/Alice/releases/tag/v0.4.1

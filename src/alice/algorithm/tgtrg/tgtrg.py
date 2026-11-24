@@ -68,6 +68,23 @@ options. `n_steps` is the absolute stop index in both modes, so the step
 counter and the β/log Z history run continuously across the phases, and
 `Summary.taus` records the increment each entry was reached with.
 
+Choosing a scheme
+-----------------
+`'2s'` is the default and the right choice for most cooling runs: `ρ(τ₀)`
+starts at the Hamiltonian's own bond dimension, far below what a cold
+density matrix needs, and the 2-site split is the straightforward way to get
+there. `'1s'` holds every bond where it found it, so the rank it runs at is
+the rank of the state it is handed.
+
+Reach for `'1sp'` when `'2s'` is too expensive at the rank `ρ(β)` wants. It
+expands each bond ahead of the update with up to `expand_k` directions drawn
+from the complement of the space that bond currently spans, then cools over
+the expanded space, so the rank adapts as it does under `'2s'` while the
+local propagator stays 1-site sized. Cost and name are all it shares with
+`'1s'`: it adapts the rank, truncates, and reports a discarded weight, and
+it inherits none of the fixed-rank exactness that sets `'1s'` apart. Group
+it with `'2s'` when reasoning about what it guarantees.
+
 How large a step is too large
 -----------------------------
 Stacking is not a matter of taste. The projector-splitting integrator is
@@ -137,7 +154,7 @@ _SCHEME_ALIASES: dict[str, str] = {
     'one-site-plus': '1sp',
 }
 
-_IMPLEMENTED_SCHEMES = {'1s', '2s'}
+_IMPLEMENTED_SCHEMES = {'1s', '2s', '1sp'}
 
 # Soft limit on a single step. The criterion the measurements support is on
 # the exponent of one local propagation, `(tau / 2) ΔE < log(1 / eps) ≈ 36`
@@ -238,6 +255,13 @@ class Options(AlgorithmOptions):
           cools. The default, and what a cooling run almost always wants:
           `ρ(τ₀)` starts at the Hamiltonian's own bond dimension, far below
           what a cold density matrix needs.
+        - `'1sp'` / `'1-site-plus'` / `'one-site-plus'`: update on a bond
+          expanded beforehand by controlled bond expansion, by up to
+          `expand_k` directions per bond per half-sweep. An adaptive-rank
+          scheme of the `'2s'` kind, truncation and discarded weight
+          included, at close to 1-site cost. It is not a `'1s'` run with an
+          extra step: the rank moves, weight is discarded, and the fixed
+          tangent space `'1s'` splits exactly is rebuilt at every bond.
     grid:
         β-grid mode, `'exp'` / `'exponential'` or `'lin'` / `'linear'`. One
         per run, never both; stacking the two is a continuation (see the
@@ -267,16 +291,29 @@ class Options(AlgorithmOptions):
     max_bond:
         Maximum bond dimension of `ρ`. `None` means unlimited. The cap is
         applied to the handed-in state before the first step as well as at
-        every 2-site split, so it holds over the whole run. For `'1s'`,
-        whose tangent space has fixed rank by construction, that initial
-        compaction is the *only* way the cap takes effect, and it sets the
-        rank the run then keeps.
+        every split that can grow a bond, so it holds over the whole run.
+        For `'1s'`, whose tangent space has fixed rank by construction, that
+        initial compaction is the *only* way the cap takes effect, and it
+        sets the rank the run then keeps; `'2s'` and `'1sp'` are held to it
+        at every step.
     trunc_thresh:
         Singular-value truncation threshold: a value is discarded when it
         falls below `trunc_thresh × ‖Θ‖`, and the cooling sweeps hold `‖Θ‖`
         at `1`. Being relative, the same setting carries over between chain
         lengths and temperatures. `0.0` disables threshold truncation,
-        leaving `max_bond` in charge.
+        leaving `max_bond` in charge. Meaningful for `'2s'` and `'1sp'`, the
+        two schemes whose bonds can grow.
+    expand_k:
+        Maximum number of complement directions added to each bond per local
+        update. Only used when `scheme = '1sp'`. Larger values let the bond
+        profile adapt faster at higher cost. A typical choice is
+        `round(sqrt(max_bond))`. `0` reduces the scheme to `'1s'`.
+    expand_alpha:
+        Internal bond dimension of the cheap factorization of Θ inside the
+        expansion, which keeps the complement search cheaper than a 2-site
+        step. Only used when `scheme = '1sp'`. `None` keeps the full bond,
+        making the search exact but no cheaper than `'2s'` per bond. A
+        typical choice is `expand_alpha ≈ expand_k ≈ round(sqrt(max_bond))`.
     krylov_dim:
         Maximum Krylov subspace dimension per local propagator.
     krylov_tol:
@@ -335,6 +372,8 @@ class Options(AlgorithmOptions):
     order: int = 2
     max_bond: Optional[int] = None
     trunc_thresh: float = 1e-12
+    expand_k: int = 4
+    expand_alpha: Optional[int] = None
     krylov_dim: int = 16
     krylov_tol: float = 1e-12
     obs_exact: bool = False
@@ -413,9 +452,9 @@ class Summary(AlgorithmSummary):
         enabled, and empty otherwise. Free of the grid's discretization
         error, so comparing it against `energies` measures that error.
     discarded_weights:
-        Per-step discarded weight at the mid-chain bond (`'2s'`; `0.0`
-        entries for `'1s'`, which never truncates). One entry per step, so
-        one fewer than `betas`.
+        Per-step discarded weight at the mid-chain bond (`'2s'` and `'1sp'`;
+        `0.0` entries for `'1s'`, which never truncates). One entry per step,
+        so one fewer than `betas`.
     krylov_errors:
         Per-step largest Krylov error estimate over all local propagators.
         One entry per step.
@@ -1153,6 +1192,10 @@ def run(
     logger.info("  beta_max          : %.6g", grid[-1][0] if grid else state.beta)
     logger.info("  max bond dim      : %s", max_bond_str)
     logger.info("  trunc thresh      : %.2e  (relative)", opts.trunc_thresh)
+    if opts.scheme == '1sp':
+        alpha_str = str(opts.expand_alpha) if opts.expand_alpha is not None else 'full'
+        logger.info("  expand k          : %d", opts.expand_k)
+        logger.info("  expand alpha      : %s", alpha_str)
     logger.info("  krylov dim / tol  : %d / %.2e", opts.krylov_dim, opts.krylov_tol)
     logger.info("  taylor order      : %d", opts.taylor_order)
     logger.info("  exact observables : %s", opts.obs_exact)
@@ -1169,10 +1212,11 @@ def run(
     _warn_on_large_steps(grid)
 
     # Bring the handed-in state under the bond limit before anything is
-    # measured on it. The 2-site splits would get there on their own, but the
-    # 1-site scheme cannot change a bond dimension at all, so for `'1s'` this
-    # is where `max_bond` takes effect — and either way the first recorded
-    # `max_bonds` entry should describe a state that respects the options.
+    # measured on it. The splits of `'2s'` and `'1sp'` would get there on
+    # their own, but the 1-site scheme cannot change a bond dimension at all,
+    # so for `'1s'` this is where `max_bond` takes effect — and either way the
+    # first recorded `max_bonds` entry should describe a state that respects
+    # the options.
     if opts.max_bond is not None and max(rho.bond_dims) > opts.max_bond:
         logger.info("  compacting initial ρ from D = %d to D = %d",
                     max(rho.bond_dims), opts.max_bond)
